@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, JetBrains_Mono, Fraunces } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import CustomCursor from "@/components/CustomCursor";
 import "./globals.css";
 
@@ -83,6 +85,8 @@ export default function RootLayout({
         <div className="scroll-meter" aria-hidden />
         <CustomCursor />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
