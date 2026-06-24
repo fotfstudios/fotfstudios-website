@@ -17,14 +17,17 @@ const jsonLd = {
   name: SITE.name,
   description:
     "Sala de ensayo de DJ por hora en Viña del Mar. Aislada acústicamente, equipo Pioneer y monitores de estudio. Plug & play, acceso autogestionado.",
+  image: "https://fotfstudios.cl/photos/hero-booth.JPG",
+  telephone: `+${SITE.whatsapp}`,
   address: {
     "@type": "PostalAddress",
     streetAddress: "Los Chercanes 78a",
     addressLocality: SITE.city,
     addressRegion: SITE.region,
+    postalCode: "2520000",
     addressCountry: "CL",
   },
-  areaServed: ["Viña del Mar", "Valparaíso", "Santiago"],
+  areaServed: "Viña del Mar",
   priceRange: PRICING.priceRange,
   sameAs: [SITE.instagramUrl],
   url: "https://fotfstudios.cl",
