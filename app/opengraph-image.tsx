@@ -6,28 +6,30 @@ export const alt = "FOTF Studios — Sala de ensayo de DJ por hora en Viña del 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+const INK = "#0a0a0a";
+const BONE = "#f5f2ec";
+const BONE_DIM = "#b9b5ab";
+const GOLD = "#e8c94a";
+
 export default async function Image() {
   const root = process.cwd();
-  const photo = fs
-    .readFileSync(path.join(root, "public/photos/hero-booth.JPG"))
-    .toString("base64");
-  const logo = fs
-    .readFileSync(path.join(root, "public/logo/fotf-lockup-gold.svg"))
-    .toString("base64");
-  const photoSrc = `data:image/jpeg;base64,${photo}`;
-  const logoSrc = `data:image/svg+xml;base64,${logo}`;
+  const read = (p: string) => fs.readFileSync(path.join(root, p));
+
+  const photoSrc = `data:image/jpeg;base64,${read("public/photos/hero-booth.JPG").toString("base64")}`;
+  const display = read("app/_fonts/BigShoulders-900.ttf");
+  const mono = read("app/_fonts/JetBrainsMono-500.ttf");
+
+  const Bars = ({ unit }: { unit: number }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: unit * 0.18, width: unit * 4.6 }}>
+      {[100, 50, 75, 37.5].map((w, i) => (
+        <div key={i} style={{ height: unit, width: `${w}%`, backgroundColor: GOLD, borderRadius: 2 }} />
+      ))}
+    </div>
+  );
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          backgroundColor: "#0a0a0a",
-        }}
-      >
+      <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", backgroundColor: INK }}>
         {/* Foto de cabina */}
         <img
           src={photoSrc}
@@ -36,46 +38,93 @@ export default async function Image() {
           height={630}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
         />
-        {/* Scrim de protección (izquierda + abajo) */}
+        {/* Scrim de protección */}
         <div
           style={{
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(90deg, rgba(10,10,10,0.94) 0%, rgba(10,10,10,0.6) 42%, rgba(10,10,10,0.15) 100%)",
+              "linear-gradient(105deg, rgba(10,10,10,0.95) 0%, rgba(10,10,10,0.72) 38%, rgba(10,10,10,0.30) 72%, rgba(10,10,10,0.55) 100%)",
           }}
         />
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(0deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0) 55%)",
+            background: "linear-gradient(0deg, rgba(10,10,10,0.92) 0%, rgba(10,10,10,0) 48%)",
           }}
         />
-        {/* Overlay de marca */}
+
+        {/* Contenido */}
         <div
           style={{
             position: "relative",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            width: "100%",
             height: "100%",
-            padding: "64px 72px",
+            padding: 72,
           }}
         >
-          <img
-            src={logoSrc}
-            alt=""
-            width={340}
-            height={340}
-            style={{ width: 340, height: 340, marginLeft: -8, marginBottom: -36 }}
-          />
-          <div style={{ fontSize: 36, color: "#f5f2ec", letterSpacing: "0.01em" }}>
-            Sala de ensayo de DJ por hora · Viña del Mar
+          {/* Eyebrow: marca + nombre */}
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Bars unit={11} />
+            <div
+              style={{
+                marginLeft: 20,
+                fontFamily: "Mono",
+                fontSize: 24,
+                letterSpacing: 5,
+                color: GOLD,
+              }}
+            >
+              FOTF STUDIOS
+            </div>
+          </div>
+
+          {/* Bloque inferior: titular + pie */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                fontFamily: "Display",
+                fontSize: 132,
+                lineHeight: 0.88,
+                letterSpacing: -1,
+                textTransform: "uppercase",
+              }}
+            >
+              <div style={{ color: BONE }}>Sala lista,</div>
+              <div style={{ color: GOLD }}>tú también.</div>
+            </div>
+
+            {/* Hairline + pie */}
+            <div style={{ display: "flex", height: 1, backgroundColor: "rgba(245,242,236,0.18)", marginTop: 38 }} />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 22,
+                fontFamily: "Mono",
+                fontSize: 23,
+                letterSpacing: 3,
+              }}
+            >
+              <div style={{ color: BONE_DIM }}>SALA DE ENSAYO DE DJ · POR HORA · VIÑA DEL MAR</div>
+              <div style={{ color: BONE }}>FOTFSTUDIOS.CL</div>
+            </div>
           </div>
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        { name: "Display", data: display, weight: 900, style: "normal" },
+        { name: "Mono", data: mono, weight: 500, style: "normal" },
+      ],
+    }
   );
 }
