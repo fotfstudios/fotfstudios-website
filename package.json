@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > src/infrastructure/db/database.types.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -24,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.9",
+    "supabase": "^2.108.0",
     "tailwindcss": "^4.1.13",
     "typescript": "^5",
     "vitest": "^3.2.6"

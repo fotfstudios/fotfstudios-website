@@ -14,10 +14,22 @@ CSS v4**, deployed on **Vercel**, production domain **https://fotfstudios.cl**.
 npm run dev      # local dev (http://localhost:3000)
 npm run build    # production build (also type-checks)
 npm run lint     # eslint .  (flat config, eslint.config.mjs)
+npm test         # vitest run (unit tests; also runs in CI lint & build job)
+
+# Plataforma de reservas — base de datos local (Supabase CLI, requiere Docker)
+npm run db:start # supabase start  (stack local; aplica migraciones de supabase/migrations)
+npm run db:reset # re-aplica migraciones + seed desde cero
+npm run db:types # regenera src/infrastructure/db/database.types.ts desde la DB local
+npm run db:stop  # detiene el stack
 ```
 
 Always restart `npm run dev` after a `npm run build` — the build rewrites `.next` and can leave
 a running dev server in a broken state.
+
+**Supabase local:** este repo usa puertos **544xx** (API 54421, DB 54422, Studio 54423,
+Mailpit 54424) para no chocar con otro proyecto Supabase local. Las migraciones en
+`supabase/migrations/` son la **fuente de verdad** del esquema; el proyecto remoto se crea recién
+al desplegar. Flujo: editar/crear migración → `db:reset` → `db:types` → tests.
 
 ## Where things live
 
