@@ -142,12 +142,16 @@ export default function PriceCalculator() {
             />
           </Field>
 
-          {/* 1:1 guiado */}
-          <Field label="1:1 guiado (add-on)">
+          {/* Sesión 1:1 guiada */}
+          <Field label="Sesión 1:1 guiada · opcional">
+            <p className="mb-3 max-w-sm text-sm leading-relaxed text-bone-mute">
+              ¿Quieres acompañamiento? Suma un DJ que te guía durante tu reserva. Se
+              cobra por hora, a la misma tarifa de la sala (con el mismo descuento).
+            </p>
             <Toggle
               on={coach}
               onClick={() => setCoach((v) => !v)}
-              label={coach ? "Incluido" : "Agregar"}
+              label={coach ? "1:1 agregada — quitar" : "Agregar 1:1 guiada"}
             />
             {coach && (
               <div className="mt-3">
@@ -157,7 +161,7 @@ export default function PriceCalculator() {
                   onInc={() => stepCoach(1)}
                   decDisabled={coachHours <= BOOKING.stepHours}
                   incDisabled={coachHours >= hours}
-                  hint="Misma tarifa por hora de la sala · con el descuento aplicado"
+                  hint="Horas con guía · hasta la duración de tu reserva"
                 />
               </div>
             )}

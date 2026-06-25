@@ -73,8 +73,8 @@ export default function Precio() {
               <div className="border-b hairline px-6 py-4 label text-bone-mute">Add-ons</div>
               <ul>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
-                  <span className="text-lg text-bone">1:1 guiado</span>
-                  <span className="label-sm text-right text-gold">misma tarifa / h</span>
+                  <span className="text-lg text-bone">Sesión 1:1 guiada</span>
+                  <span className="label-sm text-right text-gold">DJ que te guía · misma tarifa/h</span>
                 </li>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
                   <span className="text-lg text-bone">{ADDONS.audio.name}</span>
