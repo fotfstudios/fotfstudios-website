@@ -173,7 +173,7 @@ export default function PriceCalculator() {
               {([
                 ["none", "Ninguna", ""],
                 ["audio", "Audio", formatCLP(ADDONS.audio.price)],
-                ["audioVideo", "A+V", formatCLP(ADDONS.audioVideo.price)],
+                ["audioVideo", "Audio + Video", formatCLP(ADDONS.audioVideo.price)],
               ] as [Rec, string, string][]).map(([key, lbl, price]) => (
                 <button
                   key={key}

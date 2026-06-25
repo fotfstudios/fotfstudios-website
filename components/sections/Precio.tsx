@@ -81,7 +81,7 @@ export default function Precio() {
                   <span className="font-display text-2xl text-gold">{formatCLP(ADDONS.audio.price)}</span>
                 </li>
                 <li className="flex items-baseline justify-between gap-3 px-6 py-5">
-                  <span className="text-lg text-bone">Audio + video</span>
+                  <span className="text-lg text-bone">Audio + Video</span>
                   <span className="font-display text-2xl text-gold">{formatCLP(ADDONS.audioVideo.price)}</span>
                 </li>
               </ul>
