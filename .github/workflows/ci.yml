@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    name: lint & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # npm install (not ci): the lockfile omits some platform-specific optional
+      # deps pulled in by next/og, which makes `npm ci` fail cross-platform.
+      - run: npm install --no-audit --no-fund
+      - run: npx eslint .
+      - run: npm run build
