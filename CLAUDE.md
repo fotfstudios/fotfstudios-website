@@ -57,47 +57,25 @@ a running dev server in a broken state.
 Before pushing, verify locally: **`npx eslint .` and `npm run build` must both pass (exit 0).**
 CI (`.github/workflows/ci.yml`) re-runs these on every PR.
 
-### Commit identity — REQUIRED
+### Commit identity
 
-The repo is private and the Vercel project is on the **Hobby** plan, which only deploys commits
-authored by the owner account. **All commits must be authored as the `fotfstudios` account** or
-the deploy is blocked ("commit author could not be matched / no contributing access").
-
-This repo's git config is already set to:
+The repo is **public**, so Vercel deploys commits from any author — no author restriction.
+Just keep a consistent identity and use Conventional Commits. This repo's git config:
 
 ```bash
 git config user.name  "FOTF Studios"
 git config user.email "292203776+fotfstudios@users.noreply.github.com"
 ```
 
-If commits ever get authored with another email, re-author and force-push:
-`git rebase --root --exec 'git commit --amend --no-edit --reset-author'` then
-`git push --force-with-lease`.
-
-**Squash-merge caveat:** a GitHub squash-merge credits the *merging* account (e.g. benbiznize),
-not `fotfstudios`, so the resulting `main` commit gets blocked ("Git author … must have access
-to the project on Vercel"). Until a permanent fix is chosen, after each merge:
-
-```bash
-git switch main && git pull --ff-only
-git commit --amend --no-edit --reset-author   # uses the fotfstudios identity above
-git push --force-with-lease origin main        # re-triggers a deployable prod build
-```
-
-Permanent fixes (pick one): make the repo **public** (Hobby deploys any author), upgrade
-Vercel to **Pro** (private + collaborators deploy), or do all merges from the **`fotfstudios`**
-account.
-
 ### Secrets
 
 Never commit secrets. Use Vercel **Environment Variables** (scoped per environment).
 `.env*.local` is gitignored. If a secret is ever committed, rotate it — history is permanent.
 
-## Branch protection (admin: the `fotfstudios` account)
+## Branch protection — active
 
-Enforced in GitHub repo settings (collaborators can't set this):
-
-- Settings → General → Pull Requests: enable **only** "Allow squash merging"; enable
-  "Automatically delete head branches".
-- Branch ruleset on `main`: require a pull request, require the **CI** status check, require
-  linear history.
+`main` is protected by a ruleset (kept as code in `.github/rulesets/main.json`): **pull request
+required**, **squash-merge only**, the **lint & build** status check must pass, **linear
+history**, and no force-pushes or branch deletion. Direct pushes to `main` are rejected — every
+change goes through a PR. Repo merge settings: only "Allow squash merging" enabled, and
+"Automatically delete head branches" on.
