@@ -134,6 +134,108 @@ export type Database = {
           },
         ]
       }
+      order_lines: {
+        Row: {
+          addon_key: string | null
+          description: string
+          id: string
+          line_type: string
+          order_id: string
+          quantity: number
+          reservation_id: string | null
+          subtotal_clp: number
+          unit_price_clp: number
+        }
+        Insert: {
+          addon_key?: string | null
+          description: string
+          id?: string
+          line_type: string
+          order_id: string
+          quantity?: number
+          reservation_id?: string | null
+          subtotal_clp: number
+          unit_price_clp: number
+        }
+        Update: {
+          addon_key?: string | null
+          description?: string
+          id?: string
+          line_type?: string
+          order_id?: string
+          quantity?: number
+          reservation_id?: string | null
+          subtotal_clp?: number
+          unit_price_clp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          amount_clp: number
+          created_at: string
+          currency: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          net_clp: number
+          paid_at: string | null
+          pricing_snapshot: Json | null
+          status: Database["public"]["Enums"]["order_status"]
+          tax_clp: number
+        }
+        Insert: {
+          amount_clp: number
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_clp: number
+          paid_at?: string | null
+          pricing_snapshot?: Json | null
+          status?: Database["public"]["Enums"]["order_status"]
+          tax_clp: number
+        }
+        Update: {
+          amount_clp?: number
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_clp?: number
+          paid_at?: string | null
+          pricing_snapshot?: Json | null
+          status?: Database["public"]["Enums"]["order_status"]
+          tax_clp?: number
+        }
+        Relationships: []
+      }
       price_books: {
         Row: {
           created_at: string
@@ -258,6 +360,7 @@ export type Database = {
           id: string
           kind: string
           notes: string | null
+          order_id: string | null
           resource_id: string
           starts_at: string
           status: Database["public"]["Enums"]["reservation_status"]
@@ -272,6 +375,7 @@ export type Database = {
           id?: string
           kind?: string
           notes?: string | null
+          order_id?: string | null
           resource_id: string
           starts_at: string
           status?: Database["public"]["Enums"]["reservation_status"]
@@ -286,11 +390,19 @@ export type Database = {
           id?: string
           kind?: string
           notes?: string | null
+          order_id?: string | null
           resource_id?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["reservation_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "reservations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reservations_resource_id_fkey"
             columns: ["resource_id"]
@@ -428,6 +540,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_checkout: {
+        Args: {
+          p_amount: number
+          p_currency: string
+          p_customer: Json
+          p_ends: string
+          p_lines: Json
+          p_net: number
+          p_resource: string
+          p_snapshot: Json
+          p_starts: string
+          p_tax: number
+          p_ttl?: string
+        }
+        Returns: string
+      }
       create_hold: {
         Args: {
           p_ends: string
@@ -440,6 +568,13 @@ export type Database = {
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
     }
     Enums: {
+      order_status:
+        | "cart"
+        | "pending_payment"
+        | "paid"
+        | "fulfilled"
+        | "cancelled"
+        | "refunded"
       price_book_status: "draft" | "active" | "archived"
       reservation_status: "held" | "confirmed" | "cancelled" | "expired"
       tax_mode: "inclusive" | "exclusive"
@@ -573,6 +708,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      order_status: [
+        "cart",
+        "pending_payment",
+        "paid",
+        "fulfilled",
+        "cancelled",
+        "refunded",
+      ],
       price_book_status: ["draft", "active", "archived"],
       reservation_status: ["held", "confirmed", "cancelled", "expired"],
       tax_mode: ["inclusive", "exclusive"],
