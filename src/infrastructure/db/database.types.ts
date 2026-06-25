@@ -247,6 +247,59 @@ export type Database = {
           },
         ]
       }
+      reservations: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          ends_at: string
+          expires_at: string | null
+          id: string
+          kind: string
+          notes: string | null
+          resource_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["reservation_status"]
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          ends_at: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          resource_id: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["reservation_status"]
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          ends_at?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          resource_id?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["reservation_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservations_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resources: {
         Row: {
           active: boolean
@@ -375,10 +428,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_hold: {
+        Args: {
+          p_ends: string
+          p_resource: string
+          p_starts: string
+          p_ttl?: string
+        }
+        Returns: string
+      }
+      expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
     }
     Enums: {
       price_book_status: "draft" | "active" | "archived"
+      reservation_status: "held" | "confirmed" | "cancelled" | "expired"
       tax_mode: "inclusive" | "exclusive"
     }
     CompositeTypes: {
@@ -511,6 +574,7 @@ export const Constants = {
   public: {
     Enums: {
       price_book_status: ["draft", "active", "archived"],
+      reservation_status: ["held", "confirmed", "cancelled", "expired"],
       tax_mode: ["inclusive", "exclusive"],
     },
   },
