@@ -74,6 +74,20 @@ If commits ever get authored with another email, re-author and force-push:
 `git rebase --root --exec 'git commit --amend --no-edit --reset-author'` then
 `git push --force-with-lease`.
 
+**Squash-merge caveat:** a GitHub squash-merge credits the *merging* account (e.g. benbiznize),
+not `fotfstudios`, so the resulting `main` commit gets blocked ("Git author … must have access
+to the project on Vercel"). Until a permanent fix is chosen, after each merge:
+
+```bash
+git switch main && git pull --ff-only
+git commit --amend --no-edit --reset-author   # uses the fotfstudios identity above
+git push --force-with-lease origin main        # re-triggers a deployable prod build
+```
+
+Permanent fixes (pick one): make the repo **public** (Hobby deploys any author), upgrade
+Vercel to **Pro** (private + collaborators deploy), or do all merges from the **`fotfstudios`**
+account.
+
 ### Secrets
 
 Never commit secrets. Use Vercel **Environment Variables** (scoped per environment).
