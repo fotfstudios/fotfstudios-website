@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Tests de integración (*.itest.ts) contra la base Supabase LOCAL.
-// Requieren `npm run db:start`. No corren en el CI por defecto.
+// Tests de integración (*.itest.ts) contra la base Supabase LOCAL + sandbox MP.
+// Requieren `npm run db:start` y credenciales en .env.local. No corren en el CI.
 export default defineConfig({
   resolve: {
     alias: [{ find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) }],
@@ -10,7 +10,8 @@ export default defineConfig({
   test: {
     include: ["src/**/*.itest.ts"],
     environment: "node",
-    testTimeout: 15000,
+    testTimeout: 20000,
     fileParallelism: false,
+    setupFiles: ["tests/setup.integration.ts"],
   },
 });

@@ -236,6 +236,53 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_intents: {
+        Row: {
+          amount_clp: number
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string | null
+          order_id: string
+          payment_id: string | null
+          preference_id: string | null
+          provider: string
+          status: string
+        }
+        Insert: {
+          amount_clp: number
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string | null
+          order_id: string
+          payment_id?: string | null
+          preference_id?: string | null
+          provider?: string
+          status?: string
+        }
+        Update: {
+          amount_clp?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string | null
+          order_id?: string
+          payment_id?: string | null
+          preference_id?: string | null
+          provider?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_books: {
         Row: {
           created_at: string
