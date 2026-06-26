@@ -31,6 +31,10 @@ export function availabilityService(client: SupabaseClient<Database> = db()): Av
   return new AvailabilityService(new SupabaseSchedulingRepository(client));
 }
 
+export function pricingService(client: SupabaseClient<Database> = db()): PricingService {
+  return new PricingService(new SupabaseRatePlanRepository(client));
+}
+
 export function checkoutService(client: SupabaseClient<Database> = db()): CheckoutService {
   return new CheckoutService(
     new PricingService(new SupabaseRatePlanRepository(client)),
