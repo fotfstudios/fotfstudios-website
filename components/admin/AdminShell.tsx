@@ -14,6 +14,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <Link href="/admin/reservas" className="transition-colors hover:text-gold">
               Reservas
             </Link>
+            <Link href="/admin/reservas/nueva" className="transition-colors hover:text-gold">
+              Nueva
+            </Link>
+            <Link href="/admin/bloqueos" className="transition-colors hover:text-gold">
+              Bloqueos
+            </Link>
           </nav>
         </div>
         <SignOutButton />
