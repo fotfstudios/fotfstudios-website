@@ -22,4 +22,14 @@ describe("email templates", () => {
     expect(m.html).toMatch(/boleta/i);
     expect(m.html).toContain("ana@e.cl");
   });
+
+  it("escapa datos del cliente (anti-XSS)", () => {
+    const m = ownerNotification({
+      ...view,
+      name: "<script>alert(1)</script>",
+      email: "a@e.cl",
+    });
+    expect(m.html).not.toContain("<script>");
+    expect(m.html).toContain("&lt;script&gt;");
+  });
 });

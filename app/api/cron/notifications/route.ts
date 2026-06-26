@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
  * Authorization: Bearer). Corre 1 vez al día → compatible con Vercel Hobby.
  */
 export async function GET(req: Request): Promise<Response> {
+  // Fail-closed: sin CRON_SECRET configurado, el endpoint queda cerrado.
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("unauthorized", { status: 401 });
   }
   try {
