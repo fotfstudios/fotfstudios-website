@@ -538,6 +538,59 @@ export type Database = {
           },
         ]
       }
+      tax_documents: {
+        Row: {
+          created_at: string
+          emitted_at: string | null
+          folio: string | null
+          id: string
+          iva: number
+          kind: Database["public"]["Enums"]["tax_doc_kind"]
+          neto: number
+          order_id: string
+          pdf_url: string | null
+          receptor_rut: string | null
+          status: Database["public"]["Enums"]["tax_doc_status"]
+          total: number
+        }
+        Insert: {
+          created_at?: string
+          emitted_at?: string | null
+          folio?: string | null
+          id?: string
+          iva: number
+          kind: Database["public"]["Enums"]["tax_doc_kind"]
+          neto: number
+          order_id: string
+          pdf_url?: string | null
+          receptor_rut?: string | null
+          status?: Database["public"]["Enums"]["tax_doc_status"]
+          total: number
+        }
+        Update: {
+          created_at?: string
+          emitted_at?: string | null
+          folio?: string | null
+          id?: string
+          iva?: number
+          kind?: Database["public"]["Enums"]["tax_doc_kind"]
+          neto?: number
+          order_id?: string
+          pdf_url?: string | null
+          receptor_rut?: string | null
+          status?: Database["public"]["Enums"]["tax_doc_status"]
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_rates: {
         Row: {
           code: string
@@ -647,6 +700,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_nota_credito: { Args: { p_order: string }; Returns: string }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
     }
     Enums: {
@@ -659,6 +713,8 @@ export type Database = {
         | "refunded"
       price_book_status: "draft" | "active" | "archived"
       reservation_status: "held" | "confirmed" | "cancelled" | "expired"
+      tax_doc_kind: "boleta" | "nota_credito"
+      tax_doc_status: "pendiente" | "emitida"
       tax_mode: "inclusive" | "exclusive"
     }
     CompositeTypes: {
@@ -800,6 +856,8 @@ export const Constants = {
       ],
       price_book_status: ["draft", "active", "archived"],
       reservation_status: ["held", "confirmed", "cancelled", "expired"],
+      tax_doc_kind: ["boleta", "nota_credito"],
+      tax_doc_status: ["pendiente", "emitida"],
       tax_mode: ["inclusive", "exclusive"],
     },
   },
