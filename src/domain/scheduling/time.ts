@@ -30,3 +30,31 @@ export function rangeFor(
   const end = start.plus({ hours: durationHours });
   return { startsAt: start.toUTC().toISO()!, endsAt: end.toUTC().toISO()! };
 }
+
+/** Límites UTC [inicio, fin) del día local `date` en `tz`. */
+export function dayBoundsUtc(date: string, tz: string): { startUtc: string; endUtc: string } {
+  const start = DateTime.fromISO(date, { zone: tz }).startOf("day");
+  return { startUtc: start.toUTC().toISO()!, endUtc: start.plus({ days: 1 }).toUTC().toISO()! };
+}
+
+/**
+ * Convierte un rango UTC a minutos del día local `date` (recortado a [0,1440]).
+ * Sirve para mapear reservas (guardadas en UTC) a la grilla del día.
+ */
+export function toLocalMinutesInterval(
+  date: string,
+  tz: string,
+  startsAtISO: string,
+  endsAtISO: string,
+): { start: number; end: number } {
+  const dayStart = DateTime.fromISO(date, { zone: tz }).startOf("day");
+  const start = Math.max(
+    0,
+    Math.round(DateTime.fromISO(startsAtISO).setZone(tz).diff(dayStart, "minutes").minutes),
+  );
+  const end = Math.min(
+    1440,
+    Math.round(DateTime.fromISO(endsAtISO).setZone(tz).diff(dayStart, "minutes").minutes),
+  );
+  return { start, end };
+}
