@@ -197,6 +197,7 @@ export type Database = {
           mp_payment_id: string | null
           mp_preference_id: string | null
           net_clp: number
+          notified_at: string | null
           paid_at: string | null
           pricing_snapshot: Json | null
           status: Database["public"]["Enums"]["order_status"]
@@ -213,6 +214,7 @@ export type Database = {
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           net_clp: number
+          notified_at?: string | null
           paid_at?: string | null
           pricing_snapshot?: Json | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -229,6 +231,7 @@ export type Database = {
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           net_clp?: number
+          notified_at?: string | null
           paid_at?: string | null
           pricing_snapshot?: Json | null
           status?: Database["public"]["Enums"]["order_status"]

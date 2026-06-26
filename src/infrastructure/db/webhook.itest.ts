@@ -65,7 +65,7 @@ describe("webhook", () => {
       new StubGateway({ id: "pay1", status: "approved", externalReference: orderId, amount: 9990 }),
       repo,
     );
-    expect(await svc.handlePaymentNotification("pay1")).toBe("paid");
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("paid");
 
     const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
     expect(o.rows[0].status).toBe("paid");
@@ -73,7 +73,7 @@ describe("webhook", () => {
     expect(r.rows[0].status).toBe("confirmed");
 
     // misma notificación otra vez → no reprocesa
-    expect(await svc.handlePaymentNotification("pay1")).toBe("duplicate");
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
   });
 
   it("rejected → cancela y libera el horario", async () => {
@@ -86,7 +86,7 @@ describe("webhook", () => {
       new StubGateway({ id: "pay2", status: "rejected", externalReference: orderId }),
       repo,
     );
-    expect(await svc.handlePaymentNotification("pay2")).toBe("cancelled");
+    expect((await svc.handlePaymentNotification("pay2")).result).toBe("cancelled");
 
     const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
     expect(o.rows[0].status).toBe("cancelled");

@@ -1,3 +1,4 @@
+import { notificationService } from "@/src/composition";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import { createServiceClient } from "@/src/infrastructure/db/supabase-client";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
@@ -41,12 +42,14 @@ export async function POST(req: Request): Promise<Response> {
   // Solo notificaciones de pago.
   if (!type.includes("payment") || !dataId) return new Response("ok", { status: 200 });
 
-  const service = new WebhookService(
-    new MercadoPagoGateway(token),
-    new SupabaseWebhookRepository(createServiceClient(url, key)),
-  );
+  const client = createServiceClient(url, key);
+  const service = new WebhookService(new MercadoPagoGateway(token), new SupabaseWebhookRepository(client));
   try {
-    await service.handlePaymentNotification(dataId);
+    const { result, orderId } = await service.handlePaymentNotification(dataId);
+    if (result === "paid" && orderId) {
+      // Envío de emails (best-effort; el cron diario es el respaldo).
+      await notificationService(client).notifyOrder(orderId).catch((e) => console.error("[mp-webhook:email]", e));
+    }
   } catch (e) {
     console.error("[mp-webhook]", e);
   }
