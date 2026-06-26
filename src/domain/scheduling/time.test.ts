@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
-import { instantFor, rangeFor, weekdayFor } from "./time";
+import { dayBoundsUtc, instantFor, rangeFor, toLocalMinutesInterval, weekdayFor } from "./time";
 
 const SCL = "America/Santiago";
 
@@ -26,5 +26,18 @@ describe("rangeFor / instantFor (DST Chile)", () => {
 
   it("instantFor coincide con el inicio del rango", () => {
     expect(instantFor("2024-07-15", 1080, SCL)).toBe(rangeFor("2024-07-15", 1080, 1, SCL).startsAt);
+  });
+});
+
+describe("dayBoundsUtc / toLocalMinutesInterval", () => {
+  it("los límites del día abarcan 24h", () => {
+    const { startUtc, endUtc } = dayBoundsUtc("2024-07-15", SCL);
+    expect(DateTime.fromISO(endUtc).diff(DateTime.fromISO(startUtc), "hours").hours).toBe(24);
+  });
+
+  it("mapea un rango UTC a minutos locales del día", () => {
+    // reserva 18:00–19:00 local del 2024-07-15
+    const { startsAt, endsAt } = rangeFor("2024-07-15", 1080, 1, SCL);
+    expect(toLocalMinutesInterval("2024-07-15", SCL, startsAt, endsAt)).toEqual({ start: 1080, end: 1140 });
   });
 });

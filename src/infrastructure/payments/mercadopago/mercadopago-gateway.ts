@@ -16,6 +16,8 @@ export class MercadoPagoGateway implements PaymentGateway {
 
   async createPreference(input: PreferenceInput): Promise<PreferenceResult> {
     const pref = new Preference(this.client);
+    // MP rechaza auto_return con URLs no-https (p.ej. localhost en dev).
+    const httpsBackUrls = input.backUrls.success.startsWith("https://");
     const res = await pref.create({
       body: {
         items: [
@@ -30,7 +32,7 @@ export class MercadoPagoGateway implements PaymentGateway {
         external_reference: input.orderId,
         payer: input.payerEmail ? { email: input.payerEmail } : undefined,
         back_urls: input.backUrls,
-        auto_return: "approved",
+        auto_return: httpsBackUrls ? "approved" : undefined,
         notification_url: input.notificationUrl,
         // Corte 1: solo medios instantáneos (excluir cupón/efectivo y cajero),
         // para que el pago no quede "pending" más allá del hold de 10 min.
