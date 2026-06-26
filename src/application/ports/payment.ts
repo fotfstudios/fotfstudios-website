@@ -25,4 +25,6 @@ export interface PaymentInfo {
 export interface PaymentGateway {
   createPreference(input: PreferenceInput): Promise<PreferenceResult>;
   getPayment(paymentId: string): Promise<PaymentInfo>;
+  /** Busca el pago de una orden por `external_reference` (reconciliación). */
+  findPaymentByOrder(orderId: string): Promise<PaymentInfo | null>;
 }

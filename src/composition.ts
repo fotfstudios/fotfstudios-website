@@ -10,7 +10,9 @@ import { AvailabilityService } from "@/src/application/availability/availability
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PaymentService } from "@/src/application/payment/payment-service";
+import { WebhookService } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
+import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import type { Mailer } from "@/src/application/ports/mailer";
 import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-repository";
 import type { Database } from "@/src/infrastructure/db/database.types";
@@ -54,6 +56,23 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
     new SupabaseOrderRepository(client),
     { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://fotfstudios.cl" },
   );
+}
+
+/**
+ * Reconciliación bajo demanda: consulta a MP el pago de la orden y, si está
+ * aprobado, lo confirma (idempotente). Respaldo cuando el webhook no llega
+ * (MP no entrega notificaciones de pagos de prueba de forma confiable, y en
+ * prod puede perderse alguna). La verdad es siempre la API de MP.
+ */
+export async function reconcileOrder(
+  orderId: string,
+  client: SupabaseClient<Database> = db(),
+): Promise<void> {
+  const gateway = new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN"));
+  const payment = await gateway.findPaymentByOrder(orderId);
+  if (!payment) return;
+  const service = new WebhookService(gateway, new SupabaseWebhookRepository(client));
+  await service.handlePaymentNotification(payment.id);
 }
 
 export function mailer(): Mailer {
