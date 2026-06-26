@@ -3,6 +3,13 @@ import { notFound } from "next/navigation";
 import { cancelBookingAction, markAccessAction, recordBoletaAction } from "@/app/admin/actions";
 import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
+import { ActionForm } from "@/components/admin/ui/ActionForm";
+import { Card } from "@/components/admin/ui/Card";
+import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
+import { Input } from "@/components/admin/ui/Field";
+import { Icon } from "@/components/admin/ui/icons";
+import { StatusPill } from "@/components/admin/ui/StatusPill";
+import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { adminRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
 
@@ -14,112 +21,137 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const b = await adminRepository().getBooking(id);
   if (!b) notFound();
 
+  const isBlock = b.kind === "block";
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
   return (
     <AdminShell>
-      <Link href="/admin/reservas" className="label-sm text-bone-mute transition-colors hover:text-gold">
-        ← Reservas
+      <Link href="/admin/reservas" className="inline-flex items-center gap-1.5 label-sm text-bone-mute transition-colors hover:text-gold">
+        <span className="rotate-180">
+          <Icon name="chevron" size={14} />
+        </span>
+        Reservas
       </Link>
 
-      <h2 className="font-display mt-4 text-bone" style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)" }}>
-        {fmtDateTime(b.startsAt)}
-      </h2>
-      <p className="label-sm mt-1 text-gold">{b.status}{b.kind === "block" ? " · bloqueo" : ""}</p>
-
-      <div className="mt-8 grid gap-6 sm:grid-cols-2">
-        <section className="border hairline p-5">
-          <h3 className="label text-bone-mute">Cliente</h3>
-          <p className="mt-2 text-bone">{b.customerName ?? "—"}</p>
-          <p className="text-bone-dim">{b.customerEmail ?? "—"}</p>
-          {b.customerPhone && (
-            <a
-              href={`https://wa.me/${waDigits}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex bg-gold px-4 py-2 label-sm text-ink"
-            >
-              WhatsApp →
-            </a>
-          )}
-        </section>
-
-        <section className="border hairline p-5">
-          <h3 className="label text-bone-mute">Pago</h3>
-          <p className="mt-2 font-display text-2xl text-bone">{b.amount ? formatCLP(b.amount) : "—"}</p>
-          <p className="label-sm text-bone-mute">Pedido: {b.orderStatus ?? "—"}</p>
-          <p className="label-sm mt-2 text-bone-mute">
-            Boleta: {b.boleta ? `${b.boleta.status}${b.boleta.folio ? ` · folio ${b.boleta.folio}` : ""}` : "—"}
+      <header className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b hairline pb-6">
+        <div>
+          <h1 className="font-display text-bone" style={{ fontSize: "clamp(1.8rem,5vw,2.8rem)" }}>
+            {fmtDateTime(b.startsAt)}
+          </h1>
+          <p className="mt-2 flex items-center gap-2">
+            <StatusPill status={b.status} />
+            {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-mute"><Icon name="block" size={13} /> Bloqueo</span>}
           </p>
-        </section>
-      </div>
+        </div>
+      </header>
 
-      {b.lines.length > 0 && (
-        <section className="mt-6 border hairline p-5">
-          <h3 className="label text-bone-mute">Detalle</h3>
-          <table className="mt-2 w-full text-sm">
-            <tbody>
-              {b.lines.map((l, i) => (
-                <tr key={i} className="border-b hairline last:border-0">
-                  <td className="py-2 text-bone-dim">{l.description}</td>
-                  <td className="py-2 text-right font-mono text-bone">{formatCLP(l.subtotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_20rem]">
+        {/* Columna principal */}
+        <div className="flex flex-col gap-6">
+          {b.lines.length > 0 && (
+            <Card title="Detalle del pedido">
+              <table className="w-full text-sm">
+                <tbody>
+                  {b.lines.map((l, i) => (
+                    <tr key={i} className="border-b hairline last:border-0">
+                      <td className="py-2.5 text-bone-dim">{l.description}</td>
+                      <td className="py-2.5 text-right font-mono text-bone">{formatCLP(l.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
 
-      {b.kind !== "block" && (
-        <section className="mt-8 grid gap-3 sm:grid-cols-2">
-          <form action={markAccessAction} className="border hairline p-5">
-            <h3 className="label text-bone-mute">Acceso</h3>
-            <input type="hidden" name="reservationId" value={b.id} />
-            <input
-              name="code"
-              defaultValue={b.accessCode ?? ""}
-              placeholder="Código / instrucciones"
-              className="mt-2 w-full border hairline bg-ink px-3 py-2 font-mono text-sm text-bone outline-none focus-visible:border-gold"
-            />
-            <button type="submit" className="mt-2 inline-flex bg-gold px-4 py-2 label-sm text-ink">
-              Guardar acceso
-            </button>
-            {b.accessSentAt && <p className="mt-2 label-sm text-bone-mute">Registrado.</p>}
-          </form>
+          {!isBlock && (
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Card title="Acceso">
+                <ActionForm action={markAccessAction} success="Acceso guardado.">
+                  <input type="hidden" name="reservationId" value={b.id} />
+                  <Input name="code" defaultValue={b.accessCode ?? ""} placeholder="Código o instrucciones" />
+                  <div className="mt-3 flex items-center gap-3">
+                    <SubmitButton size="sm">Guardar acceso</SubmitButton>
+                    {b.accessSentAt && <span className="label-sm text-bone-mute">Registrado</span>}
+                  </div>
+                </ActionForm>
+              </Card>
 
-          {b.boleta && b.boleta.status === "pendiente" ? (
-            <form action={recordBoletaAction} className="border hairline p-5">
-              <h3 className="label text-bone-mute">Registrar boleta</h3>
-              <input type="hidden" name="docId" value={b.boleta.id} />
-              <input type="hidden" name="reservationId" value={b.id} />
-              <input
-                name="folio"
-                placeholder="N° de folio (SII)"
-                className="mt-2 w-full border hairline bg-ink px-3 py-2 font-mono text-sm text-bone outline-none focus-visible:border-gold"
-              />
-              <button type="submit" className="mt-2 inline-flex bg-gold px-4 py-2 label-sm text-ink">
-                Marcar emitida
-              </button>
-            </form>
-          ) : (
-            <div className="border hairline p-5">
-              <h3 className="label text-bone-mute">Boleta</h3>
-              <p className="mt-2 text-bone-dim">
-                {b.boleta ? `${b.boleta.status}${b.boleta.folio ? ` · folio ${b.boleta.folio}` : ""}` : "—"}
-              </p>
+              {b.boleta && b.boleta.status === "pendiente" ? (
+                <Card title="Registrar boleta">
+                  <ActionForm action={recordBoletaAction} success="Boleta marcada como emitida.">
+                    <input type="hidden" name="docId" value={b.boleta.id} />
+                    <input type="hidden" name="reservationId" value={b.id} />
+                    <Input name="folio" placeholder="N° de folio (SII)" />
+                    <div className="mt-3">
+                      <SubmitButton size="sm">Marcar emitida</SubmitButton>
+                    </div>
+                  </ActionForm>
+                </Card>
+              ) : (
+                <Card title="Boleta">
+                  {b.boleta ? (
+                    <div className="flex items-center gap-2">
+                      <StatusPill status={b.boleta.status} />
+                      {b.boleta.folio && <span className="font-mono text-sm text-bone-dim">Folio {b.boleta.folio}</span>}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-bone-mute">Sin boleta.</p>
+                  )}
+                </Card>
+              )}
             </div>
           )}
-        </section>
-      )}
+        </div>
 
-      {b.status !== "cancelled" && (
-        <form action={cancelBookingAction} className="mt-6">
-          <input type="hidden" name="reservationId" value={b.id} />
-          <button type="submit" className="label-sm text-sirena">
-            Cancelar {b.kind === "block" ? "bloqueo" : "reserva"} (libera el horario)
-          </button>
-        </form>
-      )}
+        {/* Sidebar derecha */}
+        <aside className="flex flex-col gap-6">
+          {!isBlock && (
+            <Card title="Cliente">
+              <p className="text-bone">{b.customerName ?? "Sin nombre"}</p>
+              <p className="mt-0.5 text-sm text-bone-dim">{b.customerEmail ?? "Sin email"}</p>
+              {b.customerPhone && (
+                <a
+                  href={`https://wa.me/${waDigits}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
+                >
+                  <Icon name="whatsapp" size={15} /> WhatsApp
+                </a>
+              )}
+            </Card>
+          )}
+
+          <Card title="Pago">
+            <p className="font-display text-3xl text-bone">{b.amount ? formatCLP(b.amount) : "—"}</p>
+            {b.orderStatus && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="label-sm text-bone-mute">Pedido</span>
+                <StatusPill status={b.orderStatus} />
+              </div>
+            )}
+          </Card>
+
+          {b.status !== "cancelled" && (
+            <Card title="Zona de peligro">
+              <p className="text-sm leading-relaxed text-bone-dim">
+                Cancelar libera el horario{!isBlock ? " y, si estaba pagada, genera la nota de crédito" : ""}.
+              </p>
+              <div className="mt-4">
+                <ConfirmForm
+                  action={cancelBookingAction}
+                  hidden={{ reservationId: b.id }}
+                  trigger={{ label: isBlock ? "Cancelar bloqueo" : "Cancelar reserva", variant: "danger", size: "sm" }}
+                  title={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
+                  message={`Se liberará el horario${!isBlock ? " y, si estaba pagada, se generará la nota de crédito" : ""}. Esta acción no se puede deshacer.`}
+                  cta={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
+                  success="Reserva cancelada."
+                />
+              </div>
+            </Card>
+          )}
+        </aside>
+      </div>
     </AdminShell>
   );
 }

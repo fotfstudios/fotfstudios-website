@@ -1,43 +1,24 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
-import SignOutButton from "./SignOutButton";
+import { Sidebar } from "./ui/Sidebar";
+import { Toaster } from "./ui/Toaster";
 
-export default async function AdminShell({ children }: { children: React.ReactNode }) {
+/** Shell del admin: sidebar persistente (nav por permiso) + área de contenido + toaster. */
+export default async function AdminShell({ children }: { children: ReactNode }) {
   const claims = await currentClaims();
+  const show = {
+    members: hasPermission(claims, "members.manage"),
+    roles: hasPermission(claims, "roles.manage"),
+  };
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <header className="flex items-center justify-between border-b hairline pb-4">
-        <div className="flex items-center gap-6">
-          <span className="font-display text-xl text-gold">FOTF · Admin</span>
-          <nav className="flex gap-4 label-sm text-bone-mute">
-            <Link href="/admin" className="transition-colors hover:text-gold">
-              Hoy
-            </Link>
-            <Link href="/admin/reservas" className="transition-colors hover:text-gold">
-              Reservas
-            </Link>
-            <Link href="/admin/reservas/nueva" className="transition-colors hover:text-gold">
-              Nueva
-            </Link>
-            <Link href="/admin/bloqueos" className="transition-colors hover:text-gold">
-              Bloqueos
-            </Link>
-            {hasPermission(claims, "members.manage") && (
-              <Link href="/admin/miembros" className="transition-colors hover:text-gold">
-                Miembros
-              </Link>
-            )}
-            {hasPermission(claims, "roles.manage") && (
-              <Link href="/admin/roles" className="transition-colors hover:text-gold">
-                Roles
-              </Link>
-            )}
-          </nav>
+    <Toaster>
+      <Sidebar show={show} />
+      <main className="min-h-screen lg:pl-60">
+        <div className="booth-glow">
+          <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">{children}</div>
         </div>
-        <SignOutButton />
-      </header>
-      <div className="mt-8">{children}</div>
-    </div>
+      </main>
+    </Toaster>
   );
 }
