@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SITE } from "@/lib/site";
+import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
@@ -68,6 +69,10 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     address: SITE.address,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
   });
+}
+
+export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
+  return new SupabaseAdminRepository(client);
 }
 
 /** Feature flag: el flujo de reserva nace apagado en producción. */
