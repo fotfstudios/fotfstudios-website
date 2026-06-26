@@ -582,11 +582,43 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          payload: Json | null
+          provider: string
+          topic: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          payload?: Json | null
+          provider?: string
+          topic?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          payload?: Json | null
+          provider?: string
+          topic?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
+      confirm_payment: {
+        Args: { p_order: string; p_payment_id: string }
+        Returns: undefined
+      }
       create_checkout: {
         Args: {
           p_amount: number
