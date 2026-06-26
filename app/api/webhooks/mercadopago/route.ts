@@ -14,10 +14,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request): Promise<Response> {
   const token = process.env.MP_ACCESS_TOKEN;
-  const secret = process.env.MP_WEBHOOK_SECRET;
+  // MP firma con secretos distintos en prueba vs producción (y los pagos de
+  // test-user llegan como live_mode). Aceptamos cualquiera de los configurados.
+  const secrets = [process.env.MP_WEBHOOK_SECRET, process.env.MP_WEBHOOK_SECRET_TEST].filter(
+    (s): s is string => Boolean(s),
+  );
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!token || !secret || !url || !key) return new Response("not configured", { status: 503 });
+  if (!token || secrets.length === 0 || !url || !key) {
+    return new Response("not configured", { status: 503 });
+  }
 
   const raw = await req.text();
   const params = new URL(req.url).searchParams;
@@ -31,12 +37,9 @@ export async function POST(req: Request): Promise<Response> {
     // body no-JSON: nos quedamos con los query params
   }
 
-  const valid = verifyMpSignature({
-    xSignature: req.headers.get("x-signature"),
-    xRequestId: req.headers.get("x-request-id"),
-    dataId,
-    secret,
-  });
+  const xSignature = req.headers.get("x-signature");
+  const xRequestId = req.headers.get("x-request-id");
+  const valid = secrets.some((secret) => verifyMpSignature({ xSignature, xRequestId, dataId, secret }));
   if (!valid) return new Response("invalid signature", { status: 401 });
 
   // Solo notificaciones de pago.
