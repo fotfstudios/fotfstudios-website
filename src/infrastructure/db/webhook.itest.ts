@@ -79,6 +79,35 @@ describe("webhook", () => {
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
   });
 
+  it("approved sin hold vigente → paid_unreserved, no confirma reserva ni emite boleta", async () => {
+    const b = await book(600, "d@e.cl");
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+
+    // Simula que el hold venció y fue barrido/revendido antes de que llegue el pago.
+    await pg.query("update reservations set status='expired' where order_id=$1", [orderId]);
+
+    const svc = new WebhookService(
+      new StubGateway({ id: "pay3", status: "approved", externalReference: orderId, amount: 9990 }),
+      repo,
+    );
+    expect((await svc.handlePaymentNotification("pay3")).result).toBe("paid_unreserved");
+
+    // La orden queda pagada (el dinero llegó) pero marcada notificada para suprimir el
+    // email de confirmación; la reserva NO se confirma y no se crea boleta.
+    const o = await pg.query<{ status: string; notified_at: string | null }>(
+      "select status, notified_at from orders where id=$1",
+      [orderId],
+    );
+    expect(o.rows[0].status).toBe("paid");
+    expect(o.rows[0].notified_at).not.toBeNull();
+    const r = await pg.query<{ status: string }>("select status from reservations where order_id=$1", [orderId]);
+    expect(r.rows[0].status).toBe("expired");
+    const t = await pg.query("select 1 from tax_documents where order_id=$1", [orderId]);
+    expect(t.rowCount).toBe(0);
+  });
+
   it("rejected → cancela y libera el horario", async () => {
     const b = await book(600, "b@e.cl");
     expect(b.ok).toBe(true);

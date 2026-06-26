@@ -12,7 +12,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository {
   async getOrderForPayment(orderId: string): Promise<OrderForPayment | null> {
     const { data } = await this.db
       .from("orders")
-      .select("id, amount_clp, currency, customer_email")
+      .select("id, amount_clp, currency, customer_email, customer_name")
       .eq("id", orderId)
       .single();
     if (!data) return null;
@@ -21,7 +21,26 @@ export class SupabaseOrderRepository implements OrderPaymentRepository {
       amount: data.amount_clp,
       currency: data.currency,
       email: data.customer_email ?? undefined,
+      name: data.customer_name ?? undefined,
     };
+  }
+
+  async pendingOrderIds(opts: {
+    olderThanMinutes: number;
+    withinHours: number;
+    limit?: number;
+  }): Promise<string[]> {
+    const now = Date.now();
+    const before = new Date(now - opts.olderThanMinutes * 60_000).toISOString();
+    const after = new Date(now - opts.withinHours * 3_600_000).toISOString();
+    const { data } = await this.db
+      .from("orders")
+      .select("id")
+      .eq("status", "pending_payment")
+      .lt("created_at", before)
+      .gt("created_at", after)
+      .limit(opts.limit ?? 100);
+    return (data ?? []).map((o) => o.id);
   }
 
   async recordPreference(p: RecordPreferenceParams): Promise<void> {

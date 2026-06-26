@@ -680,7 +680,7 @@ export type Database = {
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
-        Returns: undefined
+        Returns: string
       }
       create_checkout: {
         Args: {

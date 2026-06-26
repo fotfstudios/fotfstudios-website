@@ -51,6 +51,25 @@ export function customerConfirmation(
   return { subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 
+/**
+ * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
+ * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.
+ * Sirena (#ff4d1d) es legítima aquí: es urgencia real, no decoración.
+ */
+export function ownerNeedsReview(
+  v: { when: string; total: string; email: string | null; paymentId: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px;color:#ff4d1d">Pago sin reserva — revisar</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que <strong style="color:#f5f2ec">devolver o reasignar</strong>.</p>
+     <p style="margin:0 0 4px">Horario solicitado: <strong>${esc(v.when)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
+     <p style="color:#b9b5ab;margin:0 0 16px">Pago MP: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
+  );
+  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago MP ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
+  return { subject: "⚠️ Pago sin reserva — acción requerida", html, text };
+}
+
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
   v: BookingView & { email: string | null },

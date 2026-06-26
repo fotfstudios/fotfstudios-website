@@ -6,6 +6,8 @@ export interface PreferenceInput {
   currency: string;
   description: string;
   payerEmail?: string;
+  payerFirstName?: string;
+  payerLastName?: string;
   backUrls: { success: string; failure: string; pending: string };
   notificationUrl?: string;
   /** ISO 8601: vence el checkout (acota pagos tardíos respecto del hold). */

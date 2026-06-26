@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import type { ConfirmPaidStatus, PaymentNotificationRepository } from "@/src/application/ports/webhook";
 import type { Database, Json } from "./database.types";
 
 export class SupabaseWebhookRepository implements PaymentNotificationRepository {
@@ -21,12 +21,13 @@ export class SupabaseWebhookRepository implements PaymentNotificationRepository 
     return data?.amount_clp ?? null;
   }
 
-  async confirmPaid(orderId: string, paymentId: string): Promise<void> {
-    const { error } = await this.db.rpc("confirm_payment", {
+  async confirmPaid(orderId: string, paymentId: string): Promise<ConfirmPaidStatus> {
+    const { data, error } = await this.db.rpc("confirm_payment", {
       p_order: orderId,
       p_payment_id: paymentId,
     });
     if (error) throw new Error(error.message);
+    return data === "paid_no_hold" ? "paid_no_hold" : "confirmed";
   }
 
   async cancelUnpaid(orderId: string): Promise<void> {

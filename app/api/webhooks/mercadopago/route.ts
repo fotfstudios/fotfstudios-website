@@ -69,6 +69,12 @@ export async function POST(req: Request): Promise<Response> {
     if (result === "paid" && orderId) {
       // Envío de emails (best-effort; el cron diario es el respaldo).
       await notificationService(client).notifyOrder(orderId).catch((e) => console.error("[mp-webhook:email]", e));
+    } else if (result === "paid_unreserved" && orderId) {
+      // Pagó pero el hold ya no existía: NO se confirma al cliente; se alerta al dueño.
+      console.error(`[mp-webhook] PAGO SIN RESERVA — revisar/refund (order ${orderId}, pago ${resourceId})`);
+      await notificationService(client)
+        .notifyPaymentNeedsReview(orderId, resourceId)
+        .catch((e) => console.error("[mp-webhook:review]", e));
     }
   } catch (e) {
     console.error("[mp-webhook]", e);

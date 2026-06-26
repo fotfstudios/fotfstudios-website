@@ -24,18 +24,32 @@ export class MercadoPagoGateway implements PaymentGateway {
           {
             id: input.orderId,
             title: input.description,
+            // Descripción del item: mejora la validación antifraude (más aprobación).
+            description: input.description,
+            category_id: "services",
             quantity: 1,
             unit_price: input.amount,
             currency_id: input.currency,
           },
         ],
         external_reference: input.orderId,
-        payer: input.payerEmail ? { email: input.payerEmail } : undefined,
+        // Cuanto más completo el payer, mejor la tasa de aprobación de MP.
+        payer:
+          input.payerEmail || input.payerFirstName
+            ? {
+                email: input.payerEmail,
+                // En Checkout Pro el payer usa name/surname (no first_name/last_name).
+                name: input.payerFirstName,
+                surname: input.payerLastName,
+              }
+            : undefined,
         back_urls: input.backUrls,
         auto_return: httpsBackUrls ? "approved" : undefined,
         notification_url: input.notificationUrl,
         // Aparece en la cartola de la tarjeta del cliente (baja contracargos).
         statement_descriptor: "FOTF STUDIOS",
+        // Aprobación instantánea: el pago no queda "in_process"/"pending".
+        binary_mode: true,
         // Vence el checkout para acotar pagos tardíos respecto del hold.
         ...(input.expiresAt ? { expires: true, expiration_date_to: input.expiresAt } : {}),
         // Corte 1: solo medios instantáneos (excluir cupón/efectivo y cajero),
