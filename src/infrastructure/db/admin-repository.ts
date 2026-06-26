@@ -13,6 +13,8 @@ export interface AdminBooking {
   orderId: string | null;
   amount: number | null;
   orderStatus: string | null;
+  accessCode: string | null;
+  accessSentAt: string | null;
 }
 
 export interface AdminBookingDetail extends AdminBooking {
@@ -39,12 +41,14 @@ type ResRow = {
   customer_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
+  access_code: string | null;
+  access_sent_at: string | null;
   order_id: string | null;
   orders: { amount_clp: number; status: string } | null;
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, order_id, orders(amount_clp, status)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, order_id, orders(amount_clp, status)";
 
 const map = (r: ResRow): AdminBooking => ({
   id: r.id,
@@ -55,6 +59,8 @@ const map = (r: ResRow): AdminBooking => ({
   customerName: r.customer_name,
   customerEmail: r.customer_email,
   customerPhone: r.customer_phone,
+  accessCode: r.access_code,
+  accessSentAt: r.access_sent_at,
   orderId: r.order_id,
   amount: r.orders?.amount_clp ?? null,
   orderStatus: r.orders?.status ?? null,
@@ -63,6 +69,7 @@ const map = (r: ResRow): AdminBooking => ({
 export class SupabaseAdminRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
+  // ── lecturas
   async upcomingBookings(limit = 30): Promise<AdminBooking[]> {
     const { data } = await this.db
       .from("reservations")
@@ -122,5 +129,82 @@ export class SupabaseAdminRepository {
       total: d.total,
       createdAt: d.created_at,
     }));
+  }
+
+  async upcomingBlocks(limit = 50): Promise<AdminBooking[]> {
+    const { data } = await this.db
+      .from("reservations")
+      .select(SELECT)
+      .eq("kind", "block")
+      .gte("ends_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(limit);
+    return ((data as unknown as ResRow[]) ?? []).map(map);
+  }
+
+  async defaultResource(): Promise<{ id: string; timezone: string } | null> {
+    const { data: r } = await this.db
+      .from("resources")
+      .select("id, location_id")
+      .eq("active", true)
+      .limit(1)
+      .single();
+    if (!r) return null;
+    const { data: loc } = await this.db
+      .from("locations")
+      .select("timezone")
+      .eq("id", r.location_id)
+      .single();
+    return { id: r.id, timezone: loc?.timezone ?? "America/Santiago" };
+  }
+
+  // ── escrituras
+  async cancelBooking(reservationId: string): Promise<void> {
+    const { error } = await this.db.rpc("cancel_booking", { p_reservation: reservationId });
+    if (error) throw new Error(error.message);
+  }
+
+  async confirmOffline(orderId: string, method: string): Promise<void> {
+    const { error } = await this.db.rpc("confirm_payment", {
+      p_order: orderId,
+      p_payment_id: `offline:${method}`,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  async recordBoleta(docId: string, folio: string, pdfUrl: string | null): Promise<void> {
+    const { error } = await this.db
+      .from("tax_documents")
+      .update({ status: "emitida", folio, pdf_url: pdfUrl, emitted_at: new Date().toISOString() })
+      .eq("id", docId);
+    if (error) throw new Error(error.message);
+  }
+
+  async markAccess(reservationId: string, code: string): Promise<void> {
+    const { error } = await this.db
+      .from("reservations")
+      .update({ access_code: code, access_sent_at: new Date().toISOString() })
+      .eq("id", reservationId);
+    if (error) throw new Error(error.message);
+  }
+
+  async createBlock(resourceId: string, startsAt: string, endsAt: string): Promise<void> {
+    const { error } = await this.db.from("reservations").insert({
+      resource_id: resourceId,
+      kind: "block",
+      status: "confirmed",
+      starts_at: startsAt,
+      ends_at: endsAt,
+    });
+    if (error) throw new Error(error.code === "23P01" ? "overlap" : error.message);
+  }
+
+  async deleteBlock(reservationId: string): Promise<void> {
+    const { error } = await this.db
+      .from("reservations")
+      .delete()
+      .eq("id", reservationId)
+      .eq("kind", "block");
+    if (error) throw new Error(error.message);
   }
 }

@@ -401,6 +401,8 @@ export type Database = {
       }
       reservations: {
         Row: {
+          access_code: string | null
+          access_sent_at: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -416,6 +418,8 @@ export type Database = {
           status: Database["public"]["Enums"]["reservation_status"]
         }
         Insert: {
+          access_code?: string | null
+          access_sent_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -431,6 +435,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["reservation_status"]
         }
         Update: {
+          access_code?: string | null
+          access_sent_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -670,6 +676,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_booking: { Args: { p_reservation: string }; Returns: undefined }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
