@@ -4,16 +4,21 @@
  * importa desde aquí. Lee la config de entorno de forma perezosa (en request).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { SITE } from "@/lib/site";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
+import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PaymentService } from "@/src/application/payment/payment-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
+import type { Mailer } from "@/src/application/ports/mailer";
 import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-repository";
 import type { Database } from "@/src/infrastructure/db/database.types";
+import { SupabaseNotificationRepository } from "@/src/infrastructure/db/notification-repository";
 import { SupabaseOrderRepository } from "@/src/infrastructure/db/order-repository";
 import { SupabaseRatePlanRepository } from "@/src/infrastructure/db/rate-plan-repository";
 import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling-repository";
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
+import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mailer";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 
 function requireEnv(name: string): string {
@@ -48,6 +53,21 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
     new SupabaseOrderRepository(client),
     { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://fotfstudios.cl" },
   );
+}
+
+export function mailer(): Mailer {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM ?? "FOTF Studios <reservas@fotfstudios.cl>";
+  return key ? new ResendMailer(key, from) : new NoopMailer();
+}
+
+export function notificationService(client: SupabaseClient<Database> = db()): NotificationService {
+  return new NotificationService(mailer(), new SupabaseNotificationRepository(client), {
+    ownerEmail: process.env.OWNER_EMAIL ?? "",
+    tz: "America/Santiago",
+    address: SITE.address,
+    whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
+  });
 }
 
 /** Feature flag: el flujo de reserva nace apagado en producción. */
