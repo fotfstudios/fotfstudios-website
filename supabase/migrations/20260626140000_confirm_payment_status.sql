@@ -14,8 +14,10 @@
 
 drop function if exists confirm_payment(uuid, text);
 
+-- search_path fijo (no mutable): mantiene el hardening del advisor al recrear.
 create function confirm_payment(p_order uuid, p_payment_id text)
-returns text language plpgsql as $$
+returns text language plpgsql
+set search_path = public, pg_temp as $$
 declare
   v_held int;
 begin
