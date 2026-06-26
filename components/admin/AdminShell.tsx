@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { hasPermission } from "@/src/domain/auth/permissions";
+import { currentClaims } from "@/src/infrastructure/auth/require-admin";
 import SignOutButton from "./SignOutButton";
 
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+export default async function AdminShell({ children }: { children: React.ReactNode }) {
+  const claims = await currentClaims();
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <header className="flex items-center justify-between border-b hairline pb-4">
@@ -20,6 +23,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <Link href="/admin/bloqueos" className="transition-colors hover:text-gold">
               Bloqueos
             </Link>
+            {hasPermission(claims, "members.manage") && (
+              <Link href="/admin/miembros" className="transition-colors hover:text-gold">
+                Miembros
+              </Link>
+            )}
+            {hasPermission(claims, "roles.manage") && (
+              <Link href="/admin/roles" className="transition-colors hover:text-gold">
+                Roles
+              </Link>
+            )}
           </nav>
         </div>
         <SignOutButton />

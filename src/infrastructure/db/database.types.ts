@@ -72,6 +72,113 @@ export type Database = {
           },
         ]
       }
+      admin_members: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          invited_by: string | null
+          role_id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          role_id: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          role_id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_members_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "admin_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_permissions: {
+        Row: {
+          key: string
+          label: string
+        }
+        Insert: {
+          key: string
+          label: string
+        }
+        Update: {
+          key?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      admin_role_permissions: {
+        Row: {
+          permission: string
+          role_id: string
+        }
+        Insert: {
+          permission: string
+          role_id: string
+        }
+        Update: {
+          permission?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_role_permissions_permission_fkey"
+            columns: ["permission"]
+            isOneToOne: false
+            referencedRelation: "admin_permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "admin_role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "admin_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_roles: {
+        Row: {
+          created_at: string
+          id: string
+          is_system: boolean
+          key: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          key: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          key?: string
+          name?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           active: boolean
@@ -708,6 +815,7 @@ export type Database = {
         Returns: string
       }
       create_nota_credito: { Args: { p_order: string }; Returns: string }
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
     }
     Enums: {

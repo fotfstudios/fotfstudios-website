@@ -13,6 +13,9 @@ import { PaymentService } from "@/src/application/payment/payment-service";
 import { WebhookService, type WebhookResult } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
+import { MemberService } from "@/src/application/admin/member-service";
+import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
+import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
 import type { Mailer } from "@/src/application/ports/mailer";
 import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-repository";
 import type { Database } from "@/src/infrastructure/db/database.types";
@@ -123,6 +126,15 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
   return new SupabaseAdminRepository(client);
+}
+
+/** RBAC: gestión de miembros y roles del admin (invitación nativa de Supabase). */
+export function memberService(client: SupabaseClient<Database> = db()): MemberService {
+  return new MemberService(
+    new SupabaseMemberRepository(client),
+    new SupabaseInviter(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY")),
+    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://fotfstudios.cl" },
+  );
 }
 
 /** Feature flag: el flujo de reserva nace apagado en producción. */

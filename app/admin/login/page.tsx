@@ -14,13 +14,16 @@ export default function AdminLogin() {
     setBusy(true);
     setError(null);
     const supabase = createAuthBrowserClient();
+    // Solo invitados existen (signup off). `shouldCreateUser:false` evita crear
+    // usuarios y que se envíen enlaces a correos no autorizados.
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback`, shouldCreateUser: false },
     });
     setBusy(false);
-    if (error) setError(error.message);
-    else setSent(true);
+    // Mensaje genérico siempre: no revelar si el correo está o no autorizado.
+    if (error) console.warn("[admin-login]", error.message);
+    setSent(true);
   };
 
   return (
@@ -31,7 +34,7 @@ export default function AdminLogin() {
       </h1>
       {sent ? (
         <p className="mt-6 text-bone-dim">
-          Te enviamos un enlace de acceso a <strong className="text-bone">{email}</strong>. Revisa tu correo.
+          Si <strong className="text-bone">{email}</strong> está autorizado, te enviamos un enlace de acceso. Revisa tu correo.
         </p>
       ) : (
         <form onSubmit={submit} className="mt-6 space-y-3">

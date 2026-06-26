@@ -175,7 +175,9 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+# RBAC: el admin es solo por invitación (auth.admin.inviteUserByEmail). Sin signup
+# público, un email no invitado no puede crear usuario ni pedir magic link.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -283,9 +285,10 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# RBAC: inyecta app_role + app_permissions en el JWT (ver migración admin_rbac).
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
