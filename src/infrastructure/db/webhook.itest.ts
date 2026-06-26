@@ -35,6 +35,9 @@ class StubGateway implements PaymentGateway {
   async getPayment(): Promise<PaymentInfo> {
     return this.info;
   }
+  async findPaymentByOrder(): Promise<PaymentInfo | null> {
+    return this.info;
+  }
 }
 
 const book = (start: number, email: string) =>

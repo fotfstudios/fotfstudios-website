@@ -55,4 +55,24 @@ export class MercadoPagoGateway implements PaymentGateway {
       amount: p.transaction_amount ?? undefined,
     };
   }
+
+  async findPaymentByOrder(orderId: string): Promise<PaymentInfo | null> {
+    const payment = new Payment(this.client);
+    const res = await payment.search({ options: { external_reference: orderId } });
+    const results = (res.results ?? []) as Array<{
+      id?: number | string;
+      status?: string;
+      external_reference?: string;
+      transaction_amount?: number;
+    }>;
+    // Preferir un pago aprobado; si no, el más reciente disponible.
+    const p = results.find((r) => r.status === "approved") ?? results[0];
+    if (!p?.id) return null;
+    return {
+      id: String(p.id),
+      status: p.status ?? "unknown",
+      externalReference: p.external_reference ?? undefined,
+      amount: p.transaction_amount ?? undefined,
+    };
+  }
 }
