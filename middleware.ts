@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdminEmail } from "@/src/infrastructure/auth/admins";
+import { type AdminClaims, isAdminMember } from "@/src/domain/auth/permissions";
 
 /** Refresca la sesión y protege /admin/* (excepto /admin/login). */
 export async function middleware(request: NextRequest) {
@@ -23,12 +23,13 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // RBAC: el rol viaja en el JWT (Custom Access Token Hook). getClaims valida la
+  // firma y devuelve los claims; sin `app_role` no es un miembro admin activo.
+  const { data } = await supabase.auth.getClaims();
+  const claims = (data?.claims as AdminClaims | undefined) ?? null;
 
   const path = request.nextUrl.pathname;
-  if (path.startsWith("/admin") && path !== "/admin/login" && !(user && isAdminEmail(user.email))) {
+  if (path.startsWith("/admin") && path !== "/admin/login" && !isAdminMember(claims)) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     return NextResponse.redirect(url);
