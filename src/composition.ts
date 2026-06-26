@@ -10,7 +10,7 @@ import { AvailabilityService } from "@/src/application/availability/availability
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PaymentService } from "@/src/application/payment/payment-service";
-import { WebhookService } from "@/src/application/payment/webhook-service";
+import { WebhookService, type WebhookResult } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import type { Mailer } from "@/src/application/ports/mailer";
@@ -67,12 +67,43 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
 export async function reconcileOrder(
   orderId: string,
   client: SupabaseClient<Database> = db(),
-): Promise<void> {
+): Promise<WebhookResult | null> {
   const gateway = new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN"));
   const payment = await gateway.findPaymentByOrder(orderId);
-  if (!payment) return;
+  if (!payment) return null;
   const service = new WebhookService(gateway, new SupabaseWebhookRepository(client));
-  await service.handlePaymentNotification(payment.id);
+  return service.handlePaymentNotification(payment.id);
+}
+
+/**
+ * Barrido de reconciliación de fondo (A1): respaldo para pedidos `pending_payment`
+ * cuyo webhook no llegó y cuyo comprador no volvió a la página de estado. Recorre los
+ * pedidos pendientes (más viejos que el hold, dentro de `withinHours`) y los reconcilia
+ * contra MP. Idempotente vía el inbox del webhook. Para `paid_unreserved` alerta al
+ * dueño (el cliente NO recibe confirmación; ver confirm_payment). Devuelve un resumen.
+ */
+export async function reconcilePending(
+  client: SupabaseClient<Database> = db(),
+): Promise<{ scanned: number; paid: number; unreserved: number }> {
+  const orders = new SupabaseOrderRepository(client);
+  const ids = await orders.pendingOrderIds({ olderThanMinutes: 11, withinHours: 72 });
+  let paid = 0;
+  let unreserved = 0;
+  for (const id of ids) {
+    try {
+      const res = await reconcileOrder(id, client);
+      if (res?.result === "paid") paid++;
+      else if (res?.result === "paid_unreserved") {
+        unreserved++;
+        await notificationService(client)
+          .notifyPaymentNeedsReview(id, res.orderId ?? id)
+          .catch((e) => console.error("[reconcile:review]", e));
+      }
+    } catch (e) {
+      console.error("[reconcile]", id, e);
+    }
+  }
+  return { scanned: ids.length, paid, unreserved };
 }
 
 export function mailer(): Mailer {

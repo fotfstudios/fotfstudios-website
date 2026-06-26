@@ -1,7 +1,13 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
 
-export type WebhookOutcome = "paid" | "cancelled" | "pending" | "duplicate" | "ignored";
+export type WebhookOutcome =
+  | "paid"
+  | "paid_unreserved"
+  | "cancelled"
+  | "pending"
+  | "duplicate"
+  | "ignored";
 
 export interface WebhookResult {
   result: WebhookOutcome;
@@ -37,8 +43,9 @@ export class WebhookService {
         );
         return { result: "ignored", orderId };
       }
-      await this.repo.confirmPaid(orderId, paymentId);
-      return { result: "paid", orderId };
+      const status = await this.repo.confirmPaid(orderId, paymentId);
+      // `paid_no_hold`: pagó pero la reserva ya no estaba en hold → revisión del dueño.
+      return { result: status === "paid_no_hold" ? "paid_unreserved" : "paid", orderId };
     }
     if (payment.status === "rejected" || payment.status === "cancelled") {
       await this.repo.cancelUnpaid(orderId);
