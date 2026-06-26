@@ -22,6 +22,8 @@ export class PaymentService {
 
     const base = this.config.siteUrl.replace(/\/$/, "");
     const back = `${base}/reserva/estado?b=${order.id}`;
+    // El checkout vence en 30 min: acota pagos muy tardíos respecto del hold.
+    const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
 
     try {
       const pref = await this.gateway.createPreference({
@@ -32,6 +34,7 @@ export class PaymentService {
         payerEmail: order.email,
         backUrls: { success: back, failure: back, pending: back },
         notificationUrl: `${base}/api/webhooks/mercadopago`,
+        expiresAt,
       });
       await this.orders.recordPreference({
         orderId: order.id,

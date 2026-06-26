@@ -29,6 +29,14 @@ export class WebhookService {
     if (!orderId) return { result: "ignored", orderId };
 
     if (payment.status === "approved") {
+      // Verificar monto contra el snapshot del pedido (defensa en profundidad).
+      const expected = await this.repo.getOrderAmount(orderId);
+      if (expected != null && payment.amount != null && payment.amount !== expected) {
+        console.error(
+          `[webhook] monto no coincide: pago ${payment.amount} vs pedido ${expected} (order ${orderId})`,
+        );
+        return { result: "ignored", orderId };
+      }
       await this.repo.confirmPaid(orderId, paymentId);
       return { result: "paid", orderId };
     }

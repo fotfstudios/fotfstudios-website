@@ -16,6 +16,11 @@ export class SupabaseWebhookRepository implements PaymentNotificationRepository 
     return true;
   }
 
+  async getOrderAmount(orderId: string): Promise<number | null> {
+    const { data } = await this.db.from("orders").select("amount_clp").eq("id", orderId).single();
+    return data?.amount_clp ?? null;
+  }
+
   async confirmPaid(orderId: string, paymentId: string): Promise<void> {
     const { error } = await this.db.rpc("confirm_payment", {
       p_order: orderId,

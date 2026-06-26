@@ -34,10 +34,16 @@ export class MercadoPagoGateway implements PaymentGateway {
         back_urls: input.backUrls,
         auto_return: httpsBackUrls ? "approved" : undefined,
         notification_url: input.notificationUrl,
+        // Aparece en la cartola de la tarjeta del cliente (baja contracargos).
+        statement_descriptor: "FOTF STUDIOS",
+        // Vence el checkout para acotar pagos tardíos respecto del hold.
+        ...(input.expiresAt ? { expires: true, expiration_date_to: input.expiresAt } : {}),
         // Corte 1: solo medios instantáneos (excluir cupón/efectivo y cajero),
         // para que el pago no quede "pending" más allá del hold de 10 min.
         payment_methods: { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }] },
       },
+      // Idempotencia: reintentos no crean preferences duplicadas.
+      requestOptions: { idempotencyKey: input.orderId },
     });
 
     const initPoint = res.init_point ?? res.sandbox_init_point;
