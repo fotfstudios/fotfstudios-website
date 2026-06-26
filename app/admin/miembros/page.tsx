@@ -1,14 +1,20 @@
 import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
+import { ActionForm } from "@/components/admin/ui/ActionForm";
+import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
+import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
+import { EmptyState } from "@/components/admin/ui/EmptyState";
+import { Select } from "@/components/admin/ui/Field";
+import { PageHeader } from "@/components/admin/ui/PageHeader";
+import { StatusPill } from "@/components/admin/ui/StatusPill";
+import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { memberService } from "@/src/composition";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { inviteMemberAction, setMemberRoleAction, setMemberStatusAction } from "./actions";
+import { setMemberRoleAction, setMemberStatusAction } from "./actions";
+import { InviteMemberButton } from "./_components/InviteMemberButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Miembros — Admin", robots: { index: false } };
-
-const inputCls =
-  "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
 
 export default async function MiembrosPage() {
   await requirePermission("members.manage");
@@ -17,77 +23,85 @@ export default async function MiembrosPage() {
 
   return (
     <AdminShell>
-      <h2 className="font-display text-2xl text-bone">Miembros</h2>
-      <p className="label-sm mt-1 text-bone-mute">
-        Invita por correo: Supabase le envía el enlace de acceso. Solo invitados pueden entrar.
-      </p>
+      <PageHeader
+        kicker="Configuración"
+        title="Miembros"
+        editorial="Quién entra al panel, y con qué rol."
+        action={<InviteMemberButton roles={roles} />}
+      />
 
-      <form action={inviteMemberAction} className="mt-6 flex max-w-2xl flex-wrap items-end gap-3">
-        <label className="label-sm flex-1 text-bone-mute">
-          Correo
-          <input type="email" name="email" required placeholder="persona@correo.cl" className={inputCls} />
-        </label>
-        <label className="label-sm text-bone-mute">
-          Rol
-          <select name="roleId" required className={inputCls} defaultValue="">
-            <option value="" disabled>
-              Elegir…
-            </option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
+      <div className="mt-8">
+        {members.length === 0 ? (
+          <EmptyState
+            icon="members"
+            title="Aún no hay miembros"
+            hint="Invita a tu equipo por correo. Cada persona entra con un enlace y el rol que le asignes."
+          />
+        ) : (
+          <DataTable
+            head={
+              <>
+                <Th>Correo</Th>
+                <Th>Rol</Th>
+                <Th>Estado</Th>
+                <Th>Desde</Th>
+                <Th right>Acciones</Th>
+              </>
+            }
+          >
+            {members.map((m) => (
+              <Tr key={m.id}>
+                <Td className="font-mono text-bone">{m.email}</Td>
+                <Td>
+                  <ActionForm action={setMemberRoleAction} success="Rol actualizado." className="flex items-center gap-2">
+                    <input type="hidden" name="memberId" value={m.id} />
+                    <div className="w-40">
+                      <Select name="roleId" defaultValue={m.roleId}>
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <SubmitButton variant="ghost" size="sm">
+                      Guardar
+                    </SubmitButton>
+                  </ActionForm>
+                </Td>
+                <Td>
+                  <StatusPill status={m.status} />
+                </Td>
+                <Td className="whitespace-nowrap font-mono text-xs text-bone-mute">{fmtDateTime(m.createdAt)}</Td>
+                <Td right>
+                  {m.status === "active" ? (
+                    <ConfirmForm
+                      action={setMemberStatusAction}
+                      hidden={{ memberId: m.id, status: "disabled" }}
+                      trigger={{ label: "Desactivar", variant: "ghost", size: "sm" }}
+                      title="Desactivar miembro"
+                      message={`${m.email} dejará de tener acceso al panel. Puedes reactivarlo cuando quieras.`}
+                      cta="Desactivar"
+                      success="Miembro desactivado."
+                    />
+                  ) : (
+                    <ActionForm action={setMemberStatusAction} success="Miembro reactivado." className="inline">
+                      <input type="hidden" name="memberId" value={m.id} />
+                      <input type="hidden" name="status" value="active" />
+                      <SubmitButton variant="ghost" size="sm">
+                        Reactivar
+                      </SubmitButton>
+                    </ActionForm>
+                  )}
+                </Td>
+              </Tr>
             ))}
-          </select>
-        </label>
-        <button type="submit" className="inline-flex bg-gold px-5 py-3 label text-ink">
-          Invitar
-        </button>
-      </form>
+          </DataTable>
+        )}
+      </div>
 
-      <h3 className="label mt-10 text-bone-mute">Miembros</h3>
-      <table className="mt-3 w-full text-sm">
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.id} className="border-b hairline align-middle">
-              <td className="py-3 font-mono text-bone">{m.email}</td>
-              <td className="py-3">
-                <form action={setMemberRoleAction} className="flex items-center gap-2">
-                  <input type="hidden" name="memberId" value={m.id} />
-                  <select name="roleId" defaultValue={m.roleId} className={`${inputCls} py-2`}>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="submit" className="label-sm text-gold">
-                    guardar
-                  </button>
-                </form>
-              </td>
-              <td className="py-3">
-                <span className={`label-sm ${m.status === "active" ? "text-gold" : "text-bone-mute"}`}>
-                  {m.status}
-                </span>
-              </td>
-              <td className="py-3 text-bone-mute font-mono text-xs">{fmtDateTime(m.createdAt)}</td>
-              <td className="py-3 text-right">
-                <form action={setMemberStatusAction}>
-                  <input type="hidden" name="memberId" value={m.id} />
-                  <input type="hidden" name="status" value={m.status === "active" ? "disabled" : "active"} />
-                  <button type="submit" className={`label-sm ${m.status === "active" ? "text-sirena" : "text-gold"}`}>
-                    {m.status === "active" ? "desactivar" : "reactivar"}
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <p className="mt-4 label-sm text-bone-mute">
-        Un cambio de rol se aplica cuando el miembro vuelve a iniciar sesión (el acceso viaja en su token).
+      <p className="mt-4 text-xs text-bone-mute">
+        Un cambio de rol se aplica cuando el miembro vuelve a iniciar sesión.
       </p>
     </AdminShell>
   );

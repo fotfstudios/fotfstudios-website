@@ -1,5 +1,10 @@
 import AdminShell from "@/components/admin/AdminShell";
 import { createManualBookingAction } from "@/app/admin/actions";
+import { ActionForm } from "@/components/admin/ui/ActionForm";
+import { Card } from "@/components/admin/ui/Card";
+import { Field, Input, Select } from "@/components/admin/ui/Field";
+import { PageHeader } from "@/components/admin/ui/PageHeader";
+import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva manual — Admin", robots: { index: false } };
@@ -7,45 +12,63 @@ export const metadata = { title: "Reserva manual — Admin", robots: { index: fa
 const HOURS = Array.from({ length: 14 }, (_, i) => 540 + i * 60); // 09:00–22:00
 const hh = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:00`;
 
-const inputCls =
-  "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
-
 export default function NuevaReserva() {
   return (
     <AdminShell>
-      <h2 className="font-display text-2xl text-bone">Reserva manual</h2>
-      <p className="label-sm mt-1 text-bone-mute">Walk-in / teléfono / WhatsApp. Ocupa el mismo calendario.</p>
+      <PageHeader kicker="Operación" title="Reserva manual" editorial="Walk-in, teléfono o WhatsApp." />
 
-      <form action={createManualBookingAction} className="mt-6 grid max-w-md gap-3">
-        <label className="label-sm text-bone-mute">Día
-          <input type="date" name="date" required className={inputCls} />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="label-sm text-bone-mute">Inicio
-            <select name="startMinute" className={inputCls} defaultValue={600}>
-              {HOURS.map((m) => (
-                <option key={m} value={m}>{hh(m)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="label-sm text-bone-mute">Horas
-            <input type="number" name="durationHours" min={1} max={13} defaultValue={1} required className={inputCls} />
-          </label>
-        </div>
-        <input type="text" name="name" placeholder="Nombre" className={inputCls} />
-        <input type="email" name="email" placeholder="Email (opcional)" className={inputCls} />
-        <input type="tel" name="phone" placeholder="Teléfono" className={inputCls} />
-        <label className="label-sm text-bone-mute">Pago
-          <select name="method" className={inputCls} defaultValue="efectivo">
-            <option value="efectivo">Efectivo</option>
-            <option value="transferencia">Transferencia</option>
-            <option value="cortesia">Cortesía</option>
-          </select>
-        </label>
-        <button type="submit" className="mt-2 inline-flex justify-center bg-gold px-6 py-3 label text-ink">
-          Crear reserva (pagada)
-        </button>
-      </form>
+      <div className="mt-8 max-w-xl">
+        <Card>
+          <ActionForm
+            action={createManualBookingAction}
+            success="Reserva creada."
+            navigateTo="/admin/reservas"
+            className="flex flex-col gap-5"
+          >
+            <Field label="Día">
+              <Input type="date" name="date" required />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Inicio">
+                <Select name="startMinute" defaultValue={600}>
+                  {HOURS.map((m) => (
+                    <option key={m} value={m}>
+                      {hh(m)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Horas">
+                <Input type="number" name="durationHours" min={1} max={13} defaultValue={1} required />
+              </Field>
+            </div>
+
+            <div className="border-t hairline pt-5">
+              <p className="label-sm text-bone-mute">Cliente</p>
+              <div className="mt-3 flex flex-col gap-4">
+                <Input type="text" name="name" placeholder="Nombre" />
+                <Input type="email" name="email" placeholder="Email (opcional)" />
+                <Input type="tel" name="phone" placeholder="Teléfono" />
+              </div>
+            </div>
+
+            <Field label="Pago">
+              <Select name="method" defaultValue="efectivo">
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="cortesia">Cortesía</option>
+              </Select>
+            </Field>
+
+            <div>
+              <SubmitButton icon="add" pendingLabel="Creando…">
+                Crear reserva pagada
+              </SubmitButton>
+            </div>
+          </ActionForm>
+        </Card>
+      </div>
     </AdminShell>
   );
 }
