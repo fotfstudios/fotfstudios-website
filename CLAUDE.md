@@ -32,6 +32,20 @@ Mailpit 54424) para no chocar con otro proyecto Supabase local. Las migraciones 
 `supabase/migrations/` son la **fuente de verdad** del esquema; el proyecto remoto se crea recién
 al desplegar. Flujo: editar/crear migración → `db:reset` → `db:types` → tests.
 
+## Local-first testing (regla)
+
+**Todo se prueba y depura LOCAL antes de ir a producción.** Nunca depurar contra el deployment
+en vivo ni la base Supabase remota real.
+
+- Loop estándar: **Supabase local** (`npm run db:start`) → `npm run dev` → reproducir → leer logs
+  → corregir → verificar local → recién entonces PR/deploy.
+- **Webhooks/pagos** (p. ej. Mercado Pago): correr la app local contra el Supabase local y
+  exponerla con un **túnel** (ngrok/cloudflared) para que el proveedor alcance `localhost`; agregar
+  logging temporal para inspeccionar la request real (firma/headers) y arreglar la causa raíz.
+  Nada de pagos de prueba repetidos en prod ni reconciliar datos reales a mano.
+- A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
+  proyecto remoto, env vars de prod, dominio.
+
 ## Where things live
 
 - `lib/site.ts` — site data: contact (WhatsApp), STEPS, GEAR, room lists. Single source for copy/data.
