@@ -65,7 +65,7 @@ export default function Calendar({
               type="button"
               disabled={disabled}
               aria-pressed={isSelected}
-              aria-label={cell.date}
+              aria-label={DateTime.fromISO(cell.date).setLocale("es").toFormat("d 'de' MMMM yyyy")}
               onClick={() => onSelect(cell.date)}
               className={[
                 "relative flex aspect-square items-center justify-center font-mono text-sm transition-colors",
