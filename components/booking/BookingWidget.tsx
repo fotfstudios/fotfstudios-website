@@ -65,9 +65,12 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
 
   // Disponibilidad del día al elegir fecha.
   useEffect(() => {
-    if (selected === null) return;
     let active = true;
     void (async () => {
+      if (selected === null) {
+        if (active) setAvail(null);
+        return;
+      }
       setLoadingAvail(true);
       setStart(null);
       setQuote(null);
@@ -84,11 +87,6 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
       active = false;
     };
   }, [resourceId, selected]);
-
-  // Clear availability when no date is selected.
-  if (selected === null && avail !== null) {
-    setAvail(null);
-  }
 
   const starts =
     avail && !avail.closed
