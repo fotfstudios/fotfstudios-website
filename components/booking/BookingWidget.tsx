@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DateTime } from "luxon";
 import { formatCLP } from "@/src/domain/money/money";
 import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
+import type { DayStatus } from "@/src/domain/scheduling/month-availability";
+import Calendar from "./Calendar";
+import TimeSlots from "./TimeSlots";
+import { hhmm } from "./format";
 
 type Rec = "none" | "audio" | "audioVideo";
 
@@ -20,12 +25,16 @@ interface QuoteResult {
   discount: number;
 }
 
-const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const todayInSantiago = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
 
 export default function BookingWidget({ resourceId }: { resourceId: string }) {
-  const [date, setDate] = useState(todayInSantiago());
+  const today = todayInSantiago();
+  const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
+
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [dayStatus, setDayStatus] = useState<Record<string, DayStatus>>({});
+  const [selected, setSelected] = useState<string | null>(null);
   const [avail, setAvail] = useState<DayAvailability | null>(null);
   const [loadingAvail, setLoadingAvail] = useState(false);
   const [start, setStart] = useState<number | null>(null);
@@ -38,49 +47,69 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Disponibilidad al cambiar de fecha.
+  // Disponibilidad del mes visible (pinta el calendario). Degrada a {} si falla.
   useEffect(() => {
     let active = true;
-    const run = async () => {
+    void (async () => {
+      try {
+        const d = await (await fetch(`/api/availability/month?resource=${resourceId}&month=${month}`)).json();
+        if (active) setDayStatus(d?.days ?? {});
+      } catch {
+        if (active) setDayStatus({});
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [resourceId, month]);
+
+  // Disponibilidad del día al elegir fecha.
+  useEffect(() => {
+    if (selected === null) return;
+    let active = true;
+    void (async () => {
       setLoadingAvail(true);
       setStart(null);
       setQuote(null);
       try {
-        const d = await (await fetch(`/api/availability?resource=${resourceId}&date=${date}`)).json();
+        const d = await (await fetch(`/api/availability?resource=${resourceId}&date=${selected}`)).json();
         if (active) setAvail(d?.error ? null : d);
       } catch {
         if (active) setAvail(null);
       } finally {
         if (active) setLoadingAvail(false);
       }
-    };
-    void run();
+    })();
     return () => {
       active = false;
     };
-  }, [resourceId, date]);
+  }, [resourceId, selected]);
+
+  // Clear availability when no date is selected.
+  if (selected === null && avail !== null) {
+    setAvail(null);
+  }
 
   const starts =
     avail && !avail.closed
       ? availableStartMinutes(avail.openMinute, avail.closeMinute, duration, avail.booked)
       : [];
-  // Inicio efectivo: si tras cambiar duración deja de ser válido, se ignora.
   const selectedStart = start !== null && starts.includes(start) ? start : null;
   const maxDuration =
     avail && !avail.closed && selectedStart !== null ? (avail.closeMinute - selectedStart) / 60 : 8;
 
-  // Cotización (estimación) cuando hay inicio válido.
+  // Cotización al tener inicio válido.
   useEffect(() => {
     let active = true;
-    const run = async () => {
-      if (selectedStart === null) {
+    void (async () => {
+      if (selected === null || selectedStart === null) {
         if (active) setQuote(null);
         return;
       }
       const keys = rec === "none" ? [] : [rec];
       const qs = new URLSearchParams({
         resource: resourceId,
-        date,
+        date: selected,
         start: String(selectedStart),
         duration: String(duration),
         addons: keys.join(","),
@@ -91,15 +120,14 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
       } catch {
         if (active) setQuote(null);
       }
-    };
-    void run();
+    })();
     return () => {
       active = false;
     };
-  }, [resourceId, date, selectedStart, duration, rec]);
+  }, [resourceId, selected, selectedStart, duration, rec]);
 
   const submit = useCallback(async () => {
-    if (selectedStart === null || !email) return;
+    if (selected === null || selectedStart === null || !email) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -108,7 +136,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           resourceId,
-          date,
+          date: selected,
           startMinute: selectedStart,
           durationHours: duration,
           addonKeys: rec === "none" ? [] : [rec],
@@ -130,56 +158,18 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
       setError("Error de conexión. Intenta de nuevo.");
       setSubmitting(false);
     }
-  }, [resourceId, date, selectedStart, duration, rec, name, email, phone]);
+  }, [resourceId, selected, selectedStart, duration, rec, name, email, phone]);
+
+  const canPay = selectedStart !== null && !!email && !submitting;
+  const inputCls =
+    "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-      {/* Controles */}
-      <div className="border hairline">
-        <div className="flex items-center justify-between border-b hairline px-6 py-4">
-          <span className="label text-bone-mute">Reserva tu sesión</span>
-          <span className="label-sm text-gold">Sala de ensayo</span>
-        </div>
-
-        <div className="space-y-7 p-6">
-          <Field label="Día">
-            <input
-              type="date"
-              value={date}
-              min={todayInSantiago()}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full border hairline bg-ink px-4 py-3 font-mono text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold"
-            />
-          </Field>
-
-          <Field label="Hora de inicio">
-            {loadingAvail ? (
-              <p className="label-sm text-bone-mute">Cargando disponibilidad…</p>
-            ) : avail?.closed ? (
-              <p className="label-sm text-bone-mute">Cerrado ese día.</p>
-            ) : starts.length === 0 ? (
-              <p className="label-sm text-bone-mute">Sin horarios disponibles para esa duración.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {starts.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setStart(m)}
-                    aria-pressed={selectedStart === m}
-                    className={`min-w-16 px-3 py-2 label-sm transition-colors ${
-                      selectedStart === m
-                        ? "bg-gold text-ink"
-                        : "border hairline text-bone-dim hover:border-gold hover:text-gold"
-                    }`}
-                  >
-                    {hhmm(m)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Field>
-
+    <div className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
+      {/* IZQUIERDA: configuración + calendario + datos */}
+      <div className="space-y-6">
+        {/* Barra de sesión */}
+        <div className="grid gap-6 border hairline p-5 sm:grid-cols-2">
           <Field label="Duración">
             <div className="flex items-stretch border hairline">
               <button
@@ -205,7 +195,6 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
               </button>
             </div>
           </Field>
-
           <Field label="Grabación (opcional)">
             <div className="grid grid-cols-3 gap-1.5">
               {(["none", "audio", "audioVideo"] as Rec[]).map((k) => (
@@ -223,45 +212,56 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
               ))}
             </div>
           </Field>
-
-          <Field label="Tus datos">
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Nombre"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold"
-              />
-              <input
-                type="email"
-                placeholder="Email *"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold"
-              />
-              <input
-                type="tel"
-                placeholder="Teléfono"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold"
-              />
-            </div>
-          </Field>
         </div>
+
+        {/* Calendario + horarios */}
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+          <Calendar
+            month={month}
+            today={today}
+            maxDate={maxDate}
+            selected={selected}
+            dayStatus={dayStatus}
+            onSelect={setSelected}
+            onMonth={setMonth}
+          />
+          <div className="border hairline p-4 md:min-h-[20rem] md:p-5">
+            <span className="label-sm mb-4 block text-bone-mute">Selecciona un horario</span>
+            <TimeSlots
+              hasDate={selected !== null}
+              loading={loadingAvail}
+              closed={!!avail?.closed}
+              durationHours={duration}
+              slots={starts}
+              selected={selectedStart}
+              onSelect={setStart}
+            />
+          </div>
+        </div>
+
+        {/* Datos (aparecen al elegir horario) */}
+        {selectedStart !== null && (
+          <div className="rise border hairline p-5">
+            <span className="label-sm mb-4 block text-bone-mute">Tus datos</span>
+            <div className="space-y-2">
+              <input type="text" placeholder="Nombre (opcional)" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+              <input type="email" placeholder="Email *" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+              <input type="tel" placeholder="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Resumen */}
+      {/* DERECHA: resumen */}
       <div className="grain relative overflow-hidden border hairline bg-ink lg:sticky lg:top-28">
         <div className="relative p-6 md:p-8">
           <span className="label text-bone-mute">Total</span>
           <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
             {quote ? formatCLP(quote.total) : "—"}
           </div>
-          {selectedStart !== null && (
+          {selected !== null && selectedStart !== null && (
             <p className="mt-1 label-sm text-gold">
-              {date} · {hhmm(selectedStart)}–{hhmm(selectedStart + duration * 60)} · {duration}h
+              {selected} · {hhmm(selectedStart)}–{hhmm(selectedStart + duration * 60)} · {duration}h
             </p>
           )}
 
@@ -293,17 +293,34 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
           <button
             type="button"
             onClick={submit}
-            disabled={selectedStart === null || !email || submitting}
+            disabled={!canPay}
             className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
           >
             {submitting ? "Redirigiendo…" : "Ir a pagar"}
             <span>→</span>
           </button>
-          <p className="mt-3 text-center label-sm text-bone-mute">
-            IVA incluido · pago seguro con Mercado Pago
-          </p>
+          <p className="mt-3 text-center label-sm text-bone-mute">IVA incluido · pago seguro con Mercado Pago</p>
         </div>
       </div>
+
+      {/* Barra fija móvil */}
+      {selectedStart !== null && (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t hairline bg-ink/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div>
+            <div className="label-sm text-bone-mute">Total</div>
+            <div className="font-display text-xl text-bone">{quote ? formatCLP(quote.total) : "—"}</div>
+          </div>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canPay}
+            className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
+          >
+            {submitting ? "…" : "Ir a pagar"}
+            <span>→</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
