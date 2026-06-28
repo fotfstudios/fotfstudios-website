@@ -58,3 +58,16 @@ export function toLocalMinutesInterval(
   );
   return { start, end };
 }
+
+/** Todas las fechas locales "YYYY-MM-DD" del mes "YYYY-MM". */
+export function monthDates(month: string): string[] {
+  const first = DateTime.fromISO(`${month}-01`);
+  const n = first.daysInMonth!;
+  return Array.from({ length: n }, (_, i) => first.plus({ days: i }).toFormat("yyyy-MM-dd"));
+}
+
+/** Límites UTC [inicio, fin) del mes local "YYYY-MM" en `tz`. */
+export function monthBoundsUtc(month: string, tz: string): { startUtc: string; endUtc: string } {
+  const start = DateTime.fromISO(`${month}-01`, { zone: tz }).startOf("month");
+  return { startUtc: start.toUTC().toISO()!, endUtc: start.plus({ months: 1 }).toUTC().toISO()! };
+}
