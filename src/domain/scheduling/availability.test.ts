@@ -23,4 +23,14 @@ describe("availableStartMinutes", () => {
     // 09:00–12:00, 2h → 09:00, 10:00 (11:00+2h pasaría del cierre)
     expect(availableStartMinutes(540, 720, 2, [])).toEqual([540, 600]);
   });
+
+  it("excluye inicios anteriores al corte (hoy: hora actual)", () => {
+    // 09:00–12:00, 1h, corte 10:30 → 09:00 y 10:00 ya pasaron, queda 11:00
+    expect(availableStartMinutes(540, 720, 1, [], 60, 630)).toEqual([660]);
+  });
+
+  it("sin corte por defecto lista desde la apertura", () => {
+    // minStartMinute por defecto no recorta nada
+    expect(availableStartMinutes(540, 720, 1, [])).toEqual([540, 600, 660]);
+  });
 });

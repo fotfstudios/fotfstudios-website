@@ -16,6 +16,8 @@ export function overlaps(a: Interval, b: Interval): boolean {
 /**
  * Inicios válidos (en la hora exacta por defecto) para una reserva de
  * `durationHours`, dentro de [openMinute, closeMinute) y sin chocar con `booked`.
+ * `minStartMinute` descarta inicios anteriores al corte (p. ej. la hora actual
+ * cuando la fecha elegida es hoy); por defecto no recorta nada.
  */
 export function availableStartMinutes(
   openMinute: number,
@@ -23,10 +25,12 @@ export function availableStartMinutes(
   durationHours: number,
   booked: Interval[],
   stepMinutes = 60,
+  minStartMinute = 0,
 ): number[] {
   const dur = durationHours * 60;
   const out: number[] = [];
   for (let s = openMinute; s + dur <= closeMinute; s += stepMinutes) {
+    if (s < minStartMinute) continue;
     const slot: Interval = { start: s, end: s + dur };
     if (!booked.some((b) => overlaps(slot, b))) out.push(s);
   }
