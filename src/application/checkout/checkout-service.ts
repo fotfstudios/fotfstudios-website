@@ -20,6 +20,9 @@ export class CheckoutService {
     if (!res.ok) return err(res.error);
     const { quote, currency, startsAt, endsAt } = res.value;
 
+    // No se puede reservar un horario que ya empezó (cliente con datos viejos).
+    if (new Date(startsAt).getTime() <= Date.now()) return err("slot_in_past");
+
     const lines: CheckoutLine[] = [
       ...quote.tierLines.map((l) => ({
         line_type: "room_time" as const,

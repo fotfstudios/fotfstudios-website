@@ -28,6 +28,19 @@ interface QuoteResult {
 const todayInSantiago = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
 
+/** Minuto del día actual en Santiago (para descartar horarios ya pasados hoy). */
+const nowMinuteInSantiago = () => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Santiago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return h * 60 + m;
+};
+
 export default function BookingWidget({ resourceId }: { resourceId: string }) {
   const today = todayInSantiago();
   const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
@@ -88,9 +101,11 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
     };
   }, [resourceId, selected]);
 
+  // Si la fecha elegida es hoy, descarta los horarios cuya hora ya pasó.
+  const minStart = selected === today ? nowMinuteInSantiago() : 0;
   const starts =
     avail && !avail.closed
-      ? availableStartMinutes(avail.openMinute, avail.closeMinute, duration, avail.booked)
+      ? availableStartMinutes(avail.openMinute, avail.closeMinute, duration, avail.booked, 60, minStart)
       : [];
   const selectedStart = start !== null && starts.includes(start) ? start : null;
   const maxDuration =
@@ -146,7 +161,9 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
         setError(
           data?.error === "slot_taken"
             ? "Ese horario se acaba de tomar. Elige otro."
-            : "No se pudo crear la reserva.",
+            : data?.error === "slot_in_past"
+              ? "Ese horario ya pasó. Elige otro."
+              : "No se pudo crear la reserva.",
         );
         setSubmitting(false);
         return;
