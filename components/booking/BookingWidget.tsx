@@ -161,7 +161,9 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
         setError(
           data?.error === "slot_taken"
             ? "Ese horario se acaba de tomar. Elige otro."
-            : "No se pudo crear la reserva.",
+            : data?.error === "slot_in_past"
+              ? "Ese horario ya pasó. Elige otro."
+              : "No se pudo crear la reserva.",
         );
         setSubmitting(false);
         return;
