@@ -21,10 +21,10 @@ export interface DayCell {
   inMonth: boolean; // false = relleno de un mes vecino
 }
 
-/** Grilla de 6 semanas (42 celdas), empezando en domingo, para el mes "YYYY-MM". */
+/** Grilla de 6 semanas (42 celdas), empezando en lunes, para el mes "YYYY-MM". */
 export function monthGrid(month: string): DayCell[][] {
   const first = DateTime.fromISO(`${month}-01`);
-  const gridStart = first.minus({ days: first.weekday % 7 }); // Luxon: 1=Lun..7=Dom → Dom=0
+  const gridStart = first.minus({ days: (first.weekday + 6) % 7 }); // Luxon: 1=Lun..7=Dom → Lun=0
   const weeks: DayCell[][] = [];
   for (let w = 0; w < 6; w++) {
     const row: DayCell[] = [];

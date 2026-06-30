@@ -20,12 +20,13 @@ describe("classifyDay", () => {
 });
 
 describe("monthGrid", () => {
-  it("6 semanas de 7 días, empezando en domingo, con relleno de meses vecinos", () => {
+  it("6 semanas de 7 días, empezando en lunes, con relleno de meses vecinos", () => {
     const g = monthGrid("2026-06"); // 1 jun 2026 = lunes
     expect(g).toHaveLength(6);
     expect(g.flat()).toHaveLength(42);
-    expect(g[0][0]).toEqual({ date: "2026-05-31", inMonth: false }); // domingo previo
-    expect(g[0][1]).toEqual({ date: "2026-06-01", inMonth: true });
+    expect(g[0][0]).toEqual({ date: "2026-06-01", inMonth: true }); // lunes = primer día
+    expect(g[0][1]).toEqual({ date: "2026-06-02", inMonth: true });
+    expect(g.flat()[30]).toEqual({ date: "2026-07-01", inMonth: false }); // relleno mes siguiente
   });
 });
 

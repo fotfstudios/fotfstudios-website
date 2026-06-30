@@ -69,7 +69,19 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
       setLoadingMonth(true);
       try {
         const d = await (await fetch(`/api/availability/month?resource=${resourceId}&month=${month}`)).json();
-        if (active) setDayStatus(d?.days ?? {});
+        const days = (d?.days ?? {}) as Record<string, DayStatus>;
+        if (active) {
+          setDayStatus(days);
+          // Si el mes visible no tiene ningún día seleccionable, salta al siguiente
+          // (hasta el horizonte): evita aterrizar en un calendario muerto a fin de mes.
+          const maxMonth = maxDate.slice(0, 7);
+          const hasSelectable = Object.entries(days).some(
+            ([date, status]) => date >= today && date <= maxDate && status !== "closed" && status !== "full",
+          );
+          if (!hasSelectable && Object.keys(days).length > 0 && month < maxMonth) {
+            setMonth(DateTime.fromISO(`${month}-01`).plus({ months: 1 }).toFormat("yyyy-MM"));
+          }
+        }
       } catch {
         if (active) setDayStatus({});
       } finally {
@@ -79,7 +91,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
     return () => {
       active = false;
     };
-  }, [resourceId, month]);
+  }, [resourceId, month, today, maxDate]);
 
   // Disponibilidad del día al elegir fecha.
   useEffect(() => {
@@ -187,10 +199,10 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
 
   return (
     <div className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
-      {/* IZQUIERDA: configuración + calendario + datos */}
+      {/* IZQUIERDA: 1 duración · 2 fecha · 3 hora · 4 grabación */}
       <div className="space-y-6">
-        {/* Barra de sesión */}
-        <div className="grid gap-6 border hairline p-5 sm:grid-cols-2">
+        {/* 1. Duración */}
+        <div className="border hairline p-5">
           <Field label="Duración">
             <div className="flex items-stretch border hairline">
               <button
@@ -216,26 +228,9 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
               </button>
             </div>
           </Field>
-          <Field label="Grabación (opcional)">
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["none", "audio", "audioVideo"] as Rec[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setRec(k)}
-                  aria-pressed={rec === k}
-                  className={`px-2 py-3 label-sm transition-colors ${
-                    rec === k ? "bg-gold text-ink" : "border hairline text-bone-dim hover:border-gold hover:text-gold"
-                  }`}
-                >
-                  {k === "none" ? "Ninguna" : k === "audio" ? "Audio" : "Audio + Video"}
-                </button>
-              ))}
-            </div>
-          </Field>
         </div>
 
-        {/* Calendario + horarios */}
+        {/* 2 + 3. Calendario + horarios */}
         <div className="grid gap-4 md:grid-cols-2 md:items-start">
           <Calendar
             month={month}
@@ -261,26 +256,41 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
           </div>
         </div>
 
-        {/* Datos (aparecen al elegir horario) */}
-        {selectedStart !== null && (
-          <div className="rise border hairline p-5">
-            <span className="label-sm mb-4 block text-bone-mute">Tus datos</span>
-            <div className="space-y-2">
-              <input type="text" placeholder="Nombre (opcional)" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-              <input type="email" placeholder="Email *" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-              <input type="tel" placeholder="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+        {/* 4. Grabación (opcional) */}
+        <div className="border hairline p-5">
+          <Field label="Grabación (opcional)">
+            <div className="grid grid-cols-3 gap-1.5">
+              {(["none", "audio", "audioVideo"] as Rec[]).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setRec(k)}
+                  aria-pressed={rec === k}
+                  className={`px-2 py-3 label-sm transition-colors ${
+                    rec === k ? "bg-gold text-ink" : "border hairline text-bone-dim hover:border-gold hover:text-gold"
+                  }`}
+                >
+                  {k === "none" ? "Ninguna" : k === "audio" ? "Audio" : "Audio + Video"}
+                </button>
+              ))}
             </div>
-          </div>
-        )}
+          </Field>
+        </div>
       </div>
 
-      {/* DERECHA: resumen */}
+      {/* DERECHA: resumen → desglose → tus datos → pago */}
       <div className="grain relative overflow-hidden border hairline bg-ink lg:sticky lg:top-28">
         <div className="relative p-6 md:p-8">
           <span className="label text-bone-mute">Total</span>
-          <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
-            {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-12 w-44 md:h-14" /> : "—"}
-          </div>
+          {quote ? (
+            <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
+              {formatCLP(quote.total)}
+            </div>
+          ) : quoting ? (
+            <Skeleton className="mt-3 h-12 w-44 md:h-14" />
+          ) : (
+            <p className="mt-3 label-sm text-bone-mute">Selecciona un horario para ver el total.</p>
+          )}
           {selected !== null && selectedStart !== null && (
             <p className="mt-1 label-sm text-gold">
               {selected} · {hhmm(selectedStart)}–{hhmm(selectedStart + duration * 60)} · {duration}h
@@ -321,6 +331,49 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
             </ul>
           )}
 
+          {/* Tus datos (aparecen al elegir horario, junto al botón de pago) */}
+          {selectedStart !== null && (
+            <div className="rise mt-6 border-t hairline pt-5">
+              <span className="label-sm mb-3 block text-bone-mute">Tus datos</span>
+              <div className="space-y-2">
+                <label htmlFor="bk-name" className="sr-only">
+                  Nombre (opcional)
+                </label>
+                <input
+                  id="bk-name"
+                  type="text"
+                  placeholder="Nombre (opcional)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={inputCls}
+                />
+                <label htmlFor="bk-email" className="sr-only">
+                  Email (requerido)
+                </label>
+                <input
+                  id="bk-email"
+                  type="email"
+                  required
+                  placeholder="Email *"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputCls}
+                />
+                <label htmlFor="bk-phone" className="sr-only">
+                  Teléfono (opcional)
+                </label>
+                <input
+                  id="bk-phone"
+                  type="tel"
+                  placeholder="Teléfono (opcional)"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+          )}
+
           {error && <p className="mt-4 label-sm text-sirena">{error}</p>}
 
           <button
@@ -332,7 +385,11 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
             {submitting ? "Redirigiendo…" : "Ir a pagar"}
             <span>→</span>
           </button>
-          <p className="mt-3 text-center label-sm text-bone-mute">IVA incluido · pago seguro con Mercado Pago</p>
+          {selectedStart !== null && !email ? (
+            <p className="mt-3 text-center label-sm text-gold">Ingresa tu email para continuar</p>
+          ) : (
+            <p className="mt-3 text-center label-sm text-bone-mute">IVA incluido · pago seguro con Mercado Pago</p>
+          )}
         </div>
       </div>
 
