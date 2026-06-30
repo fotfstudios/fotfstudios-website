@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Logo from "./Logo";
 import { SITE, whatsappLink } from "@/lib/site";
 import ConsentReopenLink from "./ConsentReopenLink";
@@ -67,6 +68,12 @@ export default function Footer() {
             @{SITE.instagram} · {SITE.city}, {SITE.region} · {SITE.country}
           </span>
           <div className="flex items-center gap-4">
+            <Link
+              href="/privacidad"
+              className="label-sm text-bone-mute transition-colors hover:text-gold"
+            >
+              Privacidad
+            </Link>
             <ConsentReopenLink />
             <span className="label-sm text-bone-mute">
               © {year} {SITE.name} · {SITE.full}
