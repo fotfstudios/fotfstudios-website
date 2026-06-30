@@ -1,29 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
 import { btn, inputCls } from "@/components/admin/ui/styles";
 import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
+import { SITE_URL } from "@/lib/site";
 
-export default function AdminLogin() {
+type Status = "idle" | "sent" | "ratelimited";
+
+function LoginForm() {
+  const params = useSearchParams();
+  const callbackFailed = params.get("error") === "auth";
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     const supabase = createAuthBrowserClient();
+    // En producción fijamos el host del enlace al dominio canónico (no al host
+    // donde se abrió el panel, p. ej. una URL *.vercel.app, que Supabase no tiene
+    // en su allowlist y haría caer el redirect al Site URL). En local usamos el
+    // origen actual para que el enlace de Mailpit apunte a localhost.
+    const origin = process.env.NODE_ENV === "production" ? SITE_URL : window.location.origin;
     // Solo invitados existen (signup off). shouldCreateUser:false evita crear
     // usuarios y enviar enlaces a correos no autorizados.
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback`, shouldCreateUser: false },
+      options: { emailRedirectTo: `${origin}/auth/callback`, shouldCreateUser: false },
     });
     setBusy(false);
+    if (error) {
+      console.warn("[admin-login]", error.message);
+      // El límite de tasa no revela si el correo existe: sí podemos avisarlo.
+      if (error.status === 429) {
+        setStatus("ratelimited");
+        return;
+      }
+    }
     // Mensaje genérico siempre: no revelar si el correo está o no autorizado.
-    if (error) console.warn("[admin-login]", error.message);
-    setSent(true);
+    setStatus("sent");
   };
 
   return (
@@ -38,13 +56,22 @@ export default function AdminLogin() {
           Acceso al panel
         </h1>
 
-        {sent ? (
+        {status === "sent" ? (
           <p className="mt-5 text-sm leading-relaxed text-bone-dim">
             Si <strong className="text-bone">{email}</strong> está autorizado, te enviamos un enlace de acceso. Revisa tu
             correo.
           </p>
+        ) : status === "ratelimited" ? (
+          <p className="mt-5 text-sm leading-relaxed text-bone-dim">
+            Demasiados intentos. Espera unos minutos antes de pedir otro enlace de acceso.
+          </p>
         ) : (
           <form onSubmit={submit} className="mt-6 flex flex-col gap-3">
+            {callbackFailed && (
+              <p className="label-sm text-sirena">
+                No pudimos iniciar tu sesión con ese enlace. Pide uno nuevo.
+              </p>
+            )}
             <label className="label-sm text-bone-mute">
               Correo
               <input
@@ -63,5 +90,13 @@ export default function AdminLogin() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function AdminLogin() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
