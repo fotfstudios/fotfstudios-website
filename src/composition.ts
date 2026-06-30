@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SITE } from "@/lib/site";
+import { requireEnv } from "@/lib/env";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
@@ -26,12 +27,6 @@ import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
 import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mailer";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
-
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Falta variable de entorno: ${name}`);
-  return v;
-}
 
 /** Cliente Supabase service-role (servidor). */
 export function db(): SupabaseClient<Database> {
