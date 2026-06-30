@@ -69,6 +69,12 @@ export default function Footer() {
           </span>
           <div className="flex items-center gap-4">
             <Link
+              href="/terminos"
+              className="label-sm text-bone-mute transition-colors hover:text-gold"
+            >
+              Términos
+            </Link>
+            <Link
               href="/privacidad"
               className="label-sm text-bone-mute transition-colors hover:text-gold"
             >
