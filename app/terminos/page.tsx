@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "Términos y condiciones",
   description:
     "Términos de uso del servicio de FOTF Studios: reservas, pagos, cancelaciones, uso de la sala y responsabilidades.",
+  alternates: { canonical: "/terminos" },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

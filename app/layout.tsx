@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import CustomCursor from "@/components/CustomCursor";
 import ConsentBanner from "@/components/ConsentBanner";
 import { buildConsentDefaultScript } from "@/lib/consent";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const bigShoulders = Big_Shoulders({
@@ -31,11 +32,10 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
-const SITE = "https://fotfstudios.cl";
 const GTM_ID = "GTM-WCC3V22R";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "FOTF Studios · Sala de ensayo de DJ por hora · Viña del Mar",
     template: "%s · FOTF Studios",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     title: "FOTF Studios · Sala de ensayo de DJ por hora",
     description:
       "Aislada acústicamente en Viña del Mar. Plug & play, acceso autogestionado. Reserva una hora y entra a tocar.",
-    url: SITE,
+    url: SITE_URL,
     siteName: "FOTF Studios",
     locale: "es_CL",
     type: "website",

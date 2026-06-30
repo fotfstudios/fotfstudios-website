@@ -57,7 +57,7 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
   return new PaymentService(
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     new SupabaseOrderRepository(client),
-    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://fotfstudios.cl" },
+    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl" },
   );
 }
 
@@ -133,7 +133,7 @@ export function memberService(client: SupabaseClient<Database> = db()): MemberSe
   return new MemberService(
     new SupabaseMemberRepository(client),
     new SupabaseInviter(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY")),
-    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://fotfstudios.cl" },
+    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl" },
   );
 }
 

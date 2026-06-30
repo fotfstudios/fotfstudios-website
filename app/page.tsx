@@ -9,7 +9,12 @@ import Precio from "@/components/sections/Precio";
 import Ubicacion from "@/components/sections/Ubicacion";
 import CierreCTA from "@/components/sections/CierreCTA";
 import Footer from "@/components/Footer";
-import { SITE, PRICING } from "@/lib/site";
+import type { Metadata } from "next";
+import { SITE, SITE_URL, PRICING } from "@/lib/site";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -17,7 +22,7 @@ const jsonLd = {
   name: SITE.name,
   description:
     "Sala de ensayo de DJ por hora en Viña del Mar. Aislada acústicamente, equipo Pioneer y monitores de estudio. Plug & play, acceso autogestionado.",
-  image: "https://fotfstudios.cl/photos/hero-booth.JPG",
+  image: `${SITE_URL}/photos/hero-booth.JPG`,
   telephone: `+${SITE.whatsapp}`,
   address: {
     "@type": "PostalAddress",
@@ -30,7 +35,7 @@ const jsonLd = {
   areaServed: "Viña del Mar",
   priceRange: PRICING.priceRange,
   sameAs: [SITE.instagramUrl],
-  url: "https://fotfstudios.cl",
+  url: SITE_URL,
 };
 
 export default function Home() {
