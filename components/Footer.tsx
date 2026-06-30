@@ -86,6 +86,18 @@ export default function Footer() {
             </span>
           </div>
         </div>
+
+        <p className="mt-6 label-sm text-bone-mute">
+          Diseñado y desarrollado por{" "}
+          <a
+            href="https://www.biznize.cl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bone-dim transition-colors hover:text-gold"
+          >
+            Biznize
+          </a>
+        </p>
       </div>
     </footer>
   );
