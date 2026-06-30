@@ -29,6 +29,12 @@ export async function middleware(request: NextRequest) {
   const claims = (data?.claims as AdminClaims | undefined) ?? null;
 
   const path = request.nextUrl.pathname;
+  // Ya autenticado como admin: la página de login no aplica → al panel.
+  if (path === "/admin/login" && isAdminMember(claims)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin";
+    return NextResponse.redirect(url);
+  }
   if (path.startsWith("/admin") && path !== "/admin/login" && !isAdminMember(claims)) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
