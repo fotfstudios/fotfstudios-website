@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { monthGrid, type DayStatus } from "@/src/domain/scheduling/month-availability";
+import Skeleton from "./Skeleton";
 
 interface CalendarProps {
   month: string; // "YYYY-MM" visible
@@ -7,6 +8,7 @@ interface CalendarProps {
   maxDate: string; // horizonte (YYYY-MM-DD)
   selected: string | null;
   dayStatus: Record<string, DayStatus>;
+  loading?: boolean;
   onSelect: (date: string) => void;
   onMonth: (month: string) => void;
 }
@@ -18,7 +20,7 @@ const MONTHS = [
 ];
 
 export default function Calendar({
-  month, today, maxDate, selected, dayStatus, onSelect, onMonth,
+  month, today, maxDate, selected, dayStatus, loading = false, onSelect, onMonth,
 }: CalendarProps) {
   const grid = monthGrid(month);
   const [y, m] = month.split("-").map(Number);
@@ -49,7 +51,9 @@ export default function Calendar({
       </div>
 
       <div className="grid grid-cols-7 gap-1">
-        {grid.flat().map((cell) => {
+        {loading
+          ? Array.from({ length: 42 }).map((_, i) => <Skeleton key={i} className="aspect-square" />)
+          : grid.flat().map((cell) => {
           const status = dayStatus[cell.date] ?? "open";
           const isPast = cell.date < today;
           const beyond = cell.date > maxDate;
@@ -85,9 +89,11 @@ export default function Calendar({
         })}
       </div>
 
-      <p className="label-sm mt-4 flex items-center gap-2 text-bone-mute">
-        <span aria-hidden className="size-1 rounded-full bg-sirena" /> Últimos cupos
-      </p>
+      {!loading && (
+        <p className="label-sm mt-4 flex items-center gap-2 text-bone-mute">
+          <span aria-hidden className="size-1 rounded-full bg-sirena" /> Últimos cupos
+        </p>
+      )}
     </div>
   );
 }

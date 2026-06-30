@@ -1,4 +1,4 @@
-import Spinner from "./Spinner";
+import Skeleton from "./Skeleton";
 import { hhmm } from "./format";
 
 interface TimeSlotsProps {
@@ -22,7 +22,15 @@ export default function TimeSlots({
   onSelect,
 }: TimeSlotsProps) {
   if (!hasDate) return <Empty>Selecciona una fecha para ver horarios</Empty>;
-  if (loading) return <Spinner />;
+  if (loading)
+    return (
+      <div role="status" aria-label="Cargando disponibilidad" className="flex flex-col gap-1.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-[2.85rem] w-full" />
+        ))}
+        <span className="sr-only">Cargando disponibilidad…</span>
+      </div>
+    );
   if (closed) return <Empty>Cerrado ese día.</Empty>;
   if (slots.length === 0) return <Empty>Sin horarios disponibles para esa duración.</Empty>;
 
