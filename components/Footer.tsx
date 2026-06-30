@@ -1,5 +1,6 @@
 import Logo from "./Logo";
 import { SITE, whatsappLink } from "@/lib/site";
+import ConsentReopenLink from "./ConsentReopenLink";
 
 export default function Footer() {
   const year = 2026;
@@ -65,9 +66,12 @@ export default function Footer() {
           <span className="label-sm text-bone-mute">
             @{SITE.instagram} · {SITE.city}, {SITE.region} · {SITE.country}
           </span>
-          <span className="label-sm text-bone-mute">
-            © {year} {SITE.name} · {SITE.full}
-          </span>
+          <div className="flex items-center gap-4">
+            <ConsentReopenLink />
+            <span className="label-sm text-bone-mute">
+              © {year} {SITE.name} · {SITE.full}
+            </span>
+          </div>
         </div>
       </div>
     </footer>

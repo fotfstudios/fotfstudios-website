@@ -4,6 +4,8 @@ import { Big_Shoulders, JetBrains_Mono, Fraunces } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import CustomCursor from "@/components/CustomCursor";
+import ConsentBanner from "@/components/ConsentBanner";
+import { buildConsentDefaultScript } from "@/lib/consent";
 import "./globals.css";
 
 const bigShoulders = Big_Shoulders({
@@ -85,6 +87,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
+        {/* Google Consent Mode v2 — defaults antes de GTM */}
+        <Script id="consent-default" strategy="beforeInteractive">
+          {buildConsentDefaultScript()}
+        </Script>
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
@@ -109,6 +115,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {children}
         <Analytics />
         <SpeedInsights />
+        <ConsentBanner />
       </body>
     </html>
   );
