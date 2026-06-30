@@ -7,6 +7,7 @@ import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/av
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
+import Skeleton from "./Skeleton";
 import { hhmm } from "./format";
 
 type Rec = "none" | "audio" | "audioVideo";
@@ -47,6 +48,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
 
   const [month, setMonth] = useState(today.slice(0, 7));
   const [dayStatus, setDayStatus] = useState<Record<string, DayStatus>>({});
+  const [loadingMonth, setLoadingMonth] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [avail, setAvail] = useState<DayAvailability | null>(null);
   const [loadingAvail, setLoadingAvail] = useState(false);
@@ -64,11 +66,14 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
   useEffect(() => {
     let active = true;
     void (async () => {
+      setLoadingMonth(true);
       try {
         const d = await (await fetch(`/api/availability/month?resource=${resourceId}&month=${month}`)).json();
         if (active) setDayStatus(d?.days ?? {});
       } catch {
         if (active) setDayStatus({});
+      } finally {
+        if (active) setLoadingMonth(false);
       }
     })();
     return () => {
@@ -176,6 +181,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
   }, [resourceId, selected, selectedStart, duration, rec, name, email, phone]);
 
   const canPay = selectedStart !== null && !!email && !submitting;
+  const quoting = selectedStart !== null && !quote;
   const inputCls =
     "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
 
@@ -237,6 +243,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
             maxDate={maxDate}
             selected={selected}
             dayStatus={dayStatus}
+            loading={loadingMonth}
             onSelect={setSelected}
             onMonth={setMonth}
           />
@@ -272,12 +279,23 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
         <div className="relative p-6 md:p-8">
           <span className="label text-bone-mute">Total</span>
           <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
-            {quote ? formatCLP(quote.total) : "—"}
+            {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-12 w-44 md:h-14" /> : "—"}
           </div>
           {selected !== null && selectedStart !== null && (
             <p className="mt-1 label-sm text-gold">
               {selected} · {hhmm(selectedStart)}–{hhmm(selectedStart + duration * 60)} · {duration}h
             </p>
+          )}
+
+          {quoting && (
+            <ul className="mt-6 space-y-2.5 border-t hairline pt-5">
+              {[0, 1].map((i) => (
+                <li key={i} className="flex justify-between gap-3">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-16" />
+                </li>
+              ))}
+            </ul>
           )}
 
           {quote && (
@@ -323,7 +341,9 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t hairline bg-ink/95 px-4 py-3 backdrop-blur lg:hidden">
           <div>
             <div className="label-sm text-bone-mute">Total</div>
-            <div className="font-display text-xl text-bone">{quote ? formatCLP(quote.total) : "—"}</div>
+            <div className="font-display text-xl text-bone">
+              {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
+            </div>
           </div>
           <button
             type="button"
