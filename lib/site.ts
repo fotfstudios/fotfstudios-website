@@ -23,6 +23,15 @@ export const SITE = {
 export const whatsappLink = (msg: string = SITE.whatsappMsg) =>
   `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(msg)}`;
 
+/**
+ * Host canónico del sitio (una sola fuente de verdad para SEO: metadata, robots,
+ * sitemap, OG, JSON-LD). Producción sirve `www` (el apex redirige 308→www). Es
+ * fijo a propósito: el canonical debe apuntar SIEMPRE a producción, sin importar
+ * el entorno (local/preview/prod), y no debe acoplarse a `NEXT_PUBLIC_SITE_URL`
+ * (que en local apunta al túnel de pruebas de pago). Sin barra final.
+ */
+export const SITE_URL = "https://www.fotfstudios.cl";
+
 /** El modelo en tres pasos. */
 export const STEPS = [
   {

@@ -1,23 +1,22 @@
 import type { MetadataRoute } from "next";
-
-const SITE = "https://fotfstudios.cl";
+import { SITE_URL } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: SITE,
+      url: SITE_URL,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 1,
     },
     {
-      url: `${SITE}/privacidad`,
+      url: `${SITE_URL}/privacidad`,
       lastModified: new Date(),
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
-      url: `${SITE}/terminos`,
+      url: `${SITE_URL}/terminos`,
       lastModified: new Date(),
       changeFrequency: "yearly",
       priority: 0.3,

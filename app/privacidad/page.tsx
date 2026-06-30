@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "Privacidad y cookies",
   description:
     "Cómo FOTF Studios trata tus datos personales y qué cookies usamos. Tus derechos y cómo ejercerlos.",
+  alternates: { canonical: "/privacidad" },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
