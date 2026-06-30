@@ -18,12 +18,20 @@ declare global {
 
 /** Banner de consentimiento (Aceptar/Rechazar). Aparece si no hay elección guardada. */
 export default function ConsentBanner() {
-  const [open, setOpen] = useState(() => !parseConsent(localStorage.getItem(STORAGE_KEY)));
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const reopen = () => setOpen(true);
     window.addEventListener("open-consent", reopen);
-    return () => window.removeEventListener("open-consent", reopen);
+    // Mostrar el banner si no hay elección guardada. requestAnimationFrame evita
+    // el setState síncrono en el efecto (regla react-hooks/set-state-in-effect) y
+    // es seguro en SSR (el efecto solo corre en el cliente).
+    let raf = 0;
+    if (!parseConsent(localStorage.getItem(STORAGE_KEY))) raf = requestAnimationFrame(reopen);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("open-consent", reopen);
+    };
   }, []);
 
   const choose = (analytics: ConsentValue) => {
