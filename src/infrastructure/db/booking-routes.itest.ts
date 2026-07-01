@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as availabilityGET } from "@/app/api/availability/route";
 import { POST as bookingsPOST } from "@/app/api/bookings/route";
 import { GET as statusGET } from "@/app/api/orders/[id]/status/route";
+import { futureDate } from "@/tests/dates";
 
 const TOKEN = process.env.MP_ACCESS_TOKEN ?? "";
 const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
@@ -15,6 +16,7 @@ const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@12
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 const cleanup = "truncate reservations, orders, order_lines, payment_intents cascade";
+const MON = futureDate(1); // lunes futuro
 
 beforeAll(async () => {
   await pg.connect();
@@ -31,7 +33,7 @@ beforeEach(async () => {
 describe.skipIf(!TOKEN)("rutas de reserva", () => {
   it("availability → bookings → status (happy path)", async () => {
     const av = await availabilityGET(
-      new Request(`http://x/api/availability?resource=${resourceId}&date=2024-01-01`),
+      new Request(`http://x/api/availability?resource=${resourceId}&date=${MON}`),
     );
     expect(av.status).toBe(200);
     const avJson = await av.json();
@@ -43,7 +45,7 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           resourceId,
-          date: "2024-01-01",
+          date: MON,
           startMinute: 600,
           durationHours: 1,
           customer: { email: "x@e.cl" },
@@ -68,7 +70,7 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             resourceId,
-            date: "2024-01-01",
+            date: MON,
             startMinute: 660,
             durationHours: 1,
             customer: { email: "y@e.cl" },

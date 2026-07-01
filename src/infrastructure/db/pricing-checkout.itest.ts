@@ -7,6 +7,7 @@ import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { createServiceClient } from "./supabase-client";
@@ -21,7 +22,7 @@ const checkout = new CheckoutService(pricing, new SupabaseCheckoutRepository(db)
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 
-const MON = "2024-01-01"; // lunes
+const MON = futureDate(1); // lunes futuro (satisface lead-time)
 
 beforeAll(async () => {
   await pg.connect();

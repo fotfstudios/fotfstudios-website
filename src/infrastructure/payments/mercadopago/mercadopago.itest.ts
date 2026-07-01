@@ -12,6 +12,7 @@ import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-rep
 import { SupabaseOrderRepository } from "@/src/infrastructure/db/order-repository";
 import { SupabaseRatePlanRepository } from "@/src/infrastructure/db/rate-plan-repository";
 import { createServiceClient } from "@/src/infrastructure/db/supabase-client";
+import { futureDate } from "@/tests/dates";
 import { MercadoPagoGateway } from "./mercadopago-gateway";
 
 const TOKEN = process.env.MP_ACCESS_TOKEN ?? "";
@@ -45,7 +46,7 @@ describe.skipIf(!TOKEN)("MercadoPago Checkout Pro (sandbox)", () => {
 
     const booking = await checkout.createBooking({
       resourceId,
-      date: "2024-01-01",
+      date: futureDate(1),
       startMinute: 600,
       durationHours: 1,
       customer: { email: "test_user_123@testuser.com" },

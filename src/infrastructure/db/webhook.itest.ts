@@ -9,6 +9,7 @@ import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import type { PaymentGateway, PaymentInfo, PreferenceResult } from "@/src/application/ports/payment";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { createServiceClient } from "./supabase-client";
@@ -40,8 +41,9 @@ class StubGateway implements PaymentGateway {
   }
 }
 
+const MON = futureDate(1); // lunes futuro
 const book = (start: number, email: string) =>
-  checkout.createBooking({ resourceId, date: "2024-01-01", startMinute: start, durationHours: 1, customer: { email } });
+  checkout.createBooking({ resourceId, date: MON, startMinute: start, durationHours: 1, customer: { email } });
 
 const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events cascade";
 

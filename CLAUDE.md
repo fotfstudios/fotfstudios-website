@@ -15,7 +15,7 @@ npm run dev      # local dev (http://localhost:3000)
 npm run build    # production build (also type-checks)
 npm run lint     # eslint .  (flat config, eslint.config.mjs)
 npm test         # vitest run (unit tests; also runs in CI lint & build job)
-npm run test:integration  # vitest *.itest.ts contra la DB local (requiere db:start; no corre en CI)
+npm run test:integration  # vitest *.itest.ts contra la DB local (requiere db:start). En CI corre contra Supabase en contenedor; specs MP se omiten sin token
 
 # Plataforma de reservas — base de datos local (Supabase CLI, requiere Docker)
 npm run db:start # supabase start  (stack local; aplica migraciones de supabase/migrations)
@@ -45,6 +45,9 @@ en vivo ni la base Supabase remota real.
   Nada de pagos de prueba repetidos en prod ni reconciliar datos reales a mano.
 - A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
   proyecto remoto, env vars de prod, dominio.
+- **Tests de integración.** CI los corre contra Supabase en contenedor (job "integration
+  tests"), pero los specs que tocan Mercado Pago se auto-omiten sin `MP_ACCESS_TOKEN` — para
+  cambios de pagos/MP, corré `npm run test:integration` local con credenciales de sandbox.
 
 ## Where things live
 
@@ -81,8 +84,15 @@ en vivo ni la base Supabase remota real.
 3. Push → open a PR → review the **Vercel preview deploy** → **squash-merge** to `main` → prod.
 4. Delete the branch after merge. Don't let branches live for weeks.
 
+**Preview = build/marketing check only.** Vercel Preview has **no database** (Supabase env is
+not set there; `instrumentation.ts` downgrades the env guard from throw→warn under
+`VERCEL_ENV=preview`). A preview URL validates that the app *builds* and that static/marketing
+pages render — it does **not** exercise booking, admin, or payment flows. Verify DB/admin/payment
+behavior **locally** (see *Local-first testing*).
+
 Before pushing, verify locally: **`npx eslint .` and `npm run build` must both pass (exit 0).**
-CI (`.github/workflows/ci.yml`) re-runs these on every PR.
+CI (`.github/workflows/ci.yml`) runs eslint + unit tests + build, plus the **integration tests**
+against a containerized Supabase, on every PR.
 
 ### Commit identity
 
