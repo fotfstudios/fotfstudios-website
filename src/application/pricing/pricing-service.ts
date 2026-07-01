@@ -19,6 +19,13 @@ export interface BookingQuote {
   endsAt: string;
 }
 
+/** Catálogo para pintar la UI (add-ons + descuentos por volumen), sin cotizar un horario. */
+export interface PricingCatalog {
+  currency: string;
+  addons: { key: string; name: string; amount: number }[];
+  volumeDiscounts: { minHours: number; pct: number }[];
+}
+
 /** Cotiza una reserva: carga el price book activo y corre el motor puro. */
 export class PricingService {
   constructor(private readonly repo: RatePlanRepository) {}
@@ -43,5 +50,17 @@ export class PricingService {
       pricing.timezone,
     );
     return ok({ quote: q.value, currency: pricing.ratePlan.currency, startsAt, endsAt });
+  }
+
+  /** Add-ons y descuentos por volumen del plan activo, para mostrarlos en la UI. */
+  async getCatalog(resourceId: string): Promise<PricingCatalog | null> {
+    const pricing = await this.repo.getResourcePricing(resourceId);
+    if (!pricing) return null;
+    const { ratePlan } = pricing;
+    return {
+      currency: ratePlan.currency,
+      addons: ratePlan.addons.map((a) => ({ key: a.key, name: a.name, amount: a.amount })),
+      volumeDiscounts: [...ratePlan.volumeDiscounts].sort((a, b) => a.minHours - b.minHours),
+    };
   }
 }

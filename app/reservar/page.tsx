@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BookingWidget from "@/components/booking/BookingWidget";
-import { bookingEnabled, db } from "@/src/composition";
+import { bookingEnabled, db, pricingService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,8 @@ export default async function ReservarPage() {
   const { data } = await db().from("resources").select("id, name").eq("active", true).limit(1).single();
   if (!data) notFound();
 
+  const catalog = await pricingService().getCatalog(data.id);
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-20 md:py-28">
       <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
@@ -30,7 +32,11 @@ export default async function ReservarPage() {
         Elige día, hora y duración. Pagas en línea y tu sesión queda reservada.
       </p>
       <div className="mt-12">
-        <BookingWidget resourceId={data.id} />
+        <BookingWidget
+          resourceId={data.id}
+          addons={catalog?.addons ?? []}
+          volumeDiscounts={catalog?.volumeDiscounts ?? []}
+        />
       </div>
     </main>
   );

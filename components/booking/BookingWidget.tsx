@@ -43,7 +43,15 @@ const nowMinuteInSantiago = () => {
   return h * 60 + m;
 };
 
-export default function BookingWidget({ resourceId }: { resourceId: string }) {
+export default function BookingWidget({
+  resourceId,
+  addons = [],
+  volumeDiscounts = [],
+}: {
+  resourceId: string;
+  addons?: { key: string; name: string; amount: number }[];
+  volumeDiscounts?: { minHours: number; pct: number }[];
+}) {
   const today = todayInSantiago();
   const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
 
@@ -200,7 +208,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
 
   return (
     <div className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
-      {/* IZQUIERDA: 1 duración · 2 fecha · 3 hora · 4 grabación */}
+      {/* IZQUIERDA: 1 duración · 2 fecha · 3 hora (grabación va en el resumen) */}
       <div className="space-y-6">
         {/* 1. Duración */}
         <div className="border hairline p-5">
@@ -229,6 +237,19 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
               </button>
             </div>
           </Field>
+          {volumeDiscounts.length > 0 && (
+            <p className="label-sm mt-3 text-bone-mute">
+              Ahorra:{" "}
+              {volumeDiscounts.map((v, i) => (
+                <span key={v.minHours}>
+                  {i > 0 && " · "}
+                  <span className={duration >= v.minHours ? "text-gold" : ""}>
+                    {v.minHours}h −{Math.round(v.pct * 100)}%
+                  </span>
+                </span>
+              ))}
+            </p>
+          )}
         </div>
 
         {/* 2 + 3. Calendario + horarios */}
@@ -257,26 +278,6 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
           </div>
         </div>
 
-        {/* 4. Grabación (opcional) */}
-        <div className="border hairline p-5">
-          <Field label="Grabación (opcional)">
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["none", "audio", "audioVideo"] as Rec[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setRec(k)}
-                  aria-pressed={rec === k}
-                  className={`px-2 py-3 label-sm transition-colors ${
-                    rec === k ? "bg-gold text-ink" : "border hairline text-bone-dim hover:border-gold hover:text-gold"
-                  }`}
-                >
-                  {k === "none" ? "Ninguna" : k === "audio" ? "Audio" : "Audio + Video"}
-                </button>
-              ))}
-            </div>
-          </Field>
-        </div>
       </div>
 
       {/* DERECHA: resumen → desglose → tus datos → pago */}
@@ -330,6 +331,26 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
                 </li>
               )}
             </ul>
+          )}
+
+          {/* Mejora la sesión: order-bump de grabación, junto al total y al pago. */}
+          {addons.length > 0 && (
+            <div className="mt-6 border-t hairline pt-5">
+              <span className="label-sm text-bone-mute">¿Grabamos tu sesión?</span>
+              <p className="font-editorial mt-1 text-sm text-bone-dim">Llévate tu set listo para publicar.</p>
+              <div className="mt-3 space-y-1.5">
+                <RecOption active={rec === "none"} onClick={() => setRec("none")} label="Sin grabación" />
+                {addons.map((a) => (
+                  <RecOption
+                    key={a.key}
+                    active={rec === a.key}
+                    onClick={() => setRec(a.key as Rec)}
+                    label={a.name}
+                    delta={`+${formatCLP(a.amount)}`}
+                  />
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Tus datos (aparecen al elegir horario, junto al botón de pago) */}
@@ -424,5 +445,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="label-sm mb-3 block text-bone-mute">{label}</label>
       {children}
     </div>
+  );
+}
+
+function RecOption({
+  active,
+  onClick,
+  label,
+  delta,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  delta?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex w-full items-center justify-between gap-3 border px-4 py-3 text-left label-sm transition-colors ${
+        active ? "border-gold bg-gold text-ink" : "hairline text-bone-dim hover:border-gold hover:text-gold"
+      }`}
+    >
+      <span>{label}</span>
+      {delta && <span className="font-mono">{delta}</span>}
+    </button>
   );
 }
