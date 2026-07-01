@@ -46,12 +46,14 @@ export function quote(plan: RatePlan, input: QuoteInput): Result<Quote, string> 
     byTier.set(tier.key, line);
   }
 
-  // Add-ons de monto fijo (no entran al descuento por volumen).
+  // Add-ons (no entran al descuento por volumen). 'per_hour' escala con la duración
+  // (p. ej. la sesión 1:1 guiada: tarifa/hora × horas); el resto es monto fijo.
   const addonLines: AddonLine[] = [];
   for (const key of input.addonKeys ?? []) {
     const a = plan.addons.find((x) => x.key === key);
     if (!a) return err(`add-on desconocido: ${key}`);
-    addonLines.push({ key: a.key, name: a.name, amount: a.amount });
+    const amount = a.kind === "per_hour" ? a.amount * durationHours : a.amount;
+    addonLines.push({ key: a.key, name: a.name, amount });
   }
   const addonsTotal = addonLines.reduce((s, a) => s + a.amount, 0);
 

@@ -21,7 +21,8 @@ export interface VolumeDiscount {
 export interface AddonDef {
   key: string;
   name: string;
-  amount: number; // CLP entero, monto fijo
+  amount: number; // CLP entero: monto fijo, o tarifa por hora si kind='per_hour'
+  kind: "flat_service" | "per_hour";
 }
 
 /** Plan de tarifas resuelto para un recurso (una versión del price book). */

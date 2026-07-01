@@ -10,8 +10,6 @@ import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
 import { hhmm, tierLabel } from "./format";
 
-type Rec = "none" | "audio" | "audioVideo";
-
 interface DayAvailability {
   closed: boolean;
   openMinute: number;
@@ -49,7 +47,7 @@ export default function BookingWidget({
   volumeDiscounts = [],
 }: {
   resourceId: string;
-  addons?: { key: string; name: string; amount: number }[];
+  addons?: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts?: { minHours: number; pct: number }[];
 }) {
   const today = todayInSantiago();
@@ -63,7 +61,8 @@ export default function BookingWidget({
   const [loadingAvail, setLoadingAvail] = useState(false);
   const [start, setStart] = useState<number | null>(null);
   const [duration, setDuration] = useState(1);
-  const [rec, setRec] = useState<Rec>("none");
+  const [rec, setRec] = useState<string>("none");
+  const [extras, setExtras] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -145,7 +144,7 @@ export default function BookingWidget({
         if (active) setQuote(null);
         return;
       }
-      const keys = rec === "none" ? [] : [rec];
+      const keys = [...(rec !== "none" ? [rec] : []), ...extras];
       const qs = new URLSearchParams({
         resource: resourceId,
         date: selected,
@@ -163,7 +162,7 @@ export default function BookingWidget({
     return () => {
       active = false;
     };
-  }, [resourceId, selected, selectedStart, duration, rec]);
+  }, [resourceId, selected, selectedStart, duration, rec, extras]);
 
   const submit = useCallback(async () => {
     if (selected === null || selectedStart === null || !email) return;
@@ -178,7 +177,7 @@ export default function BookingWidget({
           date: selected,
           startMinute: selectedStart,
           durationHours: duration,
-          addonKeys: rec === "none" ? [] : [rec],
+          addonKeys: [...(rec !== "none" ? [rec] : []), ...extras],
           customer: { name, email, phone },
         }),
       });
@@ -199,12 +198,15 @@ export default function BookingWidget({
       setError("Error de conexión. Intenta de nuevo.");
       setSubmitting(false);
     }
-  }, [resourceId, selected, selectedStart, duration, rec, name, email, phone]);
+  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone]);
 
   const canPay = selectedStart !== null && !!email && !submitting;
   const quoting = selectedStart !== null && !quote;
   const inputCls =
     "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
+  const recordingAddons = addons.filter((a) => a.kind === "flat_service");
+  const hourlyAddons = addons.filter((a) => a.kind === "per_hour");
+  const hourlyKeys = new Set(hourlyAddons.map((a) => a.key));
 
   return (
     <div className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
@@ -320,7 +322,10 @@ export default function BookingWidget({
               ))}
               {quote.addonLines.map((a) => (
                 <li key={a.key} className="flex justify-between gap-3 text-bone-dim">
-                  <span>{a.name}</span>
+                  <span>
+                    {a.name}
+                    {hourlyKeys.has(a.key) ? ` · ${duration}h` : ""}
+                  </span>
                   <span className="font-mono text-bone">{formatCLP(a.amount)}</span>
                 </li>
               ))}
@@ -333,20 +338,40 @@ export default function BookingWidget({
             </ul>
           )}
 
-          {/* Mejora la sesión: order-bump de grabación, junto al total y al pago. */}
-          {addons.length > 0 && (
+          {/* Mejora la sesión: grabación (elige una) + guía por hora (opcional). */}
+          {recordingAddons.length > 0 && (
             <div className="mt-6 border-t hairline pt-5">
               <span className="label-sm text-bone-mute">¿Grabamos tu sesión?</span>
               <p className="font-editorial mt-1 text-sm text-bone-dim">Llévate tu set listo para publicar.</p>
               <div className="mt-3 space-y-1.5">
                 <RecOption active={rec === "none"} onClick={() => setRec("none")} label="Sin grabación" />
-                {addons.map((a) => (
+                {recordingAddons.map((a) => (
                   <RecOption
                     key={a.key}
                     active={rec === a.key}
-                    onClick={() => setRec(a.key as Rec)}
+                    onClick={() => setRec(a.key)}
                     label={a.name}
                     delta={`+${formatCLP(a.amount)}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hourlyAddons.length > 0 && (
+            <div className="mt-6 border-t hairline pt-5">
+              <span className="label-sm text-bone-mute">¿Sumas un guía?</span>
+              <p className="font-editorial mt-1 text-sm text-bone-dim">Un DJ te acompaña durante toda la sesión.</p>
+              <div className="mt-3 space-y-1.5">
+                {hourlyAddons.map((a) => (
+                  <RecOption
+                    key={a.key}
+                    active={extras.includes(a.key)}
+                    onClick={() =>
+                      setExtras((xs) => (xs.includes(a.key) ? xs.filter((k) => k !== a.key) : [...xs, a.key]))
+                    }
+                    label={a.name}
+                    delta={`+${formatCLP(a.amount)}/h`}
                   />
                 ))}
               </div>

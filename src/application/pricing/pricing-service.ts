@@ -22,7 +22,7 @@ export interface BookingQuote {
 /** Catálogo para pintar la UI (add-ons + descuentos por volumen), sin cotizar un horario. */
 export interface PricingCatalog {
   currency: string;
-  addons: { key: string; name: string; amount: number }[];
+  addons: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts: { minHours: number; pct: number }[];
 }
 
@@ -59,7 +59,7 @@ export class PricingService {
     const { ratePlan } = pricing;
     return {
       currency: ratePlan.currency,
-      addons: ratePlan.addons.map((a) => ({ key: a.key, name: a.name, amount: a.amount })),
+      addons: ratePlan.addons.map((a) => ({ key: a.key, name: a.name, amount: a.amount, kind: a.kind })),
       volumeDiscounts: [...ratePlan.volumeDiscounts].sort((a, b) => a.minHours - b.minHours),
     };
   }
