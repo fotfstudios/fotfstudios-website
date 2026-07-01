@@ -59,11 +59,12 @@ export default function NuevaReserva() {
                 <option value="transferencia">Transferencia</option>
                 <option value="cortesia">Cortesía</option>
               </Select>
+              <p className="mt-2 label-sm text-bone-mute">Cortesía = reserva sin cobro ni boleta.</p>
             </Field>
 
             <div>
               <SubmitButton icon="add" pendingLabel="Creando…">
-                Crear reserva pagada
+                Crear reserva
               </SubmitButton>
             </div>
           </ActionForm>

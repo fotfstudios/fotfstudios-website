@@ -16,14 +16,16 @@ export class CheckoutService {
 
   async createBooking(
     input: CreateBookingInput,
+    opts?: { enforceLeadTime?: boolean },
   ): Promise<Result<{ orderId: string; amount: number }, string>> {
     const res = await this.pricing.quoteBooking(input);
     if (!res.ok) return err(res.error);
     const { quote, currency, startsAt, endsAt } = res.value;
 
-    // Anticipación mínima: rechaza un horario ya pasado o demasiado próximo (cliente con
-    // datos viejos, o intento a última hora). Ver MIN_LEAD_MINUTES.
-    if (new Date(startsAt).getTime() <= Date.now() + MIN_LEAD_MINUTES * 60_000) return err("too_soon");
+    // Anticipación mínima: rechaza un horario ya pasado o demasiado próximo. El admin puede
+    // eximir la ventana (enforceLeadTime:false) para walk-ins, pero el pasado sigue vetado.
+    const lead = opts?.enforceLeadTime === false ? 0 : MIN_LEAD_MINUTES;
+    if (new Date(startsAt).getTime() <= Date.now() + lead * 60_000) return err("too_soon");
 
     const lines: CheckoutLine[] = [
       ...quote.tierLines.map((l) => ({
