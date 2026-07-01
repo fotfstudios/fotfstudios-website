@@ -30,6 +30,7 @@ export async function GET(req: Request): Promise<Response> {
       net: q.net,
       tax: q.tax,
       discount: q.discount,
+      volumePct: q.volumePct,
       currency: r.value.currency,
       tierLines: q.tierLines,
       addonLines: q.addonLines,

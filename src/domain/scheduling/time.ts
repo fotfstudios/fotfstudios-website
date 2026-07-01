@@ -59,6 +59,17 @@ export function toLocalMinutesInterval(
   return { start, end };
 }
 
+/** Fecha local de hoy "YYYY-MM-DD" en `tz`. */
+export function todayInTz(tz: string): string {
+  return DateTime.now().setZone(tz).toFormat("yyyy-MM-dd");
+}
+
+/** Minuto del día actual (0..1439) en `tz`. Sirve para descartar horarios ya pasados hoy. */
+export function nowMinuteInTz(tz: string): number {
+  const now = DateTime.now().setZone(tz);
+  return now.hour * 60 + now.minute;
+}
+
 /** Todas las fechas locales "YYYY-MM-DD" del mes "YYYY-MM". */
 export function monthDates(month: string): string[] {
   const first = DateTime.fromISO(`${month}-01`);

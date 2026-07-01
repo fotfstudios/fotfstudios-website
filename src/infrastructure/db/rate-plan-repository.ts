@@ -60,7 +60,12 @@ export class SupabaseRatePlanRepository implements RatePlanRepository {
         priority: t.priority,
       })),
       volumeDiscounts: (vols.data ?? []).map((v) => ({ minHours: v.min_hours, pct: Number(v.pct) })),
-      addons: (addons.data ?? []).map((a) => ({ key: a.key, name: a.name, amount: a.amount_clp })),
+      addons: (addons.data ?? []).map((a) => ({
+        key: a.key,
+        name: a.name,
+        amount: a.amount_clp,
+        kind: a.kind === "per_hour" ? "per_hour" : "flat_service",
+      })),
     };
 
     return { resourceId, timezone, ratePlan };

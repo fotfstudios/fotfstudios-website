@@ -17,15 +17,21 @@ describe("classifyDay", () => {
   it("full con 0 inicios libres", () => {
     expect(classifyDay(540, 720, [{ start: 540, end: 720 }])).toBe("full");
   });
+  it("minStart descarta inicios ya pasados (corte de hora hoy)", () => {
+    // 9–12 → 9,10,11 (open); corte 11:00 deja sólo {11} → low; corte 12:00 → {} → full.
+    expect(classifyDay(540, 720, [], 660)).toBe("low");
+    expect(classifyDay(540, 720, [], 720)).toBe("full");
+  });
 });
 
 describe("monthGrid", () => {
-  it("6 semanas de 7 días, empezando en domingo, con relleno de meses vecinos", () => {
+  it("6 semanas de 7 días, empezando en lunes, con relleno de meses vecinos", () => {
     const g = monthGrid("2026-06"); // 1 jun 2026 = lunes
     expect(g).toHaveLength(6);
     expect(g.flat()).toHaveLength(42);
-    expect(g[0][0]).toEqual({ date: "2026-05-31", inMonth: false }); // domingo previo
-    expect(g[0][1]).toEqual({ date: "2026-06-01", inMonth: true });
+    expect(g[0][0]).toEqual({ date: "2026-06-01", inMonth: true }); // lunes = primer día
+    expect(g[0][1]).toEqual({ date: "2026-06-02", inMonth: true });
+    expect(g.flat()[30]).toEqual({ date: "2026-07-01", inMonth: false }); // relleno mes siguiente
   });
 });
 
