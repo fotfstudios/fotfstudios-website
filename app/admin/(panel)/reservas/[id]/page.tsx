@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cancelBookingAction, markAccessAction, recordBoletaAction } from "@/app/admin/actions";
-import AdminShell from "@/components/admin/AdminShell";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
@@ -32,7 +31,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   if (b.status === "cancelled") activity.push({ label: "Cancelada", at: null });
 
   return (
-    <AdminShell>
+    <>
       <nav className="flex items-center gap-2 label-sm text-bone-mute">
         <Link href="/admin/reservas" className="transition-colors hover:text-gold">
           Reservas
@@ -177,6 +176,6 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           )}
         </aside>
       </div>
-    </AdminShell>
+    </>
   );
 }

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
-import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
+import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { Icon, type IconName } from "@/components/admin/ui/icons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
@@ -27,7 +27,7 @@ export default async function AdminHome() {
   ).filter((x) => x.n > 0);
 
   return (
-    <AdminShell>
+    <>
       <PageHeader
         kicker="Panel"
         title="Hoy"
@@ -73,11 +73,15 @@ export default async function AdminHome() {
       )}
 
       <Section title="Agenda de hoy">
-        {d.today.length === 0 ? <Empty>Sin sesiones hoy.</Empty> : <BookingsTable rows={d.today} />}
+        {d.today.length === 0 ? <EmptyState size="compact" title="Sin sesiones hoy" /> : <BookingsTable rows={d.today} />}
       </Section>
 
       <Section title="Próximas sesiones" href="/admin/reservas">
-        {d.upcoming.length === 0 ? <Empty>Nada agendado aún.</Empty> : <BookingsTable rows={d.upcoming} />}
+        {d.upcoming.length === 0 ? (
+          <EmptyState size="compact" title="Nada agendado aún" />
+        ) : (
+          <BookingsTable rows={d.upcoming} />
+        )}
       </Section>
 
       {d.boletas.length > 0 && (
@@ -108,7 +112,7 @@ export default async function AdminHome() {
           </Card>
         </div>
       )}
-    </AdminShell>
+    </>
   );
 }
 
@@ -128,9 +132,6 @@ function Section({ title, href, children }: { title: string; href?: string; chil
   );
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="border hairline bg-ink/40 px-4 py-8 text-center label-sm text-bone-mute">{children}</p>;
-}
 
 function BookingsTable({ rows }: { rows: AdminBooking[] }) {
   return (

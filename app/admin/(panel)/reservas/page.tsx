@@ -1,4 +1,3 @@
-import AdminShell from "@/components/admin/AdminShell";
 import { ReservasTable } from "@/components/admin/ReservasTable";
 import { Button } from "@/components/admin/ui/Button";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
@@ -12,7 +11,7 @@ export default async function ReservasPage() {
   const bookings = await adminRepository().recentBookings(120);
 
   return (
-    <AdminShell>
+    <>
       <PageHeader
         kicker="Operación"
         title="Reservas"
@@ -40,6 +39,6 @@ export default async function ReservasPage() {
           <ReservasTable bookings={bookings} />
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }

@@ -1,4 +1,3 @@
-import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
 import { createBlockAction, deleteBlockAction } from "@/app/admin/actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
@@ -21,7 +20,7 @@ export default async function BloqueosPage() {
   const blocks = await adminRepository().upcomingBlocks();
 
   return (
-    <AdminShell>
+    <>
       <PageHeader kicker="Operación" title="Bloqueos" editorial="Mantención, uso personal o feriados." />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
@@ -87,6 +86,6 @@ export default async function BloqueosPage() {
           )}
         </div>
       </div>
-    </AdminShell>
+    </>
   );
 }

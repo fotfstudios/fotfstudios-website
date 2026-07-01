@@ -1,4 +1,3 @@
-import AdminShell from "@/components/admin/AdminShell";
 import { createManualBookingAction } from "@/app/admin/actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
@@ -14,7 +13,7 @@ const hh = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:00`;
 
 export default function NuevaReserva() {
   return (
-    <AdminShell>
+    <>
       <PageHeader kicker="Operación" title="Reserva manual" editorial="Walk-in, teléfono o WhatsApp." />
 
       <div className="mt-8 max-w-xl">
@@ -70,6 +69,6 @@ export default function NuevaReserva() {
           </ActionForm>
         </Card>
       </div>
-    </AdminShell>
+    </>
   );
 }

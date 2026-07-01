@@ -1,4 +1,3 @@
-import AdminShell from "@/components/admin/AdminShell";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
@@ -60,7 +59,7 @@ export default async function RolesPage() {
   const allKeys = new Set(permissions.map((p) => p.key));
 
   return (
-    <AdminShell>
+    <>
       <PageHeader kicker="Configuración" title="Roles" editorial="Lo que cada quien puede hacer." />
 
       <div className="mt-8 flex flex-col gap-4">
@@ -113,6 +112,6 @@ export default async function RolesPage() {
           </div>
         </ActionForm>
       </Card>
-    </AdminShell>
+    </>
   );
 }
