@@ -22,3 +22,35 @@ jobs:
       - run: npx eslint .
       - run: npm test
       - run: npm run build
+
+  integration:
+    name: integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      # Boots the full local Supabase stack (custom 544xx ports per config.toml),
+      # applying supabase/migrations + seed. Docker is preinstalled on the runner.
+      - name: Start local Supabase (migrations + seed)
+        run: npx supabase start
+      # Export the same env the itests read locally, straight from the running
+      # stack (strip quotes; keep only the three vars the tests use).
+      - name: Export DB env for the tests
+        run: |
+          npx supabase status -o env \
+            --override-name api.url=SUPABASE_URL \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
+            --override-name db.url=SUPABASE_DB_URL \
+            | grep -E '^SUPABASE_(URL|SERVICE_ROLE_KEY|DB_URL)=' \
+            | sed 's/"//g' >> "$GITHUB_ENV"
+      # MP-gated specs (mercadopago.itest, booking-routes.itest) skipIf(!MP_ACCESS_TOKEN),
+      # so they self-skip here; the DB integration specs run.
+      - name: Run integration tests
+        run: npm run test:integration
+      - name: Stop Supabase
+        if: always()
+        run: npx supabase stop
