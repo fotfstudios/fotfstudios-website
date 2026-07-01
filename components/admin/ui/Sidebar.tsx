@@ -7,10 +7,10 @@ import Logo from "@/components/Logo";
 import SignOutButton from "@/components/admin/SignOutButton";
 import { Icon, type IconName } from "./icons";
 
-type Item = { href: string; label: string; icon: IconName };
+type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
-function groups(show: { members: boolean; roles: boolean }): Group[] {
+function groups(show: { members: boolean; roles: boolean }, porHacer: number): Group[] {
   const config: Item[] = [];
   if (show.members) config.push({ href: "/admin/miembros", label: "Miembros", icon: "members" });
   if (show.roles) config.push({ href: "/admin/roles", label: "Roles", icon: "roles" });
@@ -18,7 +18,8 @@ function groups(show: { members: boolean; roles: boolean }): Group[] {
     {
       title: "Operación",
       items: [
-        { href: "/admin", label: "Hoy", icon: "today" },
+        { href: "/admin", label: "Hoy", icon: "today", badge: porHacer },
+        { href: "/admin/agenda", label: "Agenda", icon: "clock" },
         { href: "/admin/reservas", label: "Reservas", icon: "bookings" },
         { href: "/admin/reservas/nueva", label: "Nueva reserva", icon: "add" },
         { href: "/admin/bloqueos", label: "Bloqueos", icon: "block" },
@@ -64,6 +65,11 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
                     />
                     <Icon name={it.icon} size={17} className={on ? "text-gold" : "text-bone-mute group-hover:text-bone-dim"} />
                     {it.label}
+                    {it.badge ? (
+                      <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-gold px-1.5 font-mono text-[10px] font-bold text-ink">
+                        {it.badge}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );
@@ -75,10 +81,10 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
   );
 }
 
-export function Sidebar({ show }: { show: { members: boolean; roles: boolean } }) {
+export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean }; porHacer?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const data = groups(show);
+  const data = groups(show, porHacer);
   const active = activeHref(pathname, data.flatMap((g) => g.items));
 
   const Brand = (
