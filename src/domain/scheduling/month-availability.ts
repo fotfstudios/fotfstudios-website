@@ -7,10 +7,19 @@ import { availableStartMinutes, type Interval } from "./availability";
 
 export type DayStatus = "closed" | "full" | "low" | "open";
 
-/** Clasifica un día por nº de inicios de 1h libres: 0→full, 1–2→low, ≥3→open. */
-export function classifyDay(openMinute: number, closeMinute: number, booked: Interval[]): DayStatus {
+/**
+ * Clasifica un día por nº de inicios de 1h libres: 0→full, 1–2→low, ≥3→open.
+ * `minStart` descarta inicios anteriores al corte (p. ej. la hora actual cuando el
+ * día es hoy), para no marcar "open" un día cuyos horarios ya pasaron.
+ */
+export function classifyDay(
+  openMinute: number,
+  closeMinute: number,
+  booked: Interval[],
+  minStart = 0,
+): DayStatus {
   if (closeMinute <= openMinute) return "closed";
-  const free = availableStartMinutes(openMinute, closeMinute, 1, booked).length;
+  const free = availableStartMinutes(openMinute, closeMinute, 1, booked, 60, minStart).length;
   if (free === 0) return "full";
   if (free <= 2) return "low";
   return "open";

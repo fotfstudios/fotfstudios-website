@@ -1,5 +1,13 @@
 import type { SchedulingRepository } from "@/src/application/ports/scheduling";
-import { dayBoundsUtc, monthBoundsUtc, monthDates, toLocalMinutesInterval, weekdayFor } from "@/src/domain/scheduling/time";
+import {
+  dayBoundsUtc,
+  monthBoundsUtc,
+  monthDates,
+  nowMinuteInTz,
+  todayInTz,
+  toLocalMinutesInterval,
+  weekdayFor,
+} from "@/src/domain/scheduling/time";
 import { classifyDay, type DayStatus } from "@/src/domain/scheduling/month-availability";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
@@ -46,6 +54,9 @@ export class AvailabilityService {
     const { startUtc, endUtc } = monthBoundsUtc(month, cal.timezone);
     const reservations = await this.repo.getReservationsForDate(resourceId, startUtc, endUtc);
 
+    const today = todayInTz(cal.timezone);
+    const nowMin = nowMinuteInTz(cal.timezone);
+
     const days: Record<string, DayStatus> = {};
     for (const date of monthDates(month)) {
       const hours = cal.openingHours[weekdayFor(date, cal.timezone)];
@@ -57,7 +68,10 @@ export class AvailabilityService {
       const booked = reservations
         .filter((r) => r.startsAt < de && r.endsAt > ds)
         .map((r) => toLocalMinutesInterval(date, cal.timezone, r.startsAt, r.endsAt));
-      days[date] = classifyDay(hours[0], hours[1], booked);
+      // Hoy: descarta los horarios cuya hora ya pasó, para no pintar "open" un día
+      // sin cupos restantes (el calendario lo deja inseleccionable → salta de mes).
+      const minStart = date === today ? nowMin : 0;
+      days[date] = classifyDay(hours[0], hours[1], booked, minStart);
     }
     return ok({ month, days });
   }

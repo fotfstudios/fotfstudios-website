@@ -17,6 +17,11 @@ describe("classifyDay", () => {
   it("full con 0 inicios libres", () => {
     expect(classifyDay(540, 720, [{ start: 540, end: 720 }])).toBe("full");
   });
+  it("minStart descarta inicios ya pasados (corte de hora hoy)", () => {
+    // 9–12 → 9,10,11 (open); corte 11:00 deja sólo {11} → low; corte 12:00 → {} → full.
+    expect(classifyDay(540, 720, [], 660)).toBe("low");
+    expect(classifyDay(540, 720, [], 720)).toBe("full");
+  });
 });
 
 describe("monthGrid", () => {
