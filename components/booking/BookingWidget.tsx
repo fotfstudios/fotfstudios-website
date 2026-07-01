@@ -8,7 +8,7 @@ import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
-import { hhmm } from "./format";
+import { hhmm, tierLabel } from "./format";
 
 type Rec = "none" | "audio" | "audioVideo";
 
@@ -24,6 +24,7 @@ interface QuoteResult {
   tierLines: { key: string; hours: number; rate: number; subtotal: number }[];
   addonLines: { key: string; name: string; amount: number }[];
   discount: number;
+  volumePct: number;
 }
 
 const todayInSantiago = () =>
@@ -312,7 +313,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
             <ul className="mt-6 space-y-2.5 border-t hairline pt-5 text-sm">
               {quote.tierLines.map((l) => (
                 <li key={l.key} className="flex justify-between gap-3 text-bone-dim">
-                  <span>Sala · {l.hours}h</span>
+                  <span>{tierLabel(l.key)} · {l.hours}h</span>
                   <span className="font-mono text-bone">{formatCLP(l.subtotal)}</span>
                 </li>
               ))}
@@ -324,7 +325,7 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
               ))}
               {quote.discount > 0 && (
                 <li className="flex justify-between gap-3 text-gold">
-                  <span>Descuento</span>
+                  <span>Descuento{quote.volumePct > 0 ? ` (${Math.round(quote.volumePct * 100)}%)` : ""}</span>
                   <span className="font-mono">−{formatCLP(quote.discount)}</span>
                 </li>
               )}
