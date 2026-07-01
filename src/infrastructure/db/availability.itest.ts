@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { SupabaseSchedulingRepository } from "./scheduling-repository";
@@ -22,6 +23,8 @@ const checkout = new CheckoutService(
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 
+const MON = futureDate(1); // lunes futuro
+
 beforeAll(async () => {
   await pg.connect();
   resourceId = (await pg.query<{ id: string }>("select id from resources limit 1")).rows[0].id;
@@ -38,14 +41,14 @@ describe("AvailabilityService", () => {
   it("devuelve el horario del lunes y marca lo reservado", async () => {
     const b = await checkout.createBooking({
       resourceId,
-      date: "2024-01-01", // lunes
+      date: MON, // lunes
       startMinute: 600, // 10:00
       durationHours: 1,
       customer: { email: "a@e.cl" },
     });
     expect(b.ok).toBe(true);
 
-    const r = await availability.getDayAvailability(resourceId, "2024-01-01");
+    const r = await availability.getDayAvailability(resourceId, MON);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.closed).toBe(false);

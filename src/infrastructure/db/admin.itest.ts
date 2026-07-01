@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { rangeFor } from "@/src/domain/scheduling/time";
+import { futureDate } from "@/tests/dates";
 import { SupabaseAdminRepository } from "./admin-repository";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
@@ -24,10 +25,13 @@ let resourceId: string;
 let tz: string;
 const cleanup = "truncate reservations, orders, order_lines, tax_documents, payment_intents cascade";
 
+const MON = futureDate(1); // lunes futuro
+const TUE = futureDate(2); // martes futuro
+
 const reservationOf = async (orderId: string) =>
   (await pg.query<{ id: string }>("select id from reservations where order_id=$1", [orderId])).rows[0].id;
 const book = (start: number) =>
-  checkout.createBooking({ resourceId, date: "2024-01-01", startMinute: start, durationHours: 1, customer: { email: `u${start}@e.cl` } });
+  checkout.createBooking({ resourceId, date: MON, startMinute: start, durationHours: 1, customer: { email: `u${start}@e.cl` } });
 
 beforeAll(async () => {
   await pg.connect();
@@ -119,12 +123,12 @@ describe("admin actions", () => {
   });
 
   it("un bloqueo impide reservar y rechaza solaparse", async () => {
-    const { startsAt, endsAt } = rangeFor("2024-01-02", 600, 1, tz);
+    const { startsAt, endsAt } = rangeFor(TUE, 600, 1, tz);
     await repo.createBlock(resourceId, startsAt, endsAt);
 
     const conflict = await checkout.createBooking({
       resourceId,
-      date: "2024-01-02",
+      date: TUE,
       startMinute: 600,
       durationHours: 1,
       customer: { email: "x@e.cl" },

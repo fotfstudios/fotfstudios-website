@@ -3,6 +3,7 @@ import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { createServiceClient } from "./supabase-client";
@@ -19,6 +20,7 @@ const checkout = new CheckoutService(
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 const cleanup = "truncate reservations, orders, order_lines, tax_documents cascade";
+const MON = futureDate(1); // lunes futuro
 
 beforeAll(async () => {
   await pg.connect();
@@ -35,7 +37,7 @@ beforeEach(async () => {
 async function payOrder(start: number, email: string) {
   const b = await checkout.createBooking({
     resourceId,
-    date: "2024-01-01",
+    date: MON,
     startMinute: start,
     durationHours: 1,
     customer: { email },

@@ -5,6 +5,7 @@ import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import type { EmailMessage, Mailer } from "@/src/application/ports/mailer";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseNotificationRepository } from "./notification-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
@@ -29,6 +30,7 @@ const checkout = new CheckoutService(
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 const cleanup = "truncate reservations, orders, order_lines cascade";
+const MON = futureDate(1); // lunes futuro
 
 beforeAll(async () => {
   await pg.connect();
@@ -46,7 +48,7 @@ describe("NotificationService", () => {
   it("envía cliente + dueño al pagar, e idempotente", async () => {
     const b = await checkout.createBooking({
       resourceId,
-      date: "2024-01-01",
+      date: MON,
       startMinute: 600,
       durationHours: 1,
       customer: { name: "Ana", email: "cliente@e.cl" },
