@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cancelBookingAction, markAccessAction, recordBoletaAction } from "@/app/admin/actions";
 import AdminShell from "@/components/admin/AdminShell";
-import { fmtDateTime } from "@/components/admin/format";
+import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
@@ -25,14 +25,21 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const isCourtesy = !isBlock && !b.orderId;
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
+  const activity: { label: string; at: string | null }[] = [{ label: "Reserva creada", at: b.createdAt }];
+  if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt });
+  else if (b.status === "confirmed" && !b.orderId) activity.push({ label: "Confirmada (cortesía)", at: null });
+  if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt });
+  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: null });
+
   return (
     <AdminShell>
-      <Link href="/admin/reservas" className="inline-flex items-center gap-1.5 label-sm text-bone-mute transition-colors hover:text-gold">
-        <span className="rotate-180">
-          <Icon name="chevron" size={14} />
-        </span>
-        Reservas
-      </Link>
+      <nav className="flex items-center gap-2 label-sm text-bone-mute">
+        <Link href="/admin/reservas" className="transition-colors hover:text-gold">
+          Reservas
+        </Link>
+        <Icon name="chevron" size={12} className="text-bone-mute/50" />
+        <span className="text-bone-dim">{fmtDate(b.startsAt)}</span>
+      </nav>
 
       <header className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b hairline pb-6">
         <div>
@@ -133,6 +140,22 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </div>
             )}
           </Card>
+
+          {!isBlock && (
+            <Card title="Actividad">
+              <ol className="flex flex-col gap-4">
+                {activity.map((a, i) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="mt-1 size-2 shrink-0 rounded-full bg-gold" />
+                    <div className="-mt-0.5">
+                      <p className="text-sm text-bone">{a.label}</p>
+                      <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
 
           {b.status !== "cancelled" && (
             <Card title="Zona de peligro">

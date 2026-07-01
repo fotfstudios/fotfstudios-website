@@ -1,5 +1,8 @@
+import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+
+const TZ = "America/Santiago";
 
 export interface AdminBooking {
   id: string;
@@ -15,11 +18,25 @@ export interface AdminBooking {
   orderStatus: string | null;
   accessCode: string | null;
   accessSentAt: string | null;
+  createdAt: string;
+  paidAt: string | null;
 }
 
 export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
   boleta: { id: string; status: string; folio: string | null } | null;
+}
+
+export interface DashboardData {
+  todaySessions: number;
+  weekRevenue: number;
+  weekOccupancyPct: number;
+  pendingBoletas: number;
+  pendingPayments: number;
+  accessToSend: number;
+  today: AdminBooking[];
+  upcoming: AdminBooking[];
+  boletas: PendingBoleta[];
 }
 
 export interface PendingBoleta {
@@ -43,12 +60,13 @@ type ResRow = {
   customer_phone: string | null;
   access_code: string | null;
   access_sent_at: string | null;
+  created_at: string;
   order_id: string | null;
-  orders: { amount_clp: number; status: string } | null;
+  orders: { amount_clp: number; status: string; paid_at: string | null } | null;
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, order_id, orders(amount_clp, status)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, order_id, orders(amount_clp, status, paid_at)";
 
 const map = (r: ResRow): AdminBooking => ({
   id: r.id,
@@ -64,6 +82,8 @@ const map = (r: ResRow): AdminBooking => ({
   orderId: r.order_id,
   amount: r.orders?.amount_clp ?? null,
   orderStatus: r.orders?.status ?? null,
+  createdAt: r.created_at,
+  paidAt: r.orders?.paid_at ?? null,
 });
 
 export class SupabaseAdminRepository {
@@ -88,6 +108,87 @@ export class SupabaseAdminRepository {
       .order("starts_at", { ascending: false })
       .limit(limit);
     return ((data as unknown as ResRow[]) ?? []).map(map);
+  }
+
+  /** Reservas activas (todas las clases) que caen en [startUtc, endUtc). Para agenda + KPIs. */
+  async bookingsBetween(startUtc: string, endUtc: string): Promise<AdminBooking[]> {
+    const { data } = await this.db
+      .from("reservations")
+      .select(SELECT)
+      .in("status", ["held", "confirmed"])
+      .gte("starts_at", startUtc)
+      .lt("starts_at", endUtc)
+      .order("starts_at", { ascending: true });
+    return ((data as unknown as ResRow[]) ?? []).map(map);
+  }
+
+  /** Métricas y pendientes del panel "Hoy". */
+  async dashboard(): Promise<DashboardData> {
+    const now = DateTime.now().setZone(TZ);
+    const todayStart = now.startOf("day");
+    const todayEnd = todayStart.plus({ days: 1 });
+    const weekStart = now.startOf("week");
+    const weekEnd = weekStart.plus({ weeks: 1 });
+
+    const [weekBookings, upcoming, boletas, pendingPay] = await Promise.all([
+      this.bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!),
+      this.upcomingBookings(40),
+      this.pendingBoletas(),
+      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+    ]);
+
+    const sessions = weekBookings.filter((b) => b.kind !== "block");
+    const isToday = (b: AdminBooking) => {
+      const s = DateTime.fromISO(b.startsAt).setZone(TZ);
+      return s >= todayStart && s < todayEnd;
+    };
+    const nonBlock = upcoming.filter((b) => b.kind !== "block");
+    const today = nonBlock.filter(isToday);
+
+    const weekRevenue = sessions.reduce((s, b) => s + (b.orderStatus === "paid" ? (b.amount ?? 0) : 0), 0);
+
+    return {
+      todaySessions: today.length,
+      weekRevenue,
+      weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
+      pendingBoletas: boletas.length,
+      pendingPayments: pendingPay.count ?? 0,
+      accessToSend: nonBlock.filter((b) => b.status === "confirmed" && !b.accessCode).length,
+      today,
+      upcoming: nonBlock.filter((b) => !isToday(b)).slice(0, 12),
+      boletas,
+    };
+  }
+
+  /** Conteo liviano de pendientes (boletas + pagos) para el badge del sidebar. */
+  async porHacerCount(): Promise<number> {
+    const [b, p] = await Promise.all([
+      this.db.from("tax_documents").select("id", { count: "exact", head: true }).eq("status", "pendiente"),
+      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+    ]);
+    return (b.count ?? 0) + (p.count ?? 0);
+  }
+
+  /** Ocupación de la semana: horas reservadas ÷ horas de apertura (0–100). */
+  private async weekOccupancy(weekStart: DateTime, sessions: AdminBooking[]): Promise<number> {
+    const { data: r } = await this.db.from("resources").select("id").eq("active", true).limit(1).single();
+    if (!r) return 0;
+    const { data: oh } = await this.db
+      .from("opening_hours")
+      .select("weekday, open_minute, close_minute")
+      .eq("resource_id", r.id);
+    let openMin = 0;
+    for (let i = 0; i < 7; i++) {
+      const wd = weekStart.plus({ days: i }).weekday % 7; // Luxon 1=Lun..7=Dom → 0=Dom..6=Sáb
+      const row = (oh ?? []).find((x) => x.weekday === wd);
+      if (row) openMin += row.close_minute - row.open_minute;
+    }
+    if (openMin === 0) return 0;
+    const bookedMin = sessions.reduce(
+      (s, b) => s + DateTime.fromISO(b.endsAt).diff(DateTime.fromISO(b.startsAt), "minutes").minutes,
+      0,
+    );
+    return Math.min(100, Math.round((bookedMin / openMin) * 100));
   }
 
   async getBooking(id: string): Promise<AdminBookingDetail | null> {

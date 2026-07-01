@@ -1,20 +1,15 @@
-import Link from "next/link";
 import AdminShell from "@/components/admin/AdminShell";
-import { fmtDateTime } from "@/components/admin/format";
+import { ReservasTable } from "@/components/admin/ReservasTable";
 import { Button } from "@/components/admin/ui/Button";
-import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
-import { Icon } from "@/components/admin/ui/icons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
-import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { adminRepository } from "@/src/composition";
-import { formatCLP } from "@/src/domain/money/money";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reservas — Admin", robots: { index: false } };
 
 export default async function ReservasPage() {
-  const bookings = await adminRepository().recentBookings(80);
+  const bookings = await adminRepository().recentBookings(120);
 
   return (
     <AdminShell>
@@ -42,54 +37,7 @@ export default async function ReservasPage() {
             }
           />
         ) : (
-          <DataTable
-            head={
-              <>
-                <Th>Cuándo</Th>
-                <Th>Cliente</Th>
-                <Th>Estado</Th>
-                <Th right>Monto</Th>
-                <Th />
-              </>
-            }
-          >
-            {bookings.map((b) => {
-              const isBlock = b.kind === "block";
-              const isCourtesy = !isBlock && !b.orderId;
-              return (
-                <Tr key={b.id} muted={isBlock}>
-                  <Td className="whitespace-nowrap font-mono text-bone">{fmtDateTime(b.startsAt)}</Td>
-                  <Td className="text-bone-dim">
-                    {isBlock ? (
-                      <span className="inline-flex items-center gap-1.5 label-sm text-bone-mute">
-                        <Icon name="block" size={13} /> Bloqueo
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-2">
-                        {b.customerName ?? b.customerEmail ?? "—"}
-                        {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
-                      </span>
-                    )}
-                  </Td>
-                  <Td>
-                    <StatusPill status={b.status} />
-                  </Td>
-                  <Td right className="whitespace-nowrap font-mono text-bone">
-                    {b.amount ? formatCLP(b.amount) : "—"}
-                  </Td>
-                  <Td right>
-                    <Link
-                      href={`/admin/reservas/${b.id}`}
-                      aria-label="Ver detalle"
-                      className="inline-flex text-bone-mute transition-colors hover:text-gold"
-                    >
-                      <Icon name="chevron" size={18} />
-                    </Link>
-                  </Td>
-                </Tr>
-              );
-            })}
-          </DataTable>
+          <ReservasTable bookings={bookings} />
         )}
       </div>
     </AdminShell>

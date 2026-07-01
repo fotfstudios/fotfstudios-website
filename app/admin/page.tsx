@@ -1,23 +1,30 @@
 import Link from "next/link";
+import { type ReactNode } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
-import { EmptyState } from "@/components/admin/ui/EmptyState";
-import { Icon } from "@/components/admin/ui/icons";
+import { Icon, type IconName } from "@/components/admin/ui/icons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { adminRepository } from "@/src/composition";
+import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Hoy — Admin", robots: { index: false } };
 
 export default async function AdminHome() {
-  const repo = adminRepository();
-  const [upcoming, boletas] = await Promise.all([repo.upcomingBookings(20), repo.pendingBoletas()]);
-  const ingreso = upcoming.reduce((s, b) => s + (b.amount ?? 0), 0);
+  const d = await adminRepository().dashboard();
+
+  const pendientes = (
+    [
+      { n: d.pendingBoletas, icon: "doc", label: "Boletas por emitir", href: "#boletas" },
+      { n: d.pendingPayments, icon: "clock", label: "Pagos pendientes", href: "/admin/reservas" },
+      { n: d.accessToSend, icon: "today", label: "Accesos por enviar", href: "/admin/reservas" },
+    ] as { n: number; icon: IconName; label: string; href: string }[]
+  ).filter((x) => x.n > 0);
 
   return (
     <AdminShell>
@@ -32,82 +39,65 @@ export default async function AdminHome() {
         }
       />
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <Stat label="Próximas sesiones" value={String(upcoming.length)} />
-        <Stat label="Boletas pendientes" value={String(boletas.length)} accent={boletas.length > 0} />
-        <Stat label="Ingreso próximo" value={formatCLP(ingreso)} />
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Sesiones de hoy" value={String(d.todaySessions)} />
+        <Stat label="Ingresos de la semana" value={formatCLP(d.weekRevenue)} />
+        <Stat label="Ocupación de la semana" value={`${d.weekOccupancyPct}%`} />
+        <Stat label="Boletas pendientes" value={String(d.pendingBoletas)} accent={d.pendingBoletas > 0} />
       </div>
 
-      <div className="mt-10">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="label text-bone-mute">Próximas sesiones</h2>
-          <Link href="/admin/reservas" className="label-sm text-gold transition-colors hover:text-bone">
-            Ver todas
-          </Link>
-        </div>
-        {upcoming.length === 0 ? (
-          <EmptyState
-            icon="today"
-            title="Sin sesiones próximas"
-            hint="Cuando entren reservas o crees una manual, aparecerán acá."
-            action={
-              <Button href="/admin/reservas/nueva" icon="add" size="sm">
-                Nueva reserva
-              </Button>
-            }
-          />
-        ) : (
-          <DataTable
-            head={
-              <>
-                <Th>Cuándo</Th>
-                <Th>Cliente</Th>
-                <Th>Estado</Th>
-                <Th right>Monto</Th>
-                <Th />
-              </>
-            }
-          >
-            {upcoming.map((b) => (
-              <Tr key={b.id}>
-                <Td className="whitespace-nowrap font-mono text-bone">{fmtDateTime(b.startsAt)}</Td>
-                <Td className="text-bone-dim">{b.customerName ?? b.customerEmail ?? "—"}</Td>
-                <Td>
-                  <StatusPill status={b.status} />
-                </Td>
-                <Td right className="whitespace-nowrap font-mono text-bone">
-                  {b.amount ? formatCLP(b.amount) : "—"}
-                </Td>
-                <Td right>
+      {pendientes.length > 0 && (
+        <div className="mt-8">
+          <Card title="Por hacer" bodyClassName="p-0">
+            <ul>
+              {pendientes.map((p) => (
+                <li key={p.label} className="border-b hairline last:border-0">
                   <Link
-                    href={`/admin/reservas/${b.id}`}
-                    aria-label="Ver reserva"
-                    className="inline-flex text-bone-mute transition-colors hover:text-gold"
+                    href={p.href}
+                    className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-ink-soft"
                   >
-                    <Icon name="chevron" size={18} />
+                    <span className="flex items-center gap-3">
+                      <Icon name={p.icon} size={16} className="text-bone-mute" />
+                      <span className="text-sm text-bone">{p.label}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="font-display text-lg text-gold">{p.n}</span>
+                      <Icon name="chevron" size={16} className="text-bone-mute" />
+                    </span>
                   </Link>
-                </Td>
-              </Tr>
-            ))}
-          </DataTable>
-        )}
-      </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
 
-      {boletas.length > 0 && (
-        <div className="mt-10">
+      <Section title="Agenda de hoy">
+        {d.today.length === 0 ? <Empty>Sin sesiones hoy.</Empty> : <BookingsTable rows={d.today} />}
+      </Section>
+
+      <Section title="Próximas sesiones" href="/admin/reservas">
+        {d.upcoming.length === 0 ? <Empty>Nada agendado aún.</Empty> : <BookingsTable rows={d.upcoming} />}
+      </Section>
+
+      {d.boletas.length > 0 && (
+        <div id="boletas" className="mt-10 scroll-mt-8">
           <Card title="Boletas pendientes de emitir">
             <ul className="divide-y divide-ink-line">
-              {boletas.map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+              {d.boletas.map((doc) => (
+                <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div>
-                    <p className="text-sm text-bone">{d.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
+                    <p className="text-sm text-bone">{doc.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
                     <p className="label-sm mt-0.5 text-bone-mute">
-                      Neto {formatCLP(d.neto)} · IVA {formatCLP(d.iva)}
+                      Neto {formatCLP(doc.neto)} · IVA {formatCLP(doc.iva)}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="font-display text-xl text-bone">{formatCLP(d.total)}</span>
-                    <Link href={`/admin/reservas/${d.orderId}`} className="label-sm text-gold transition-colors hover:text-bone">
+                    <span className="font-display text-xl text-bone">{formatCLP(doc.total)}</span>
+                    <Link
+                      href={`/admin/reservas/${doc.orderId}`}
+                      className="label-sm text-gold transition-colors hover:text-bone"
+                    >
                       Ir al pedido
                     </Link>
                   </div>
@@ -119,6 +109,64 @@ export default async function AdminHome() {
         </div>
       )}
     </AdminShell>
+  );
+}
+
+function Section({ title, href, children }: { title: string; href?: string; children: ReactNode }) {
+  return (
+    <div className="mt-10">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="label text-bone-mute">{title}</h2>
+        {href && (
+          <Link href={href} className="label-sm text-gold transition-colors hover:text-bone">
+            Ver todas
+          </Link>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <p className="border hairline bg-ink/40 px-4 py-8 text-center label-sm text-bone-mute">{children}</p>;
+}
+
+function BookingsTable({ rows }: { rows: AdminBooking[] }) {
+  return (
+    <DataTable
+      head={
+        <>
+          <Th>Cuándo</Th>
+          <Th>Cliente</Th>
+          <Th>Estado</Th>
+          <Th right>Monto</Th>
+          <Th />
+        </>
+      }
+    >
+      {rows.map((b) => (
+        <Tr key={b.id}>
+          <Td className="whitespace-nowrap font-mono text-bone">{fmtDateTime(b.startsAt)}</Td>
+          <Td className="text-bone-dim">{b.customerName ?? b.customerEmail ?? "—"}</Td>
+          <Td>
+            <StatusPill status={b.status} />
+          </Td>
+          <Td right className="whitespace-nowrap font-mono text-bone">
+            {b.amount ? formatCLP(b.amount) : "—"}
+          </Td>
+          <Td right>
+            <Link
+              href={`/admin/reservas/${b.id}`}
+              aria-label="Ver reserva"
+              className="inline-flex text-bone-mute transition-colors hover:text-gold"
+            >
+              <Icon name="chevron" size={18} />
+            </Link>
+          </Td>
+        </Tr>
+      ))}
+    </DataTable>
   );
 }
 
