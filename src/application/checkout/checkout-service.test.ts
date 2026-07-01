@@ -28,7 +28,7 @@ const input = {
   customer: { email: "a@b.cl" },
 };
 
-describe("CheckoutService.createBooking — corte de horarios pasados", () => {
+describe("CheckoutService.createBooking — anticipación mínima", () => {
   it("rechaza un inicio en el pasado sin crear el checkout", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn() };
     const svc = new CheckoutService(fakePricing("2020-01-01T12:00:00.000Z", "2020-01-01T13:00:00.000Z"), repo);
@@ -36,11 +36,23 @@ describe("CheckoutService.createBooking — corte de horarios pasados", () => {
     const r = await svc.createBooking(input);
 
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe("slot_in_past");
+    if (!r.ok) expect(r.error).toBe("too_soon");
     expect(repo.createCheckout).not.toHaveBeenCalled();
   });
 
-  it("permite un inicio futuro", async () => {
+  it("rechaza un inicio dentro de la anticipación mínima", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn() };
+    const soon = new Date(Date.now() + 10 * 60_000).toISOString(); // 10 min < 30 min de lead
+    const svc = new CheckoutService(fakePricing(soon, soon), repo);
+
+    const r = await svc.createBooking(input);
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("too_soon");
+    expect(repo.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("permite un inicio con suficiente anticipación", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
     const svc = new CheckoutService(fakePricing("2999-01-01T12:00:00.000Z", "2999-01-01T13:00:00.000Z"), repo);
 
