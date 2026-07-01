@@ -4,7 +4,9 @@ import Link from "next/link";
 import { DateTime } from "luxon";
 import { useMemo, useState } from "react";
 import { fmtDateTime } from "@/components/admin/format";
+import { Button } from "@/components/admin/ui/Button";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
+import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { inputCls } from "@/components/admin/ui/styles";
@@ -96,7 +98,24 @@ export function ReservasTable({ bookings }: { bookings: AdminBooking[] }) {
       </div>
 
       {total === 0 ? (
-        <p className="border hairline bg-ink/40 px-4 py-10 text-center label-sm text-bone-mute">Sin resultados.</p>
+        <EmptyState
+          size="compact"
+          icon="bookings"
+          title="Sin resultados"
+          hint="Probá con otro filtro o búsqueda."
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTab("todas");
+                setQ("");
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          }
+        />
       ) : (
         <DataTable
           head={

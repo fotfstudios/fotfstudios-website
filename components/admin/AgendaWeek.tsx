@@ -44,6 +44,10 @@ export function AgendaWeek({ weekStartISO, bookings }: { weekStartISO: string; b
         </div>
       </div>
 
+      {bookings.length === 0 && (
+        <p className="mb-3 label-sm text-bone-mute">Sin reservas esta semana.</p>
+      )}
+
       <div className="grid gap-2 md:grid-cols-7">
         {Array.from({ length: 7 }).map((_, i) => {
           const day = weekStart.plus({ days: i });
