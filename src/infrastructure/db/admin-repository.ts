@@ -199,6 +199,27 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.code === "23P01" ? "overlap" : error.message);
   }
 
+  /** Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). */
+  async createCourtesyBooking(
+    resourceId: string,
+    startsAt: string,
+    endsAt: string,
+    customer: { name?: string; email?: string; phone?: string },
+  ): Promise<void> {
+    const { error } = await this.db.from("reservations").insert({
+      resource_id: resourceId,
+      kind: "booking",
+      status: "confirmed",
+      starts_at: startsAt,
+      ends_at: endsAt,
+      customer_name: customer.name ?? null,
+      customer_email: customer.email ?? null,
+      customer_phone: customer.phone ?? null,
+      notes: "Cortesía",
+    });
+    if (error) throw new Error(error.code === "23P01" ? "slot_taken" : error.message);
+  }
+
   async deleteBlock(reservationId: string): Promise<void> {
     const { error } = await this.db
       .from("reservations")

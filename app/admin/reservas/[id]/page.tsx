@@ -22,6 +22,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   if (!b) notFound();
 
   const isBlock = b.kind === "block";
+  const isCourtesy = !isBlock && !b.orderId;
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
   return (
@@ -41,6 +42,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           <p className="mt-2 flex items-center gap-2">
             <StatusPill status={b.status} />
             {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-mute"><Icon name="block" size={13} /> Bloqueo</span>}
+            {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
           </p>
         </div>
       </header>

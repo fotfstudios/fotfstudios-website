@@ -85,6 +85,39 @@ describe("admin actions", () => {
     expect((await book(720)).ok).toBe(true);
   });
 
+  it("cortesía: reserva confirmada sin pedido ni boleta, bloquea el horario y es cancelable", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-01", 600, 1, tz);
+    await repo.createCourtesyBooking(resourceId, startsAt, endsAt, { name: "Amigo", email: "amigo@e.cl" });
+
+    const rows = await pg.query<{ id: string; status: string; kind: string; order_id: string | null; notes: string | null }>(
+      "select id, status, kind, order_id, notes from reservations where starts_at=$1",
+      [startsAt],
+    );
+    expect(rows.rows).toHaveLength(1);
+    const res = rows.rows[0];
+    expect(res.status).toBe("confirmed");
+    expect(res.kind).toBe("booking");
+    expect(res.order_id).toBeNull();
+    expect(res.notes).toBe("Cortesía");
+
+    const detail = await repo.getBooking(res.id);
+    expect(detail?.orderId).toBeNull();
+    expect(detail?.amount).toBeNull();
+    expect(detail?.lines).toHaveLength(0);
+    expect(detail?.boleta).toBeNull();
+
+    const boleta = await pg.query<{ n: string }>("select count(*)::text n from tax_documents", []);
+    expect(Number(boleta.rows[0].n)).toBe(0);
+
+    // bloquea el horario (overlap → slot_taken)
+    await expect(repo.createCourtesyBooking(resourceId, startsAt, endsAt, {})).rejects.toThrow("slot_taken");
+
+    // cancelable sin pedido: sólo cambia el estado
+    await repo.cancelBooking(res.id);
+    const after = await pg.query<{ status: string }>("select status from reservations where id=$1", [res.id]);
+    expect(after.rows[0].status).toBe("cancelled");
+  });
+
   it("un bloqueo impide reservar y rechaza solaparse", async () => {
     const { startsAt, endsAt } = rangeFor("2024-01-02", 600, 1, tz);
     await repo.createBlock(resourceId, startsAt, endsAt);

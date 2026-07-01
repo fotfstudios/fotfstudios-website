@@ -52,6 +52,28 @@ describe("CheckoutService.createBooking — anticipación mínima", () => {
     expect(repo.createCheckout).not.toHaveBeenCalled();
   });
 
+  it("con enforceLeadTime:false permite un inicio dentro de la ventana (walk-in admin)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const soon = new Date(Date.now() + 5 * 60_000).toISOString(); // 5 min < 30 min de lead
+    const svc = new CheckoutService(fakePricing(soon, soon), repo);
+
+    const r = await svc.createBooking(input, { enforceLeadTime: false });
+
+    expect(r.ok).toBe(true);
+    expect(repo.createCheckout).toHaveBeenCalledOnce();
+  });
+
+  it("con enforceLeadTime:false igual rechaza el pasado", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn() };
+    const svc = new CheckoutService(fakePricing("2020-01-01T12:00:00.000Z", "2020-01-01T13:00:00.000Z"), repo);
+
+    const r = await svc.createBooking(input, { enforceLeadTime: false });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("too_soon");
+    expect(repo.createCheckout).not.toHaveBeenCalled();
+  });
+
   it("permite un inicio con suficiente anticipación", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
     const svc = new CheckoutService(fakePricing("2999-01-01T12:00:00.000Z", "2999-01-01T13:00:00.000Z"), repo);

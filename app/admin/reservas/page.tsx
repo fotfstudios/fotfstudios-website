@@ -55,6 +55,7 @@ export default async function ReservasPage() {
           >
             {bookings.map((b) => {
               const isBlock = b.kind === "block";
+              const isCourtesy = !isBlock && !b.orderId;
               return (
                 <Tr key={b.id} muted={isBlock}>
                   <Td className="whitespace-nowrap font-mono text-bone">{fmtDateTime(b.startsAt)}</Td>
@@ -64,7 +65,10 @@ export default async function ReservasPage() {
                         <Icon name="block" size={13} /> Bloqueo
                       </span>
                     ) : (
-                      (b.customerName ?? b.customerEmail ?? "—")
+                      <span className="inline-flex items-center gap-2">
+                        {b.customerName ?? b.customerEmail ?? "—"}
+                        {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
+                      </span>
                     )}
                   </Td>
                   <Td>
