@@ -45,6 +45,10 @@ en vivo ni la base Supabase remota real.
   Nada de pagos de prueba repetidos en prod ni reconciliar datos reales a mano.
 - A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
   proyecto remoto, env vars de prod, dominio.
+- **Tests de integración antes del PR.** CI no corre `*.itest.ts` (necesitan DB local). Para
+  cualquier cambio bajo `src/infrastructure/db/` o `supabase/`, corré `npm run db:start` +
+  `npm run test:integration` antes de abrir el PR — son la única cobertura de garantías a nivel
+  DB (constraint anti-doble-reserva GiST, repos, queries del dashboard).
 
 ## Where things live
 
@@ -80,6 +84,12 @@ en vivo ni la base Supabase remota real.
    (`fix(precio): show "Audio + Video" in full`).
 3. Push → open a PR → review the **Vercel preview deploy** → **squash-merge** to `main` → prod.
 4. Delete the branch after merge. Don't let branches live for weeks.
+
+**Preview = build/marketing check only.** Vercel Preview has **no database** (Supabase env is
+not set there; `instrumentation.ts` downgrades the env guard from throw→warn under
+`VERCEL_ENV=preview`). So a preview URL validates that the app *builds* and that static/marketing
+pages render — it does **not** exercise booking, admin, or payment flows. All DB/admin/payment
+behavior must be verified **locally** before merge (see *Local-first testing*).
 
 Before pushing, verify locally: **`npx eslint .` and `npm run build` must both pass (exit 0).**
 CI (`.github/workflows/ci.yml`) re-runs these on every PR.
