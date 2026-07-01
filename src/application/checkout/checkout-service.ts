@@ -1,6 +1,7 @@
 import type { CheckoutLine, CheckoutRepository, Customer } from "@/src/application/ports/checkout";
 import type { BookingQuoteInput, PricingService } from "@/src/application/pricing/pricing-service";
 import { err, ok, type Result } from "@/src/domain/shared/result";
+import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 
 export interface CreateBookingInput extends BookingQuoteInput {
   customer: Customer;
@@ -20,8 +21,9 @@ export class CheckoutService {
     if (!res.ok) return err(res.error);
     const { quote, currency, startsAt, endsAt } = res.value;
 
-    // No se puede reservar un horario que ya empezó (cliente con datos viejos).
-    if (new Date(startsAt).getTime() <= Date.now()) return err("slot_in_past");
+    // Anticipación mínima: rechaza un horario ya pasado o demasiado próximo (cliente con
+    // datos viejos, o intento a última hora). Ver MIN_LEAD_MINUTES.
+    if (new Date(startsAt).getTime() <= Date.now() + MIN_LEAD_MINUTES * 60_000) return err("too_soon");
 
     const lines: CheckoutLine[] = [
       ...quote.tierLines.map((l) => ({

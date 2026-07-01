@@ -5,6 +5,7 @@ import { DateTime } from "luxon";
 import { formatCLP } from "@/src/domain/money/money";
 import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
+import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
@@ -127,7 +128,7 @@ export default function BookingWidget({
   }, [resourceId, selected]);
 
   // Si la fecha elegida es hoy, descarta los horarios cuya hora ya pasó.
-  const minStart = selected === today ? nowMinuteInSantiago() : 0;
+  const minStart = selected === today ? nowMinuteInSantiago() + MIN_LEAD_MINUTES : 0;
   const starts =
     avail && !avail.closed
       ? availableStartMinutes(avail.openMinute, avail.closeMinute, duration, avail.booked, 60, minStart)
@@ -186,8 +187,8 @@ export default function BookingWidget({
         setError(
           data?.error === "slot_taken"
             ? "Ese horario se acaba de tomar. Elige otro."
-            : data?.error === "slot_in_past"
-              ? "Ese horario ya pasó. Elige otro."
+            : data?.error === "too_soon"
+              ? `Reserva con al menos ${MIN_LEAD_MINUTES} min de anticipación. Elige otro horario.`
               : "No se pudo crear la reserva.",
         );
         setSubmitting(false);

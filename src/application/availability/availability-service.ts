@@ -9,6 +9,7 @@ import {
   weekdayFor,
 } from "@/src/domain/scheduling/time";
 import { classifyDay, type DayStatus } from "@/src/domain/scheduling/month-availability";
+import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
 export interface DayAvailability {
@@ -70,7 +71,7 @@ export class AvailabilityService {
         .map((r) => toLocalMinutesInterval(date, cal.timezone, r.startsAt, r.endsAt));
       // Hoy: descarta los horarios cuya hora ya pasó, para no pintar "open" un día
       // sin cupos restantes (el calendario lo deja inseleccionable → salta de mes).
-      const minStart = date === today ? nowMin : 0;
+      const minStart = date === today ? nowMin + MIN_LEAD_MINUTES : 0;
       days[date] = classifyDay(hours[0], hours[1], booked, minStart);
     }
     return ok({ month, days });
