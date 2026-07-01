@@ -322,10 +322,10 @@ export default function BookingWidget({ resourceId }: { resourceId: string }) {
                   <span className="font-mono text-bone">{formatCLP(a.amount)}</span>
                 </li>
               ))}
-              {quote.discount < 0 && (
+              {quote.discount > 0 && (
                 <li className="flex justify-between gap-3 text-gold">
                   <span>Descuento</span>
-                  <span className="font-mono">{formatCLP(quote.discount)}</span>
+                  <span className="font-mono">−{formatCLP(quote.discount)}</span>
                 </li>
               )}
             </ul>
