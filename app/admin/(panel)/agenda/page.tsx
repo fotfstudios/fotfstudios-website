@@ -1,5 +1,4 @@
 import { DateTime } from "luxon";
-import AdminShell from "@/components/admin/AdminShell";
 import { AgendaWeek } from "@/components/admin/AgendaWeek";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { adminRepository } from "@/src/composition";
@@ -18,11 +17,11 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const bookings = await adminRepository().bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!);
 
   return (
-    <AdminShell>
+    <>
       <PageHeader kicker="Operación" title="Agenda" editorial="La semana de un vistazo." />
       <div className="mt-8">
         <AgendaWeek weekStartISO={weekStart.toISODate()!} bookings={bookings} />
       </div>
-    </AdminShell>
+    </>
   );
 }

@@ -1,4 +1,3 @@
-import AdminShell from "@/components/admin/AdminShell";
 import { fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
@@ -22,7 +21,7 @@ export default async function MiembrosPage() {
   const [members, roles] = await Promise.all([svc.listMembers(), svc.listRoles()]);
 
   return (
-    <AdminShell>
+    <>
       <PageHeader
         kicker="Configuración"
         title="Miembros"
@@ -103,6 +102,6 @@ export default async function MiembrosPage() {
       <p className="mt-4 text-xs text-bone-mute">
         Un cambio de rol se aplica cuando el miembro vuelve a iniciar sesión.
       </p>
-    </AdminShell>
+    </>
   );
 }
