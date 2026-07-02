@@ -5,6 +5,7 @@ export type WebhookOutcome =
   | "paid"
   | "paid_unreserved"
   | "cancelled"
+  | "refunded"
   | "pending"
   | "duplicate"
   | "ignored";
@@ -50,6 +51,11 @@ export class WebhookService {
     if (payment.status === "rejected" || payment.status === "cancelled") {
       await this.repo.cancelUnpaid(orderId);
       return { result: "cancelled", orderId };
+    }
+    if (payment.status === "refunded") {
+      // Reembolso hecho fuera del panel (dashboard de MP): sincroniza la orden.
+      await this.repo.markRefunded(orderId);
+      return { result: "refunded", orderId };
     }
     return { result: "pending", orderId };
   }

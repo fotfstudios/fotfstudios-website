@@ -14,4 +14,9 @@ export interface PaymentNotificationRepository {
   confirmPaid(orderId: string, paymentId: string): Promise<ConfirmPaidStatus>;
   /** Pago rechazado/cancelado: libera el horario y cancela el pedido. */
   cancelUnpaid(orderId: string): Promise<void>;
+  /**
+   * Reembolso originado fuera del panel (dashboard de MP): marca la orden
+   * 'refunded', libera el horario y crea la nota de crédito. Idempotente.
+   */
+  markRefunded(orderId: string): Promise<void>;
 }

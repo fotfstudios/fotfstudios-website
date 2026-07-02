@@ -260,8 +260,34 @@ export class SupabaseAdminRepository {
   }
 
   // ── escrituras
-  async cancelBooking(reservationId: string): Promise<void> {
-    const { error } = await this.db.rpc("cancel_booking", { p_reservation: reservationId });
+  /** Estado + id de pago MP de la orden asociada a una reserva (para decidir el reembolso). */
+  async orderForReservation(
+    reservationId: string,
+  ): Promise<{ orderId: string; status: string; mpPaymentId: string | null } | null> {
+    const { data: r } = await this.db
+      .from("reservations")
+      .select("order_id")
+      .eq("id", reservationId)
+      .single();
+    if (!r?.order_id) return null;
+    const { data: o } = await this.db
+      .from("orders")
+      .select("status, mp_payment_id")
+      .eq("id", r.order_id)
+      .single();
+    if (!o) return null;
+    return { orderId: r.order_id, status: o.status, mpPaymentId: o.mp_payment_id };
+  }
+
+  /**
+   * Cancela una reserva. `refundId` no nulo → la orden pagada se marca 'refunded'
+   * con nota de crédito; nulo → cancelación sin reembolso (la orden pagada queda 'paid').
+   */
+  async cancelBooking(reservationId: string, refundId: string | null = null): Promise<void> {
+    const { error } = await this.db.rpc("cancel_booking", {
+      p_reservation: reservationId,
+      ...(refundId != null ? { p_refund_id: refundId } : {}),
+    });
     if (error) throw new Error(error.message);
   }
 

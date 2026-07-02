@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionResult, run } from "@/components/admin/ui/action";
-import { adminRepository, checkoutService } from "@/src/composition";
+import { adminRepository, checkoutService, refundService } from "@/src/composition";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
@@ -13,7 +13,9 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
   return run(async () => {
     await requirePermission("reservations.cancel");
     const id = str(fd, "reservationId");
-    await adminRepository().cancelBooking(id);
+    // `refund=true` → reembolso real en MP; si MP falla, se aborta (nada cambia).
+    const refund = fd.get("refund") === "true";
+    await refundService().cancelBooking(id, { refund });
     revalidatePath(`/admin/reservas/${id}`);
     revalidatePath("/admin/reservas");
   });

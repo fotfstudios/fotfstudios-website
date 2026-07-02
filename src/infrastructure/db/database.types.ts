@@ -303,10 +303,12 @@ export type Database = {
           id: string
           mp_payment_id: string | null
           mp_preference_id: string | null
+          mp_refund_id: string | null
           net_clp: number
           notified_at: string | null
           paid_at: string | null
           pricing_snapshot: Json | null
+          refunded_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           tax_clp: number
         }
@@ -320,10 +322,12 @@ export type Database = {
           id?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          mp_refund_id?: string | null
           net_clp: number
           notified_at?: string | null
           paid_at?: string | null
           pricing_snapshot?: Json | null
+          refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp: number
         }
@@ -337,10 +341,12 @@ export type Database = {
           id?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
+          mp_refund_id?: string | null
           net_clp?: number
           notified_at?: string | null
           paid_at?: string | null
           pricing_snapshot?: Json | null
+          refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp?: number
         }
@@ -783,7 +789,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cancel_booking: { Args: { p_reservation: string }; Returns: undefined }
+      cancel_booking: {
+        Args: { p_refund_id?: string; p_reservation: string }
+        Returns: undefined
+      }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
@@ -817,6 +826,10 @@ export type Database = {
       create_nota_credito: { Args: { p_order: string }; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
+      mark_refunded: {
+        Args: { p_order: string; p_refund_id?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       order_status:
