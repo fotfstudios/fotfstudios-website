@@ -22,9 +22,29 @@ export interface AdminBooking {
   paidAt: string | null;
 }
 
+/** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
+export interface PaymentSnapshot {
+  payment_type_id: string | null;
+  payment_method_id: string | null;
+  card_last4: string | null;
+  installments: number | null;
+  gross_amount: number | null;
+  fee_amount: number | null;
+  net_received_amount: number | null;
+  date_approved: string | null;
+  payer_email: string | null;
+  payer_name: string | null;
+}
+
 export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
   boleta: { id: string; status: string; folio: string | null } | null;
+  cancelledAt: string | null;
+  refundedAt: string | null;
+  mpPaymentId: string | null;
+  mpPreferenceId: string | null;
+  mpRefundId: string | null;
+  paymentSnapshot: PaymentSnapshot | null;
 }
 
 export interface DashboardData {
@@ -192,9 +212,24 @@ export class SupabaseAdminRepository {
   }
 
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
-    const { data } = await this.db.from("reservations").select(SELECT).eq("id", id).single();
+    // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
+    const DETAIL_SELECT =
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, order_id, orders(amount_clp, status, paid_at, refunded_at, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
+    const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
-    const base = map(data as unknown as ResRow);
+    const row = data as unknown as ResRow & {
+      cancelled_at: string | null;
+      orders:
+        | (NonNullable<ResRow["orders"]> & {
+            refunded_at: string | null;
+            mp_payment_id: string | null;
+            mp_preference_id: string | null;
+            mp_refund_id: string | null;
+            payment_snapshot: PaymentSnapshot | null;
+          })
+        | null;
+    };
+    const base = map(row);
 
     let lines: { description: string; subtotal: number }[] = [];
     let boleta: AdminBookingDetail["boleta"] = null;
@@ -212,7 +247,17 @@ export class SupabaseAdminRepository {
         .maybeSingle();
       boleta = b ? { id: b.id, status: b.status, folio: b.folio } : null;
     }
-    return { ...base, lines, boleta };
+    return {
+      ...base,
+      lines,
+      boleta,
+      cancelledAt: row.cancelled_at,
+      refundedAt: row.orders?.refunded_at ?? null,
+      mpPaymentId: row.orders?.mp_payment_id ?? null,
+      mpPreferenceId: row.orders?.mp_preference_id ?? null,
+      mpRefundId: row.orders?.mp_refund_id ?? null,
+      paymentSnapshot: row.orders?.payment_snapshot ?? null,
+    };
   }
 
   async pendingBoletas(): Promise<PendingBoleta[]> {

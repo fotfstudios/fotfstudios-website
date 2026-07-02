@@ -19,11 +19,29 @@ export interface PreferenceResult {
   initPoint: string; // URL a la que se redirige al cliente
 }
 
+export interface PaymentRefundInfo {
+  id: string;
+  amount: number;
+  status: string;
+  dateCreated?: string;
+}
+
 export interface PaymentInfo {
   id: string;
   status: string; // approved | pending | rejected | ...
   externalReference?: string;
   amount?: number;
+  // Detalle enriquecido (para snapshot/observabilidad); opcional y best-effort.
+  paymentTypeId?: string; // credit_card | debit_card | account_money | ...
+  paymentMethodId?: string; // visa | master | ...
+  cardLast4?: string;
+  installments?: number;
+  feeAmount?: number; // comisión MP total
+  netReceivedAmount?: number; // neto acreditado al vendedor
+  dateApproved?: string;
+  payerEmail?: string;
+  payerName?: string;
+  refunds?: PaymentRefundInfo[];
 }
 
 export interface RefundResult {

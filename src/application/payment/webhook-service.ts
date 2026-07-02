@@ -44,7 +44,7 @@ export class WebhookService {
         );
         return { result: "ignored", orderId };
       }
-      const status = await this.repo.confirmPaid(orderId, paymentId);
+      const status = await this.repo.confirmPaid(orderId, payment);
       // `paid_no_hold`: pagó pero la reserva ya no estaba en hold → revisión del dueño.
       return { result: status === "paid_no_hold" ? "paid_unreserved" : "paid", orderId };
     }
@@ -54,7 +54,7 @@ export class WebhookService {
     }
     if (payment.status === "refunded") {
       // Reembolso hecho fuera del panel (dashboard de MP): sincroniza la orden.
-      await this.repo.markRefunded(orderId);
+      await this.repo.markRefunded(orderId, payment.refunds?.[0]?.id);
       return { result: "refunded", orderId };
     }
     return { result: "pending", orderId };

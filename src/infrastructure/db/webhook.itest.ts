@@ -75,13 +75,30 @@ describe("webhook", () => {
     const orderId = b.value.orderId;
 
     const svc = new WebhookService(
-      new StubGateway({ id: "pay1", status: "approved", externalReference: orderId, amount: 9990 }),
+      new StubGateway({
+        id: "pay1",
+        status: "approved",
+        externalReference: orderId,
+        amount: 9990,
+        paymentTypeId: "credit_card",
+        paymentMethodId: "master",
+        cardLast4: "2580",
+        installments: 1,
+        feeAmount: 590,
+        netReceivedAmount: 9400,
+      }),
       repo,
     );
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("paid");
 
-    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
+    const o = await pg.query<{ status: string; snap: Record<string, unknown> }>(
+      "select status, payment_snapshot as snap from orders where id=$1",
+      [orderId],
+    );
     expect(o.rows[0].status).toBe("paid");
+    // El snapshot del pago se guardó para observabilidad en el admin.
+    expect(o.rows[0].snap?.payment_method_id).toBe("master");
+    expect(o.rows[0].snap?.net_received_amount).toBe(9400);
     const r = await pg.query<{ status: string }>("select status from reservations where order_id=$1", [orderId]);
     expect(r.rows[0].status).toBe("confirmed");
 
@@ -153,13 +170,23 @@ describe("webhook", () => {
 
     // 2) reembolso hecho fuera del panel → MP notifica status refunded
     const refunded = new WebhookService(
-      new StubGateway({ id: "pay5", status: "refunded", externalReference: orderId, amount: 9990 }),
+      new StubGateway({
+        id: "pay5",
+        status: "refunded",
+        externalReference: orderId,
+        amount: 9990,
+        refunds: [{ id: "refund_9", amount: 9990, status: "approved" }],
+      }),
       repo,
     );
     expect((await refunded.handlePaymentNotification("pay5")).result).toBe("refunded");
 
-    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
+    const o = await pg.query<{ status: string; mp_refund_id: string | null }>(
+      "select status, mp_refund_id from orders where id=$1",
+      [orderId],
+    );
     expect(o.rows[0].status).toBe("refunded");
+    expect(o.rows[0].mp_refund_id).toBe("refund_9"); // id del reembolso registrado desde el webhook
     const nc = await pg.query("select 1 from tax_documents where order_id=$1 and kind='nota_credito'", [orderId]);
     expect(nc.rowCount).toBe(1);
 

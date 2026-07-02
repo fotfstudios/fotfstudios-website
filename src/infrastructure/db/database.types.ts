@@ -307,6 +307,7 @@ export type Database = {
           net_clp: number
           notified_at: string | null
           paid_at: string | null
+          payment_snapshot: Json | null
           pricing_snapshot: Json | null
           refunded_at: string | null
           status: Database["public"]["Enums"]["order_status"]
@@ -326,6 +327,7 @@ export type Database = {
           net_clp: number
           notified_at?: string | null
           paid_at?: string | null
+          payment_snapshot?: Json | null
           pricing_snapshot?: Json | null
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -345,6 +347,7 @@ export type Database = {
           net_clp?: number
           notified_at?: string | null
           paid_at?: string | null
+          payment_snapshot?: Json | null
           pricing_snapshot?: Json | null
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -516,6 +519,7 @@ export type Database = {
         Row: {
           access_code: string | null
           access_sent_at: string | null
+          cancelled_at: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -533,6 +537,7 @@ export type Database = {
         Insert: {
           access_code?: string | null
           access_sent_at?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -550,6 +555,7 @@ export type Database = {
         Update: {
           access_code?: string | null
           access_sent_at?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
