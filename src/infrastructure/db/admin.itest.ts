@@ -63,14 +63,18 @@ describe("admin actions", () => {
     expect(Number(boleta.rows[0].n)).toBe(1);
   });
 
-  it("cancelar reserva pagada → reembolsada + NC + libera el horario", async () => {
+  it("cancelar reserva pagada CON reembolso → refunded + NC + refund id + libera el horario", async () => {
     const b = await book(660);
     if (!b.ok) return;
     await repo.confirmOffline(b.value.orderId, "efectivo");
-    await repo.cancelBooking(await reservationOf(b.value.orderId));
+    await repo.cancelBooking(await reservationOf(b.value.orderId), "ref_123");
 
-    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [b.value.orderId]);
+    const o = await pg.query<{ status: string; mp_refund_id: string | null }>(
+      "select status, mp_refund_id from orders where id=$1",
+      [b.value.orderId],
+    );
     expect(o.rows[0].status).toBe("refunded");
+    expect(o.rows[0].mp_refund_id).toBe("ref_123");
     const nc = await pg.query<{ n: string }>(
       "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
       [b.value.orderId],
@@ -78,6 +82,23 @@ describe("admin actions", () => {
     expect(Number(nc.rows[0].n)).toBe(1);
     // horario liberado
     expect((await book(660)).ok).toBe(true);
+  });
+
+  it("cancelar reserva pagada SIN reembolso → sigue 'paid', sin NC, libera el horario", async () => {
+    const b = await book(665);
+    if (!b.ok) return;
+    await repo.confirmOffline(b.value.orderId, "efectivo");
+    await repo.cancelBooking(await reservationOf(b.value.orderId)); // sin refund id
+
+    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [b.value.orderId]);
+    expect(o.rows[0].status).toBe("paid"); // dinero retenido (no-show)
+    const nc = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
+      [b.value.orderId],
+    );
+    expect(Number(nc.rows[0].n)).toBe(0);
+    // horario igual quedó liberado
+    expect((await book(665)).ok).toBe(true);
   });
 
   it("cancelar reserva no pagada → cancelada + libera el horario", async () => {

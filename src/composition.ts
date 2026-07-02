@@ -15,6 +15,7 @@ import { WebhookService, type WebhookResult } from "@/src/application/payment/we
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MemberService } from "@/src/application/admin/member-service";
+import { RefundService } from "@/src/application/admin/refund-service";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
 import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
 import type { Mailer } from "@/src/application/ports/mailer";
@@ -121,6 +122,11 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
   return new SupabaseAdminRepository(client);
+}
+
+/** Cancelación de reserva con reembolso opcional en Mercado Pago. */
+export function refundService(client: SupabaseClient<Database> = db()): RefundService {
+  return new RefundService(new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")), adminRepository(client));
 }
 
 /** RBAC: gestión de miembros y roles del admin (invitación nativa de Supabase). */

@@ -26,9 +26,17 @@ export interface PaymentInfo {
   amount?: number;
 }
 
+export interface RefundResult {
+  id: string;
+  status: string; // approved | in_process | ...
+  amount?: number;
+}
+
 export interface PaymentGateway {
   createPreference(input: PreferenceInput): Promise<PreferenceResult>;
   getPayment(paymentId: string): Promise<PaymentInfo>;
   /** Busca el pago de una orden por `external_reference` (reconciliación). */
   findPaymentByOrder(orderId: string): Promise<PaymentInfo | null>;
+  /** Reembolsa un pago. Sin `amount` → total; con `amount` → parcial. */
+  refundPayment(paymentId: string, amount?: number): Promise<RefundResult>;
 }

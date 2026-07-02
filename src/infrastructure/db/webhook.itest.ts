@@ -8,7 +8,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
-import type { PaymentGateway, PaymentInfo, PreferenceResult } from "@/src/application/ports/payment";
+import type {
+  PaymentGateway,
+  PaymentInfo,
+  PreferenceResult,
+  RefundResult,
+} from "@/src/application/ports/payment";
 import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
@@ -38,6 +43,9 @@ class StubGateway implements PaymentGateway {
   }
   async findPaymentByOrder(): Promise<PaymentInfo | null> {
     return this.info;
+  }
+  async refundPayment(): Promise<RefundResult> {
+    throw new Error("unused");
   }
 }
 
@@ -128,5 +136,34 @@ describe("webhook", () => {
     // el horario quedó libre → se puede reservar de nuevo
     const b2 = await book(600, "c@e.cl");
     expect(b2.ok).toBe(true);
+  });
+
+  it("refunded (reembolso externo) → orden reembolsada, NC y libera el horario", async () => {
+    const b = await book(600, "e@e.cl");
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+
+    // 1) pagar
+    const paid = new WebhookService(
+      new StubGateway({ id: "pay5", status: "approved", externalReference: orderId, amount: 9990 }),
+      repo,
+    );
+    expect((await paid.handlePaymentNotification("pay5")).result).toBe("paid");
+
+    // 2) reembolso hecho fuera del panel → MP notifica status refunded
+    const refunded = new WebhookService(
+      new StubGateway({ id: "pay5", status: "refunded", externalReference: orderId, amount: 9990 }),
+      repo,
+    );
+    expect((await refunded.handlePaymentNotification("pay5")).result).toBe("refunded");
+
+    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
+    expect(o.rows[0].status).toBe("refunded");
+    const nc = await pg.query("select 1 from tax_documents where order_id=$1 and kind='nota_credito'", [orderId]);
+    expect(nc.rowCount).toBe(1);
+
+    // el horario quedó libre → se puede reservar de nuevo
+    expect((await book(600, "f@e.cl")).ok).toBe(true);
   });
 });

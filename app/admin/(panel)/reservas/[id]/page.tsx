@@ -22,6 +22,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   const isBlock = b.kind === "block";
   const isCourtesy = !isBlock && !b.orderId;
+  const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
+
+
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
   const activity: { label: string; at: string | null }[] = [{ label: "Reserva creada", at: b.createdAt }];
@@ -158,20 +161,49 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
           {b.status !== "cancelled" && (
             <Card title="Zona de peligro">
-              <p className="text-sm leading-relaxed text-bone-dim">
-                Cancelar libera el horario{!isBlock ? " y, si estaba pagada, genera la nota de crédito" : ""}.
-              </p>
-              <div className="mt-4">
-                <ConfirmForm
-                  action={cancelBookingAction}
-                  hidden={{ reservationId: b.id }}
-                  trigger={{ label: isBlock ? "Cancelar bloqueo" : "Cancelar reserva", variant: "danger", size: "sm" }}
-                  title={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
-                  message={`Se liberará el horario${!isBlock ? " y, si estaba pagada, se generará la nota de crédito" : ""}. Esta acción no se puede deshacer.`}
-                  cta={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
-                  success="Reserva cancelada."
-                />
-              </div>
+              {isPaid ? (
+                <>
+                  <p className="text-sm leading-relaxed text-bone-dim">
+                    Cancelar libera el horario. Elige si además <strong className="text-bone">reembolsas el pago</strong> (se
+                    devuelve en Mercado Pago y se genera la nota de crédito) o cancelas sin reembolso (el pago queda retenido).
+                  </p>
+                  <div className="mt-4 flex flex-col gap-3">
+                    <ConfirmForm
+                      action={cancelBookingAction}
+                      hidden={{ reservationId: b.id, refund: "true" }}
+                      trigger={{ label: "Cancelar y reembolsar", variant: "danger", size: "sm" }}
+                      title="Cancelar y reembolsar"
+                      message="Se liberará el horario, se reembolsará el pago en Mercado Pago y se generará la nota de crédito. Si el reembolso en MP falla, no se cancela nada. Esta acción no se puede deshacer."
+                      cta="Cancelar y reembolsar"
+                      success="Reserva cancelada y reembolsada."
+                    />
+                    <ConfirmForm
+                      action={cancelBookingAction}
+                      hidden={{ reservationId: b.id, refund: "false" }}
+                      trigger={{ label: "Cancelar sin reembolso", variant: "secondary", size: "sm" }}
+                      title="Cancelar sin reembolso"
+                      message="Se liberará el horario pero NO se devolverá el dinero (el pago queda retenido). Esta acción no se puede deshacer."
+                      cta="Cancelar sin reembolso"
+                      success="Reserva cancelada (sin reembolso)."
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-relaxed text-bone-dim">Cancelar libera el horario.</p>
+                  <div className="mt-4">
+                    <ConfirmForm
+                      action={cancelBookingAction}
+                      hidden={{ reservationId: b.id, refund: "false" }}
+                      trigger={{ label: isBlock ? "Cancelar bloqueo" : "Cancelar reserva", variant: "danger", size: "sm" }}
+                      title={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
+                      message="Se liberará el horario. Esta acción no se puede deshacer."
+                      cta={isBlock ? "Cancelar bloqueo" : "Cancelar reserva"}
+                      success="Reserva cancelada."
+                    />
+                  </div>
+                </>
+              )}
             </Card>
           )}
         </aside>
