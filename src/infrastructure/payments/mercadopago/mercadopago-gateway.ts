@@ -79,18 +79,25 @@ export class MercadoPagoGateway implements PaymentGateway {
 
   async refundPayment(paymentId: string, amount?: number): Promise<RefundResult> {
     const refunds = new PaymentRefund(this.client);
-    // Idempotencia: reintentos no generan reembolsos duplicados.
-    const r =
-      amount == null
-        ? await refunds.total({
-            payment_id: paymentId,
-            requestOptions: { idempotencyKey: `refund:${paymentId}` },
-          })
-        : await refunds.create({
-            payment_id: paymentId,
-            body: { amount },
-            requestOptions: { idempotencyKey: `refund:${paymentId}:${amount}` },
-          });
+    let r;
+    try {
+      // Idempotencia: reintentos no generan reembolsos duplicados.
+      r =
+        amount == null
+          ? await refunds.total({
+              payment_id: paymentId,
+              requestOptions: { idempotencyKey: `refund:${paymentId}` },
+            })
+          : await refunds.create({
+              payment_id: paymentId,
+              body: { amount },
+              requestOptions: { idempotencyKey: `refund:${paymentId}:${amount}` },
+            });
+    } catch (e) {
+      // El SDK de MP puede lanzar un objeto (no Error) con la respuesta de la API;
+      // extraemos el mensaje para que la acción muestre la causa real, no genérico.
+      throw new Error(`No se pudo reembolsar en Mercado Pago: ${mpErrorMessage(e)}`);
+    }
     if (!r.id) throw new Error("Mercado Pago no devolvió id de reembolso");
     return { id: String(r.id), status: r.status ?? "unknown", amount: r.amount ?? undefined };
   }
@@ -114,4 +121,18 @@ export class MercadoPagoGateway implements PaymentGateway {
       amount: p.transaction_amount ?? undefined,
     };
   }
+}
+
+/** Mensaje legible del error del SDK de MP (que a veces lanza un objeto, no un Error). */
+function mpErrorMessage(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (e && typeof e === "object") {
+    const o = e as { message?: unknown; cause?: unknown };
+    if (typeof o.message === "string" && o.message) return o.message;
+    if (Array.isArray(o.cause) && o.cause[0] && typeof o.cause[0] === "object") {
+      const c = o.cause[0] as { description?: unknown };
+      if (typeof c.description === "string") return c.description;
+    }
+  }
+  return "error desconocido";
 }
