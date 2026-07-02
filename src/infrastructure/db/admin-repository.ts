@@ -38,9 +38,10 @@ export interface PaymentSnapshot {
 
 export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
-  boleta: { id: string; status: string; folio: string | null } | null;
+  taxDocs: { id: string; kind: string; status: string; folio: string | null; total: number }[];
   cancelledAt: string | null;
   refundedAt: string | null;
+  refundedAmount: number | null;
   mpPaymentId: string | null;
   mpPreferenceId: string | null;
   mpRefundId: string | null;
@@ -214,7 +215,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, order_id, orders(amount_clp, status, paid_at, refunded_at, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
@@ -222,6 +223,7 @@ export class SupabaseAdminRepository {
       orders:
         | (NonNullable<ResRow["orders"]> & {
             refunded_at: string | null;
+            refunded_amount_clp: number | null;
             mp_payment_id: string | null;
             mp_preference_id: string | null;
             mp_refund_id: string | null;
@@ -232,27 +234,35 @@ export class SupabaseAdminRepository {
     const base = map(row);
 
     let lines: { description: string; subtotal: number }[] = [];
-    let boleta: AdminBookingDetail["boleta"] = null;
+    let taxDocs: AdminBookingDetail["taxDocs"] = [];
     if (base.orderId) {
       const { data: l } = await this.db
         .from("order_lines")
         .select("description, subtotal_clp")
         .eq("order_id", base.orderId);
       lines = (l ?? []).map((x) => ({ description: x.description, subtotal: x.subtotal_clp }));
-      const { data: b } = await this.db
+      // Todos los documentos tributarios (boletas + NC): un pedido reembolsado
+      // parcialmente puede tener boleta original + NC + boleta del saldo.
+      const { data: docs } = await this.db
         .from("tax_documents")
-        .select("id, status, folio")
+        .select("id, kind, status, folio, total, created_at")
         .eq("order_id", base.orderId)
-        .eq("kind", "boleta")
-        .maybeSingle();
-      boleta = b ? { id: b.id, status: b.status, folio: b.folio } : null;
+        .order("created_at", { ascending: true });
+      taxDocs = (docs ?? []).map((d) => ({
+        id: d.id,
+        kind: d.kind,
+        status: d.status,
+        folio: d.folio,
+        total: d.total,
+      }));
     }
     return {
       ...base,
       lines,
-      boleta,
+      taxDocs,
       cancelledAt: row.cancelled_at,
       refundedAt: row.orders?.refunded_at ?? null,
+      refundedAmount: row.orders?.refunded_amount_clp ?? null,
       mpPaymentId: row.orders?.mp_payment_id ?? null,
       mpPreferenceId: row.orders?.mp_preference_id ?? null,
       mpRefundId: row.orders?.mp_refund_id ?? null,

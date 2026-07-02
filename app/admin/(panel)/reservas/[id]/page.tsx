@@ -90,27 +90,33 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 </ActionForm>
               </Card>
 
-              {b.boleta && b.boleta.status === "pendiente" ? (
-                <Card title="Registrar boleta">
-                  <ActionForm action={recordBoletaAction} success="Boleta marcada como emitida.">
-                    <input type="hidden" name="docId" value={b.boleta.id} />
-                    <input type="hidden" name="reservationId" value={b.id} />
-                    <Input name="folio" placeholder="N° de folio (SII)" />
-                    <div className="mt-3">
-                      <SubmitButton size="sm">Marcar emitida</SubmitButton>
-                    </div>
-                  </ActionForm>
-                </Card>
-              ) : (
-                <Card title="Boleta">
-                  {b.boleta ? (
-                    <div className="flex items-center gap-2">
-                      <StatusPill status={b.boleta.status} />
-                      {b.boleta.folio && <span className="font-mono text-sm text-bone-dim">Folio {b.boleta.folio}</span>}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-bone-mute">Sin boleta.</p>
-                  )}
+              {b.taxDocs.length > 0 && (
+                <Card title="Documentos tributarios">
+                  <ul className="flex flex-col divide-y divide-bone/10">
+                    {b.taxDocs.map((d) => (
+                      <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                        <div>
+                          <p className="text-sm text-bone">
+                            {taxDocLabel(d.kind)} · {formatCLP(d.total)}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <StatusPill status={d.status} />
+                            {d.folio && <span className="font-mono text-xs text-bone-dim">Folio {d.folio}</span>}
+                          </div>
+                        </div>
+                        {d.status === "pendiente" && (
+                          <ActionForm action={recordBoletaAction} success="Documento marcado como emitido.">
+                            <input type="hidden" name="docId" value={d.id} />
+                            <input type="hidden" name="reservationId" value={b.id} />
+                            <div className="flex items-center gap-2">
+                              <Input name="folio" placeholder="N° folio" />
+                              <SubmitButton size="sm">Emitir</SubmitButton>
+                            </div>
+                          </ActionForm>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </Card>
               )}
             </div>
@@ -164,7 +170,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 <div className="mt-3 border-t hairline pt-3">
                   <MpRow
                     label="Reembolsado"
-                    value={`${b.amount ? formatCLP(b.amount) : "—"} · ${fmtDateTime(b.refundedAt)}`}
+                    value={`${formatCLP(b.refundedAmount && b.refundedAmount > 0 ? b.refundedAmount : (b.amount ?? 0))} · ${fmtDateTime(b.refundedAt)}`}
                   />
                 </div>
               )}
@@ -178,12 +184,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
               {b.mpPaymentId && (
                 <a
-                  href={`https://www.mercadopago.cl/activities/${b.mpPaymentId}`}
+                  href="https://www.mercadopago.cl/activities"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
                 >
-                  Ver en mercadopago.cl <Icon name="external" size={14} />
+                  Ver actividad en Mercado Pago <Icon name="external" size={14} />
                 </a>
               )}
             </Card>
@@ -291,6 +297,10 @@ const MP_PTYPE: Record<string, string> = {
   ticket: "efectivo",
   bank_transfer: "transferencia",
 };
+
+function taxDocLabel(kind: string): string {
+  return kind === "nota_credito" ? "Nota de crédito" : kind === "boleta" ? "Boleta" : kind;
+}
 
 function mpMethodLabel(s: PaymentSnapshot): string {
   const parts: string[] = [];

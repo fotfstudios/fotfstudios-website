@@ -42,10 +42,11 @@ export class SupabaseWebhookRepository implements PaymentNotificationRepository 
     if (error) throw new Error(error.message);
   }
 
-  async markRefunded(orderId: string, refundId?: string): Promise<void> {
+  async markRefunded(orderId: string, refundId?: string, amount?: number): Promise<void> {
     const { error } = await this.db.rpc("mark_refunded", {
       p_order: orderId,
       ...(refundId ? { p_refund_id: refundId } : {}),
+      ...(amount != null ? { p_refund_amount: amount } : {}),
     });
     if (error) throw new Error(error.message);
   }

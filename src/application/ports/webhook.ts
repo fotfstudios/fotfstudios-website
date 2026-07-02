@@ -17,9 +17,9 @@ export interface PaymentNotificationRepository {
   /** Pago rechazado/cancelado: libera el horario y cancela el pedido. */
   cancelUnpaid(orderId: string): Promise<void>;
   /**
-   * Reembolso originado fuera del panel (dashboard de MP): marca la orden
-   * 'refunded', libera el horario y crea la nota de crédito. Idempotente.
-   * `refundId` (si viene) se registra en `orders.mp_refund_id`.
+   * Reembolso (parcial o total) hecho en MP: cancela el horario, marca la orden
+   * 'refunded', acumula el monto y emite NC por `amount` (o el total si no viene).
+   * `refundId` se registra en `orders.mp_refund_id`. Idempotente por reembolso.
    */
-  markRefunded(orderId: string, refundId?: string): Promise<void>;
+  markRefunded(orderId: string, refundId?: string, amount?: number): Promise<void>;
 }

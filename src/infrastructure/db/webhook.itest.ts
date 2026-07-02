@@ -193,4 +193,56 @@ describe("webhook", () => {
     // el horario quedó libre → se puede reservar de nuevo
     expect((await book(600, "f@e.cl")).ok).toBe(true);
   });
+
+  it("refunded parcial → cancela, NC por el total y nueva boleta por el saldo (SII)", async () => {
+    const b = await book(600, "g@e.cl");
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+
+    // pagar
+    await new WebhookService(
+      new StubGateway({ id: "pay6", status: "approved", externalReference: orderId, amount: 9990 }),
+      repo,
+    ).handlePaymentNotification("pay6");
+
+    // reembolso PARCIAL: el pago sigue 'approved', solo aparece en refunds[]
+    const partial = new WebhookService(
+      new StubGateway({
+        id: "pay6",
+        status: "approved",
+        externalReference: orderId,
+        amount: 9990,
+        refunds: [{ id: "refund_p", amount: 4000, status: "approved" }],
+      }),
+      repo,
+    );
+    expect((await partial.handlePaymentNotification("pay6")).result).toBe("refunded");
+
+    const o = await pg.query<{ status: string; refunded_amount_clp: number }>(
+      "select status, refunded_amount_clp from orders where id=$1",
+      [orderId],
+    );
+    expect(o.rows[0].status).toBe("refunded");
+    expect(o.rows[0].refunded_amount_clp).toBe(4000);
+    // cualquier reembolso cancela la reserva
+    const r = await pg.query<{ status: string }>("select status from reservations where order_id=$1", [orderId]);
+    expect(r.rows[0].status).toBe("cancelled");
+    // SII: NC por el total (9990) + boleta original + nueva boleta por el saldo (5990)
+    const nc = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
+      [orderId],
+    );
+    expect(Number(nc.rows[0].n)).toBe(1);
+    const bol = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'",
+      [orderId],
+    );
+    expect(Number(bol.rows[0].n)).toBe(2);
+    const saldo = await pg.query<{ total: number }>(
+      "select total from tax_documents where order_id=$1 and kind='boleta' order by created_at desc limit 1",
+      [orderId],
+    );
+    expect(saldo.rows[0].total).toBe(5990);
+  });
 });

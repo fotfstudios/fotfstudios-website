@@ -136,7 +136,7 @@ describe("admin actions", () => {
     expect(detail?.orderId).toBeNull();
     expect(detail?.amount).toBeNull();
     expect(detail?.lines).toHaveLength(0);
-    expect(detail?.boleta).toBeNull();
+    expect(detail?.taxDocs).toHaveLength(0);
 
     const boleta = await pg.query<{ n: string }>("select count(*)::text n from tax_documents", []);
     expect(Number(boleta.rows[0].n)).toBe(0);
