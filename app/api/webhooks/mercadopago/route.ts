@@ -16,11 +16,13 @@ export const dynamic = "force-dynamic";
  * nuestra pendiente, de forma idempotente (inbox). Una notificación falsa no logra
  * nada: nadie puede fabricar un pago real aprobado a nombre de una orden ajena.
  *
- * La **firma (x-signature) es defensa en profundidad**: la verificamos según la spec
- * oficial y la registramos, pero NO descartamos la notificación si no valida, porque
- * la verdad es la consulta a la API. Nota: los pagos de prueba (test-user) se firman
- * con el secreto de una app-sombra que no se puede configurar, así que en sandbox la
- * firma no calza; en producción (app real) sí valida y suma protección anti-spam.
+ * La **firma (x-signature) es defensa en profundidad**: la validamos con el
+ * validador oficial del SDK de MP (ver verify-signature.ts) y la registramos,
+ * pero NO descartamos la notificación si no valida, porque la verdad es la
+ * consulta a la API. Nota: las notificaciones **IPN legacy** (`?id=&topic=`)
+ * traen `x-signature` pero MP no soporta validarlas con la clave secreta —
+ * calzan en `false` por diseño; las **Webhooks** (`?data.id=&type=`) sí validan
+ * cuando la clave secreta del entorno coincide con la del panel (test/prod).
  */
 export async function POST(req: Request): Promise<Response> {
   const token = process.env.MP_ACCESS_TOKEN;

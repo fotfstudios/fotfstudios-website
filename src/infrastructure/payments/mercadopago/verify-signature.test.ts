@@ -30,4 +30,8 @@ describe("verifyMpSignature", () => {
   it("rechaza si cambia el dataId firmado", () => {
     expect(verifyMpSignature({ xSignature: sign(), xRequestId, dataId: "9999", secret })).toBe(false);
   });
+
+  it("rechaza un header x-signature malformado", () => {
+    expect(verifyMpSignature({ xSignature: "garbage", xRequestId, dataId, secret })).toBe(false);
+  });
 });
