@@ -2,7 +2,7 @@ import Logo from "./Logo";
 import MeterBars from "./MeterBars";
 import MaskText from "./MaskText";
 import Magnetic from "./Magnetic";
-import ParallaxImage from "./ParallaxImage";
+import HeroVideo from "./HeroVideo";
 import { SITE, whatsappLink } from "@/lib/site";
 import { getPhotos, heroPhoto } from "@/lib/photos";
 
@@ -14,15 +14,15 @@ export default function Hero() {
       id="top"
       className="grain relative isolate flex min-h-[100svh] flex-col overflow-hidden"
     >
-      {/* Foto a sangre completa — fondo de cabina */}
+      {/* Video a sangre completa — fondo de cabina (poster = still de respaldo) */}
       {photo ? (
         <div className="absolute inset-0 z-0">
-          <ParallaxImage
-            src={photo.src}
+          <HeroVideo
+            webm="/video/hero.webm"
+            mp4="/video/hero.mp4"
+            poster="/video/hero-poster.jpg"
             alt={photo.alt}
-            priority
-            sizes="100vw"
-            imgClassName="object-[50%_45%]"
+            className="img-grade object-[50%_45%]"
           />
           {/* Scrim direccional: oscuro a la izquierda (texto) → claro a la derecha (foto) */}
           <div

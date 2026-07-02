@@ -9,3 +9,6 @@ next-env.d.ts
 .remember
 coverage
 .vercel
+
+# Raw camera captures — commit only compressed derivatives in public/video
+*.mov
