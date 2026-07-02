@@ -5,11 +5,13 @@ import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
+import { CopyButton } from "@/components/admin/ui/CopyButton";
 import { Input } from "@/components/admin/ui/Field";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { adminRepository } from "@/src/composition";
+import type { PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +33,8 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt });
   else if (b.status === "confirmed" && !b.orderId) activity.push({ label: "Confirmada (cortesía)", at: null });
   if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt });
-  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: null });
+  if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt });
+  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt });
 
   return (
     <>
@@ -87,27 +90,33 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 </ActionForm>
               </Card>
 
-              {b.boleta && b.boleta.status === "pendiente" ? (
-                <Card title="Registrar boleta">
-                  <ActionForm action={recordBoletaAction} success="Boleta marcada como emitida.">
-                    <input type="hidden" name="docId" value={b.boleta.id} />
-                    <input type="hidden" name="reservationId" value={b.id} />
-                    <Input name="folio" placeholder="N° de folio (SII)" />
-                    <div className="mt-3">
-                      <SubmitButton size="sm">Marcar emitida</SubmitButton>
-                    </div>
-                  </ActionForm>
-                </Card>
-              ) : (
-                <Card title="Boleta">
-                  {b.boleta ? (
-                    <div className="flex items-center gap-2">
-                      <StatusPill status={b.boleta.status} />
-                      {b.boleta.folio && <span className="font-mono text-sm text-bone-dim">Folio {b.boleta.folio}</span>}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-bone-mute">Sin boleta.</p>
-                  )}
+              {b.taxDocs.length > 0 && (
+                <Card title="Documentos tributarios">
+                  <ul className="flex flex-col divide-y divide-bone/10">
+                    {b.taxDocs.map((d) => (
+                      <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                        <div>
+                          <p className="text-sm text-bone">
+                            {taxDocLabel(d.kind)} · {formatCLP(d.total)}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <StatusPill status={d.status} />
+                            {d.folio && <span className="font-mono text-xs text-bone-dim">Folio {d.folio}</span>}
+                          </div>
+                        </div>
+                        {d.status === "pendiente" && (
+                          <ActionForm action={recordBoletaAction} success="Documento marcado como emitido.">
+                            <input type="hidden" name="docId" value={d.id} />
+                            <input type="hidden" name="reservationId" value={b.id} />
+                            <div className="flex items-center gap-2">
+                              <Input name="folio" placeholder="N° folio" />
+                              <SubmitButton size="sm">Emitir</SubmitButton>
+                            </div>
+                          </ActionForm>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </Card>
               )}
             </div>
@@ -142,6 +151,49 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </div>
             )}
           </Card>
+
+          {b.orderId && (b.mpPaymentId || b.paymentSnapshot) && (
+            <Card title="Mercado Pago">
+              {b.paymentSnapshot && (
+                <div className="flex flex-col gap-2.5">
+                  <MpRow label="Método" value={mpMethodLabel(b.paymentSnapshot)} />
+                  {b.paymentSnapshot.fee_amount != null && (
+                    <MpRow label="Comisión MP" value={`−${formatCLP(b.paymentSnapshot.fee_amount)}`} />
+                  )}
+                  {b.paymentSnapshot.net_received_amount != null && (
+                    <MpRow label="Neto recibido" value={formatCLP(b.paymentSnapshot.net_received_amount)} />
+                  )}
+                </div>
+              )}
+
+              {b.refundedAt && (
+                <div className="mt-3 border-t hairline pt-3">
+                  <MpRow
+                    label="Reembolsado"
+                    value={`${formatCLP(b.refundedAmount && b.refundedAmount > 0 ? b.refundedAmount : (b.amount ?? 0))} · ${fmtDateTime(b.refundedAt)}`}
+                  />
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-col gap-2 border-t hairline pt-4">
+                {b.mpPaymentId && <MpIdRow label="Operación #" value={b.mpPaymentId} />}
+                {b.mpRefundId && <MpIdRow label="Reembolso #" value={b.mpRefundId} />}
+                {b.mpPreferenceId && <MpIdRow label="Preferencia" value={b.mpPreferenceId} />}
+                {b.orderId && <MpIdRow label="Pedido (ref)" value={b.orderId} />}
+              </div>
+
+              {b.mpPaymentId && (
+                <a
+                  href="https://www.mercadopago.cl/activities"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
+                >
+                  Ver actividad en Mercado Pago <Icon name="external" size={14} />
+                </a>
+              )}
+            </Card>
+          )}
 
           {!isBlock && (
             <Card title="Actividad">
@@ -210,4 +262,51 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
       </div>
     </>
   );
+}
+
+function MpRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="label-sm text-bone-mute">{label}</span>
+      <span className="text-sm text-bone">{value}</span>
+    </div>
+  );
+}
+
+function MpIdRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="label-sm text-bone-mute">{label}</span>
+      <span className="flex items-center gap-2 font-mono text-xs text-bone-dim">
+        <span className="max-w-44 truncate">{value}</span>
+        <CopyButton value={value} />
+      </span>
+    </div>
+  );
+}
+
+const MP_BRAND: Record<string, string> = {
+  master: "Mastercard",
+  visa: "Visa",
+  amex: "American Express",
+};
+const MP_PTYPE: Record<string, string> = {
+  credit_card: "crédito",
+  debit_card: "débito",
+  account_money: "dinero en cuenta",
+  ticket: "efectivo",
+  bank_transfer: "transferencia",
+};
+
+function taxDocLabel(kind: string): string {
+  return kind === "nota_credito" ? "Nota de crédito" : kind === "boleta" ? "Boleta" : kind;
+}
+
+function mpMethodLabel(s: PaymentSnapshot): string {
+  const parts: string[] = [];
+  if (s.payment_method_id) parts.push(MP_BRAND[s.payment_method_id] ?? s.payment_method_id);
+  if (s.payment_type_id) parts.push(MP_PTYPE[s.payment_type_id] ?? s.payment_type_id);
+  if (s.card_last4) parts.push(`••${s.card_last4}`);
+  if (s.installments && s.installments > 1) parts.push(`· ${s.installments} cuotas`);
+  return parts.join(" ") || "—";
 }

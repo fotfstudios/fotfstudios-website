@@ -34,6 +34,8 @@ export class MercadoPagoGateway implements PaymentGateway {
           },
         ],
         external_reference: input.orderId,
+        // Metadata para correlacionar la transacción con la reserva desde el lado de MP.
+        metadata: { order_id: input.orderId, customer_email: input.payerEmail },
         // Cuanto más completo el payer, mejor la tasa de aprobación de MP.
         payer:
           input.payerEmail || input.payerFirstName
@@ -69,11 +71,28 @@ export class MercadoPagoGateway implements PaymentGateway {
   async getPayment(paymentId: string): Promise<PaymentInfo> {
     const payment = new Payment(this.client);
     const p = await payment.get({ id: paymentId });
+    const fee = (p.fee_details ?? []).reduce((sum, f) => sum + (f.amount ?? 0), 0);
+    const payerName = [p.payer?.first_name, p.payer?.last_name].filter(Boolean).join(" ") || undefined;
     return {
       id: String(p.id),
       status: p.status ?? "unknown",
       externalReference: p.external_reference ?? undefined,
       amount: p.transaction_amount ?? undefined,
+      paymentTypeId: p.payment_type_id ?? undefined,
+      paymentMethodId: p.payment_method_id ?? undefined,
+      cardLast4: p.card?.last_four_digits ?? undefined,
+      installments: p.installments ?? undefined,
+      feeAmount: fee > 0 ? fee : undefined,
+      netReceivedAmount: p.transaction_details?.net_received_amount ?? undefined,
+      dateApproved: p.date_approved ?? undefined,
+      payerEmail: p.payer?.email ?? undefined,
+      payerName,
+      refunds: (p.refunds ?? []).map((r) => ({
+        id: String(r.id),
+        amount: r.amount ?? 0,
+        status: r.status ?? "unknown",
+        dateCreated: r.date_created ?? undefined,
+      })),
     };
   }
 

@@ -101,12 +101,19 @@ describe("admin actions", () => {
     expect((await book(665)).ok).toBe(true);
   });
 
-  it("cancelar reserva no pagada → cancelada + libera el horario", async () => {
+  it("cancelar reserva no pagada → cancelada + sella cancelled_at + libera el horario", async () => {
     const b = await book(720);
     if (!b.ok) return;
-    await repo.cancelBooking(await reservationOf(b.value.orderId));
+    const resId = await reservationOf(b.value.orderId);
+    await repo.cancelBooking(resId);
     const o = await pg.query<{ status: string }>("select status from orders where id=$1", [b.value.orderId]);
     expect(o.rows[0].status).toBe("cancelled");
+    // timestamp real de cancelación (para la actividad del admin)
+    const r = await pg.query<{ cancelled_at: string | null }>(
+      "select cancelled_at from reservations where id=$1",
+      [resId],
+    );
+    expect(r.rows[0].cancelled_at).not.toBeNull();
     expect((await book(720)).ok).toBe(true);
   });
 
@@ -129,7 +136,7 @@ describe("admin actions", () => {
     expect(detail?.orderId).toBeNull();
     expect(detail?.amount).toBeNull();
     expect(detail?.lines).toHaveLength(0);
-    expect(detail?.boleta).toBeNull();
+    expect(detail?.taxDocs).toHaveLength(0);
 
     const boleta = await pg.query<{ n: string }>("select count(*)::text n from tax_documents", []);
     expect(Number(boleta.rows[0].n)).toBe(0);

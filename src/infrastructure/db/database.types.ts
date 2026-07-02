@@ -307,7 +307,9 @@ export type Database = {
           net_clp: number
           notified_at: string | null
           paid_at: string | null
+          payment_snapshot: Json | null
           pricing_snapshot: Json | null
+          refunded_amount_clp: number
           refunded_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           tax_clp: number
@@ -326,7 +328,9 @@ export type Database = {
           net_clp: number
           notified_at?: string | null
           paid_at?: string | null
+          payment_snapshot?: Json | null
           pricing_snapshot?: Json | null
+          refunded_amount_clp?: number
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp: number
@@ -345,7 +349,9 @@ export type Database = {
           net_clp?: number
           notified_at?: string | null
           paid_at?: string | null
+          payment_snapshot?: Json | null
           pricing_snapshot?: Json | null
+          refunded_amount_clp?: number
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp?: number
@@ -516,6 +522,7 @@ export type Database = {
         Row: {
           access_code: string | null
           access_sent_at: string | null
+          cancelled_at: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -533,6 +540,7 @@ export type Database = {
         Insert: {
           access_code?: string | null
           access_sent_at?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -550,6 +558,7 @@ export type Database = {
         Update: {
           access_code?: string | null
           access_sent_at?: string | null
+          cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -798,6 +807,10 @@ export type Database = {
         Args: { p_order: string; p_payment_id: string }
         Returns: string
       }
+      create_boleta_amount: {
+        Args: { p_order: string; p_total: number }
+        Returns: string
+      }
       create_checkout: {
         Args: {
           p_amount: number
@@ -824,10 +837,18 @@ export type Database = {
         Returns: string
       }
       create_nota_credito: { Args: { p_order: string }; Returns: string }
+      create_nota_credito_amount: {
+        Args: { p_order: string; p_total: number }
+        Returns: string
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
       mark_refunded: {
-        Args: { p_order: string; p_refund_id?: string }
+        Args: {
+          p_order: string
+          p_refund_amount?: number
+          p_refund_id?: string
+        }
         Returns: undefined
       }
     }

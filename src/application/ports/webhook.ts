@@ -1,3 +1,5 @@
+import type { PaymentInfo } from "./payment";
+
 /** Resultado de `confirm_payment` (ver migración): reserva ok o pago sin hold. */
 export type ConfirmPaidStatus = "confirmed" | "paid_no_hold";
 
@@ -11,12 +13,13 @@ export interface PaymentNotificationRepository {
    * `confirmed` (reserva ok) o `paid_no_hold` (pagó pero el hold ya no existe →
    * requiere revisión del dueño; ver migración confirm_payment).
    */
-  confirmPaid(orderId: string, paymentId: string): Promise<ConfirmPaidStatus>;
+  confirmPaid(orderId: string, payment: PaymentInfo): Promise<ConfirmPaidStatus>;
   /** Pago rechazado/cancelado: libera el horario y cancela el pedido. */
   cancelUnpaid(orderId: string): Promise<void>;
   /**
-   * Reembolso originado fuera del panel (dashboard de MP): marca la orden
-   * 'refunded', libera el horario y crea la nota de crédito. Idempotente.
+   * Reembolso (parcial o total) hecho en MP: cancela el horario, marca la orden
+   * 'refunded', acumula el monto y emite NC por `amount` (o el total si no viene).
+   * `refundId` se registra en `orders.mp_refund_id`. Idempotente por reembolso.
    */
-  markRefunded(orderId: string): Promise<void>;
+  markRefunded(orderId: string, refundId?: string, amount?: number): Promise<void>;
 }
