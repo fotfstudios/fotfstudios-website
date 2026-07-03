@@ -51,6 +51,24 @@ export function customerConfirmation(
   return { subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 
+/** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
+export function customerCancellation(
+  v: { name: string | null; when: string; refunded: string | null },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const refundLine = v.refunded
+    ? `<p style="color:#b9b5ab;margin:0 0 16px">Te reembolsamos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
+    : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Reserva cancelada</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}tu sesión del <strong style="color:#f5f2ec">${esc(v.when)}</strong> fue cancelada.</p>
+     ${refundLine}
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu reserva del ${v.when} fue cancelada.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
+}
+
 /**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.

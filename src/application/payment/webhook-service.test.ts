@@ -56,6 +56,39 @@ describe("WebhookService.handlePaymentNotification", () => {
     expect(repo.confirmPaid).not.toHaveBeenCalled();
   });
 
+  it("reembolsos frescos → refunded con la suma; duplicados (loopback admin) → sin refunded", async () => {
+    const repo = makeRepo();
+    const svc = new WebhookService(
+      makeGateway({
+        status: "approved",
+        externalReference: "o1",
+        refunds: [
+          { id: "ref_a", amount: 5000, status: "approved" },
+          { id: "ref_b", amount: 2000, status: "approved" },
+        ],
+      }),
+      repo,
+    );
+    const res = await svc.handlePaymentNotification("pay1");
+    expect(res.result).toBe("refunded");
+    expect(res.refundedAmount).toBe(7000);
+    expect(repo.markRefunded).toHaveBeenCalledTimes(2);
+
+    // Loopback: mismos refunds ya en el inbox → ni asiento ni result refunded.
+    const repo2 = makeRepo({ recordEvent: vi.fn(async () => false) });
+    const svc2 = new WebhookService(
+      makeGateway({
+        status: "approved",
+        externalReference: "o1",
+        refunds: [{ id: "ref_a", amount: 5000, status: "approved" }],
+      }),
+      repo2,
+    );
+    const res2 = await svc2.handlePaymentNotification("pay1");
+    expect(res2.result).not.toBe("refunded");
+    expect(repo2.markRefunded).not.toHaveBeenCalled();
+  });
+
   it("evento repetido → duplicate (inbox)", async () => {
     const repo = makeRepo({ recordEvent: vi.fn(async () => false) });
     const svc = new WebhookService(makeGateway({ status: "approved", externalReference: "o1" }), repo);

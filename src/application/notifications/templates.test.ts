@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerConfirmation, ownerNotification } from "./templates";
+import { customerCancellation, customerConfirmation, ownerNotification } from "./templates";
 
 const view = {
   name: "Ana",
@@ -21,6 +21,36 @@ describe("email templates", () => {
     const m = ownerNotification({ ...view, email: "ana@e.cl" });
     expect(m.html).toMatch(/boleta/i);
     expect(m.html).toContain("ana@e.cl");
+  });
+
+  it("cancelación CON reembolso: monto + WhatsApp; sin línea confrontacional", () => {
+    const m = customerCancellation(
+      { name: "Ana", when: view.when, refunded: "$9.995" },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.subject).toMatch(/cancelada/i);
+    expect(m.html).toContain("$9.995");
+    expect(m.html).toMatch(/medio de pago original/);
+    expect(m.html).toContain("https://wa.me/56962803298");
+  });
+
+  it("cancelación SIN reembolso: sin línea de dinero", () => {
+    const m = customerCancellation(
+      { name: null, when: view.when, refunded: null },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.html).not.toContain("reembolsamos");
+    expect(m.text).not.toContain("reembolsamos");
+    expect(m.html).toContain("cancelada");
+  });
+
+  it("cancelación escapa el nombre (anti-XSS)", () => {
+    const m = customerCancellation(
+      { name: "<img src=x>", when: view.when, refunded: null },
+      { whatsappUrl: "https://wa.me/1" },
+    );
+    expect(m.html).not.toContain("<img src=x>");
+    expect(m.html).toContain("&lt;img");
   });
 
   it("escapa datos del cliente (anti-XSS)", () => {

@@ -5,9 +5,11 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { RefundService } from "@/src/application/admin/refund-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
+import { SupabaseAdminRepository } from "./admin-repository";
 import type {
   PaymentGateway,
   PaymentInfo,
@@ -255,5 +257,118 @@ describe("webhook", () => {
       [orderId],
     );
     expect(saldo.rows[0].total).toBe(5990);
+  });
+
+  // ── Reembolso iniciado desde el ADMIN (RefundService) + webhook loopback de MP.
+  // Regresión de la NC duplicada: el inbox se registra ANTES del asiento, así el
+  // loopback (mismo refund id) cae como duplicado y no repite NC/monto.
+
+  /** Stub con reembolso: getPayment para el pago y refundPayment para el admin. */
+  const refundStub = (orderId: string, amount: number, refundId: string) =>
+    new (class extends StubGateway {
+      async refundPayment() {
+        return { id: refundId, status: "approved", amount };
+      }
+    })({ id: "payA", status: "approved", externalReference: orderId, amount });
+
+  const paidBooking = async (email: string) => {
+    const b = await book(600, email);
+    expect(b.ok).toBe(true);
+    if (!b.ok) throw new Error("booking failed");
+    const orderId = b.value.orderId;
+    await new WebhookService(
+      new StubGateway({ id: "payA", status: "approved", externalReference: orderId, amount: 9990 }),
+      repo,
+    ).handlePaymentNotification("payA");
+    const resId = (
+      await pg.query<{ id: string }>("select id from reservations where order_id=$1", [orderId])
+    ).rows[0].id;
+    return { orderId, resId };
+  };
+
+  it("reembolso admin TOTAL + loopback → exactamente UNA NC (regresión NC duplicada)", async () => {
+    const { orderId, resId } = await paidBooking("h@e.cl");
+
+    const svc = new RefundService(refundStub(orderId, 9990, "refund_adm1"), new SupabaseAdminRepository(db), repo);
+    const r = await svc.cancelBooking(resId, { refundAmount: 9990 });
+    expect(r.alreadyProcessed).toBe(false);
+
+    const o = await pg.query<{ status: string; refunded_amount_clp: number; mp_refund_id: string }>(
+      "select status, refunded_amount_clp, mp_refund_id from orders where id=$1",
+      [orderId],
+    );
+    expect(o.rows[0].status).toBe("refunded");
+    expect(o.rows[0].refunded_amount_clp).toBe(9990); // antes: cancel_booking lo dejaba en 0
+    expect(o.rows[0].mp_refund_id).toBe("refund_adm1");
+    const res = await pg.query<{ status: string }>("select status from reservations where id=$1", [resId]);
+    expect(res.rows[0].status).toBe("cancelled");
+
+    // Loopback de MP con el MISMO refund id → duplicado por inbox: nada cambia.
+    const loop = new WebhookService(
+      new StubGateway({
+        id: "payA",
+        status: "refunded",
+        externalReference: orderId,
+        amount: 9990,
+        refunds: [{ id: "refund_adm1", amount: 9990, status: "approved" }],
+      }),
+      repo,
+    );
+    expect((await loop.handlePaymentNotification("payA")).result).not.toBe("refunded");
+
+    const nc = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
+      [orderId],
+    );
+    expect(Number(nc.rows[0].n)).toBe(1); // ← el bug producía 2
+    const o2 = await pg.query<{ refunded_amount_clp: number }>(
+      "select refunded_amount_clp from orders where id=$1",
+      [orderId],
+    );
+    expect(o2.rows[0].refunded_amount_clp).toBe(9990); // sin doble acumulación
+
+    // el horario quedó libre → se puede reservar de nuevo
+    expect((await book(600, "i@e.cl")).ok).toBe(true);
+  });
+
+  it("reembolso admin PARCIAL → NC(total) + boleta(saldo); loopback sin duplicar", async () => {
+    const { orderId, resId } = await paidBooking("j@e.cl");
+
+    const svc = new RefundService(refundStub(orderId, 4990, "refund_adm2"), new SupabaseAdminRepository(db), repo);
+    await svc.cancelBooking(resId, { refundAmount: 4990 });
+
+    const o = await pg.query<{ status: string; refunded_amount_clp: number }>(
+      "select status, refunded_amount_clp from orders where id=$1",
+      [orderId],
+    );
+    expect(o.rows[0].status).toBe("refunded");
+    expect(o.rows[0].refunded_amount_clp).toBe(4990);
+
+    // SII: boleta original + NC(9990) + boleta saldo (5000)
+    const docs = await pg.query<{ kind: string; total: number }>(
+      "select kind, total from tax_documents where order_id=$1 order by created_at",
+      [orderId],
+    );
+    expect(docs.rows.map((d) => d.kind)).toEqual(["boleta", "nota_credito", "boleta"]);
+    expect(docs.rows[1].total).toBe(9990);
+    expect(docs.rows[2].total).toBe(5000);
+
+    // Loopback parcial con el mismo id → sin cambios.
+    const loop = new WebhookService(
+      new StubGateway({
+        id: "payA",
+        status: "approved",
+        externalReference: orderId,
+        amount: 9990,
+        refunds: [{ id: "refund_adm2", amount: 4990, status: "approved" }],
+      }),
+      repo,
+    );
+    expect((await loop.handlePaymentNotification("payA")).result).not.toBe("refunded");
+    const nc = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
+      [orderId],
+    );
+    expect(Number(nc.rows[0].n)).toBe(1);
   });
 });

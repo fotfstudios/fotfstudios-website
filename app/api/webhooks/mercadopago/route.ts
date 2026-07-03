@@ -72,7 +72,7 @@ export async function POST(req: Request): Promise<Response> {
   const client = createServiceClient(url, key);
   const service = new WebhookService(new MercadoPagoGateway(token), new SupabaseWebhookRepository(client));
   try {
-    const { result, orderId } = await service.handlePaymentNotification(resourceId);
+    const { result, orderId, refundedAmount } = await service.handlePaymentNotification(resourceId);
     if (result === "paid" && orderId) {
       // Envío de emails (best-effort; el cron diario es el respaldo).
       await notificationService(client).notifyOrder(orderId).catch((e) => console.error("[mp-webhook:email]", e));
@@ -82,6 +82,12 @@ export async function POST(req: Request): Promise<Response> {
       await notificationService(client)
         .notifyPaymentNeedsReview(orderId, resourceId)
         .catch((e) => console.error("[mp-webhook:review]", e));
+    } else if (result === "refunded" && orderId) {
+      // Reembolso hecho FUERA del admin (panel de MP): avisar al cliente. Los
+      // reembolsos admin no llegan aquí (inbox dedupe) — su email lo manda la acción.
+      await notificationService(client)
+        .notifyCancellation(orderId, { refundAmount: refundedAmount ?? null })
+        .catch((e) => console.error("[mp-webhook:cancel-email]", e));
     }
   } catch (e) {
     console.error("[mp-webhook]", e);

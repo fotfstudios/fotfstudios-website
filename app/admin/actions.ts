@@ -2,20 +2,47 @@
 
 import { revalidatePath } from "next/cache";
 import { type ActionResult, run } from "@/components/admin/ui/action";
-import { adminRepository, checkoutService, refundService } from "@/src/composition";
+import { adminRepository, checkoutService, notificationService, refundService } from "@/src/composition";
+import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k));
 
+const REFUND_MODES: readonly RefundMode[] = ["policy", "full", "none", "custom"];
+
 export async function cancelBookingAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("reservations.cancel");
     const id = str(fd, "reservationId");
-    // `refund=true` → reembolso real en MP; si MP falla, se aborta (nada cambia).
-    const refund = fd.get("refund") === "true";
-    await refundService().cancelBooking(id, { refund });
+    const mode = str(fd, "mode") as RefundMode;
+    if (!REFUND_MODES.includes(mode)) throw new Error("Modo de cancelación inválido.");
+
+    // El monto se resuelve SIEMPRE del lado del servidor: `policy`/`full` se
+    // recalculan al confirmar (starts_at + boleta viva actuales); solo `custom`
+    // trae un número del cliente, validado en el dominio y re-capado en el RPC.
+    const target = await adminRepository().orderForReservation(id);
+    let refundAmount: number | null = null;
+    if (mode !== "none") {
+      if (!target) throw new Error("Esta reserva no tiene un pago asociado. Cancela sin reembolso.");
+      refundAmount = resolveRefundAmount(mode, {
+        startsAt: target.startsAt,
+        liveBoleta: target.amountClp - target.refundedAmountClp,
+        customAmount: mode === "custom" ? num(fd, "customAmount") : undefined,
+      });
+    }
+
+    const { alreadyProcessed } = await refundService().cancelBooking(id, { refundAmount });
+
+    // Aviso al cliente (best-effort): solo si había un pedido PAGADO antes de
+    // cancelar. Si el loopback del webhook ya lo asentó, ese camino ya avisó.
+    if (target?.status === "paid" && !alreadyProcessed) {
+      await notificationService()
+        .notifyCancellation(target.orderId, { refundAmount })
+        .catch((e) => console.error("[cancel:email]", e));
+    }
+
     revalidatePath(`/admin/reservas/${id}`);
     revalidatePath("/admin/reservas");
   });

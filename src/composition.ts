@@ -138,9 +138,16 @@ export function adminRepository(client: SupabaseClient<Database> = db()): Supaba
   return new SupabaseAdminRepository(client);
 }
 
-/** Cancelación de reserva con reembolso opcional en Mercado Pago. */
+/**
+ * Cancelación de reserva con reembolso opcional (total o parcial) en Mercado Pago.
+ * Comparte el inbox del webhook: idempotencia por refund id contra el loopback.
+ */
 export function refundService(client: SupabaseClient<Database> = db()): RefundService {
-  return new RefundService(new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")), adminRepository(client));
+  return new RefundService(
+    new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
+    adminRepository(client),
+    new SupabaseWebhookRepository(client),
+  );
 }
 
 /** RBAC: gestión de miembros y roles del admin (invitación nativa de Supabase). */
