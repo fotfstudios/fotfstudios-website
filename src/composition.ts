@@ -19,6 +19,7 @@ import { RefundService } from "@/src/application/admin/refund-service";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
 import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
 import type { Mailer } from "@/src/application/ports/mailer";
+import type { OrderConfirmation } from "@/src/application/ports/orders";
 import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-repository";
 import type { Database } from "@/src/infrastructure/db/database.types";
 import { SupabaseNotificationRepository } from "@/src/infrastructure/db/notification-repository";
@@ -55,6 +56,14 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
     new SupabaseOrderRepository(client),
     { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl" },
   );
+}
+
+/** Vista de confirmación (sin PII de contacto) para la página /reserva/estado. */
+export function orderConfirmation(
+  orderId: string,
+  client: SupabaseClient<Database> = db(),
+): Promise<OrderConfirmation | null> {
+  return new SupabaseOrderRepository(client).getOrderConfirmation(orderId);
 }
 
 /**
