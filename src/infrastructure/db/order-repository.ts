@@ -19,7 +19,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
   async getOrderConfirmation(orderId: string): Promise<OrderConfirmation | null> {
     const { data: o } = await this.db
       .from("orders")
-      .select("id, status, customer_name, amount_clp, currency")
+      .select("id, status, customer_name, amount_clp, currency, mp_preference_id")
       .eq("id", orderId)
       .single();
     if (!o) return null;
@@ -44,6 +44,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
       endsAt: r?.ends_at ?? null,
       resourceName: r?.resources?.name ?? null,
       reservationStatus: r?.status ?? null,
+      preferenceId: o.mp_preference_id,
       lines: (lines ?? []).map((l) => ({ description: l.description, subtotal: l.subtotal_clp })),
       total: o.amount_clp,
       currency: o.currency,

@@ -26,14 +26,26 @@ export default function EstadoClient({
   initialStatus,
   view,
   sessionUpcoming,
+  paymentHint,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
   view: ConfirmationView;
   /** Calculado en el servidor (page force-dynamic): la sesión aún no termina. */
   sessionUpcoming: boolean;
+  /** Pista de MP en la URL (solo mensajería): "approved" → probablemente pagó. */
+  paymentHint: "approved" | "none";
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
+  // La pista "approved" caduca a los 30 s sin confirmación real: si el pago no
+  // aparece (param falsificado/rancio o backend lento), degrada a "Completa tu
+  // pago" en vez de un "Confirmando…" infinito. El polling sigue igual.
+  const [hintExpired, setHintExpired] = useState(false);
+  useEffect(() => {
+    if (paymentHint !== "approved" || TERMINAL.has(initialStatus)) return;
+    const t = setTimeout(() => setHintExpired(true), 30_000);
+    return () => clearTimeout(t);
+  }, [paymentHint, initialStatus]);
 
   useEffect(() => {
     if (TERMINAL.has(status)) return;
@@ -76,7 +88,14 @@ export default function EstadoClient({
         )}
         {ui === "failed" && <Failed />}
         {ui === "refunded" && <Refunded />}
-        {ui === "pending" && <Pending view={view} />}
+        {ui === "pending" &&
+          (view.reservationStatus === "expired" ? (
+            <ExpiredHold />
+          ) : paymentHint === "approved" && !hintExpired ? (
+            <Pending view={view} />
+          ) : (
+            <PendingPayment view={view} />
+          ))}
       </div>
     </section>
   );
@@ -218,6 +237,70 @@ function Refunded() {
         >
           Escríbenos por WhatsApp →
         </a>
+      </div>
+    </div>
+  );
+}
+
+/* ── Estado: pago pendiente (checkout abandonado / rechazado / visita directa) ── */
+
+function PendingPayment({ view }: { view: ConfirmationView }) {
+  return (
+    <div>
+      <span className="label-sm text-bone-mute">Pago pendiente</span>
+      <h1
+        className="mt-3 font-display text-bone"
+        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
+      >
+        Completa tu pago
+      </h1>
+      <p className="mt-4 text-bone-dim">
+        Tu horario está reservado por unos minutos mientras completas el pago. Si no se
+        completa, el horario se libera.
+      </p>
+      {view.when && (
+        <p className="mt-3 label-sm text-gold">
+          {view.when}
+          {view.timeRange ? ` · ${view.timeRange}` : ""}
+        </p>
+      )}
+      <div className="mt-8 flex flex-wrap items-center gap-4">
+        {view.resumeUrl && (
+          <a href={view.resumeUrl} className="inline-flex bg-gold px-6 py-3 label text-ink">
+            Completar el pago →
+          </a>
+        )}
+        <Link
+          href="/reservar"
+          className="label-sm text-bone-dim transition-colors hover:text-gold"
+        >
+          Elegir otro horario →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ── Estado: reserva expirada sin pago ─────────────────────────────────── */
+
+function ExpiredHold() {
+  return (
+    <div>
+      <span className="label-sm text-bone-mute">Reserva expirada</span>
+      <h1
+        className="mt-3 font-display text-bone"
+        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
+      >
+        Tu reserva expiró
+      </h1>
+      <p className="mt-4 text-bone-dim">
+        El horario se liberó porque el pago no se completó a tiempo. No se realizó ningún
+        cobro. Puedes reservar de nuevo.
+      </p>
+      <div className="mt-8">
+        <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
+          Volver a reservar →
+        </Link>
       </div>
     </div>
   );

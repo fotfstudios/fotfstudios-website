@@ -22,11 +22,17 @@ export const metadata: Metadata = {
 export default async function EstadoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ b?: string }>;
+  searchParams: Promise<{ b?: string; status?: string; collection_status?: string }>;
 }) {
   if (!bookingEnabled()) notFound();
-  const { b } = await searchParams;
+  const { b, status, collection_status } = await searchParams;
   if (!b) notFound();
+  // PISTA de mensajería, jamás verdad: MP agrega ?status=approved al volver de un
+  // pago real; sin esa pista ("Volver a la tienda", pago rechazado, visita directa)
+  // un pedido pendiente se muestra como "Completa tu pago" en vez de "Confirmando…".
+  // El estado real siempre sale de nuestra DB (el param es falsificable).
+  const paymentHint: "approved" | "none" =
+    status === "approved" || collection_status === "approved" ? "approved" : "none";
 
   const order = await orderConfirmation(b).catch(() => null);
   if (!order) notFound();
@@ -45,6 +51,7 @@ export default async function EstadoPage({
           initialStatus={order.orderStatus}
           view={view}
           sessionUpcoming={sessionUpcoming}
+          paymentHint={paymentHint}
         />
       </div>
     </main>

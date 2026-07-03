@@ -24,6 +24,10 @@ export interface ConfirmationView {
   /** ISO passthrough para .ics / Google Calendar. */
   startsAt: string | null;
   endsAt: string | null;
+  /** Estado del hold — distingue "pago pendiente" (held) de "reserva expirada". */
+  reservationStatus: "held" | "confirmed" | "cancelled" | "expired" | null;
+  /** URL para retomar un checkout abandonado (null sin preference). */
+  resumeUrl: string | null;
 }
 
 /** Primer nombre (mismo split que payment-service). Vacío/espacios → null. */
@@ -43,6 +47,16 @@ export function isUpcoming(endsAt: string | null, now: Date = new Date()): boole
   return !!endsAt && new Date(endsAt).getTime() > now.getTime();
 }
 
+/**
+ * URL para retomar un checkout de MP abandonado ("Volver a la tienda"): el
+ * init_point canónico de Checkout Pro es este redirect con el preference id.
+ * Válido mientras la preference no expire (10 min, alineada con el hold).
+ */
+export function checkoutResumeUrl(preferenceId: string | null): string | null {
+  if (!preferenceId) return null;
+  return `https://www.mercadopago.cl/checkout/v1/redirect?pref_id=${encodeURIComponent(preferenceId)}`;
+}
+
 export function buildConfirmationView(m: OrderConfirmation, tz: string = TZ): ConfirmationView {
   const start = m.startsAt ? DateTime.fromISO(m.startsAt).setZone(tz).setLocale("es") : null;
   const end = m.endsAt ? DateTime.fromISO(m.endsAt).setZone(tz).setLocale("es") : null;
@@ -57,5 +71,7 @@ export function buildConfirmationView(m: OrderConfirmation, tz: string = TZ): Co
     total: formatCLP(m.total),
     startsAt: m.startsAt,
     endsAt: m.endsAt,
+    reservationStatus: m.reservationStatus,
+    resumeUrl: checkoutResumeUrl(m.preferenceId),
   };
 }

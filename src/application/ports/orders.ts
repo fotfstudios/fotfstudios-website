@@ -27,6 +27,8 @@ export interface OrderConfirmation {
   endsAt: string | null;
   resourceName: string | null;
   reservationStatus: "held" | "confirmed" | "cancelled" | "expired" | null;
+  /** Preference de MP (orders.mp_preference_id) — permite retomar un checkout abandonado. */
+  preferenceId: string | null;
   lines: { description: string; subtotal: number }[];
   total: number;
   currency: string;
