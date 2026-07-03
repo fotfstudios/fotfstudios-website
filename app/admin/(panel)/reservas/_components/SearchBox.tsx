@@ -59,7 +59,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
             navigate("");
           }
         }}
-        placeholder="Nombre, correo o teléfono…"
+        placeholder="Buscar cliente…"
         aria-label="Buscar por nombre, correo o teléfono"
         aria-busy={pending}
         className={`${inputCls} max-w-64 pl-9`}
