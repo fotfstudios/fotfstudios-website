@@ -3,7 +3,8 @@ import MeterBars from "../MeterBars";
 import MaskText from "../MaskText";
 import Magnetic from "../Magnetic";
 import BrandImage from "../BrandImage";
-import { SITE, whatsappLink } from "@/lib/site";
+import { BookingCta } from "../BookingCta";
+import { SITE } from "@/lib/site";
 
 export default function CierreCTA() {
   return (
@@ -60,15 +61,10 @@ export default function CierreCTA() {
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <Magnetic>
-              <a
-                href={whatsappLink()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group inline-flex items-center gap-3 bg-gold px-8 py-4 label text-ink transition-transform"
-              >
-                Reservar por WhatsApp
+              <BookingCta className="group inline-flex items-center gap-3 bg-gold px-8 py-4 label text-ink transition-transform">
+                Reservar una hora
                 <span className="transition-transform group-hover:translate-x-1">→</span>
-              </a>
+              </BookingCta>
             </Magnetic>
             <a
               href={SITE.instagramUrl}
