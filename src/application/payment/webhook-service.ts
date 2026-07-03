@@ -4,7 +4,7 @@ import type { PaymentNotificationRepository } from "@/src/application/ports/webh
 export type WebhookOutcome =
   | "paid"
   | "paid_unreserved"
-  | "cancelled"
+  | "rejected"
   | "refunded"
   | "pending"
   | "duplicate"
@@ -67,8 +67,13 @@ export class WebhookService {
       return { result: status === "paid_no_hold" ? "paid_unreserved" : "paid", orderId };
     }
     if (payment.status === "rejected" || payment.status === "cancelled") {
-      await this.repo.cancelUnpaid(orderId);
-      return { result: "cancelled", orderId };
+      // NO cancelar el pedido: Checkout Pro ofrece reintentar con otro medio
+      // dentro del MISMO checkout (recovery de pagos rechazados), y el hold de
+      // 10 min ya es la limpieza natural. Cancelar aquí liberaba el cupo en
+      // pleno reintento → pago aprobado sin reserva (paid_no_hold, revisión
+      // manual). Un rechazo abandonado queda igual que un checkout abandonado
+      // sin intento: pendiente hasta que expire el hold.
+      return { result: "rejected", orderId };
     }
     return { result: "pending", orderId };
   }

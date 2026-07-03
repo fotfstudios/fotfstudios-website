@@ -14,8 +14,6 @@ export interface PaymentNotificationRepository {
    * requiere revisión del dueño; ver migración confirm_payment).
    */
   confirmPaid(orderId: string, payment: PaymentInfo): Promise<ConfirmPaidStatus>;
-  /** Pago rechazado/cancelado: libera el horario y cancela el pedido. */
-  cancelUnpaid(orderId: string): Promise<void>;
   /**
    * Reembolso (parcial o total) hecho en MP: cancela el horario, marca la orden
    * 'refunded', acumula el monto y emite NC por `amount` (o el total si no viene).
