@@ -3,8 +3,10 @@ import { bookingEnabled, checkoutService, db, paymentService } from "@/src/compo
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/bookings → crea pedido + hold (atómico) y genera el link de pago de
- * Mercado Pago. Devuelve { orderId, initPoint }. Detrás del feature flag.
+ * POST /api/bookings → crea pedido + hold (atómico) y genera el pago de Mercado
+ * Pago. Devuelve { orderId, preferenceId, initPoint }: `preferenceId` para el
+ * Wallet Brick (onSubmit) e `initPoint` para el redirect clásico (fallback).
+ * Detrás del feature flag.
  */
 export async function POST(req: Request): Promise<Response> {
   if (!bookingEnabled()) return Response.json({ error: "no disponible" }, { status: 404 });
@@ -52,7 +54,11 @@ export async function POST(req: Request): Promise<Response> {
     const pref = await paymentService(client).createPreferenceForOrder(booking.value.orderId);
     if (!pref.ok) return Response.json({ error: pref.error }, { status: 502 });
 
-    return Response.json({ orderId: booking.value.orderId, initPoint: pref.value.initPoint });
+    return Response.json({
+      orderId: booking.value.orderId,
+      preferenceId: pref.value.preferenceId,
+      initPoint: pref.value.initPoint,
+    });
   } catch (e) {
     console.error("[bookings]", e);
     return Response.json({ error: "no disponible" }, { status: 503 });

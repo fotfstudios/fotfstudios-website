@@ -7,7 +7,9 @@
  * `NEXT_PUBLIC_`.
  *
  *   Públicas:  NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
- *              NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_BOOKING_ENABLED
+ *              NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_BOOKING_ENABLED,
+ *              NEXT_PUBLIC_MP_PUBLIC_KEY (public key de MP, no secreta por diseño;
+ *              sin ella el Wallet Brick degrada al botón clásico con redirect)
  *   Secretas:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MP_ACCESS_TOKEN,
  *              MP_WEBHOOK_SECRET, RESEND_API_KEY, CRON_SECRET, EMAIL_FROM, OWNER_EMAIL
  *   Opcional (solo dev): MP_NOTIFICATION_URL — notification_url por-preference

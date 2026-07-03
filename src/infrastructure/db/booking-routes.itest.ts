@@ -56,6 +56,8 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
     const json = await res.json();
     expect(json.initPoint).toMatch(/^https:\/\//);
     expect(json.orderId).toBeTruthy();
+    // Wallet Brick (onSubmit) necesita el preference id en la respuesta.
+    expect(json.preferenceId).toBeTruthy();
 
     const st = await statusGET(new Request("http://x"), { params: Promise.resolve({ id: json.orderId }) });
     expect(st.status).toBe(200);
