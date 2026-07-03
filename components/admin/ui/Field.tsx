@@ -23,3 +23,7 @@ export function Select({ className = "", children, ...props }: ComponentProps<"s
     </select>
   );
 }
+
+export function Textarea({ className = "", ...props }: ComponentProps<"textarea">) {
+  return <textarea className={`${inputCls} min-h-24 resize-y ${className}`} {...props} />;
+}

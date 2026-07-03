@@ -45,6 +45,7 @@ export interface PaymentSnapshot {
 export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
   taxDocs: { id: string; kind: string; status: string; folio: string | null; total: number }[];
+  notes: string | null;
   cancelledAt: string | null;
   refundedAt: string | null;
   refundedAmount: number | null;
@@ -323,11 +324,12 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
       cancelled_at: string | null;
+      notes: string | null;
       orders:
         | (NonNullable<ResRow["orders"]> & {
             refunded_at: string | null;
@@ -368,6 +370,7 @@ export class SupabaseAdminRepository {
       ...base,
       lines,
       taxDocs,
+      notes: row.notes,
       cancelledAt: row.cancelled_at,
       refundedAt: row.orders?.refunded_at ?? null,
       refundedAmount: row.orders?.refunded_amount_clp ?? null,
@@ -467,12 +470,39 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.message);
   }
 
-  async confirmOffline(orderId: string, method: string): Promise<void> {
-    const { error } = await this.db.rpc("confirm_payment", {
+  /** Devuelve el estado del RPC: 'confirmed' (hold confirmado) o 'paid_no_hold'. */
+  async confirmOffline(orderId: string, method: string): Promise<string> {
+    const { data, error } = await this.db.rpc("confirm_payment", {
       p_order: orderId,
       p_payment_id: `offline:${method}`,
     });
     if (error) throw new Error(error.message);
+    return data as string;
+  }
+
+  /** Libera el hold y cancela una orden no pagada (limpieza si confirmar el pago falla). */
+  async cancelUnpaidOrder(orderId: string): Promise<void> {
+    const { error } = await this.db.rpc("cancel_unpaid_order", { p_order: orderId });
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Notas internas de la reserva de una orden (reserva manual pagada); devuelve
+   * el id de la reserva. Con notes null solo resuelve el id, sin escribir.
+   */
+  async setNotesForOrder(orderId: string, notes: string | null): Promise<string | null> {
+    if (notes) {
+      const { data, error } = await this.db
+        .from("reservations")
+        .update({ notes })
+        .eq("order_id", orderId)
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return data?.id ?? null;
+    }
+    const { data } = await this.db.from("reservations").select("id").eq("order_id", orderId).single();
+    return data?.id ?? null;
   }
 
   async recordBoleta(docId: string, folio: string, pdfUrl: string | null): Promise<void> {
@@ -502,25 +532,31 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.code === "23P01" ? "overlap" : error.message);
   }
 
-  /** Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). */
+  /** Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). Devuelve el id. */
   async createCourtesyBooking(
     resourceId: string,
     startsAt: string,
     endsAt: string,
     customer: { name?: string; email?: string; phone?: string },
-  ): Promise<void> {
-    const { error } = await this.db.from("reservations").insert({
-      resource_id: resourceId,
-      kind: "booking",
-      status: "confirmed",
-      starts_at: startsAt,
-      ends_at: endsAt,
-      customer_name: customer.name ?? null,
-      customer_email: customer.email ?? null,
-      customer_phone: customer.phone ?? null,
-      notes: "Cortesía",
-    });
+    notes?: string,
+  ): Promise<string> {
+    const { data, error } = await this.db
+      .from("reservations")
+      .insert({
+        resource_id: resourceId,
+        kind: "booking",
+        status: "confirmed",
+        starts_at: startsAt,
+        ends_at: endsAt,
+        customer_name: customer.name ?? null,
+        customer_email: customer.email ?? null,
+        customer_phone: customer.phone ?? null,
+        notes: notes ? `Cortesía — ${notes}` : "Cortesía",
+      })
+      .select("id")
+      .single();
     if (error) throw new Error(error.code === "23P01" ? "slot_taken" : error.message);
+    return data.id;
   }
 
   async deleteBlock(reservationId: string): Promise<void> {
