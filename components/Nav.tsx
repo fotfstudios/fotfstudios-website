@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Logo from "./Logo";
 import Magnetic from "./Magnetic";
-import { whatsappLink } from "@/lib/site";
+import { BookingCta } from "./BookingCta";
 
 const LINKS = [
   { href: "#sala", label: "La sala" },
@@ -50,14 +50,7 @@ export default function Nav() {
 
         <div className="flex items-center gap-3">
           <Magnetic className="hidden sm:inline-flex">
-            <a
-              href={whatsappLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-gold px-5 py-2.5 label text-ink"
-            >
-              Reservar
-            </a>
+            <BookingCta className="bg-gold px-5 py-2.5 label text-ink">Reservar</BookingCta>
           </Magnetic>
           <button
             type="button"
@@ -94,15 +87,12 @@ export default function Nav() {
               {l.label}
             </a>
           ))}
-          <a
-            href={whatsappLink()}
-            target="_blank"
-            rel="noopener noreferrer"
+          <BookingCta
             onClick={() => setOpen(false)}
             className="mt-4 mb-2 bg-gold px-5 py-3 text-center label text-ink"
           >
             Reservar una hora
-          </a>
+          </BookingCta>
         </div>
       </div>
     </header>

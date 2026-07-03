@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Magnetic from "./Magnetic";
-import { whatsappLink } from "@/lib/site";
+import { BookingCta, bookingOnline } from "./BookingCta";
 import {
   DAYS,
   quote,
@@ -241,18 +241,16 @@ export default function PriceCalculator() {
           </div>
 
           <Magnetic className="mt-6 w-full">
-            <a
-              href={whatsappLink(waMsg)}
-              target="_blank"
-              rel="noopener noreferrer"
+            <BookingCta
+              waMessage={waMsg}
               className="group inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
             >
-              Reservar por WhatsApp
+              Reservar una hora
               <span className="transition-transform group-hover:translate-x-1">→</span>
-            </a>
+            </BookingCta>
           </Magnetic>
           <p className="mt-3 text-center label-sm text-bone-mute">
-            IVA incluido · estimación · confirmas por WhatsApp
+            IVA incluido · estimación · {bookingOnline() ? "pagas en línea al reservar" : "confirmas por WhatsApp"}
           </p>
         </div>
       </div>

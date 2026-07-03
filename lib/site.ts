@@ -37,7 +37,7 @@ export const STEPS = [
   {
     n: "01",
     title: "Reservas",
-    body: "Instagram → WhatsApp → calendario. Eliges el día y la hora.",
+    body: "Eliges día, hora y duración, y pagas en línea. Tu sesión queda reservada.",
   },
   {
     n: "02",
