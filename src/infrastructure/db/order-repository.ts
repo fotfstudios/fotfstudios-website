@@ -1,13 +1,54 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  OrderConfirmation,
+  OrderConfirmationReader,
   OrderForPayment,
   OrderPaymentRepository,
   RecordPreferenceParams,
 } from "@/src/application/ports/orders";
 import type { Database } from "./database.types";
 
-export class SupabaseOrderRepository implements OrderPaymentRepository {
+export class SupabaseOrderRepository implements OrderPaymentRepository, OrderConfirmationReader {
   constructor(private readonly db: SupabaseClient<Database>) {}
+
+  /**
+   * Vista de confirmación para /reserva/estado. Espeja getOrderForEmail
+   * (notification-repository) + nombre de la sala vía select anidado por FK.
+   * SIN email/teléfono: la página es alcanzable por cualquiera con el link.
+   */
+  async getOrderConfirmation(orderId: string): Promise<OrderConfirmation | null> {
+    const { data: o } = await this.db
+      .from("orders")
+      .select("id, status, customer_name, amount_clp, currency")
+      .eq("id", orderId)
+      .single();
+    if (!o) return null;
+
+    const { data: r } = await this.db
+      .from("reservations")
+      .select("starts_at, ends_at, status, resources(name)")
+      .eq("order_id", orderId)
+      .limit(1)
+      .maybeSingle();
+
+    const { data: lines } = await this.db
+      .from("order_lines")
+      .select("description, subtotal_clp")
+      .eq("order_id", orderId);
+
+    return {
+      orderId: o.id,
+      orderStatus: o.status,
+      customerName: o.customer_name,
+      startsAt: r?.starts_at ?? null,
+      endsAt: r?.ends_at ?? null,
+      resourceName: r?.resources?.name ?? null,
+      reservationStatus: r?.status ?? null,
+      lines: (lines ?? []).map((l) => ({ description: l.description, subtotal: l.subtotal_clp })),
+      total: o.amount_clp,
+      currency: o.currency,
+    };
+  }
 
   async getOrderForPayment(orderId: string): Promise<OrderForPayment | null> {
     const { data } = await this.db

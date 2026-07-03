@@ -17,6 +17,26 @@ export interface RecordPreferenceParams {
   currency: string;
 }
 
+/** Vista de confirmación para la página post-pago. SIN email/teléfono (privacidad). */
+export interface OrderConfirmation {
+  orderId: string;
+  orderStatus: "cart" | "pending_payment" | "paid" | "fulfilled" | "cancelled" | "refunded";
+  customerName: string | null;
+  /** ISO; null si la orden nunca tuvo reserva (cancelada antes del hold / pago tardío). */
+  startsAt: string | null;
+  endsAt: string | null;
+  resourceName: string | null;
+  reservationStatus: "held" | "confirmed" | "cancelled" | "expired" | null;
+  lines: { description: string; subtotal: number }[];
+  total: number;
+  currency: string;
+}
+
+/** Lectura segregada para la página de confirmación (no ensancha el repo de pagos). */
+export interface OrderConfirmationReader {
+  getOrderConfirmation(orderId: string): Promise<OrderConfirmation | null>;
+}
+
 export interface OrderPaymentRepository {
   getOrderForPayment(orderId: string): Promise<OrderForPayment | null>;
   recordPreference(p: RecordPreferenceParams): Promise<void>;
