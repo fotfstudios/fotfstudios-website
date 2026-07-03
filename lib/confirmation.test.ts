@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildConfirmationView, durationLabel, firstNameOf, isUpcoming } from "./confirmation";
+import {
+  buildConfirmationView,
+  checkoutResumeUrl,
+  durationLabel,
+  firstNameOf,
+  isUpcoming,
+} from "./confirmation";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
 const MODEL: OrderConfirmation = {
@@ -10,6 +16,7 @@ const MODEL: OrderConfirmation = {
   endsAt: "2026-07-09T20:00:00-04:00",
   resourceName: "Sala",
   reservationStatus: "confirmed",
+  preferenceId: "3497260371-abcd-ef01",
   lines: [
     { description: "Sala · 2h (valle)", subtotal: 19990 },
     { description: "Sesión guiada · 1h", subtotal: 9990 },
@@ -39,6 +46,17 @@ describe("durationLabel", () => {
   });
   it("fraccional → coma es-CL: '1,5 h'", () => {
     expect(durationLabel("2026-07-09T18:00:00-04:00", "2026-07-09T19:30:00-04:00")).toBe("1,5 h");
+  });
+});
+
+describe("checkoutResumeUrl", () => {
+  it("arma el init_point canónico desde el preference id", () => {
+    expect(checkoutResumeUrl("3497260371-abcd-ef01")).toBe(
+      "https://www.mercadopago.cl/checkout/v1/redirect?pref_id=3497260371-abcd-ef01",
+    );
+  });
+  it("sin preference → null", () => {
+    expect(checkoutResumeUrl(null)).toBeNull();
   });
 });
 
@@ -75,6 +93,8 @@ describe("buildConfirmationView", () => {
     expect(v.total).toBe("$29.980");
     expect(v.startsAt).toBe(MODEL.startsAt);
     expect(v.endsAt).toBe(MODEL.endsAt);
+    expect(v.reservationStatus).toBe("confirmed");
+    expect(v.resumeUrl).toBe("https://www.mercadopago.cl/checkout/v1/redirect?pref_id=3497260371-abcd-ef01");
   });
 
   it("orden sin reserva → campos de fecha null, recibo sigue completo", () => {
