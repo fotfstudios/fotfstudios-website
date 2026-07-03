@@ -7,6 +7,7 @@ import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { Icon, type IconName } from "@/components/admin/ui/icons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
+import { Stat } from "@/components/admin/ui/Stat";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { adminRepository } from "@/src/composition";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
@@ -171,11 +172,3 @@ function BookingsTable({ rows }: { rows: AdminBooking[] }) {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="border hairline bg-ink/40 p-5">
-      <p className="label-sm text-bone-mute">{label}</p>
-      <p className={`font-display mt-2 text-4xl ${accent ? "text-gold" : "text-bone"}`}>{value}</p>
-    </div>
-  );
-}

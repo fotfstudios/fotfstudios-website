@@ -10,7 +10,13 @@ import { Icon, type IconName } from "./icons";
 type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
-function groups(show: { members: boolean; roles: boolean }, porHacer: number): Group[] {
+function groups(
+  show: { members: boolean; roles: boolean; analytics: boolean },
+  porHacer: number,
+): Group[] {
+  const analysis: Item[] = show.analytics
+    ? [{ href: "/admin/analitica", label: "Analíticas", icon: "chart" }]
+    : [];
   const config: Item[] = [];
   if (show.members) config.push({ href: "/admin/miembros", label: "Miembros", icon: "members" });
   if (show.roles) config.push({ href: "/admin/roles", label: "Roles", icon: "roles" });
@@ -25,6 +31,7 @@ function groups(show: { members: boolean; roles: boolean }, porHacer: number): G
         { href: "/admin/bloqueos", label: "Bloqueos", icon: "block" },
       ],
     },
+    ...(analysis.length ? [{ title: "Análisis", items: analysis }] : []),
     ...(config.length ? [{ title: "Configuración", items: config }] : []),
   ];
 }
@@ -81,7 +88,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
   );
 }
 
-export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean }; porHacer?: number }) {
+export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean; analytics: boolean }; porHacer?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const data = groups(show, porHacer);

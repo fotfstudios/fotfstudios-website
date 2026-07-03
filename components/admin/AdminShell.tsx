@@ -11,6 +11,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
   const show = {
     members: hasPermission(claims, "members.manage"),
     roles: hasPermission(claims, "roles.manage"),
+    analytics: hasPermission(claims, "analytics.view"),
   };
   return (
     <Toaster>

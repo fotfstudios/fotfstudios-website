@@ -1,5 +1,11 @@
 import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AnalyticsLineRow,
+  AnalyticsReservationRow,
+  ExceptionRow,
+  OpeningHourRow,
+} from "@/src/domain/analytics/metrics";
 import type { Database } from "./database.types";
 
 const TZ = "America/Santiago";
@@ -141,6 +147,108 @@ export class SupabaseAdminRepository {
       .lt("starts_at", endUtc)
       .order("starts_at", { ascending: true });
     return ((data as unknown as ResRow[]) ?? []).map(map);
+  }
+
+  // ── analíticas (filas crudas para src/domain/analytics/metrics; acotadas)
+
+  /** Reservas de TODOS los estados en [startUtc, endUtc) con la orden ampliada. */
+  async analyticsReservations(startUtc: string, endUtc: string): Promise<AnalyticsReservationRow[]> {
+    const { data } = await this.db
+      .from("reservations")
+      .select(
+        "kind, status, starts_at, ends_at, orders(id, status, amount_clp, refunded_amount_clp, created_at, mp_payment_id, customer_email, payment_snapshot)",
+      )
+      .gte("starts_at", startUtc)
+      .lt("starts_at", endUtc)
+      .order("starts_at", { ascending: true });
+    type Row = {
+      kind: "booking" | "block";
+      status: "held" | "confirmed" | "cancelled" | "expired";
+      starts_at: string;
+      ends_at: string;
+      orders: {
+        id: string;
+        status: string;
+        amount_clp: number;
+        refunded_amount_clp: number | null;
+        created_at: string;
+        mp_payment_id: string | null;
+        customer_email: string | null;
+        payment_snapshot: { fee_amount?: number | null } | null;
+      } | null;
+    };
+    return ((data as unknown as Row[]) ?? []).map((r) => ({
+      kind: r.kind,
+      status: r.status,
+      startsAt: r.starts_at,
+      endsAt: r.ends_at,
+      order: r.orders
+        ? {
+            id: r.orders.id,
+            status: r.orders.status,
+            amountClp: r.orders.amount_clp,
+            refundedAmountClp: r.orders.refunded_amount_clp ?? 0,
+            createdAt: r.orders.created_at,
+            mpPaymentId: r.orders.mp_payment_id,
+            customerEmail: r.orders.customer_email,
+            feeAmount: r.orders.payment_snapshot?.fee_amount ?? null,
+          }
+        : null,
+    }));
+  }
+
+  /** Líneas de esas órdenes (para attach de add-ons). */
+  async analyticsLines(orderIds: string[]): Promise<AnalyticsLineRow[]> {
+    if (orderIds.length === 0) return [];
+    const { data } = await this.db
+      .from("order_lines")
+      .select("order_id, line_type, addon_key, description, subtotal_clp")
+      .in("order_id", orderIds);
+    return (data ?? []).map((l) => ({
+      orderId: l.order_id,
+      lineType: l.line_type,
+      addonKey: l.addon_key,
+      description: l.description,
+      subtotalClp: l.subtotal_clp,
+    }));
+  }
+
+  /** Horario semanal + excepciones del recurso principal (denominador de ocupación). */
+  async analyticsSchedule(): Promise<{ openingHours: OpeningHourRow[]; exceptions: ExceptionRow[] }> {
+    const resource = await this.defaultResource();
+    if (!resource) return { openingHours: [], exceptions: [] };
+    const [hours, exceptions] = await Promise.all([
+      this.db.from("opening_hours").select("weekday, open_minute, close_minute").eq("resource_id", resource.id),
+      this.db
+        .from("schedule_exceptions")
+        .select("date, closed, open_minute, close_minute")
+        .eq("resource_id", resource.id),
+    ]);
+    return {
+      openingHours: (hours.data ?? []).map((h) => ({
+        weekday: h.weekday,
+        openMinute: h.open_minute,
+        closeMinute: h.close_minute,
+      })),
+      exceptions: (exceptions.data ?? []).map((e) => ({
+        date: e.date,
+        closed: e.closed,
+        openMinute: e.open_minute,
+        closeMinute: e.close_minute,
+      })),
+    };
+  }
+
+  /** Emails (lowercase) con alguna orden pagada creada ANTES de `beforeUtc` (recurrentes). */
+  async priorCustomerEmails(beforeUtc: string): Promise<Set<string>> {
+    const { data } = await this.db
+      .from("orders")
+      .select("customer_email")
+      .in("status", ["paid", "refunded", "fulfilled"])
+      .lt("created_at", beforeUtc)
+      .not("customer_email", "is", null)
+      .limit(2000);
+    return new Set((data ?? []).map((o) => (o.customer_email as string).trim().toLowerCase()));
   }
 
   /** Métricas y pendientes del panel "Hoy". */
