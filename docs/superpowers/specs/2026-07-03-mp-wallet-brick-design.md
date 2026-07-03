@@ -20,8 +20,10 @@ norma "sin dependencias nuevas" del repo (SDK oficial, pedido explícito); fondo
 usa la variante **PreferenceOnSubmit** del SDK (`onSubmit` resuelve el `preferenceId` creado al
 click; `redirectMode: 'self'`) — nunca preference anticipada (tomaría holds de visitantes).
 
-**Out of scope:** refresh de disponibilidad tras un 409, renombrar `MP_PUBLIC_KEY` (server),
-CSP, y el comportamiento actual de orden-huérfana tras un 502 de preference (paridad).
+**Out of scope:** refresh de disponibilidad tras un 409, CSP, y el comportamiento actual de
+orden-huérfana tras un 502 de preference (paridad). Nota: el viejo `MP_PUBLIC_KEY` (jamás
+leído por código) se ELIMINÓ de `.env.example` — la única variable es
+`NEXT_PUBLIC_MP_PUBLIC_KEY`; borrar `MP_PUBLIC_KEY` de Vercel cuando convenga.
 
 ## Componentes
 
