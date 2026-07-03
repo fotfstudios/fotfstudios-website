@@ -155,7 +155,8 @@ function openWindowFor(
   return oh ? { open: oh.openMinute, close: oh.closeMinute } : null;
 }
 
-function revenueTotal(rows: AnalyticsReservationRow[]): number {
+/** Ingresos netos (monto − reembolsos) de las sesiones vendidas. Lo usan Analíticas y los KPIs de Reservas. */
+export function revenueTotal(rows: AnalyticsReservationRow[]): number {
   return rows.filter(isSold).reduce((s, r) => s + netOf(r.order!), 0);
 }
 
