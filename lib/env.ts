@@ -10,6 +10,9 @@
  *              NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_BOOKING_ENABLED
  *   Secretas:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MP_ACCESS_TOKEN,
  *              MP_WEBHOOK_SECRET, RESEND_API_KEY, CRON_SECRET, EMAIL_FROM, OWNER_EMAIL
+ *   Opcional (solo dev): MP_NOTIFICATION_URL — notification_url por-preference
+ *              (túnel alternativo); vacía en prod para que MP notifique vía los
+ *              Webhooks del panel (firma validable).
  *
  * **Requeridas vs condicionales.** `BASE_REQUIRED` son las que la app necesita en
  * todo entorno; se validan de una sola vez al arrancar (`assertBaseEnv`, llamada

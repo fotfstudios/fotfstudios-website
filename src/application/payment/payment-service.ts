@@ -4,6 +4,15 @@ import { err, ok, type Result } from "@/src/domain/shared/result";
 
 export interface PaymentServiceConfig {
   siteUrl: string;
+  /**
+   * `notification_url` por-preference (opt-in, normalmente AUSENTE). Las URLs
+   * configuradas al crear el pago tienen prioridad sobre las del panel
+   * ("Tus integraciones") y MP las notifica como IPN legacy (`?id=&topic=`),
+   * cuya x-signature NO se puede validar con la clave secreta. Sin este campo,
+   * MP entrega por los Webhooks del panel (`?data.id=&type=`), con firma
+   * validable. Solo para dev (túnel alternativo); ver MP_NOTIFICATION_URL.
+   */
+  notificationUrl?: string;
 }
 
 /** TTL del hold de reserva (debe coincidir con `p_ttl` en create_checkout/create_hold). */
@@ -43,7 +52,7 @@ export class PaymentService {
         payerFirstName: firstName,
         payerLastName: lastName,
         backUrls: { success: back, failure: back, pending: back },
-        notificationUrl: `${base}/api/webhooks/mercadopago`,
+        notificationUrl: this.config.notificationUrl,
         expiresAt,
       });
       await this.orders.recordPreference({

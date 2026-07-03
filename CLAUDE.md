@@ -43,6 +43,12 @@ en vivo ni la base Supabase remota real.
   exponerla con un **túnel** (ngrok/cloudflared) para que el proveedor alcance `localhost`; agregar
   logging temporal para inspeccionar la request real (firma/headers) y arreglar la causa raíz.
   Nada de pagos de prueba repetidos en prod ni reconciliar datos reales a mano.
+  - **Notificaciones MP:** el panel (Tus integraciones → Webhooks) apunta test-mode → túnel
+    estático y prod-mode → `https://www.fotfstudios.cl/api/webhooks/mercadopago`; esas llegan
+    como `?data.id=&type=` con firma validable (`firma ok (forma=webhooks)` en logs; en sandbox
+    puede fallar por una anomalía de firmado de MP — la verificación definitiva es prod). NO
+    setear `notification_url` por-preference salvo vía `MP_NOTIFICATION_URL` (escape hatch dev):
+    esa vía tiene prioridad sobre el panel y llega como IPN legacy cuya firma nunca valida.
 - A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
   proyecto remoto, env vars de prod, dominio.
 - **Tests de integración.** CI los corre contra Supabase en contenedor (job "integration

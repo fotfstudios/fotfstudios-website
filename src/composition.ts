@@ -53,7 +53,12 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
   return new PaymentService(
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     new SupabaseOrderRepository(client),
-    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl" },
+    {
+      siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl",
+      // Opt-in dev-only (ver PaymentServiceConfig): vacío/ausente → undefined,
+      // y MP notifica vía los Webhooks del panel (firma validable).
+      notificationUrl: process.env.MP_NOTIFICATION_URL || undefined,
+    },
   );
 }
 
