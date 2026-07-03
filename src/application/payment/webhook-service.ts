@@ -13,6 +13,8 @@ export type WebhookOutcome =
 export interface WebhookResult {
   result: WebhookOutcome;
   orderId: string | null;
+  /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded"). */
+  refundedAmount?: number;
 }
 
 /**
@@ -37,15 +39,19 @@ export class WebhookService {
 
     // Reembolsos (parciales o totales) primero: keyeados por refund id, porque un
     // reembolso parcial deja el pago en 'approved' (colisionaría con la aprobación).
+    // Un reembolso iniciado desde el ADMIN ya viene registrado en el inbox
+    // (RefundService, inbox-first) → aquí cae como duplicado: sin doble NC/email.
     let refunded = false;
+    let refundedAmount = 0;
     for (const r of payment.refunds ?? []) {
       const freshRefund = await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
       if (freshRefund && orderId) {
         await this.repo.markRefunded(orderId, r.id, r.amount);
         refunded = true;
+        refundedAmount += r.amount;
       }
     }
-    if (refunded) return { result: "refunded", orderId };
+    if (refunded) return { result: "refunded", orderId, refundedAmount };
 
     // Transición de estado del pago (aprobación/rechazo), idempotente por status.
     const fresh = await this.repo.recordEvent(`${paymentId}:${payment.status}`, "payment", payment);

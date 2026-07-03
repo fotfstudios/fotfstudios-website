@@ -315,34 +315,47 @@ export class SupabaseAdminRepository {
   }
 
   // ── escrituras
-  /** Estado + id de pago MP de la orden asociada a una reserva (para decidir el reembolso). */
-  async orderForReservation(
-    reservationId: string,
-  ): Promise<{ orderId: string; status: string; mpPaymentId: string | null } | null> {
+  /**
+   * Orden asociada a una reserva, con lo necesario para decidir el reembolso:
+   * estado, pago MP, montos (boleta viva = amount − refunded) y inicio de sesión
+   * (para la política de cancelación).
+   */
+  async orderForReservation(reservationId: string): Promise<{
+    orderId: string;
+    status: string;
+    mpPaymentId: string | null;
+    amountClp: number;
+    refundedAmountClp: number;
+    startsAt: string | null;
+  } | null> {
     const { data: r } = await this.db
       .from("reservations")
-      .select("order_id")
+      .select("order_id, starts_at")
       .eq("id", reservationId)
       .single();
     if (!r?.order_id) return null;
     const { data: o } = await this.db
       .from("orders")
-      .select("status, mp_payment_id")
+      .select("status, mp_payment_id, amount_clp, refunded_amount_clp")
       .eq("id", r.order_id)
       .single();
     if (!o) return null;
-    return { orderId: r.order_id, status: o.status, mpPaymentId: o.mp_payment_id };
+    return {
+      orderId: r.order_id,
+      status: o.status,
+      mpPaymentId: o.mp_payment_id,
+      amountClp: o.amount_clp,
+      refundedAmountClp: o.refunded_amount_clp ?? 0,
+      startsAt: r.starts_at,
+    };
   }
 
   /**
-   * Cancela una reserva. `refundId` no nulo → la orden pagada se marca 'refunded'
-   * con nota de crédito; nulo → cancelación sin reembolso (la orden pagada queda 'paid').
+   * Cancela una reserva SIN reembolso (la orden pagada queda 'paid'; la no pagada
+   * → 'cancelled'). Los reembolsos van por `mark_refunded` (RefundService).
    */
-  async cancelBooking(reservationId: string, refundId: string | null = null): Promise<void> {
-    const { error } = await this.db.rpc("cancel_booking", {
-      p_reservation: reservationId,
-      ...(refundId != null ? { p_refund_id: refundId } : {}),
-    });
+  async cancelBooking(reservationId: string): Promise<void> {
+    const { error } = await this.db.rpc("cancel_booking", { p_reservation: reservationId });
     if (error) throw new Error(error.message);
   }
 

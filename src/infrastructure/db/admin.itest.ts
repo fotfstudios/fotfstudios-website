@@ -1,7 +1,9 @@
 /** Integración: acciones admin (reserva manual offline, cancelar/NC, bloqueos). */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { RefundService } from "@/src/application/admin/refund-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
+import type { PaymentGateway } from "@/src/application/ports/payment";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { futureDate } from "@/tests/dates";
@@ -9,6 +11,7 @@ import { SupabaseAdminRepository } from "./admin-repository";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { createServiceClient } from "./supabase-client";
+import { SupabaseWebhookRepository } from "./webhook-repository";
 
 const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54421";
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -63,18 +66,26 @@ describe("admin actions", () => {
     expect(Number(boleta.rows[0].n)).toBe(1);
   });
 
-  it("cancelar reserva pagada CON reembolso → refunded + NC + refund id + libera el horario", async () => {
+  it("cancelar reserva pagada CON reembolso (offline vía RefundService) → refunded + NC + monto + libera", async () => {
     const b = await book(660);
     if (!b.ok) return;
     await repo.confirmOffline(b.value.orderId, "efectivo");
-    await repo.cancelBooking(await reservationOf(b.value.orderId), "ref_123");
 
-    const o = await pg.query<{ status: string; mp_refund_id: string | null }>(
-      "select status, mp_refund_id from orders where id=$1",
+    // Pago offline → RefundService no llama a MP; el gateway no debe usarse.
+    const gateway = { refundPayment: async () => { throw new Error("no debe llamarse"); } } as unknown as PaymentGateway;
+    const svc = new RefundService(gateway, repo, new SupabaseWebhookRepository(db));
+    const amount = (
+      await pg.query<{ amount_clp: number }>("select amount_clp from orders where id=$1", [b.value.orderId])
+    ).rows[0].amount_clp;
+    await svc.cancelBooking(await reservationOf(b.value.orderId), { refundAmount: amount });
+
+    const o = await pg.query<{ status: string; mp_refund_id: string | null; refunded_amount_clp: number }>(
+      "select status, mp_refund_id, refunded_amount_clp from orders where id=$1",
       [b.value.orderId],
     );
     expect(o.rows[0].status).toBe("refunded");
-    expect(o.rows[0].mp_refund_id).toBe("ref_123");
+    expect(o.rows[0].mp_refund_id).toBe("offline:manual");
+    expect(o.rows[0].refunded_amount_clp).toBe(amount); // antes: cancel_booking lo dejaba en 0
     const nc = await pg.query<{ n: string }>(
       "select count(*)::text n from tax_documents where order_id=$1 and kind='nota_credito'",
       [b.value.orderId],

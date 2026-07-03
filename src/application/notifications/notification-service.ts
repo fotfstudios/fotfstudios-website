@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
-import { customerConfirmation, ownerNeedsReview, ownerNotification } from "./templates";
+import { customerCancellation, customerConfirmation, ownerNeedsReview, ownerNotification } from "./templates";
 
 export interface NotificationConfig {
   ownerEmail: string;
@@ -44,6 +44,32 @@ export class NotificationService {
     }
 
     await this.repo.markNotified(orderId);
+    return true;
+  }
+
+  /**
+   * Aviso al CLIENTE de que su reserva fue cancelada (con o sin reembolso).
+   * Best-effort y sin guard de `notified_at` (esa columna es de la confirmación):
+   * se dispara solo en los dos momentos únicos — la acción del admin o un
+   * reembolso externo FRESCO vía webhook (el loopback admin dedupea por inbox).
+   */
+  async notifyCancellation(orderId: string, opts: { refundAmount: number | null }): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    const when = o.startsAt
+      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
+      : "—";
+    await this.mailer.send({
+      to: o.email,
+      ...customerCancellation(
+        {
+          name: o.name,
+          when,
+          refunded: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
+        },
+        { whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
     return true;
   }
 
