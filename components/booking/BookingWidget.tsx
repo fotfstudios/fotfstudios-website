@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { DateTime } from "luxon";
 import { formatCLP } from "@/src/domain/money/money";
 import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
 import { hhmm, tierLabel } from "./format";
+import { useIsDesktop } from "./useIsDesktop";
+
+// SDK de MP solo en el browser y solo cuando el brick monta (post-payReady).
+const MpWalletButton = dynamic(() => import("./MpWalletButton"), { ssr: false });
 
 interface DayAvailability {
   closed: boolean;
@@ -165,43 +171,73 @@ export default function BookingWidget({
     };
   }, [resourceId, selected, selectedStart, duration, rec, extras]);
 
-  const submit = useCallback(async () => {
-    if (selected === null || selectedStart === null || !email) return;
+  // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError
+  // con el código mapeable; deja `error` seteado y `submitting` reseteado al fallar.
+  const createBookingAndGetPreference = useCallback(async (): Promise<{
+    orderId: string;
+    preferenceId: string;
+    initPoint: string;
+  }> => {
+    if (selected === null || selectedStart === null || !email) {
+      throw new BookingRequestError("invalid");
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/bookings", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          resourceId,
-          date: selected,
-          startMinute: selectedStart,
-          durationHours: duration,
-          addonKeys: [...(rec !== "none" ? [rec] : []), ...extras],
-          customer: { name, email, phone },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(
-          data?.error === "slot_taken"
-            ? "Ese horario se acaba de tomar. Elige otro."
-            : data?.error === "too_soon"
-              ? `Reserva con al menos ${MIN_LEAD_MINUTES} min de anticipación. Elige otro horario.`
-              : "No se pudo crear la reserva.",
-        );
-        setSubmitting(false);
-        return;
+      let data: { error?: string; orderId?: string; preferenceId?: string; initPoint?: string };
+      let ok: boolean;
+      try {
+        const res = await fetch("/api/bookings", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            resourceId,
+            date: selected,
+            startMinute: selectedStart,
+            durationHours: duration,
+            addonKeys: [...(rec !== "none" ? [rec] : []), ...extras],
+            customer: { name, email, phone },
+          }),
+        });
+        ok = res.ok;
+        data = await res.json();
+      } catch {
+        throw new BookingRequestError("network");
       }
-      window.location.assign(data.initPoint);
-    } catch {
-      setError("Error de conexión. Intenta de nuevo.");
+      if (!ok) throw new BookingRequestError(data?.error);
+      return data as { orderId: string; preferenceId: string; initPoint: string };
+    } catch (e) {
+      const err = e instanceof BookingRequestError ? e : new BookingRequestError("network");
+      setError(bookingErrorMessage(err.code));
       setSubmitting(false);
+      throw err;
     }
   }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone]);
 
-  const canPay = selectedStart !== null && !!email && !submitting;
+  // Flujo clásico (fallback): redirect a init_point. `submitting` queda en true
+  // a propósito → "Redirigiendo…" mientras el navegador navega.
+  const submit = useCallback(async () => {
+    try {
+      const { initPoint } = await createBookingAndGetPreference();
+      window.location.assign(initPoint);
+    } catch {
+      // error ya seteado por createBookingAndGetPreference
+    }
+  }, [createBookingAndGetPreference]);
+
+  // Flujo Wallet Brick: resuelve el preferenceId; el brick hace el redirect.
+  const walletSubmit = useCallback(async () => {
+    const { preferenceId } = await createBookingAndGetPreference();
+    setSubmitting(false);
+    return preferenceId;
+  }, [createBookingAndGetPreference]);
+
+  const isDesktop = useIsDesktop();
+  const [walletFailed, setWalletFailed] = useState(false);
+  // Gate de montaje del brick: SIN !submitting (desmontaría el brick a mitad del pago).
+  const payReady = selectedStart !== null && !!email;
+  const walletEnabled = !!process.env.NEXT_PUBLIC_MP_PUBLIC_KEY && !walletFailed;
+  const canPay = payReady && !submitting;
   const quoting = selectedStart !== null && !quote;
   const inputCls =
     "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
@@ -424,15 +460,23 @@ export default function BookingWidget({
 
           {error && <p className="mt-4 label-sm text-sirena">{error}</p>}
 
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canPay}
-            className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
-          >
-            {submitting ? "Redirigiendo…" : "Ir a pagar"}
-            <span>→</span>
-          </button>
+          {payReady && walletEnabled && isDesktop === true ? (
+            <MpWalletButton
+              className="mt-6"
+              onSubmit={walletSubmit}
+              onFallback={() => setWalletFailed(true)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canPay}
+              className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
+            >
+              {submitting ? "Redirigiendo…" : "Ir a pagar"}
+              <span>→</span>
+            </button>
+          )}
           {selectedStart !== null && !email ? (
             <p className="mt-3 text-center label-sm text-gold">Ingresa tu email para continuar</p>
           ) : (
@@ -450,15 +494,21 @@ export default function BookingWidget({
               {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canPay}
-            className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
-          >
-            {submitting ? "…" : "Ir a pagar"}
-            <span>→</span>
-          </button>
+          {payReady && walletEnabled && isDesktop === false ? (
+            <div className="min-w-0 flex-1">
+              <MpWalletButton onSubmit={walletSubmit} onFallback={() => setWalletFailed(true)} />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canPay}
+              className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
+            >
+              {submitting ? "…" : "Ir a pagar"}
+              <span>→</span>
+            </button>
+          )}
         </div>
       )}
     </div>
