@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cancelBookingAction } from "@/app/admin/actions";
+import { cancelBookingAction } from "../actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Dialog } from "@/components/admin/ui/Dialog";
 import { Input } from "@/components/admin/ui/Field";

@@ -1,4 +1,4 @@
-import { createManualBookingAction } from "@/app/admin/actions";
+import { createManualBookingAction } from "./actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { Field, Input, Select } from "@/components/admin/ui/Field";
