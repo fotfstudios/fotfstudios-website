@@ -135,24 +135,35 @@ describe("webhook", () => {
     expect(t.rowCount).toBe(0);
   });
 
-  it("rejected → cancela y libera el horario", async () => {
+  it("rejected → NO cancela: hold intacto y un reintento aprobado confirma la MISMA orden", async () => {
     const b = await book(600, "b@e.cl");
     expect(b.ok).toBe(true);
     if (!b.ok) return;
     const orderId = b.value.orderId;
 
-    const svc = new WebhookService(
+    // Intento rechazado (Checkout Pro ofrece reintentar dentro del mismo checkout).
+    const rejected = new WebhookService(
       new StubGateway({ id: "pay2", status: "rejected", externalReference: orderId }),
       repo,
     );
-    expect((await svc.handlePaymentNotification("pay2")).result).toBe("cancelled");
+    expect((await rejected.handlePaymentNotification("pay2")).result).toBe("rejected");
 
+    // La orden sigue pendiente y el hold sigue tomando el horario.
     const o = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
-    expect(o.rows[0].status).toBe("cancelled");
-
-    // el horario quedó libre → se puede reservar de nuevo
+    expect(o.rows[0].status).toBe("pending_payment");
     const b2 = await book(600, "c@e.cl");
-    expect(b2.ok).toBe(true);
+    expect(b2.ok).toBe(false); // slot_taken: el hold NO se liberó
+
+    // Reintento aprobado dentro de la ventana → confirma la MISMA orden (sin paid_no_hold).
+    const amount = (await pg.query<{ amount_clp: number }>("select amount_clp from orders where id=$1", [orderId]))
+      .rows[0].amount_clp;
+    const approved = new WebhookService(
+      new StubGateway({ id: "pay2b", status: "approved", externalReference: orderId, amount }),
+      repo,
+    );
+    expect((await approved.handlePaymentNotification("pay2b")).result).toBe("paid");
+    const o2 = await pg.query<{ status: string }>("select status from orders where id=$1", [orderId]);
+    expect(o2.rows[0].status).toBe("paid");
   });
 
   it("refunded (reembolso externo) → orden reembolsada, NC y libera el horario", async () => {
