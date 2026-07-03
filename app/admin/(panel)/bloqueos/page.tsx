@@ -1,5 +1,5 @@
 import { fmtDateTime } from "@/components/admin/format";
-import { createBlockAction, deleteBlockAction } from "@/app/admin/actions";
+import { createBlockAction, deleteBlockAction } from "./actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";

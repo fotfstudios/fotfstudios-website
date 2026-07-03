@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cancelBookingAction, markAccessAction, recordBoletaAction } from "@/app/admin/actions";
+import { cancelBookingAction, markAccessAction, recordBoletaAction } from "./actions";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
