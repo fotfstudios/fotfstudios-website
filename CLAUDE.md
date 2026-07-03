@@ -45,10 +45,16 @@ en vivo ni la base Supabase remota real.
   Nada de pagos de prueba repetidos en prod ni reconciliar datos reales a mano.
   - **Notificaciones MP:** el panel (Tus integraciones → Webhooks) apunta test-mode → túnel
     estático y prod-mode → `https://www.fotfstudios.cl/api/webhooks/mercadopago`; esas llegan
-    como `?data.id=&type=` con firma validable (`firma ok (forma=webhooks)` en logs; en sandbox
-    puede fallar por una anomalía de firmado de MP — la verificación definitiva es prod). NO
+    como `?data.id=&type=` con firma validable (`firma ok (forma=webhooks)` en logs). NO
     setear `notification_url` por-preference salvo vía `MP_NOTIFICATION_URL` (escape hatch dev):
     esa vía tiene prioridad sobre el panel y llega como IPN legacy cuya firma nunca valida.
+  - **E2E de pagos local (redirect + confirmación):** setear `NEXT_PUBLIC_SITE_URL` al túnel
+    **https** en `.env.local` y reiniciar dev. Con `localhost` MP guarda las `back_urls`
+    VACÍAS (verificado vía `GET /checkout/preferences/{id}`) → sin botón de retorno ni
+    `auto_return`, y el comprador nunca llega a `/reserva/estado` (que confirma sola vía
+    reconcile). Con el túnel: retorno automático + webhook al túnel. El interstitial de ngrok
+    free pide un clic ("Visit Site") la primera vez. Revertir a `http://localhost:3000` al
+    terminar. Admin siempre por `localhost` (allow-list de magic links).
 - A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
   proyecto remoto, env vars de prod, dominio.
 - **Tests de integración.** CI los corre contra Supabase en contenedor (job "integration
