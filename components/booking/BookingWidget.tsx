@@ -466,7 +466,9 @@ export default function BookingWidget({
               onSubmit={walletSubmit}
               onFallback={() => setWalletFailed(true)}
             />
-          ) : (
+          ) : payReady && walletEnabled && isDesktop === false ? null : (
+            // En móvil con wallet activo el CTA único es el brick de la barra
+            // fija (evita dos botones distintos a la vez); si no, botón clásico.
             <button
               type="button"
               onClick={submit}
