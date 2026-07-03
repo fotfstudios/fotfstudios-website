@@ -176,15 +176,6 @@ export class SupabaseAdminRepository {
     return ((data as unknown as ResRow[]) ?? []).map(map);
   }
 
-  async recentBookings(limit = 80): Promise<AdminBooking[]> {
-    const { data } = await this.db
-      .from("reservations")
-      .select(SELECT)
-      .order("starts_at", { ascending: false })
-      .limit(limit);
-    return ((data as unknown as ResRow[]) ?? []).map(map);
-  }
-
   /**
    * Lista paginada de /admin/reservas: filtros (tab/tiempo/búsqueda), orden y
    * conteos en una sola pasada (7 queries en paralelo). La página de datos NO
