@@ -161,6 +161,84 @@ describe("admin actions", () => {
     expect(after.rows[0].status).toBe("cancelled");
   });
 
+  it("reserva manual con add-ons → líneas flat_service y suma exacta del total", async () => {
+    const b = await checkout.createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 840,
+      durationHours: 2,
+      addonKeys: ["audio", "guided"],
+      customer: { email: "addons@e.cl" },
+    });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    await repo.confirmOffline(b.value.orderId, "transferencia");
+
+    const lines = await pg.query<{ line_type: string; addon_key: string | null; subtotal_clp: number }>(
+      "select line_type, addon_key, subtotal_clp from order_lines where order_id=$1",
+      [b.value.orderId],
+    );
+    const addonKeys = lines.rows.filter((l) => l.line_type === "flat_service").map((l) => l.addon_key);
+    expect(addonKeys).toEqual(expect.arrayContaining(["audio", "guided"]));
+
+    const amount = (
+      await pg.query<{ amount_clp: number }>("select amount_clp from orders where id=$1", [b.value.orderId])
+    ).rows[0].amount_clp;
+    const sum = lines.rows.reduce((s, l) => s + l.subtotal_clp, 0);
+    expect(sum).toBe(amount);
+    expect(b.value.amount).toBe(amount);
+  });
+
+  it("setNotesForOrder escribe las notas y devuelve el id de la reserva", async () => {
+    const b = await book(900);
+    if (!b.ok) return;
+    await repo.confirmOffline(b.value.orderId, "efectivo");
+
+    const id = await repo.setNotesForOrder(b.value.orderId, "Pagó al llegar");
+    expect(id).toBe(await reservationOf(b.value.orderId));
+    const r = await pg.query<{ notes: string | null }>("select notes from reservations where id=$1", [id]);
+    expect(r.rows[0].notes).toBe("Pagó al llegar");
+
+    // Sin notas: solo resuelve el id, no toca la fila.
+    const again = await repo.setNotesForOrder(b.value.orderId, null);
+    expect(again).toBe(id);
+    const r2 = await pg.query<{ notes: string | null }>("select notes from reservations where id=$1", [id]);
+    expect(r2.rows[0].notes).toBe("Pagó al llegar");
+  });
+
+  it("cortesía con notas → 'Cortesía — …' y devuelve el id insertado", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-02", 600, 1, tz);
+    const id = await repo.createCourtesyBooking(
+      resourceId,
+      startsAt,
+      endsAt,
+      { name: "Cumpleañera" },
+      "Cumpleaños · Incluye: Grabación de audio",
+    );
+    const r = await pg.query<{ id: string; notes: string | null }>(
+      "select id, notes from reservations where starts_at=$1",
+      [startsAt],
+    );
+    expect(r.rows[0].id).toBe(id);
+    expect(r.rows[0].notes).toBe("Cortesía — Cumpleaños · Incluye: Grabación de audio");
+    expect((await repo.getBooking(id))?.notes).toBe("Cortesía — Cumpleaños · Incluye: Grabación de audio");
+  });
+
+  it("confirmOffline devuelve 'confirmed'; cancelUnpaidOrder libera hold + cancela la orden", async () => {
+    const ok = await book(960);
+    if (!ok.ok) return;
+    expect(await repo.confirmOffline(ok.value.orderId, "efectivo")).toBe("confirmed");
+
+    // Limpieza cuando el cobro no se registró: la orden sigue pendiente → cancelar.
+    const pend = await book(1020);
+    if (!pend.ok) return;
+    await repo.cancelUnpaidOrder(pend.value.orderId);
+    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [pend.value.orderId]);
+    expect(o.rows[0].status).toBe("cancelled");
+    // horario liberado
+    expect((await book(1020)).ok).toBe(true);
+  });
+
   it("un bloqueo impide reservar y rechaza solaparse", async () => {
     const { startsAt, endsAt } = rangeFor(TUE, 600, 1, tz);
     await repo.createBlock(resourceId, startsAt, endsAt);

@@ -127,6 +127,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
         {/* Sidebar derecha */}
         <aside className="flex flex-col gap-6">
+          {b.notes && (
+            <Card title="Notas">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-bone-dim">{b.notes}</p>
+            </Card>
+          )}
+
           {!isBlock && (
             <Card title="Cliente">
               <p className="text-bone">{b.customerName ?? "Sin nombre"}</p>
