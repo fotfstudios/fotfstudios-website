@@ -57,8 +57,13 @@ export async function POST(req: Request): Promise<Response> {
       dataId: queryDataId,
       secret,
     });
-  if (!signatureValid) {
-    console.warn("[mp-webhook] firma no validada; se procesa vía API de MP (fuente de verdad)");
+  // Forma de entrega: Webhooks del panel (`?data.id=&type=`, firma validable)
+  // vs IPN legacy (`?id=&topic=`, firma no validable por diseño).
+  const forma = params.has("data.id") ? "webhooks" : params.has("topic") ? "ipn" : "desconocida";
+  if (signatureValid) {
+    console.info(`[mp-webhook] firma ok (forma=${forma})`);
+  } else {
+    console.warn(`[mp-webhook] firma no validada (forma=${forma}); se procesa vía API de MP (fuente de verdad)`);
   }
 
   // Solo notificaciones de pago.
