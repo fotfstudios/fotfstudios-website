@@ -75,6 +75,12 @@ en vivo ni la base Supabase remota real.
   `sitemap.ts`, `robots.ts`, `opengraph-image.tsx`, `twitter-image.tsx`, `apple-icon.tsx`,
   `manifest.ts`, `icon.svg`. OG fonts live in `app/_fonts/` (Big Shoulders, JetBrains Mono).
 - `public/photos/` (real photos), `public/logo/` (brand SVGs, transparent).
+- Colocation: single-use UI lives in the segment's `_components/`; shared admin UI in
+  `components/admin/` (design system: `components/admin/ui/`). Server actions are segment-local
+  (`<segment>/actions.ts`, `"use server"` + `requirePermission`) — no global actions file.
+- Route errors/404: `app/error.tsx` + `app/global-error.tsx` + `app/not-found.tsx` (public,
+  brand-styled) and `app/admin/(panel)/error.tsx` + `not-found.tsx` (inside the shell). Never
+  render raw `error.message`; show `error.digest` only.
 
 ## Brand guardrails (Manual de Marca)
 
