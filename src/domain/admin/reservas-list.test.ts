@@ -36,6 +36,11 @@ describe("parseReservasSearchParams", () => {
     expect(parseReservasSearchParams({ p: "3.7" }).page).toBe(3);
   });
 
+  it("página: tope superior — un ?p= astronómico no genera offsets que PostgREST serialice mal", () => {
+    expect(parseReservasSearchParams({ p: "99999999999999999999" }).page).toBe(10_000);
+    expect(parseReservasSearchParams({ p: "10001" }).page).toBe(10_000);
+  });
+
   it("q: recorta espacios, toma el primero si es array y limita a 80 chars", () => {
     expect(parseReservasSearchParams({ q: "  pedro  " }).q).toBe("pedro");
     expect(parseReservasSearchParams({ q: ["ana", "otro"] }).q).toBe("ana");
@@ -68,6 +73,11 @@ describe("escapeIlike", () => {
 
   it("reemplaza los delimitadores de PostgREST por espacio", () => {
     expect(escapeIlike('a,b(c)"d')).toBe("a b c  d");
+  });
+
+  it("neutraliza '*' (PostgREST lo reescribe a % antes de llegar a Postgres)", () => {
+    expect(escapeIlike("v*a")).toBe("v a");
+    expect(escapeIlike("*")).toBe("");
   });
 
   it("aguja hostil combinada no rompe y conserva lo útil", () => {

@@ -25,6 +25,8 @@ export interface ReservasListQuery {
 }
 
 const MAX_Q = 80;
+/** Tope de página: evita offsets absurdos que PostgREST serializa mal (notación exponencial). */
+const MAX_PAGE = 10_000;
 
 const first = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
 
@@ -41,7 +43,7 @@ export function parseReservasSearchParams(
     q: (first(sp.q) ?? "").trim().slice(0, MAX_Q),
     tiempo: oneOf(RESERVA_TIEMPOS, first(sp.t), "proximas"),
     orden: oneOf(RESERVA_ORDENES, first(sp.orden), "fecha"),
-    page: Number.isFinite(page) && page >= 1 ? page : 1,
+    page: Number.isFinite(page) && page >= 1 ? Math.min(page, MAX_PAGE) : 1,
     perPage: RESERVAS_PER_PAGE,
   };
 }
@@ -61,14 +63,16 @@ export function ordenSpec(q: Pick<ReservasListQuery, "orden" | "tiempo">): {
 
 /**
  * Sanea la aguja de búsqueda para el DSL de `.or()` de PostgREST: escapa los
- * comodines de ILIKE (\ % _) y reemplaza los delimitadores de la gramática
- * (, ( ) ") por espacio — una aguja hostil filtra de más, nunca rompe.
+ * comodines de ILIKE (\ % _) y reemplaza por espacio los delimitadores de la
+ * gramática (, ( ) ") y `*` — que PostgREST reescribe a `%` ANTES de llegar a
+ * Postgres, así que no se puede escapar con backslash. Una aguja hostil
+ * filtra de más, nunca rompe ni sobre-matchea.
  */
 export function escapeIlike(raw: string): string {
   return raw
     .replace(/\\/g, "\\\\")
     .replace(/[%_]/g, (c) => `\\${c}`)
-    .replace(/[,()"]/g, " ")
+    .replace(/[,()"*]/g, " ")
     .trim();
 }
 

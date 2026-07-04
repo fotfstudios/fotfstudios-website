@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
 import { Icon } from "@/components/admin/ui/icons";
 import { inputCls } from "@/components/admin/ui/styles";
@@ -8,18 +8,32 @@ import { inputCls } from "@/components/admin/ui/styles";
 /**
  * Búsqueda con debounce que escribe `?q=` en la URL (resetea la página y
  * conserva el resto de filtros). No controlado a propósito: el caret y el foco
- * sobreviven las navegaciones del server mientras se tipea.
+ * sobreviven las navegaciones del server mientras se tipea; cuando `?q=`
+ * cambia desde afuera (Limpiar filtros, back/forward) se re-sincroniza.
  */
 export function SearchBox({ defaultValue }: { defaultValue: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Re-sincroniza SOLO si el input no tiene el foco (no pisar lo tipeado).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el && document.activeElement !== el && el.value !== defaultValue) el.value = defaultValue;
+  }, [defaultValue]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
   const navigate = (raw: string) => {
     if (timer.current) clearTimeout(timer.current);
-    const sp = new URLSearchParams(searchParams);
+    // Los params se leen AL NAVEGAR (no de un snapshot del render): un click
+    // en tab/tiempo/orden durante los 300 ms del debounce no debe perderse.
+    const sp = new URLSearchParams(window.location.search);
     const value = raw.trim();
     if (value) sp.set("q", value);
     else sp.delete("q");
@@ -31,12 +45,6 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => navigate(value), 300);
   };
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
 
   return (
     <div className="relative">

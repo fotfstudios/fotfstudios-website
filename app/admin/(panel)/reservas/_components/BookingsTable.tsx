@@ -34,8 +34,18 @@ function bucketFor(iso: string, today: DateTime): Bucket {
  * fecha las filas vienen contiguas en el tiempo, así que los separadores
  * (Hoy/Mañana/…) se emiten al cambiar de bucket recorriendo las filas tal
  * cual llegan; con otros órdenes la agrupación no aplica y la tabla es plana.
+ * `exactCounts`: los "· n" de los separadores solo se muestran cuando el
+ * resultado cabe en una página (si no, contarían solo la página y mentirían).
  */
-export function BookingsTable({ rows, orden }: { rows: AdminBooking[]; orden: ReservaOrden }) {
+export function BookingsTable({
+  rows,
+  orden,
+  exactCounts,
+}: {
+  rows: AdminBooking[];
+  orden: ReservaOrden;
+  exactCounts: boolean;
+}) {
   const now = DateTime.now().setZone(TZ);
   const today = now.startOf("day");
   const grouped = orden === "fecha";
@@ -53,7 +63,8 @@ export function BookingsTable({ rows, orden }: { rows: AdminBooking[]; orden: Re
         {header && (
           <tr className="border-b hairline bg-ink/50">
             <td colSpan={5} className="label-sm px-4 py-2 text-bone-mute">
-              {BUCKET_LABEL[header]} · {bucketCounts[header]}
+              {BUCKET_LABEL[header]}
+              {exactCounts ? ` · ${bucketCounts[header]}` : ""}
             </td>
           </tr>
         )}

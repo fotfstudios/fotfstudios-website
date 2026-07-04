@@ -24,7 +24,11 @@ export default async function ReservasPage({
   // "Limpiar filtros" vuelve al default; si el default (próximas) es lo que está
   // vacío, lo útil es abrir el rango temporal.
   const hasFilters =
-    query.q !== "" || query.estado !== "todas" || query.orden !== "fecha" || query.page > 1;
+    query.q !== "" ||
+    query.estado !== "todas" ||
+    query.tiempo !== "proximas" ||
+    query.orden !== "fecha" ||
+    query.page > 1;
 
   return (
     <>
@@ -88,7 +92,11 @@ export default async function ReservasPage({
               />
             ) : (
               <>
-                <BookingsTable rows={list.rows} orden={query.orden} />
+                <BookingsTable
+                  rows={list.rows}
+                  orden={query.orden}
+                  exactCounts={list.total <= query.perPage}
+                />
                 <Pagination query={query} total={list.total} />
               </>
             )}

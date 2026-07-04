@@ -251,8 +251,10 @@ export class SupabaseAdminRepository {
         `customer_name.ilike.%${needle}%,customer_email.ilike.%${needle}%,customer_phone.ilike.%${needle}%`,
       );
     }
-    if (qy.tiempo === "proximas") qb = qb.gte("starts_at", nowUtc);
-    else if (qy.tiempo === "pasadas") qb = qb.lt("starts_at", nowUtc);
+    // El corte temporal es por ends_at: una sesión EN CURSO sigue en "próximas"
+    // (lo que está pasando en la cabina es lo más relevante del default).
+    if (qy.tiempo === "proximas") qb = qb.gte("ends_at", nowUtc);
+    else if (qy.tiempo === "pasadas") qb = qb.lt("ends_at", nowUtc);
     switch (tab) {
       case "confirmadas":
         return qb.neq("kind", "block").eq("status", "confirmed");

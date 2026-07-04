@@ -140,12 +140,15 @@ describe("listBookings", () => {
     expect(porFono.rows.map((b) => b.customerName)).toEqual(["Pedro Soto"]);
   });
 
-  it("aguja hostil (delimitadores y comodines) no rompe la query", async () => {
-    await courtesy("2099-06-01", { name: "Normal" });
-    for (const needle of ['a,b(%_"', "100% Ño,ño (test)", "\\", "*"]) {
+  it("aguja hostil (delimitadores y comodines) no rompe la query ni sobre-matchea", async () => {
+    await courtesy("2099-06-01", { name: "Valentina Rojas" });
+    for (const needle of ['a,b(%_"', "100% Ño,ño (test)", "\\"]) {
       const r = await repo.listBookings(q({ q: needle }));
       expect(Array.isArray(r.rows)).toBe(true);
     }
+    // '*' NO actúa de comodín: "v*a" no debe matchear "Valentina" vía %v%a%.
+    const star = await repo.listBookings(q({ q: "v*a" }));
+    expect(star.rows).toHaveLength(0);
   });
 
   it("paginación: páginas disjuntas, total exacto, overflow vacío y orden estable", async () => {
@@ -169,14 +172,21 @@ describe("listBookings", () => {
     expect(again.rows.map((b) => b.id)).toEqual(pages[0].rows.map((b) => b.id));
   });
 
-  it("tiempo: próximas = futuro ascendente; pasadas = pasado descendente (nowUtc inyectable)", async () => {
+  it("tiempo: próximas = en curso + futuro ascendente; pasadas = terminadas descendente", async () => {
     for (const d of ["2049-06-01", "2049-06-02", "2099-06-01", "2099-06-02"]) await courtesy(d);
+    // Sesión EN CURSO respecto de nowUtc: 20:30–21:30 local del 2049-12-31
+    // (23:30 UTC → 00:30 UTC del 2050-01-01) cruza la medianoche UTC.
+    const enCurso = rangeFor("2049-12-31", 1230, 1, tz);
+    await repo.createCourtesyBooking(resourceId, enCurso.startsAt, enCurso.endsAt, { name: "En curso" });
     const now = "2050-01-01T00:00:00.000Z";
 
     const proximas = await repo.listBookings(q({ tiempo: "proximas" }), now);
-    expect(proximas.rows.map((b) => b.startsAt.slice(0, 4))).toEqual(["2099", "2099"]);
-    expect(proximas.rows[0].startsAt < proximas.rows[1].startsAt).toBe(true);
-    expect(proximas.tabCounts.todas).toBe(2);
+    expect(proximas.rows.map((b) => b.customerName ?? b.startsAt.slice(0, 4))).toEqual([
+      "En curso",
+      "2099",
+      "2099",
+    ]);
+    expect(proximas.tabCounts.todas).toBe(3);
 
     const pasadas = await repo.listBookings(q({ tiempo: "pasadas" }), now);
     expect(pasadas.rows.map((b) => b.startsAt.slice(0, 4))).toEqual(["2049", "2049"]);
