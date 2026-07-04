@@ -1,11 +1,12 @@
 /** Integración: acciones admin (reserva manual offline, cancelar/NC, bloqueos). */
+import { DateTime } from "luxon";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { RefundService } from "@/src/application/admin/refund-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import { PricingService } from "@/src/application/pricing/pricing-service";
-import { rangeFor } from "@/src/domain/scheduling/time";
+import { dayBoundsUtc, rangeFor } from "@/src/domain/scheduling/time";
 import { futureDate } from "@/tests/dates";
 import { SupabaseAdminRepository } from "./admin-repository";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
@@ -253,5 +254,21 @@ describe("admin actions", () => {
     expect(conflict.ok).toBe(false);
 
     await expect(repo.createBlock(resourceId, startsAt, endsAt)).rejects.toThrow();
+  });
+
+  it("bookingsOverlapping: un bloqueo que cruza medianoche cae en la ventana del día siguiente; bookingsBetween no", async () => {
+    const { startsAt, endsAt } = rangeFor(TUE, 1320, 4, tz); // 22:00 → 02:00 del día siguiente
+    await repo.createBlock(resourceId, startsAt, endsAt);
+    const nextDay = DateTime.fromISO(TUE).plus({ days: 1 }).toISODate()!;
+
+    const next = dayBoundsUtc(nextDay, tz);
+    expect((await repo.bookingsOverlapping(next.startUtc, next.endUtc)).map((b) => b.kind)).toEqual(["block"]);
+    // por starts_at (KPIs cuentan inicios) el bloqueo pertenece solo al día en que empieza
+    expect(await repo.bookingsBetween(next.startUtc, next.endUtc)).toEqual([]);
+
+    const tue = dayBoundsUtc(TUE, tz);
+    expect((await repo.bookingsOverlapping(tue.startUtc, tue.endUtc)).map((b) => b.kind)).toEqual(["block"]);
+    // semi-abierto: una ventana que termina justo cuando empieza el bloqueo lo excluye
+    expect(await repo.bookingsOverlapping(tue.startUtc, startsAt)).toEqual([]);
   });
 });

@@ -281,6 +281,22 @@ export class SupabaseAdminRepository {
     return ((data as unknown as ResRow[]) ?? []).map(map);
   }
 
+  /**
+   * Reservas activas que SOLAPAN [startUtc, endUtc) — la grilla del calendario:
+   * un bloqueo que cruza medianoche debe aparecer también en el día siguiente.
+   * `bookingsBetween` (por starts_at) queda para KPIs, que cuentan inicios.
+   */
+  async bookingsOverlapping(startUtc: string, endUtc: string): Promise<AdminBooking[]> {
+    const { data } = await this.db
+      .from("reservations")
+      .select(SELECT)
+      .in("status", ["held", "confirmed"])
+      .lt("starts_at", endUtc)
+      .gt("ends_at", startUtc)
+      .order("starts_at", { ascending: true });
+    return ((data as unknown as ResRow[]) ?? []).map(map);
+  }
+
   // ── analíticas (filas crudas para src/domain/analytics/metrics; acotadas)
 
   /** Reservas de TODOS los estados en [startUtc, endUtc) con la orden ampliada. */
