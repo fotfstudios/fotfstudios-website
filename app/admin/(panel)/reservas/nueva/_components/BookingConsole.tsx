@@ -53,6 +53,8 @@ export default function BookingConsole({
   tz,
   today,
   maxDate,
+  initialDate,
+  initialStartMinute,
   initialMonth,
   initialMonthStatus,
   initialDay,
@@ -63,6 +65,9 @@ export default function BookingConsole({
   tz: string;
   today: string;
   maxDate: string;
+  /** Prefill desde la agenda (?d=&h=), ya validado por la página. */
+  initialDate: string;
+  initialStartMinute: number | null;
   initialMonth: string;
   initialMonthStatus: Record<string, DayStatus>;
   initialDay: DayConsoleData;
@@ -75,12 +80,12 @@ export default function BookingConsole({
   const [dayStatus, setDayStatus] = useState<Record<string, DayStatus>>(initialMonthStatus);
   const [loadingMonth, setLoadingMonth] = useState(false);
 
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(initialDate);
   const [dayData, setDayData] = useState<DayConsoleData | null>(initialDay);
   const [loadingDay, setLoadingDay] = useState(false);
   const [dayError, setDayError] = useState(false);
 
-  const [start, setStart] = useState<number | null>(null);
+  const [start, setStart] = useState<number | null>(initialStartMinute);
   const [duration, setDuration] = useState(1);
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);

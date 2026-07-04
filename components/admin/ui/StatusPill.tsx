@@ -6,6 +6,7 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   confirmed: { label: "Confirmada", tone: "gold" },
   cancelled: { label: "Cancelada", tone: "mute" },
   expired: { label: "Expirada", tone: "mute" },
+  block: { label: "Bloqueo", tone: "mute" },
   // Pedidos
   paid: { label: "Pagada", tone: "gold" },
   pending_payment: { label: "Pago pendiente", tone: "dim" },
