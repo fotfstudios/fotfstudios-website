@@ -9,10 +9,13 @@ export interface RefundBookingRepo {
     mpPaymentId: string | null;
     amountClp: number;
     refundedAmountClp: number;
+    pointsRedeemedClp: number;
     startsAt: string | null;
   } | null>;
   /** Cancelación SIN reembolso (los reembolsos pasan por `mark_refunded`). */
   cancelBooking(reservationId: string): Promise<void>;
+  /** Orden 100% puntos: cancela + repone puntos (sin MP, sin boleta/NC). */
+  refundPointsOrder(orderId: string, restorePoints: number): Promise<void>;
 }
 
 /**
@@ -64,6 +67,17 @@ export class RefundService {
         `No se puede reembolsar: el pedido no está pagado (estado: ${target.status}). Cancela sin reembolso.`,
       );
     }
+
+    // Orden 100% puntos (efectivo $0): no hay nada que devolver por MP ni boleta
+    // que anular — el "reembolso" es reponer puntos (monto en puntos, 0..P).
+    if (target.amountClp === 0 && target.pointsRedeemedClp > 0) {
+      if (opts.refundAmount < 0 || opts.refundAmount > target.pointsRedeemedClp) {
+        throw new Error(`El monto excede los puntos reponibles (${target.pointsRedeemedClp} puntos).`);
+      }
+      await this.repo.refundPointsOrder(target.orderId, opts.refundAmount);
+      return { alreadyProcessed: false };
+    }
+
     const liveBoleta = target.amountClp - target.refundedAmountClp;
     if (opts.refundAmount < 1 || opts.refundAmount > liveBoleta) {
       throw new Error(`El monto excede el saldo reembolsable ($${liveBoleta}).`);

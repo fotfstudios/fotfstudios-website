@@ -19,13 +19,15 @@ export interface CreateCheckoutParams {
   resourceId: string;
   startsAt: string; // ISO UTC
   endsAt: string; // ISO UTC
-  amount: number;
+  amount: number; // efectivo a cobrar (total − puntos canjeados)
   net: number;
   tax: number;
   currency: string;
   customer: Customer;
   snapshot: Quote;
   lines: CheckoutLine[];
+  customerId?: string; // cuenta del cliente (canje de puntos)
+  pointsRedeemed?: number;
 }
 
 export interface CheckoutRepository {

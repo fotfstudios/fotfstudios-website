@@ -15,6 +15,10 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
       return `Reserva con al menos ${MIN_LEAD_MINUTES} min de anticipación. Elige otro horario.`;
     case "network":
       return "Error de conexión. Intenta de nuevo.";
+    case "insufficient_points":
+      return "No tienes puntos suficientes para ese canje. Actualiza la página e intenta de nuevo.";
+    case "points_session":
+      return "Tu sesión expiró. Vuelve a entrar para usar tus puntos.";
     default:
       return "No se pudo crear la reserva.";
   }

@@ -576,6 +576,7 @@ export class SupabaseAdminRepository {
     mpPaymentId: string | null;
     amountClp: number;
     refundedAmountClp: number;
+    pointsRedeemedClp: number;
     startsAt: string | null;
   } | null> {
     const { data: r } = await this.db
@@ -586,7 +587,7 @@ export class SupabaseAdminRepository {
     if (!r?.order_id) return null;
     const { data: o } = await this.db
       .from("orders")
-      .select("status, mp_payment_id, amount_clp, refunded_amount_clp")
+      .select("status, mp_payment_id, amount_clp, refunded_amount_clp, points_redeemed_clp")
       .eq("id", r.order_id)
       .single();
     if (!o) return null;
@@ -596,6 +597,7 @@ export class SupabaseAdminRepository {
       mpPaymentId: o.mp_payment_id,
       amountClp: o.amount_clp,
       refundedAmountClp: o.refunded_amount_clp ?? 0,
+      pointsRedeemedClp: o.points_redeemed_clp ?? 0,
       startsAt: r.starts_at,
     };
   }
@@ -606,6 +608,15 @@ export class SupabaseAdminRepository {
    */
   async cancelBooking(reservationId: string): Promise<void> {
     const { error } = await this.db.rpc("cancel_booking", { p_reservation: reservationId });
+    if (error) throw new Error(error.message);
+  }
+
+  /** Orden 100% puntos: cancela reserva, marca 'refunded' y repone puntos (sin NC). */
+  async refundPointsOrder(orderId: string, restorePoints: number): Promise<void> {
+    const { error } = await this.db.rpc("refund_points_order", {
+      p_order: orderId,
+      p_restore: restorePoints,
+    });
     if (error) throw new Error(error.message);
   }
 
