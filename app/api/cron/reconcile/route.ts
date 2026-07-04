@@ -1,4 +1,4 @@
-import { reconcilePending } from "@/src/composition";
+import { reconcilePending, releaseAbandonedRedemptions } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
  * `pending_payment` porque el webhook no llegó y el comprador no volvió a la página
  * de estado. Idempotente (inbox del webhook). Protegido por CRON_SECRET (Vercel lo
  * manda como Authorization: Bearer). Corre 1 vez al día → compatible con Vercel Hobby.
+ * Después de reconciliar, libera los puntos canjeados en checkouts abandonados
+ * (>72 h) — el reconcile va primero porque aún puede confirmar alguno.
  */
 export async function GET(req: Request): Promise<Response> {
   // Fail-closed: sin CRON_SECRET configurado, el endpoint queda cerrado.
@@ -16,7 +18,11 @@ export async function GET(req: Request): Promise<Response> {
   }
   try {
     const summary = await reconcilePending();
-    return Response.json(summary);
+    const releasedPoints = await releaseAbandonedRedemptions().catch((e) => {
+      console.error("[cron-reconcile:points]", e);
+      return 0;
+    });
+    return Response.json({ ...summary, releasedPoints });
   } catch (e) {
     console.error("[cron-reconcile]", e);
     return Response.json({ error: "server" }, { status: 503 });

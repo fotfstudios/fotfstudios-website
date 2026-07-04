@@ -17,6 +17,16 @@ describe("bookingErrorMessage", () => {
     expect(bookingErrorMessage("network")).toBe("Error de conexión. Intenta de nuevo.");
   });
 
+  it("insufficient_points → saldo insuficiente", () => {
+    expect(bookingErrorMessage("insufficient_points")).toBe(
+      "No tienes puntos suficientes para ese canje. Actualiza la página e intenta de nuevo.",
+    );
+  });
+
+  it("points_session → sesión expirada", () => {
+    expect(bookingErrorMessage("points_session")).toBe("Tu sesión expiró. Vuelve a entrar para usar tus puntos.");
+  });
+
   it("desconocido, null o undefined → genérico", () => {
     expect(bookingErrorMessage("weird_code")).toBe("No se pudo crear la reserva.");
     expect(bookingErrorMessage(null)).toBe("No se pudo crear la reserva.");

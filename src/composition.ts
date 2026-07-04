@@ -16,6 +16,8 @@ import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MemberService } from "@/src/application/admin/member-service";
 import { RefundService } from "@/src/application/admin/refund-service";
+import { CustomerService } from "@/src/application/customers/customer-service";
+import { SupabaseCustomerRepository } from "@/src/infrastructure/db/customer-repository";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
 import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
 import type { Mailer } from "@/src/application/ports/mailer";
@@ -148,6 +150,22 @@ export function refundService(client: SupabaseClient<Database> = db()): RefundSe
     adminRepository(client),
     new SupabaseWebhookRepository(client),
   );
+}
+
+/** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */
+export function customerService(client: SupabaseClient<Database> = db()): CustomerService {
+  return new CustomerService(new SupabaseCustomerRepository(client));
+}
+
+/**
+ * Libera los puntos canjeados en checkouts abandonados (>72 h pending_payment).
+ * Corre en el cron de reconcile DESPUÉS de reconcilePending (que aún puede
+ * confirmar alguno). Un pago tardío posterior se auto-repara en confirm_payment.
+ */
+export async function releaseAbandonedRedemptions(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data, error } = await client.rpc("release_abandoned_redemptions", {});
+  if (error) throw new Error(error.message);
+  return data ?? 0;
 }
 
 /** RBAC: gestión de miembros y roles del admin (invitación nativa de Supabase). */

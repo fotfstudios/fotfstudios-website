@@ -21,13 +21,16 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
     // El monto se resuelve SIEMPRE del lado del servidor: `policy`/`full` se
     // recalculan al confirmar (starts_at + boleta viva actuales); solo `custom`
     // trae un número del cliente, validado en el dominio y re-capado en el RPC.
+    // Orden 100% puntos (efectivo $0): la base reembolsable son los puntos
+    // canjeados — misma política 100/50/0, repuesta como puntos.
     const target = await adminRepository().orderForReservation(id);
     let refundAmount: number | null = null;
     if (mode !== "none") {
       if (!target) throw new Error("Esta reserva no tiene un pago asociado. Cancela sin reembolso.");
+      const isPointsOrder = target.amountClp === 0 && target.pointsRedeemedClp > 0;
       refundAmount = resolveRefundAmount(mode, {
         startsAt: target.startsAt,
-        liveBoleta: target.amountClp - target.refundedAmountClp,
+        liveBoleta: isPointsOrder ? target.pointsRedeemedClp : target.amountClp - target.refundedAmountClp,
         customAmount: mode === "custom" ? num(fd, "customAmount") : undefined,
       });
     }
