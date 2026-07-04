@@ -38,4 +38,18 @@ export class CustomerService {
   bookingsForEmail(email: string): Promise<CustomerBooking[]> {
     return this.repo.bookingsForEmail(email.toLowerCase());
   }
+
+  /** Reservas partidas en próximas (vigentes, ascendente) y pasadas/terminadas. */
+  async bookings(
+    email: string,
+    nowIso = new Date().toISOString(),
+  ): Promise<{ upcoming: CustomerBooking[]; past: CustomerBooking[] }> {
+    const all = await this.bookingsForEmail(email);
+    const now = new Date(nowIso).getTime();
+    const upcoming = all
+      .filter((b) => new Date(b.startsAt).getTime() >= now && (b.status === "held" || b.status === "confirmed"))
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    const upcomingIds = new Set(upcoming.map((b) => b.id));
+    return { upcoming, past: all.filter((b) => !upcomingIds.has(b.id)) };
+  }
 }
