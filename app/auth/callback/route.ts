@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { accountEnabled } from "@/lib/flags";
+import { customerService } from "@/src/composition";
 import { failureLoginPath, resolveDestination } from "@/src/domain/auth/callback-redirect";
 import { type AdminClaims, isAdminMember } from "@/src/domain/auth/permissions";
 import { createAuthServerClient } from "@/src/infrastructure/auth/server";
@@ -19,12 +21,23 @@ export async function GET(req: Request): Promise<Response> {
   if (!code) return fail;
 
   const supabase = await createAuthServerClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: exchanged, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     // Código inválido/expirado o sin sesión: avisamos en el login de origen en
     // vez de rebotar en silencio (la middleware lo devolvería igual al login).
     console.warn("[auth-callback]", error.message);
     return fail;
+  }
+
+  // Perfil de cliente + puntos retroactivos AQUÍ, antes del primer render de
+  // /cuenta: layouts y páginas renderizan en paralelo, así que un award hecho
+  // recién en el layout llega tarde para la primera pintura. Best-effort — el
+  // layout lo reintenta (idempotente) si esto falla.
+  const user = exchanged?.user;
+  if (accountEnabled() && user?.email) {
+    await customerService()
+      .ensureCustomer(user.id, user.email)
+      .catch((e) => console.error("[auth-callback:customer]", e));
   }
 
   const { data } = await supabase.auth.getClaims();
