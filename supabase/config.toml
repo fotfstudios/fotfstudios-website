@@ -175,9 +175,11 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# RBAC: el admin es solo por invitación (auth.admin.inviteUserByEmail). Sin signup
-# público, un email no invitado no puede crear usuario ni pedir magic link.
-enable_signup = false
+# Clientes: signup público por magic link (/cuenta/login, shouldCreateUser:true).
+# El admin sigue siendo solo por invitación: su login usa shouldCreateUser:false y
+# el acceso al panel lo protegen los claims RBAC (un usuario sin app_role no entra).
+# EN PROD este toggle vive en el Dashboard (Auth → Sign In/Up) — espejar a mano.
+enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
