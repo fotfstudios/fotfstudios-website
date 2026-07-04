@@ -1,10 +1,18 @@
 import type { ReactNode } from "react";
 
 /** Tabla de datos: borde hairline, cabecera mono, filas con hover. Scroll en móvil. */
-export function DataTable({ head, children }: { head: ReactNode; children: ReactNode }) {
+export function DataTable({
+  head,
+  children,
+  minWidthClassName = "min-w-[34rem]",
+}: {
+  head: ReactNode;
+  children: ReactNode;
+  minWidthClassName?: string;
+}) {
   return (
     <div className="overflow-x-auto border hairline">
-      <table className="w-full min-w-[34rem] text-sm">
+      <table className={`w-full ${minWidthClassName} text-sm`}>
         <thead>
           <tr className="border-b hairline bg-ink/60">{head}</tr>
         </thead>
@@ -22,9 +30,19 @@ export function Th({ children, right }: { children?: ReactNode; right?: boolean 
   );
 }
 
-export function Tr({ children, muted }: { children: ReactNode; muted?: boolean }) {
+export function Tr({
+  children,
+  muted,
+  className = "",
+}: {
+  children: ReactNode;
+  muted?: boolean;
+  className?: string;
+}) {
   return (
-    <tr className={`border-b hairline transition-colors last:border-0 hover:bg-ink-soft ${muted ? "opacity-60" : ""}`}>
+    <tr
+      className={`border-b hairline transition-colors last:border-0 hover:bg-ink-soft ${muted ? "opacity-60" : ""} ${className}`}
+    >
       {children}
     </tr>
   );

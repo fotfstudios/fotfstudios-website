@@ -12,3 +12,4 @@ coverage
 
 # Raw camera captures — commit only compressed derivatives in public/video
 *.mov
+.playwright-mcp/

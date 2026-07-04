@@ -1,10 +1,18 @@
 import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  AnalyticsLineRow,
-  AnalyticsReservationRow,
-  ExceptionRow,
-  OpeningHourRow,
+import {
+  RESERVA_TABS,
+  escapeIlike,
+  ordenSpec,
+  type ReservaTab,
+  type ReservasListQuery,
+} from "@/src/domain/admin/reservas-list";
+import {
+  revenueTotal,
+  type AnalyticsLineRow,
+  type AnalyticsReservationRow,
+  type ExceptionRow,
+  type OpeningHourRow,
 } from "@/src/domain/analytics/metrics";
 import type { Database } from "./database.types";
 
@@ -26,6 +34,10 @@ export interface AdminBooking {
   accessSentAt: string | null;
   createdAt: string;
   paidAt: string | null;
+  notes: string | null;
+  cancelledAt: string | null;
+  refundedAt: string | null;
+  refundedAmount: number | null;
 }
 
 /** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
@@ -45,14 +57,27 @@ export interface PaymentSnapshot {
 export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
   taxDocs: { id: string; kind: string; status: string; folio: string | null; total: number }[];
-  notes: string | null;
-  cancelledAt: string | null;
-  refundedAt: string | null;
-  refundedAmount: number | null;
   mpPaymentId: string | null;
   mpPreferenceId: string | null;
   mpRefundId: string | null;
   paymentSnapshot: PaymentSnapshot | null;
+}
+
+export interface ReservasListResult {
+  rows: AdminBooking[];
+  /** Conteo exacto del tab activo (== tabCounts[estado]). */
+  total: number;
+  /** Conteos por tab; respetan la búsqueda y el tiempo, NO el tab activo. */
+  tabCounts: Record<ReservaTab, number>;
+  /** Reservas totales sin filtro alguno (distingue "sin datos" de "sin resultados"). */
+  grandTotal: number;
+}
+
+export interface ReservasKpis {
+  sesionesHoy: number;
+  proximos7d: number;
+  pagosPendientes: number;
+  ingresos30d: number;
 }
 
 export interface DashboardData {
@@ -89,12 +114,30 @@ type ResRow = {
   access_code: string | null;
   access_sent_at: string | null;
   created_at: string;
+  cancelled_at: string | null;
+  notes: string | null;
   order_id: string | null;
-  orders: { amount_clp: number; status: string; paid_at: string | null } | null;
+  orders: {
+    amount_clp: number;
+    status: string;
+    paid_at: string | null;
+    refunded_at: string | null;
+    refunded_amount_clp: number | null;
+  } | null;
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, order_id, orders(amount_clp, status, paid_at)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
+
+/** Subconjunto estructural del query builder de PostgREST que usan los filtros de la lista. */
+interface ReservasFilterable {
+  or(filters: string): this;
+  gte(column: string, value: string): this;
+  lt(column: string, value: string): this;
+  eq(column: string, value: string): this;
+  neq(column: string, value: string): this;
+  in(column: string, values: string[]): this;
+}
 
 const map = (r: ResRow): AdminBooking => ({
   id: r.id,
@@ -112,6 +155,10 @@ const map = (r: ResRow): AdminBooking => ({
   orderStatus: r.orders?.status ?? null,
   createdAt: r.created_at,
   paidAt: r.orders?.paid_at ?? null,
+  notes: r.notes,
+  cancelledAt: r.cancelled_at,
+  refundedAt: r.orders?.refunded_at ?? null,
+  refundedAmount: r.orders?.refunded_amount_clp ?? null,
 });
 
 export class SupabaseAdminRepository {
@@ -129,13 +176,97 @@ export class SupabaseAdminRepository {
     return ((data as unknown as ResRow[]) ?? []).map(map);
   }
 
-  async recentBookings(limit = 80): Promise<AdminBooking[]> {
-    const { data } = await this.db
-      .from("reservations")
-      .select(SELECT)
-      .order("starts_at", { ascending: false })
-      .limit(limit);
-    return ((data as unknown as ResRow[]) ?? []).map(map);
+  /**
+   * Lista paginada de /admin/reservas: filtros (tab/tiempo/búsqueda), orden y
+   * conteos en una sola pasada (7 queries en paralelo). La página de datos NO
+   * pide count (un offset fuera de rango devuelve [] en vez de 416); el total
+   * del tab activo sale del mismo head-count que alimenta su badge, así lista
+   * y conteos comparten filtros y no pueden divergir.
+   */
+  async listBookings(qy: ReservasListQuery, nowUtc = new Date().toISOString()): Promise<ReservasListResult> {
+    const orden = ordenSpec(qy);
+    const from = (qy.page - 1) * qy.perPage;
+
+    const dataQ = this.reservasFiltered(this.db.from("reservations").select(SELECT), qy, qy.estado, nowUtc)
+      .order(orden.column, { ascending: orden.ascending, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, from + qy.perPage - 1);
+    const countFor = (tab: ReservaTab) =>
+      this.reservasFiltered(
+        this.db.from("reservations").select("id", { count: "exact", head: true }),
+        qy,
+        tab,
+        nowUtc,
+      );
+    const grandQ = this.db.from("reservations").select("id", { count: "exact", head: true });
+
+    const [data, grand, ...counts] = await Promise.all([dataQ, grandQ, ...RESERVA_TABS.map(countFor)]);
+    const failed = [data, grand, ...counts].find((r) => r.error);
+    if (failed?.error) throw new Error(failed.error.message);
+
+    const tabCounts = Object.fromEntries(
+      RESERVA_TABS.map((tab, i) => [tab, counts[i].count ?? 0]),
+    ) as Record<ReservaTab, number>;
+    return {
+      rows: ((data.data as unknown as ResRow[]) ?? []).map(map),
+      total: tabCounts[qy.estado],
+      tabCounts,
+      grandTotal: grand.count ?? 0,
+    };
+  }
+
+  /** KPIs del encabezado de /admin/reservas (globales, no dependen de los filtros). */
+  async reservasKpis(): Promise<ReservasKpis> {
+    const todayStart = DateTime.now().setZone(TZ).startOf("day");
+    const todayEnd = todayStart.plus({ days: 1 });
+    const horizon = todayEnd.plus({ days: 7 });
+    const last30Start = todayStart.minus({ days: 29 });
+
+    const [agenda, pendingPay, last30] = await Promise.all([
+      this.bookingsBetween(todayStart.toUTC().toISO()!, horizon.toUTC().toISO()!),
+      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      this.analyticsReservations(last30Start.toUTC().toISO()!, todayEnd.toUTC().toISO()!),
+    ]);
+
+    const sessions = agenda.filter((b) => b.kind !== "block");
+    const sesionesHoy = sessions.filter((b) => DateTime.fromISO(b.startsAt) < todayEnd).length;
+    return {
+      sesionesHoy,
+      proximos7d: sessions.length - sesionesHoy,
+      pagosPendientes: pendingPay.count ?? 0,
+      ingresos30d: revenueTotal(last30),
+    };
+  }
+
+  /** Aplica búsqueda + tiempo + tab sobre un builder de `reservations` (lista y conteos comparten esto). */
+  private reservasFiltered<B extends ReservasFilterable>(
+    qb: B,
+    qy: ReservasListQuery,
+    tab: ReservaTab,
+    nowUtc: string,
+  ): B {
+    const needle = escapeIlike(qy.q);
+    if (needle) {
+      qb = qb.or(
+        `customer_name.ilike.%${needle}%,customer_email.ilike.%${needle}%,customer_phone.ilike.%${needle}%`,
+      );
+    }
+    // El corte temporal es por ends_at: una sesión EN CURSO sigue en "próximas"
+    // (lo que está pasando en la cabina es lo más relevante del default).
+    if (qy.tiempo === "proximas") qb = qb.gte("ends_at", nowUtc);
+    else if (qy.tiempo === "pasadas") qb = qb.lt("ends_at", nowUtc);
+    switch (tab) {
+      case "confirmadas":
+        return qb.neq("kind", "block").eq("status", "confirmed");
+      case "espera":
+        return qb.eq("status", "held");
+      case "canceladas":
+        return qb.in("status", ["cancelled", "expired"]);
+      case "bloqueos":
+        return qb.eq("kind", "block");
+      default:
+        return qb;
+    }
   }
 
   /** Reservas activas (todas las clases) que caen en [startUtc, endUtc). Para agenda + KPIs. */
@@ -328,12 +459,8 @@ export class SupabaseAdminRepository {
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
-      cancelled_at: string | null;
-      notes: string | null;
       orders:
         | (NonNullable<ResRow["orders"]> & {
-            refunded_at: string | null;
-            refunded_amount_clp: number | null;
             mp_payment_id: string | null;
             mp_preference_id: string | null;
             mp_refund_id: string | null;
@@ -370,10 +497,6 @@ export class SupabaseAdminRepository {
       ...base,
       lines,
       taxDocs,
-      notes: row.notes,
-      cancelledAt: row.cancelled_at,
-      refundedAt: row.orders?.refunded_at ?? null,
-      refundedAmount: row.orders?.refunded_amount_clp ?? null,
       mpPaymentId: row.orders?.mp_payment_id ?? null,
       mpPreferenceId: row.orders?.mp_preference_id ?? null,
       mpRefundId: row.orders?.mp_refund_id ?? null,
