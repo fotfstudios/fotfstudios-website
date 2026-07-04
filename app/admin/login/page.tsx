@@ -25,11 +25,12 @@ function LoginForm() {
     // en su allowlist y haría caer el redirect al Site URL). En local usamos el
     // origen actual para que el enlace de Mailpit apunte a localhost.
     const origin = process.env.NODE_ENV === "production" ? SITE_URL : window.location.origin;
-    // Solo invitados existen (signup off). shouldCreateUser:false evita crear
-    // usuarios y enviar enlaces a correos no autorizados.
+    // shouldCreateUser:false: este login no crea usuarios (el signup de clientes
+    // vive en /cuenta/login). El callback enruta por rol: sin claims RBAC no se
+    // entra al panel aunque el correo exista como cliente.
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${origin}/auth/callback`, shouldCreateUser: false },
+      options: { emailRedirectTo: `${origin}/auth/callback?next=/admin`, shouldCreateUser: false },
     });
     setBusy(false);
     if (error) {
