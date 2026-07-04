@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DateTime } from "luxon";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { hhmm } from "@/components/booking/format";
-import { wallMinutes } from "@/src/domain/admin/agenda";
+import { wallMinutes, wallMinutesEnd } from "@/src/domain/admin/agenda";
 import { eventAria, eventTitle, TONE_CLS, toneOf } from "./tones";
 import type { GridDay } from "./TimeGrid";
 
@@ -14,7 +14,9 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
     <div className="flex flex-col gap-2">
       {days.map((d) => {
         const isToday = d.date === today;
+        const isPast = d.date < today;
         const dt = DateTime.fromISO(d.date).setLocale("es");
+        const dayLabel = dt.toFormat("cccc d 'de' LLLL");
         return (
           <section key={d.date} className={`border hairline ${isToday ? "ring-1 ring-inset ring-gold/50" : ""}`}>
             <header
@@ -26,12 +28,12 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
             </header>
             <div className="flex flex-col gap-1.5 p-2">
               {d.events.map((e) => {
-                const time = `${hhmm(wallMinutes(e.startsAt, d.date, tz))}–${hhmm(wallMinutes(e.endsAt, d.date, tz))}`;
+                const time = `${hhmm(wallMinutes(e.startsAt, d.date, tz))}–${hhmm(wallMinutesEnd(e.endsAt, d.date, tz))}`;
                 return (
                   <Link
                     key={e.id}
                     href={`/admin/reservas/${e.id}`}
-                    aria-label={eventAria(e, time)}
+                    aria-label={eventAria(e, time, dayLabel)}
                     className={`flex items-center justify-between gap-3 border-l-2 px-2.5 py-1.5 transition-colors ${
                       TONE_CLS[toneOf(e)]
                     }`}
@@ -44,12 +46,14 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
                   </Link>
                 );
               })}
-              <Link
-                href={`/admin/reservas/nueva?d=${d.date}`}
-                className="label-sm block px-2.5 py-2 text-bone-mute/60 transition-colors hover:bg-ink-soft hover:text-gold"
-              >
-                + Crear reserva
-              </Link>
+              {!isPast && (
+                <Link
+                  href={`/admin/reservas/nueva?d=${d.date}`}
+                  className="label-sm block px-2.5 py-2 text-bone-mute/60 transition-colors hover:bg-ink-soft hover:text-gold"
+                >
+                  + Crear reserva
+                </Link>
+              )}
             </div>
           </section>
         );

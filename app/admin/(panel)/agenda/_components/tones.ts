@@ -37,6 +37,7 @@ export function eventTitle(b: EventLike): string {
   return b.kind === "block" ? "Bloqueo" : (b.customerName ?? b.customerEmail ?? "Reserva");
 }
 
-export function eventAria(b: EventLike, timeLabel: string): string {
-  return `${TONE_LABEL[toneOf(b)]}, ${timeLabel}, ${eventTitle(b)}`;
+/** `dayLabel` desambigua en grillas multi-día (semana/mes): la columna es solo visual. */
+export function eventAria(b: EventLike, timeLabel: string, dayLabel?: string): string {
+  return `${TONE_LABEL[toneOf(b)]}, ${dayLabel ? `${dayLabel}, ` : ""}${timeLabel}, ${eventTitle(b)}`;
 }

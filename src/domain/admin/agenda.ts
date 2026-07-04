@@ -7,7 +7,7 @@
 import { DateTime } from "luxon";
 import type { ExceptionRow, OpeningHourRow } from "@/src/domain/analytics/metrics";
 import { monthGrid, type DayCell } from "@/src/domain/scheduling/month-availability";
-import { dayBoundsUtc, weekdayFor } from "@/src/domain/scheduling/time";
+import { weekdayFor } from "@/src/domain/scheduling/time";
 
 export const AGENDA_VIEWS = ["dia", "semana", "mes"] as const;
 export type AgendaView = (typeof AGENDA_VIEWS)[number];
@@ -104,11 +104,15 @@ export function eventsByDay<T extends { startsAt: string; endsAt: string }>(
   const evs = events
     .map((e) => ({ e, start: Date.parse(e.startsAt), end: Date.parse(e.endsAt) }))
     .sort((a, b) => a.start - b.start);
+  // Fin del día = INICIO del día siguiente (no dayBoundsUtc: su `plus({days:1})`
+  // conserva la hora de pared y en el salto DST de septiembre solaparía 1 h con
+  // el día siguiente, duplicando eventos de la madrugada del lunes).
+  const startOfDay = (d: string) => DateTime.fromISO(d, { zone: tz }).startOf("day").toMillis();
+  const nextDay = (d: string) => DateTime.fromISO(d).plus({ days: 1 }).toFormat("yyyy-MM-dd");
   const out: Record<string, T[]> = {};
   for (const day of days) {
-    const { startUtc, endUtc } = dayBoundsUtc(day, tz);
-    const dayStart = Date.parse(startUtc);
-    const dayEnd = Date.parse(endUtc);
+    const dayStart = startOfDay(day);
+    const dayEnd = startOfDay(nextDay(day));
     out[day] = evs.filter((x) => x.start < dayEnd && x.end > dayStart).map((x) => x.e);
   }
   return out;
@@ -124,7 +128,9 @@ export function effectiveHours(
   const ex = exceptions.find((e) => e.date === date);
   if (ex) {
     if (ex.closed) return null;
-    if (ex.openMinute != null && ex.closeMinute != null) return [ex.openMinute, ex.closeMinute];
+    // Override solo si es coherente (la tabla no exige close > open); si no, cae al weekday.
+    if (ex.openMinute != null && ex.closeMinute != null && ex.closeMinute > ex.openMinute)
+      return [ex.openMinute, ex.closeMinute];
   }
   const oh = openingHours.find((h) => h.weekday === weekdayFor(date, tz));
   return oh && oh.closeMinute > oh.openMinute ? [oh.openMinute, oh.closeMinute] : null;
@@ -168,6 +174,28 @@ export function wallMinutes(iso: string, date: string, tz: string): number {
   if (d < date) return 0;
   if (d > date) return 1440;
   return dt.hour * 60 + dt.minute;
+}
+
+/**
+ * Como `wallMinutes` pero para el FIN de un evento: en el pliegue DST (el día
+ * de 25 h, la hora 23:00 ocurre dos veces) la segunda pasada de la misma hora
+ * de reloj se corre +60 — si no, una reserva 23:00→23:00(bis) colapsaría a
+ * duración cero y desaparecería de la grilla. Luxon resuelve horas ambiguas
+ * con el offset TEMPRANO: si el instante real es posterior, es la segunda pasada.
+ */
+export function wallMinutesEnd(iso: string, date: string, tz: string): number {
+  const dt = DateTime.fromISO(iso, { zone: tz });
+  const d = dt.toISODate()!;
+  if (d < date) return 0;
+  if (d > date) return 1440;
+  const min = dt.hour * 60 + dt.minute;
+  const firstPass = DateTime.fromISO(date, { zone: tz }).set({
+    hour: dt.hour,
+    minute: dt.minute,
+    second: 0,
+    millisecond: 0,
+  });
+  return dt.toMillis() > firstPass.toMillis() ? Math.min(min + 60, 1440) : min;
 }
 
 /**

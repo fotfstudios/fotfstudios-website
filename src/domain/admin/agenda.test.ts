@@ -13,6 +13,7 @@ import {
   rangeLabel,
   shiftAnchor,
   wallMinutes,
+  wallMinutesEnd,
   type AgendaQuery,
 } from "./agenda";
 
@@ -141,6 +142,15 @@ describe("eventsByDay", () => {
     const byDay = eventsByDay(["2026-07-03"], TZ, [booking, late]);
     expect(byDay["2026-07-03"].map((e) => e.id)).toEqual(["r3", "r1"]);
   });
+
+  it("salto DST (septiembre): las ventanas de día TESELAN — un evento del lunes 00:00 no aparece el domingo", () => {
+    // dayBoundsUtc habría solapado 1 h (startOf('day') del 2026-09-06 es la 01:00
+    // y +1 día conserva la hora de pared); eventsByDay usa el inicio del día siguiente.
+    const monday = { id: "m1", startsAt: "2026-09-07T03:00:00.000Z", endsAt: "2026-09-07T05:00:00.000Z" }; // lun 00:00–02:00
+    const byDay = eventsByDay(["2026-09-06", "2026-09-07"], TZ, [monday]);
+    expect(byDay["2026-09-06"]).toEqual([]);
+    expect(byDay["2026-09-07"].map((e) => e.id)).toEqual(["m1"]);
+  });
 });
 
 describe("effectiveHours", () => {
@@ -164,6 +174,12 @@ describe("effectiveHours", () => {
     expect(
       effectiveHours(TODAY, TZ, hours, [{ date: TODAY, closed: false, openMinute: 600, closeMinute: 720 }]),
     ).toEqual([600, 720]);
+  });
+
+  it("excepción invertida (close <= open, la tabla no lo prohíbe) se ignora y cae al weekday", () => {
+    expect(
+      effectiveHours(TODAY, TZ, hours, [{ date: TODAY, closed: false, openMinute: 600, closeMinute: 480 }]),
+    ).toEqual([540, 1380]);
   });
 });
 
@@ -204,6 +220,24 @@ describe("wallMinutes", () => {
     expect(wallMinutes(tenAm, "2026-09-06", TZ)).toBe(600);
     const elapsed = toLocalMinutesInterval("2026-09-06", TZ, tenAm, tenAm);
     expect(elapsed.start).toBe(540); // el desalineamiento que wallMinutes evita
+  });
+});
+
+describe("wallMinutesEnd", () => {
+  it("fuera del pliegue DST se comporta igual que wallMinutes", () => {
+    expect(wallMinutesEnd(utc("2026-07-03", "21:00"), "2026-07-03", TZ)).toBe(1260);
+    expect(wallMinutesEnd(utc("2026-07-04", "02:00"), "2026-07-03", TZ)).toBe(1440);
+    expect(wallMinutesEnd(utc("2026-07-03", "22:00"), "2026-07-04", TZ)).toBe(0);
+  });
+
+  it("pliegue DST (día de 25 h): la segunda pasada de las 23:00 mapea a 1440, no colapsa la reserva", () => {
+    // 2027-04-03: fall-back a medianoche → 23:00 ocurre dos veces. Una cortesía
+    // 23:00→23:00(bis) = [2027-04-04T02:00Z, 03:00Z]: una hora real.
+    const start = "2027-04-04T02:00:00.000Z"; // 23:00 -03 (primera pasada)
+    const end = "2027-04-04T03:00:00.000Z"; // 23:00 -04 (segunda pasada)
+    expect(wallMinutes(start, "2027-04-03", TZ)).toBe(1380);
+    expect(wallMinutes(end, "2027-04-03", TZ)).toBe(1380); // el colapso que wallMinutesEnd corrige
+    expect(wallMinutesEnd(end, "2027-04-03", TZ)).toBe(1440);
   });
 });
 

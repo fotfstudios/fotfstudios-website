@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { DateTime } from "luxon";
 import { fmtTimeRange } from "@/components/admin/format";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { hhmm } from "@/components/booking/format";
-import { wallMinutes } from "@/src/domain/admin/agenda";
+import { wallMinutes, wallMinutesEnd } from "@/src/domain/admin/agenda";
 import { dayBoundsUtc } from "@/src/domain/scheduling/time";
 import { formatCLP } from "@/src/domain/money/money";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
@@ -34,7 +35,7 @@ export function EventBlock({
   variant: "week" | "day";
 }) {
   const startMin = Math.max(wallMinutes(b.startsAt, date, tz), axisStart);
-  const endMin = Math.min(wallMinutes(b.endsAt, date, tz), axisEnd);
+  const endMin = Math.min(wallMinutesEnd(b.endsAt, date, tz), axisEnd);
   if (endMin <= startMin) return null; // fuera del eje (defensivo)
 
   const bounds = dayBoundsUtc(date, tz);
@@ -47,11 +48,14 @@ export function EventBlock({
   // Rango de la PORCIÓN visible en esta columna (para multi-día difiere del evento).
   const timeLabel = fullDay ? "todo el día" : `${hhmm(startMin)}–${hhmm(endMin)}`;
   const title = eventTitle(b);
+  // En la grilla semanal la columna es el único indicio visual del día — el aria lo verbaliza.
+  const dayLabel =
+    variant === "week" ? DateTime.fromISO(date).setLocale("es").toFormat("cccc d 'de' LLLL") : undefined;
 
   return (
     <Link
       href={`/admin/reservas/${b.id}`}
-      aria-label={eventAria(b, timeLabel)}
+      aria-label={eventAria(b, timeLabel, dayLabel)}
       className={`absolute overflow-hidden border-l-2 ring-1 ring-ink outline-none transition-colors focus-visible:ring-gold ${
         TONE_CLS[toneOf(b)]
       } ${spansBefore ? "border-t border-t-bone-mute/50 [border-top-style:dashed]" : ""} ${
@@ -74,7 +78,7 @@ export function EventBlock({
         <>
           <span className="flex min-w-0 items-baseline gap-3">
             <span className="shrink-0 font-mono text-xs text-bone">
-              {spansBefore || spansAfter ? timeLabel : fmtTimeRange(b.startsAt, b.endsAt)}
+              {spansBefore || spansAfter ? timeLabel : fmtTimeRange(b.startsAt, b.endsAt, tz)}
             </span>
             <span className="truncate text-sm text-bone">{title}</span>
             {b.customerPhone && (

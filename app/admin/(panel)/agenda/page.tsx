@@ -8,6 +8,7 @@ import {
   eventsByDay,
   parseAgendaSearchParams,
   wallMinutes,
+  wallMinutesEnd,
   type AgendaView,
 } from "@/src/domain/admin/agenda";
 import { dayBoundsUtc, todayInTz } from "@/src/domain/scheduling/time";
@@ -70,7 +71,7 @@ export default async function AgendaPage({
       gridDays.flatMap((d) =>
         d.events.map((e) => ({
           start: wallMinutes(e.startsAt, d.date, tz),
-          end: wallMinutes(e.endsAt, d.date, tz),
+          end: wallMinutesEnd(e.endsAt, d.date, tz),
         })),
       ),
     );
@@ -106,7 +107,7 @@ export default async function AgendaPage({
         title="Agenda"
         editorial="El calendario de la cabina."
         action={
-          <Button href={`/admin/reservas/nueva?d=${q.date}`} size="sm" icon="add">
+          <Button href={`/admin/reservas/nueva?d=${q.date < today ? today : q.date}`} size="sm" icon="add">
             Nueva reserva
           </Button>
         }

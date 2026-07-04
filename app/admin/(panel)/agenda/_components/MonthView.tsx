@@ -44,8 +44,10 @@ export function MonthView({
         {weeks.flat().map((cell) => {
           const events = byDay[cell.date] ?? [];
           const isToday = cell.date === today;
+          const isPast = cell.date < today;
           const closed = closedDates?.has(cell.date) ?? false;
           const dt = DateTime.fromISO(cell.date).setLocale("es");
+          const dayLabel = dt.toFormat("cccc d 'de' LLLL");
           const { visible, hiddenCount } = chipSplit(events, MAX_CHIPS);
           const dayHref = agendaHref(query, { view: "dia", date: cell.date }, today);
           return (
@@ -55,18 +57,22 @@ export function MonthView({
                 cell.inMonth && !closed ? "bg-ink" : "bg-ink/60"
               } ${isToday ? "ring-1 ring-inset ring-gold/50" : ""}`}
             >
-              <Link
-                href={`/admin/reservas/nueva?d=${cell.date}`}
-                tabIndex={-1}
-                aria-hidden="true"
-                className="absolute inset-0 z-0 hidden transition-colors hover:bg-ink-soft/60 md:block"
-              />
-              <span
-                aria-hidden
-                className="pointer-events-none absolute right-1.5 bottom-1 z-0 hidden label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100 md:block"
-              >
-                +
-              </span>
+              {!isPast && (
+                <>
+                  <Link
+                    href={`/admin/reservas/nueva?d=${cell.date}`}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="absolute inset-0 z-0 hidden transition-colors hover:bg-ink-soft/60 md:block"
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute right-1.5 bottom-1 z-0 hidden label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100 md:block"
+                  >
+                    +
+                  </span>
+                </>
+              )}
 
               <Link
                 href={dayHref}
@@ -87,7 +93,7 @@ export function MonthView({
                     <Link
                       key={e.id}
                       href={`/admin/reservas/${e.id}`}
-                      aria-label={eventAria(e, time)}
+                      aria-label={eventAria(e, time, dayLabel)}
                       className={`block truncate border-l-2 px-1 py-px font-mono text-[11px] leading-4 outline-none transition-colors focus-visible:ring-1 focus-visible:ring-gold ${
                         TONE_CLS[toneOf(e)]
                       }`}
@@ -98,7 +104,11 @@ export function MonthView({
                   );
                 })}
                 {hiddenCount > 0 && (
-                  <Link href={dayHref} className="label-sm px-1 text-bone-mute transition-colors hover:text-gold">
+                  <Link
+                    href={dayHref}
+                    aria-label={`+${hiddenCount} más, ${dayLabel}`}
+                    className="label-sm px-1 text-bone-mute transition-colors hover:text-gold"
+                  >
                     +{hiddenCount} más
                   </Link>
                 )}

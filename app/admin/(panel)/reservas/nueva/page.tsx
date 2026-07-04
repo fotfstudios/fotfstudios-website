@@ -57,6 +57,9 @@ export default async function NuevaReserva({
     <>
       {header}
       <BookingConsole
+        // El prefill vive en useState: la key fuerza remount cuando cambia
+        // (soft navigation al mismo segmento con otro ?d=&h= no re-monta sola).
+        key={`${initialDate}:${initialStartMinute ?? ""}`}
         resourceId={resource.id}
         tz={resource.timezone}
         today={today}

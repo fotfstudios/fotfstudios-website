@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { DateTime } from "luxon";
-import { agendaHref, assignLanes, gridOrder, wallMinutes, type AgendaQuery } from "@/src/domain/admin/agenda";
+import {
+  agendaHref,
+  assignLanes,
+  gridOrder,
+  wallMinutes,
+  wallMinutesEnd,
+  type AgendaQuery,
+} from "@/src/domain/admin/agenda";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
 import { EventBlock } from "./EventBlock";
 import { NowLine } from "./NowLine";
@@ -68,6 +75,7 @@ export function TimeGrid({
       <div className="border-b hairline" />
       {days.map((d) => {
         const isToday = d.date === today;
+        const isPast = d.date < today;
         const dt = DateTime.fromISO(d.date).setLocale("es");
         return (
           <div
@@ -92,13 +100,15 @@ export function TimeGrid({
                   {dt.day}
                 </span>
               </Link>
-              <Link
-                href={`/admin/reservas/nueva?d=${d.date}`}
-                aria-label={`Crear reserva, ${dt.toFormat("cccc d 'de' LLLL")}`}
-                className="label-sm px-1 py-0.5 text-bone-mute/60 outline-none transition-colors hover:text-gold focus-visible:ring-1 focus-visible:ring-gold"
-              >
-                +
-              </Link>
+              {!isPast && (
+                <Link
+                  href={`/admin/reservas/nueva?d=${d.date}`}
+                  aria-label={`Crear reserva, ${dt.toFormat("cccc d 'de' LLLL")}`}
+                  className="label-sm px-1 py-0.5 text-bone-mute/60 outline-none transition-colors hover:text-gold focus-visible:ring-1 focus-visible:ring-gold"
+                >
+                  +
+                </Link>
+              )}
             </div>
           </div>
         );
@@ -119,35 +129,50 @@ export function TimeGrid({
 
       {/* ── columnas de día ── */}
       {days.map((d) => {
+        const isPast = d.date < today;
         const ordered = gridOrder(d.events);
         const lanes = assignLanes(
-          ordered.map((e) => ({ start: wallMinutes(e.startsAt, d.date, tz), end: wallMinutes(e.endsAt, d.date, tz) })),
+          ordered.map((e) => ({
+            start: wallMinutes(e.startsAt, d.date, tz),
+            end: wallMinutesEnd(e.endsAt, d.date, tz),
+          })),
         );
         return (
           <div key={d.date} className="relative border-l hairline" style={{ height: bodyH }}>
-            {hourStarts.map((m, i) => (
-              <Link
-                key={m}
-                href={`/admin/reservas/nueva?d=${d.date}&h=${m / 60}`}
-                tabIndex={-1}
-                aria-hidden="true"
-                className={`group absolute inset-x-0 z-0 transition-colors hover:bg-ink-soft/60 ${
-                  i > 0 ? "border-t hairline" : ""
-                }`}
-                style={{ top: i * hourPx, height: hourPx }}
-              >
-                <span className="pointer-events-none absolute top-0.5 right-1.5 label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100">
-                  +
-                </span>
-              </Link>
-            ))}
+            {hourStarts.map((m, i) =>
+              // Días pasados: sin quick-create (la consola lo rechazaría en silencio);
+              // el div conserva las líneas de hora de la grilla.
+              isPast ? (
+                <div
+                  key={m}
+                  aria-hidden
+                  className={`absolute inset-x-0 z-0 ${i > 0 ? "border-t hairline" : ""}`}
+                  style={{ top: i * hourPx, height: hourPx }}
+                />
+              ) : (
+                <Link
+                  key={m}
+                  href={`/admin/reservas/nueva?d=${d.date}&h=${m / 60}`}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className={`group absolute inset-x-0 z-0 transition-colors hover:bg-ink-soft/60 ${
+                    i > 0 ? "border-t hairline" : ""
+                  }`}
+                  style={{ top: i * hourPx, height: hourPx }}
+                >
+                  <span className="pointer-events-none absolute top-0.5 right-1.5 label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100">
+                    +
+                  </span>
+                </Link>
+              ),
+            )}
 
             {shadeClosed &&
               closedRegions(d.hours, axisStart, axisEnd).map((r) => (
                 <div
-                  key={r.start}
+                  key={`${r.start}-${r.end}`}
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-0 z-[5] bg-ink-soft/40"
+                  className="pointer-events-none absolute inset-x-0 z-5 bg-ink-soft/40"
                   style={{
                     top: ((r.start - axisStart) / 60) * hourPx,
                     height: ((r.end - r.start) / 60) * hourPx,
