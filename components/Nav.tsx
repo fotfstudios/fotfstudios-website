@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { accountEnabled } from "@/lib/flags";
 import Logo from "./Logo";
 import Magnetic from "./Magnetic";
 import { BookingCta } from "./BookingCta";
@@ -49,6 +51,11 @@ export default function Nav() {
         </div>
 
         <div className="flex items-center gap-3">
+          {accountEnabled() && (
+            <Link href="/cuenta" className="label hidden text-bone-dim transition-colors hover:text-gold lg:inline">
+              Mi cuenta
+            </Link>
+          )}
           <Magnetic className="hidden sm:inline-flex">
             <BookingCta className="bg-gold px-5 py-2.5 label text-ink">Reservar</BookingCta>
           </Magnetic>
@@ -87,6 +94,15 @@ export default function Nav() {
               {l.label}
             </a>
           ))}
+          {accountEnabled() && (
+            <Link
+              href="/cuenta"
+              onClick={() => setOpen(false)}
+              className="label border-b hairline py-4 text-bone-dim transition-colors hover:text-gold"
+            >
+              Mi cuenta
+            </Link>
+          )}
           <BookingCta
             onClick={() => setOpen(false)}
             className="mt-4 mb-2 bg-gold px-5 py-3 text-center label text-ink"

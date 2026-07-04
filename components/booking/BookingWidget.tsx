@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { DateTime } from "luxon";
 import { formatCLP } from "@/src/domain/money/money";
+import { clampPoints } from "@/src/domain/points/points";
 import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import { accountEnabled } from "@/lib/flags";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
@@ -52,10 +55,13 @@ export default function BookingWidget({
   resourceId,
   addons = [],
   volumeDiscounts = [],
+  customer = null,
 }: {
   resourceId: string;
   addons?: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts?: { minHours: number; pct: number }[];
+  /** Sesión de cliente (server la resuelve): prefill + puntos canjeables. */
+  customer?: { email: string; name: string; phone: string; points: number } | null;
 }) {
   const today = todayInSantiago();
   const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
@@ -70,12 +76,14 @@ export default function BookingWidget({
   const [duration, setDuration] = useState(1);
   const [rec, setRec] = useState<string>("none");
   const [extras, setExtras] = useState<string[]>([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(customer?.name ?? "");
+  const [email, setEmail] = useState(customer?.email ?? "");
+  const [phone, setPhone] = useState(customer?.phone ?? "");
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
+  const [pointsInput, setPointsInput] = useState(0);
 
   // Disponibilidad del mes visible (pinta el calendario). Degrada a {} si falla.
   useEffect(() => {
@@ -171,12 +179,20 @@ export default function BookingWidget({
     };
   }, [resourceId, selected, selectedStart, duration, rec, extras]);
 
+  // Canje: derivado y SIEMPRE re-acotado al render (si cambia el total, el
+  // aplicado se ajusta solo). El servidor re-valida contra el saldo real.
+  const maxApplicable = customer && quote ? clampPoints(customer.points, quote.total, customer.points) : 0;
+  const pointsApplied = usePoints && customer && quote ? clampPoints(customer.points, quote.total, pointsInput) : 0;
+  const payable = quote ? quote.total - pointsApplied : null;
+  const fullPoints = pointsApplied > 0 && payable === 0;
+
   // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError
   // con el código mapeable; deja `error` seteado y `submitting` reseteado al fallar.
   const createBookingAndGetPreference = useCallback(async (): Promise<{
     orderId: string;
-    preferenceId: string;
-    initPoint: string;
+    preferenceId?: string;
+    initPoint?: string;
+    paidWithPoints?: boolean;
   }> => {
     if (selected === null || selectedStart === null || !email) {
       throw new BookingRequestError("invalid");
@@ -184,7 +200,13 @@ export default function BookingWidget({
     setSubmitting(true);
     setError(null);
     try {
-      let data: { error?: string; orderId?: string; preferenceId?: string; initPoint?: string };
+      let data: {
+        error?: string;
+        orderId?: string;
+        preferenceId?: string;
+        initPoint?: string;
+        paidWithPoints?: boolean;
+      };
       let ok: boolean;
       try {
         const res = await fetch("/api/bookings", {
@@ -197,6 +219,7 @@ export default function BookingWidget({
             durationHours: duration,
             addonKeys: [...(rec !== "none" ? [rec] : []), ...extras],
             customer: { name, email, phone },
+            pointsToRedeem: pointsApplied,
           }),
         });
         ok = res.ok;
@@ -205,21 +228,21 @@ export default function BookingWidget({
         throw new BookingRequestError("network");
       }
       if (!ok) throw new BookingRequestError(data?.error);
-      return data as { orderId: string; preferenceId: string; initPoint: string };
+      return data as { orderId: string; preferenceId?: string; initPoint?: string; paidWithPoints?: boolean };
     } catch (e) {
       const err = e instanceof BookingRequestError ? e : new BookingRequestError("network");
       setError(bookingErrorMessage(err.code));
       setSubmitting(false);
       throw err;
     }
-  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone]);
+  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone, pointsApplied]);
 
   // Flujo clásico (fallback): redirect a init_point. `submitting` queda en true
   // a propósito → "Redirigiendo…" mientras el navegador navega.
   const submit = useCallback(async () => {
     try {
       const { initPoint } = await createBookingAndGetPreference();
-      window.location.assign(initPoint);
+      window.location.assign(initPoint as string);
     } catch {
       // error ya seteado por createBookingAndGetPreference
     }
@@ -229,7 +252,18 @@ export default function BookingWidget({
   const walletSubmit = useCallback(async () => {
     const { preferenceId } = await createBookingAndGetPreference();
     setSubmitting(false);
-    return preferenceId;
+    return preferenceId as string;
+  }, [createBookingAndGetPreference]);
+
+  // Flujo 100% puntos: no hay paso de pago — la reserva ya sale confirmada;
+  // directo a la página de estado. `submitting` queda en true durante la navegación.
+  const pointsSubmit = useCallback(async () => {
+    try {
+      const { orderId } = await createBookingAndGetPreference();
+      window.location.assign(`/reserva/estado?b=${orderId}`);
+    } catch {
+      // error ya seteado por createBookingAndGetPreference
+    }
   }, [createBookingAndGetPreference]);
 
   const isDesktop = useIsDesktop();
@@ -322,10 +356,10 @@ export default function BookingWidget({
       {/* DERECHA: resumen → desglose → tus datos → pago */}
       <div className="grain relative overflow-hidden border hairline bg-ink lg:sticky lg:top-28">
         <div className="relative p-6 md:p-8">
-          <span className="label text-bone-mute">Total</span>
+          <span className="label text-bone-mute">{pointsApplied > 0 ? "Total a pagar" : "Total"}</span>
           {quote ? (
             <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
-              {formatCLP(quote.total)}
+              {formatCLP(payable ?? quote.total)}
             </div>
           ) : quoting ? (
             <Skeleton className="mt-3 h-12 w-44 md:h-14" />
@@ -372,6 +406,12 @@ export default function BookingWidget({
                   <span className="font-mono">−{formatCLP(quote.discount)}</span>
                 </li>
               )}
+              {pointsApplied > 0 && (
+                <li className="flex justify-between gap-3 text-gold">
+                  <span>Puntos</span>
+                  <span className="font-mono">−{formatCLP(pointsApplied)}</span>
+                </li>
+              )}
             </ul>
           )}
 
@@ -415,6 +455,54 @@ export default function BookingWidget({
             </div>
           )}
 
+          {/* Tus puntos (solo con sesión y saldo) */}
+          {customer && customer.points > 0 && quote && selectedStart !== null && (
+            <div className="mt-6 border-t hairline pt-5">
+              <span className="label-sm text-bone-mute">Tus puntos</span>
+              <p className="mt-1 text-sm text-bone-dim">
+                Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en puntos.
+              </p>
+              <div className="mt-3 space-y-1.5">
+                <RecOption
+                  active={usePoints}
+                  onClick={() => {
+                    setUsePoints((v) => {
+                      if (!v) setPointsInput(maxApplicable);
+                      return !v;
+                    });
+                  }}
+                  label="Usar mis puntos"
+                  delta={usePoints ? `−${formatCLP(pointsApplied)}` : undefined}
+                />
+              </div>
+              {usePoints && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label htmlFor="bk-points" className="sr-only">
+                    Puntos a usar
+                  </label>
+                  <input
+                    id="bk-points"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={maxApplicable}
+                    value={pointsInput}
+                    onChange={(e) => setPointsInput(Number(e.target.value) || 0)}
+                    onBlur={() => setPointsInput(pointsApplied)}
+                    className={inputCls}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPointsInput(maxApplicable)}
+                    className="label-sm shrink-0 border hairline px-3 py-3 text-bone-dim transition-colors hover:border-gold hover:text-gold"
+                  >
+                    Máx
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tus datos (aparecen al elegir horario, junto al botón de pago) */}
           {selectedStart !== null && (
             <div className="rise mt-6 border-t hairline pt-5">
@@ -440,8 +528,9 @@ export default function BookingWidget({
                   required
                   placeholder="Email *"
                   value={email}
+                  disabled={!!customer}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={inputCls}
+                  className={`${inputCls} ${customer ? "opacity-60" : ""}`}
                 />
                 <label htmlFor="bk-phone" className="sr-only">
                   Teléfono (opcional)
@@ -455,12 +544,36 @@ export default function BookingWidget({
                   className={inputCls}
                 />
               </div>
+              {customer ? (
+                <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+              ) : (
+                accountEnabled() && (
+                  <p className="label-sm mt-2 text-bone-mute">
+                    ¿Tienes cuenta?{" "}
+                    <Link href="/cuenta/login?next=/reservar" className="text-gold transition-opacity hover:opacity-80">
+                      Inicia sesión
+                    </Link>{" "}
+                    para usar tus puntos.
+                  </p>
+                )
+              )}
             </div>
           )}
 
           {error && <p className="mt-4 label-sm text-sirena">{error}</p>}
 
-          {payReady && walletEnabled && isDesktop === true ? (
+          {fullPoints ? (
+            // Puntos cubren el 100%: sin paso de pago — el brick NO debe montar.
+            <button
+              type="button"
+              onClick={pointsSubmit}
+              disabled={!canPay}
+              className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
+            >
+              {submitting ? "Confirmando…" : "Pagar con puntos"}
+              <span>→</span>
+            </button>
+          ) : payReady && walletEnabled && isDesktop === true ? (
             <MpWalletButton
               className="mt-6"
               onSubmit={walletSubmit}
@@ -481,6 +594,8 @@ export default function BookingWidget({
           )}
           {selectedStart !== null && !email ? (
             <p className="mt-3 text-center label-sm text-gold">Ingresa tu email para continuar</p>
+          ) : fullPoints ? (
+            <p className="mt-3 text-center label-sm text-bone-mute">Tu reserva queda confirmada al instante</p>
           ) : (
             <p className="mt-3 text-center label-sm text-bone-mute">IVA incluido · pago seguro con Mercado Pago</p>
           )}
@@ -493,10 +608,20 @@ export default function BookingWidget({
           <div>
             <div className="label-sm text-bone-mute">Total</div>
             <div className="font-display text-xl text-bone">
-              {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
+              {quote ? formatCLP(payable ?? quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
             </div>
           </div>
-          {payReady && walletEnabled && isDesktop === false ? (
+          {fullPoints ? (
+            <button
+              type="button"
+              onClick={pointsSubmit}
+              disabled={!canPay}
+              className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
+            >
+              {submitting ? "…" : "Pagar con puntos"}
+              <span>→</span>
+            </button>
+          ) : payReady && walletEnabled && isDesktop === false ? (
             <div className="min-w-0 flex-1">
               <MpWalletButton onSubmit={walletSubmit} onFallback={() => setWalletFailed(true)} />
             </div>

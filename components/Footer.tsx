@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "./Logo";
+import { accountEnabled } from "@/lib/flags";
 import { SITE, whatsappLink } from "@/lib/site";
 import ConsentReopenLink from "./ConsentReopenLink";
 
@@ -49,6 +50,13 @@ export default function Footer() {
                   Cómo llegar
                 </a>
               </li>
+              {accountEnabled() && (
+                <li>
+                  <Link href="/cuenta" className="text-bone transition-colors hover:text-gold">
+                    Mi cuenta
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
 

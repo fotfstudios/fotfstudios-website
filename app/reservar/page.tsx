@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BookingWidget from "@/components/booking/BookingWidget";
-import { bookingEnabled, db, pricingService } from "@/src/composition";
+import { accountEnabled } from "@/lib/flags";
+import { bookingEnabled, customerService, db, pricingService } from "@/src/composition";
+import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,25 @@ export default async function ReservarPage() {
   if (!data) notFound();
 
   const catalog = await pricingService().getCatalog(data.id);
+
+  // Sesión de cliente (opcional): prefill de datos + puntos canjeables en el
+  // widget. ensureCustomer otorga aquí también los retroactivos, para que un
+  // primer login a mitad de reserva ya llegue con su saldo.
+  let customer: { email: string; name: string; phone: string; points: number } | null = null;
+  if (accountEnabled()) {
+    const session = await currentCustomer();
+    if (session) {
+      const svc = customerService();
+      await svc.ensureCustomer(session.userId, session.email);
+      const profile = await svc.profile(session.userId);
+      customer = {
+        email: session.email,
+        name: profile?.name ?? "",
+        phone: profile?.phone ?? "",
+        points: profile?.pointsBalance ?? 0,
+      };
+    }
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-20 md:py-28">
@@ -36,6 +57,7 @@ export default async function ReservarPage() {
           resourceId={data.id}
           addons={catalog?.addons ?? []}
           volumeDiscounts={catalog?.volumeDiscounts ?? []}
+          customer={customer}
         />
       </div>
     </main>

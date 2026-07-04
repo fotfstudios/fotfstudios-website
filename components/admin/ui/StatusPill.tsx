@@ -19,6 +19,13 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   // Boleta
   pendiente: { label: "Pendiente", tone: "dim" },
   emitida: { label: "Emitida", tone: "gold" },
+  // Ledger de puntos (points_entry_kind)
+  earn: { label: "Ganados", tone: "gold" },
+  earn_revoke: { label: "Descontados", tone: "mute" },
+  redeem: { label: "Canjeados", tone: "dim" },
+  redeem_release: { label: "Devueltos", tone: "dim" },
+  redeem_restore: { label: "Devueltos", tone: "dim" },
+  adjust: { label: "Ajuste", tone: "mute" },
 };
 
 const TONE: Record<Tone, string> = {
