@@ -17,6 +17,7 @@ function makeRepo(target: Target): RefundBookingRepo {
   return {
     orderForReservation: vi.fn(async () => target),
     cancelBooking: vi.fn(async () => {}),
+    refundPointsOrder: vi.fn(async () => {}),
   };
 }
 
@@ -34,6 +35,17 @@ const PAID: Target = {
   mpPaymentId: "1234567890",
   amountClp: 19990,
   refundedAmountClp: 0,
+  pointsRedeemedClp: 0,
+  startsAt: "2026-07-09T18:00:00-04:00",
+};
+
+const POINTS_PAID: Target = {
+  orderId: "o2",
+  status: "paid",
+  mpPaymentId: "offline:puntos",
+  amountClp: 0,
+  refundedAmountClp: 0,
+  pointsRedeemedClp: 19990,
   startsAt: "2026-07-09T18:00:00-04:00",
 };
 
@@ -59,6 +71,29 @@ describe("RefundService.cancelBooking", () => {
     expect(calls).toEqual(["recordEvent", "markRefunded"]); // orden inbox→asiento (anti NC duplicada)
     expect(repo.cancelBooking).not.toHaveBeenCalled(); // mark_refunded ya cancela la reserva
     expect(res.alreadyProcessed).toBe(false);
+  });
+
+  it("orden 100% puntos: repone vía refund_points_order — sin MP, sin inbox, sin NC", async () => {
+    const gw = makeGateway();
+    const repo = makeRepo(POINTS_PAID);
+    const inbox = makeInbox();
+
+    const res = await new RefundService(gw, repo, inbox).cancelBooking("r1", { refundAmount: 9995 });
+
+    expect(repo.refundPointsOrder).toHaveBeenCalledWith("o2", 9995);
+    expect(gw.refundPayment).not.toHaveBeenCalled();
+    expect(inbox.recordEvent).not.toHaveBeenCalled();
+    expect(inbox.markRefunded).not.toHaveBeenCalled();
+    expect(res.alreadyProcessed).toBe(false);
+  });
+
+  it("orden 100% puntos: reponer más que lo canjeado → error sin tocar nada", async () => {
+    const repo = makeRepo(POINTS_PAID);
+
+    await expect(
+      new RefundService(makeGateway(), repo, makeInbox()).cancelBooking("r1", { refundAmount: 20000 }),
+    ).rejects.toThrow(/puntos/);
+    expect(repo.refundPointsOrder).not.toHaveBeenCalled();
   });
 
   it("inbox duplicado (loopback ganó) → NO asienta y devuelve alreadyProcessed", async () => {
