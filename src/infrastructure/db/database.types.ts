@@ -179,6 +179,36 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          phone: string | null
+          points_balance: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          name?: string | null
+          phone?: string | null
+          points_balance?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          phone?: string | null
+          points_balance?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           active: boolean
@@ -308,6 +338,7 @@ export type Database = {
           notified_at: string | null
           paid_at: string | null
           payment_snapshot: Json | null
+          points_redeemed_clp: number
           pricing_snapshot: Json | null
           refunded_amount_clp: number
           refunded_at: string | null
@@ -329,6 +360,7 @@ export type Database = {
           notified_at?: string | null
           paid_at?: string | null
           payment_snapshot?: Json | null
+          points_redeemed_clp?: number
           pricing_snapshot?: Json | null
           refunded_amount_clp?: number
           refunded_at?: string | null
@@ -350,6 +382,7 @@ export type Database = {
           notified_at?: string | null
           paid_at?: string | null
           payment_snapshot?: Json | null
+          points_redeemed_clp?: number
           pricing_snapshot?: Json | null
           refunded_amount_clp?: number
           refunded_at?: string | null
@@ -398,6 +431,51 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payment_intents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      points_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          id: string
+          kind: Database["public"]["Enums"]["points_entry_kind"]
+          order_id: string | null
+          ref: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          id?: string
+          kind: Database["public"]["Enums"]["points_entry_kind"]
+          order_id?: string | null
+          ref?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["points_entry_kind"]
+          order_id?: string | null
+          ref?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_ledger_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_ledger_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -798,6 +876,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_points: {
+        Args: {
+          p_amount: number
+          p_customer: string
+          p_kind: Database["public"]["Enums"]["points_entry_kind"]
+          p_order: string
+          p_ref?: string
+        }
+        Returns: boolean
+      }
+      award_retro_points: { Args: { p_customer: string }; Returns: number }
       cancel_booking: {
         Args: { p_refund_id?: string; p_reservation: string }
         Returns: undefined
@@ -816,9 +905,11 @@ export type Database = {
           p_amount: number
           p_currency: string
           p_customer: Json
+          p_customer_id?: string
           p_ends: string
           p_lines: Json
           p_net: number
+          p_points?: number
           p_resource: string
           p_snapshot: Json
           p_starts: string
@@ -851,6 +942,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      refund_points_order: {
+        Args: { p_order: string; p_ref?: string; p_restore: number }
+        Returns: undefined
+      }
+      release_abandoned_redemptions: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
+      release_order_redemption: {
+        Args: { p_order: string; p_ref?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       order_status:
@@ -860,6 +963,13 @@ export type Database = {
         | "fulfilled"
         | "cancelled"
         | "refunded"
+      points_entry_kind:
+        | "earn"
+        | "earn_revoke"
+        | "redeem"
+        | "redeem_release"
+        | "redeem_restore"
+        | "adjust"
       price_book_status: "draft" | "active" | "archived"
       reservation_status: "held" | "confirmed" | "cancelled" | "expired"
       tax_doc_kind: "boleta" | "nota_credito"
@@ -1002,6 +1112,14 @@ export const Constants = {
         "fulfilled",
         "cancelled",
         "refunded",
+      ],
+      points_entry_kind: [
+        "earn",
+        "earn_revoke",
+        "redeem",
+        "redeem_release",
+        "redeem_restore",
+        "adjust",
       ],
       price_book_status: ["draft", "active", "archived"],
       reservation_status: ["held", "confirmed", "cancelled", "expired"],
