@@ -2,6 +2,11 @@ import { db, reconcileOrder } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
+// Los order id son UUID (`gen_random_uuid()`). Validar la forma antes de tocar la DB acota la
+// superficie de enumeración y evita disparar un reconcile de MP con un id basura: un id mal
+// formado responde 404, igual que un pedido inexistente (no revela la diferencia).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type OrderRow = { status: string; amount_clp: number; currency: string };
 
 async function readOrder(
@@ -29,6 +34,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
+  if (!UUID_RE.test(id)) return Response.json({ error: "no encontrado" }, { status: 404 });
   try {
     const client = db();
     let row = await readOrder(client, id);
