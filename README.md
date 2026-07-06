@@ -5,7 +5,8 @@ Next.js 15 (App Router) y Tailwind CSS v4, fiel al **Manual de Marca v1.0**.
 
 ## Stack
 
-- **Next.js 15** + React 19 (App Router, salida 100% estática)
+- **Next.js 15** + React 19 (App Router; marketing estático + reservas/admin/crons
+  dinámicos con server actions y middleware)
 - **Tailwind CSS v4** (config CSS-first en `app/globals.css`)
 - Tipografías vía `next/font`: Big Shoulders (display), JetBrains Mono (funcional),
   Fraunces Italic (editorial)
@@ -71,4 +72,10 @@ Editar `lib/site.ts`:
 
 ## Despliegue
 
-Listo para Vercel: `vercel` o conectar el repo. Sin variables de entorno.
+Desplegado en Vercel (cada push a `main` → producción). El proceso completo —
+pipeline, migraciones a prod, rollback y la config de auth que vive en el
+dashboard — está en **[DEPLOY.md](DEPLOY.md)**.
+
+Requiere variables de entorno (Supabase y, para reservas/pagos/correo, Mercado
+Pago + Resend + cron). Nombres y guía en **[.env.example](.env.example)**; el
+contrato único es [lib/env.ts](lib/env.ts).
