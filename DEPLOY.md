@@ -9,8 +9,8 @@ git. Complementa la sección "Git & deployment workflow" de [CLAUDE.md](CLAUDE.m
 | Entorno | Dónde | Base de datos | Para qué |
 |---------|-------|---------------|----------|
 | **local** | tu máquina (`npm run dev` + Supabase local) | Supabase local (puertos `544xx`) | desarrollar y **probar todo** (reservas, admin, pagos vía túnel) |
-| **preview** | Vercel, por PR | **ninguna** (sin env de Supabase) | validar que *compila* y que el marketing renderiza — **no** ejercita DB/admin/pagos |
-| **production** | Vercel → `https://fotfstudios.cl` | Supabase remoto | el sitio real |
+| **preview** | Vercel, por PR | **Supabase staging** (proyecto *free* aparte, mismo org) | revisar el PR contra una DB real (reservas/admin); el webhook de pago aún requiere túnel local |
+| **production** | Vercel → `https://fotfstudios.cl` | Supabase **producción** (remoto) | el sitio real |
 
 Regla de oro (ver [CLAUDE.md](CLAUDE.md) · *Local-first testing*): **todo se prueba
 y depura local antes de prod.** A prod solo va lo ya verificado localmente.
@@ -19,13 +19,14 @@ y depura local antes de prod.** A prod solo va lo ya verificado localmente.
 
 ```
 rama feat/… → PR → CI (lint & build + integration + CodeQL) → squash-merge a main
-   ├─ Vercel: auto-deploy del CÓDIGO a producción
-   └─ GitHub Actions job `migrate`: aplica migraciones a la DB de prod
-      (tras aprobación de 1 clic en el Environment `production`)
+   ├─ Vercel: auto-deploy del CÓDIGO a prod (env de prod vía integración nativa Supabase↔Vercel)
+   └─ GitHub Actions:  migrate-staging (canario → DB de STAGING)
+                         → aprobación de 1 clic (Environment `production`)
+                         → migrate (→ DB de PROD)
 ```
 
 1. **Rama por cambio** (`feat/…`, `fix/…`, `chore/…`), commits atómicos (Conventional Commits).
-2. **PR** → revisar el **Preview de Vercel** (solo build/marketing) → esperar los checks.
+2. **PR** → revisar el **Preview de Vercel** (ahora con **DB de staging**: reservas/admin) → esperar los checks.
 3. **Checks requeridos** (`.github/rulesets/main.json`): `lint & build` + `integration tests`.
 4. **Squash-merge** a `main`. Esto dispara en paralelo:
    - **Vercel** despliega el código a prod (cada push a `main` → prod).
@@ -34,13 +35,22 @@ rama feat/… → PR → CI (lint & build + integration + CodeQL) → squash-mer
 
 ## Migraciones a producción
 
-Las migraciones en `supabase/migrations/` son la **fuente de verdad** del esquema.
-El job `migrate` corre `supabase db push` contra la DB de prod, pero:
+Las migraciones en `supabase/migrations/` son la **fuente de verdad** del esquema. En cada
+push a `main`, tras `lint & build` + `integration tests`, se aplican en **dos pasos encadenados**:
 
-- solo en **push a `main`**, y solo si `lint & build` + `integration tests` pasaron;
-- detrás del **GitHub Environment `production`** con **revisor requerido** → se
-  **pausa esperando un clic de aprobación** antes de escribir en la DB;
-- primero imprime un **`--dry-run`** (el plan) y luego aplica.
+1. **`migrate-staging`** (canario) — `supabase db push` contra la DB de **staging**. No está
+   gateado (es non-prod), pero corre **antes** que prod: si una migración falla, el job de prod
+   ni siquiera se ofrece para aprobación. Usa el Environment `staging`.
+2. **`migrate`** (prod) — solo si el canario pasó (`needs: [verify, integration, migrate-staging]`);
+   detrás del **GitHub Environment `production`** con **revisor requerido** → se **pausa
+   esperando un clic de aprobación** antes de escribir en la DB. Primero imprime un
+   **`--dry-run`** (el plan), aplica, y al final loguea `supabase migration list --linked`
+   (paridad del ledger local vs remoto).
+
+> **⚠️ Guardrail:** la integración nativa de GitHub del proyecto de prod debe mantener
+> **«Deploy to production» APAGADO**. Si se enciende, Supabase aplicaría migraciones por su
+> cuenta (en push a `main`) **fuera** del gate de aprobación → doble vía. **GitHub Actions es
+> la única vía autoritativa** de migraciones.
 
 ### ⚠️ Regla expand/contract (obligatoria)
 
@@ -64,6 +74,49 @@ En **Settings → Environments** del repo:
    - `SUPABASE_ACCESS_TOKEN` — personal access token (dashboard → Account → Tokens)
    - `SUPABASE_DB_PASSWORD` — password de la DB de producción
    - `SUPABASE_PROJECT_ID` — project ref de producción
+
+## Staging (entorno *free* para previews con DB real)
+
+Un **segundo** proyecto Supabase *free* en el mismo org (`jpifmnnjkthybjkcvmiw`), para que los
+**Preview de Vercel** corran contra una base real (reservas/admin/pagos-sandbox) antes de prod.
+Es el modelo canónico *local → staging → prod* de la guía **Managing Environments**, adaptado a
+trunk-based: staging recibe las migraciones **en el merge a `main`** (canario), justo antes que
+prod. No usa Branching (Pro): son **dos proyectos independientes**.
+
+### Setup una sola vez (dueño) — staging
+
+1. **Crear el proyecto staging** en el mismo org, región `sa-east-1`, **Postgres 17** (igual que
+   prod). En plan free, staging + prod = el máximo de **2 proyectos activos** por org.
+2. **GitHub → Settings → Environments → `staging`** (sin revisor requerido), con secrets (mismos
+   *nombres* que `production`, *valores* de staging):
+   - `SUPABASE_ACCESS_TOKEN` — el mismo token de cuenta sirve para ambos proyectos
+   - `SUPABASE_DB_PASSWORD` — password de la DB de **staging**
+   - `SUPABASE_PROJECT_ID` — project ref de **staging**
+3. **Vercel → Settings → Environment Variables, scope = Preview** (a mano): la integración nativa
+   Supabase↔Vercel es **1:1 por proyecto de Vercel** y prod ya ocupa esa conexión (conectar
+   staging falla con *"repository already has an installed connection to a project"*). Así que las
+   vars de staging se ponen **a mano**, apuntando a staging, con los **nombres exactos** de
+   [lib/env.ts](lib/env.ts): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `NEXT_PUBLIC_BOOKING_ENABLED=true`, MP **sandbox** +
+   `NEXT_PUBLIC_MP_PUBLIC_KEY`, y opcional `RESEND_API_KEY`/`CRON_SECRET`. (El scope **Production**
+   lo maneja la integración nativa y no se toca — es Production-only, sin solape.) **Prueba de
+   aceptación:** un deploy de preview pasa `assertBaseEnv()`.
+4. **Auth de staging** (dashboard, a mano) — Site URL + Redirect URLs deben incluir los dominios
+   de preview de Vercel (`https://*.vercel.app/**` o el alias del scope) + `/auth/callback`, para
+   que el magic-link aterrice. Misma clase de config que la checklist de prod (abajo).
+5. **Seed inicial (una vez)** — `db push` aplica migraciones pero **no** `seed.sql`. Correr
+   `seed.sql` contra staging a mano (SQL editor / `psql`), ajustando el email del super-admin.
+6. **No conectar** integraciones nativas de staging: ni **Vercel** (1:1, la tiene prod) ni
+   **GitHub** (las migraciones van por Actions `migrate-staging`, para preservar el orden canario).
+
+### Límites del plan free (tenerlos presentes)
+
+- **2 proyectos activos por org** → staging + prod lo llenan; no queda lugar para un tercero free.
+- **Los proyectos free se pausan tras ~7 días inactivos** → si staging se pausa, `migrate-staging`
+  falla hasta restaurarlo desde el dashboard (un merge frecuente lo mantiene despierto).
+- **Sin aislamiento por-PR**: todos los previews comparten la única DB de staging (el aislamiento
+  por-PR es Branching = Pro). Es **descartable**: re-seedear/recrear si se ensucia o deriva.
+- Staging **no** tiene PITR/backups — da igual, es descartable.
 
 ## Config de prod que vive FUERA de git (espejar a mano)
 
