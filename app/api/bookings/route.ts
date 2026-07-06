@@ -7,6 +7,7 @@ import {
   paymentService,
 } from "@/src/composition";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
+import { hostFromHeaders } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,9 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    const pref = await paymentService(client).createPreferenceForOrder(booking.value.orderId);
+    const pref = await paymentService(client, hostFromHeaders(req.headers)).createPreferenceForOrder(
+      booking.value.orderId,
+    );
     if (!pref.ok) return Response.json({ error: pref.error }, { status: 502 });
 
     return Response.json({

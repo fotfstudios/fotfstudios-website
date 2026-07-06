@@ -53,12 +53,15 @@ export function checkoutService(client: SupabaseClient<Database> = db()): Checko
   );
 }
 
-export function paymentService(client: SupabaseClient<Database> = db()): PaymentService {
+export function paymentService(
+  client: SupabaseClient<Database> = db(),
+  requestHost?: string | null,
+): PaymentService {
   return new PaymentService(
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     new SupabaseOrderRepository(client),
     {
-      siteUrl: resolveSiteUrl(),
+      siteUrl: resolveSiteUrl(requestHost),
       // Opt-in dev-only (ver PaymentServiceConfig): vacío/ausente → undefined,
       // y MP notifica vía los Webhooks del panel (firma validable).
       notificationUrl: process.env.MP_NOTIFICATION_URL || undefined,
@@ -170,11 +173,14 @@ export async function releaseAbandonedRedemptions(client: SupabaseClient<Databas
 }
 
 /** RBAC: gestión de miembros y roles del admin (invitación nativa de Supabase). */
-export function memberService(client: SupabaseClient<Database> = db()): MemberService {
+export function memberService(
+  client: SupabaseClient<Database> = db(),
+  requestHost?: string | null,
+): MemberService {
   return new MemberService(
     new SupabaseMemberRepository(client),
     new SupabaseInviter(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY")),
-    { siteUrl: resolveSiteUrl() },
+    { siteUrl: resolveSiteUrl(requestHost) },
   );
 }
 
