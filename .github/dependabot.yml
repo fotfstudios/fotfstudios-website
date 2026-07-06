@@ -14,6 +14,16 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
+    ignore:
+      # Framework/toolchain majors are breaking upgrades done deliberately (Next
+      # codemod, TS ecosystem support), not weekly bumps — minor/patch still flow.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Keep @types/node aligned to the Node 24 runtime; its majors track Node upgrades.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Keeps the SHA-pinned GitHub Actions fresh (updates the pin + its # vN comment).
   - package-ecosystem: github-actions
