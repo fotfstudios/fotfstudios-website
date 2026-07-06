@@ -1,9 +1,18 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { assertBaseEnv, BASE_REQUIRED, missingBaseEnv, requireEnv } from "./env";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  assertBaseEnv,
+  BASE_REQUIRED,
+  missingBaseEnv,
+  missingProdEnv,
+  PROD_RECOMMENDED,
+  requireEnv,
+  warnMissingProdEnv,
+} from "./env";
 
 const snapshot = { ...process.env };
 afterEach(() => {
   process.env = { ...snapshot };
+  vi.restoreAllMocks();
 });
 
 describe("requireEnv", () => {
@@ -29,5 +38,23 @@ describe("missingBaseEnv / assertBaseEnv", () => {
     for (const n of BASE_REQUIRED) process.env[n] = "set";
     expect(missingBaseEnv()).toEqual([]);
     expect(() => assertBaseEnv()).not.toThrow();
+  });
+});
+
+describe("missingProdEnv / warnMissingProdEnv", () => {
+  it("lista las recomendadas faltantes sin lanzar", () => {
+    for (const n of PROD_RECOMMENDED) delete process.env[n];
+    expect(missingProdEnv()).toEqual([...PROD_RECOMMENDED]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(() => warnMissingProdEnv()).not.toThrow();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][0]).toMatch(/CRON_SECRET/);
+  });
+  it("no avisa cuando todas las recomendadas están presentes", () => {
+    for (const n of PROD_RECOMMENDED) process.env[n] = "set";
+    expect(missingProdEnv()).toEqual([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warnMissingProdEnv();
+    expect(warn).not.toHaveBeenCalled();
   });
 });
