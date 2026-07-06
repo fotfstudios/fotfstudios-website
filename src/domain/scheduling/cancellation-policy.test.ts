@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { refundPolicy, resolveRefundAmount, suggestedRefund } from "./cancellation-policy";
+import {
+  refundPolicy,
+  reschedulePolicy,
+  resolveRefundAmount,
+  suggestedRefund,
+} from "./cancellation-policy";
 
 // Reloj fijo: 2026-07-03 12:00 UTC. La política compara instantes (TZ solo es display).
 const NOW = new Date("2026-07-03T12:00:00Z");
@@ -27,6 +32,30 @@ describe("refundPolicy", () => {
     const tier = refundPolicy(startsAt(30), NOW);
     expect(tier.hoursUntil).toBeCloseTo(30, 5);
     expect(tier.label).toContain("total");
+  });
+});
+
+describe("reschedulePolicy", () => {
+  it("≥12 h → se puede reagendar", () => {
+    expect(reschedulePolicy(startsAt(24), NOW).allowed).toBe(true);
+    expect(reschedulePolicy(startsAt(12), NOW).allowed).toBe(true); // borde exacto favorece al cliente
+  });
+
+  it("<12 h, iniciada o pasada → no se puede reagendar", () => {
+    expect(reschedulePolicy(startsAt(11.99), NOW).allowed).toBe(false);
+    expect(reschedulePolicy(startsAt(0), NOW).allowed).toBe(false);
+    expect(reschedulePolicy(startsAt(-5), NOW).allowed).toBe(false);
+  });
+
+  it("comparte el corte de 12 h con el reembolso: bajo 12 h no hay ni reembolso ni reagendamiento", () => {
+    expect(refundPolicy(startsAt(11.99), NOW).pct).toBe(0);
+    expect(reschedulePolicy(startsAt(11.99), NOW).allowed).toBe(false);
+  });
+
+  it("expone hoursUntil y un label es-CL", () => {
+    const decision = reschedulePolicy(startsAt(30), NOW);
+    expect(decision.hoursUntil).toBeCloseTo(30, 5);
+    expect(decision.label).toContain("sin costo");
   });
 });
 
