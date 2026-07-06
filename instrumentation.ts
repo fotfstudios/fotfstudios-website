@@ -1,4 +1,4 @@
-import { assertBaseEnv, missingBaseEnv } from "@/lib/env";
+import { assertBaseEnv, missingBaseEnv, warnMissingProdEnv } from "@/lib/env";
 
 /**
  * Hook de arranque de Next.js: valida las variables de entorno base de una sola
@@ -19,4 +19,9 @@ export function register() {
     return;
   }
   assertBaseEnv();
+  // En producción real, avisa (sin tumbar el arranque) si faltan secretos
+  // condicionales cuya ausencia degrada en silencio (correos, crons, pagos).
+  if (process.env.VERCEL_ENV === "production") {
+    warnMissingProdEnv();
+  }
 }

@@ -57,3 +57,42 @@ export function assertBaseEnv(): void {
     );
   }
 }
+
+/**
+ * Variables condicionales que, si faltan en **producción**, degradan la app en
+ * silencio y sin señal al arrancar: crons `401` (sin `CRON_SECRET`), correos
+ * al vacío vía NoopMailer (sin `RESEND_API_KEY`/`EMAIL_FROM`/`OWNER_EMAIL`), y
+ * pagos deshabilitados (sin las de Mercado Pago). No son fatales —la degradación
+ * es válida en algunos entornos— así que solo avisamos, no lanzamos.
+ */
+export const PROD_RECOMMENDED = [
+  "MP_ACCESS_TOKEN",
+  "MP_WEBHOOK_SECRET",
+  "NEXT_PUBLIC_MP_PUBLIC_KEY",
+  "RESEND_API_KEY",
+  "EMAIL_FROM",
+  "OWNER_EMAIL",
+  "CRON_SECRET",
+] as const;
+
+/** Faltantes del set recomendado de prod (vacío si están todas). Puro. */
+export function missingProdEnv(): string[] {
+  return PROD_RECOMMENDED.filter((name) => !process.env[name]);
+}
+
+/**
+ * Avisa (no lanza) si faltan variables recomendadas, para que una degradación
+ * silenciosa —sin correos, crons `401`, pagos off— sea visible en los logs de
+ * arranque en vez de descubrirse en producción. Las base siguen siendo fatales
+ * vía `assertBaseEnv`. Pensada para llamarse solo en el entorno de producción.
+ */
+export function warnMissingProdEnv(): void {
+  const missing = missingProdEnv();
+  if (missing.length > 0) {
+    console.warn(
+      `[env] Producción sin variables recomendadas: ${missing.join(", ")}. ` +
+        "Las funciones asociadas degradarán en silencio (correos, crons, pagos). " +
+        "Configúralas en Vercel si corresponde.",
+    );
+  }
+}
