@@ -24,6 +24,12 @@ updates:
       # Keep @types/node aligned to the Node 24 runtime; its majors track Node upgrades.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # eslint majors must move in lockstep with eslint-config-next: its bundled
+      # eslint-plugin-react still calls context.getFilename(), removed in eslint 10
+      # (PR #85) — the lint step crashes before running. Take it deliberately when
+      # the Next preset ships an eslint-10-compatible release, not as a weekly bump.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   # Keeps the SHA-pinned GitHub Actions fresh (updates the pin + its # vN comment).
   - package-ecosystem: github-actions
