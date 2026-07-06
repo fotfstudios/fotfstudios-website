@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # App dependencies. Minor/patch bumps are grouped into one PR to cut noise;
+  # majors come as individual PRs so breaking changes get reviewed on their own.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+
+  # Keeps the SHA-pinned GitHub Actions fresh (updates the pin + its # vN comment).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
