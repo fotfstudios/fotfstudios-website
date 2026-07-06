@@ -101,11 +101,17 @@ prod. No usa Branching (Pro): son **dos proyectos independientes**.
    `NEXT_PUBLIC_MP_PUBLIC_KEY`, y opcional `RESEND_API_KEY`/`CRON_SECRET`. (El scope **Production**
    lo maneja la integración nativa y no se toca — es Production-only, sin solape.) **Prueba de
    aceptación:** un deploy de preview pasa `assertBaseEnv()`.
-4. **Auth de staging** (dashboard, a mano) — Site URL + Redirect URLs deben incluir los dominios
-   de preview de Vercel, **scopeados al proyecto**: `https://fotfstudios-website-*.vercel.app/**`
-   (el `/**` ya cubre `/auth/callback?next=`). NO usar `https://*.vercel.app/**`: aunque hace
-   match (el `-` no separa), habilita como destino de redirect a *cualquier* app en `vercel.app`
-   (open redirect). Misma clase de config que la checklist de prod (abajo).
+4. **Auth de staging** (dashboard, a mano — **la misma checklist que prod**, abajo, incl. el
+   **JWT hook** del ítem 6). En particular para staging:
+   - **Redirect URLs**: `https://fotfstudios-website-*.vercel.app/**`, **scopeado al proyecto** (el
+     `/**` ya cubre `/auth/callback?next=`). NO usar `https://*.vercel.app/**`: aunque hace match
+     (el `-` no separa), habilita como destino a *cualquier* app en `vercel.app` (open redirect).
+   - **Site URL**: `http://localhost:3000` — staging no tiene dominio público estable (los previews
+     son efímeros) y el Site URL solo se usa como *fallback*; los redirect reales los arma la app
+     con el host del preview. NO ponerlo en `www.fotfstudios.cl` (mandaría los fallback al proyecto
+     de prod).
+   - **Custom Access Token (JWT) hook**: habilitarlo también acá (ítem 6). El seed crea el
+     `admin_members`, pero sin el hook el admin cae a `/cuenta` — fue el bug de staging del 2026-07-06.
 5. **Seed inicial (una vez)** — `db push` aplica migraciones pero **no** `seed.sql`. Correr
    `seed.sql` contra staging a mano (SQL editor / `psql`), ajustando el email del super-admin.
 6. **No conectar** integraciones nativas de staging: ni **Vercel** (1:1, la tiene prod) ni
@@ -131,6 +137,14 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
 3. **Site URL** de prod = `https://www.fotfstudios.cl`.
 4. **Templates de email** (Magic Link + Confirm signup) reescritos en es-CL neutro.
 5. **SMTP propio** (Resend) o aceptar el límite por defecto (~2 emails/h) en soft launch.
+6. **Custom Access Token (JWT) hook** — habilitar en **Authentication → Hooks** apuntando a la
+   función Postgres `public.custom_access_token_hook`. La migración crea la función (+ grants a
+   `supabase_auth_admin`), pero **habilitar el hook es dashboard-only**. Sin él el login *funciona*
+   (hay sesión) pero el JWT no lleva `app_role` → `isAdminMember` es falso y el callback manda al
+   admin a **`/cuenta`** en vez de `/admin`. Todo el RBAC depende de este toggle.
+7. **JWT con claves asimétricas** (Auth → JWT Keys): `getClaims()` verifica la firma **localmente**
+   solo con claves asimétricas; con el secreto HS256 legacy hace un round-trip al servidor. Todo el
+   modelo de authz (middleware, `require-admin`, `/auth/callback`) descansa en esta suposición.
 
 > El detalle de esta checklist nació en
 > [docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md](docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md).
