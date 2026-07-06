@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
           cache: npm
@@ -39,8 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
           cache: npm
@@ -74,3 +74,45 @@ jobs:
       - name: Stop Supabase
         if: always()
         run: npx supabase stop
+
+  # ── CD: apply pending DB migrations to production ────────────────────────────
+  # Runs ONLY on push to main (post-merge) and ONLY after verify + integration
+  # pass. Gated behind the `production` GitHub Environment (repo Settings →
+  # Environments): add a required reviewer so this pauses for a one-click
+  # approval before it writes to the prod database. Define these as Environment
+  # secrets (scoped to `production`, not repo-wide):
+  #   SUPABASE_ACCESS_TOKEN  — personal access token (dashboard → account/tokens)
+  #   SUPABASE_DB_PASSWORD   — production database password
+  #   SUPABASE_PROJECT_ID    — production project ref
+  # Migrations MUST be backward-compatible (expand/contract) so the currently
+  # live code keeps working the instant they apply. See DEPLOY.md.
+  migrate:
+    name: migrate prod db
+    runs-on: ubuntu-latest
+    needs: [verify, integration]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: prod-migrate
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Link production project
+        run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      # Log the exact set of migrations that would apply — visible in the run
+      # before the real push writes anything.
+      - name: Plan (dry run)
+        run: npx supabase db push --linked --dry-run
+      - name: Apply pending migrations to prod
+        run: npx supabase db push --linked --yes
