@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SITE } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
+import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
@@ -57,7 +58,7 @@ export function paymentService(client: SupabaseClient<Database> = db()): Payment
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     new SupabaseOrderRepository(client),
     {
-      siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl",
+      siteUrl: resolveSiteUrl(),
       // Opt-in dev-only (ver PaymentServiceConfig): vacío/ausente → undefined,
       // y MP notifica vía los Webhooks del panel (firma validable).
       notificationUrl: process.env.MP_NOTIFICATION_URL || undefined,
@@ -173,7 +174,7 @@ export function memberService(client: SupabaseClient<Database> = db()): MemberSe
   return new MemberService(
     new SupabaseMemberRepository(client),
     new SupabaseInviter(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY")),
-    { siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fotfstudios.cl" },
+    { siteUrl: resolveSiteUrl() },
   );
 }
 
