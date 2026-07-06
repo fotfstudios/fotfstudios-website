@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "installCommand": "npm install --no-audit --no-fund",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude,glob)**/*.md' ':(exclude)docs/**' ':(exclude).github/**' 2>/dev/null && exit 0 || exit 1",
   "crons": [
     {
       "path": "/api/cron/reconcile",
