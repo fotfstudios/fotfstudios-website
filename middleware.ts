@@ -16,6 +16,9 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // `secure` en prod: la cookie de sesión solo viaja por HTTPS (defensa en profundidad
+      // sobre el HSTS del dominio). HttpOnly queda false por diseño de @supabase/ssr.
+      cookieOptions: { secure: process.env.NODE_ENV === "production" },
       cookies: {
         getAll() {
           return request.cookies.getAll();

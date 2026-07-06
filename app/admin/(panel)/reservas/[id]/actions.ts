@@ -11,6 +11,12 @@ const num = (fd: FormData, k: string) => Number(fd.get(k));
 
 const REFUND_MODES: readonly RefundMode[] = ["policy", "full", "none", "custom"];
 
+// Campos de texto libre que escribe el admin (folio SII, código de acceso): tope de largo y
+// sin caracteres de control. Defensa en profundidad — el admin es de confianza y React escapa
+// al render, pero acota lo que entra a la DB.
+const MAX_FIELD = 64;
+const badField = (s: string) => s.length > MAX_FIELD || [...s].some((c) => { const n = c.charCodeAt(0); return n < 32 || n === 127; });
+
 export async function cancelBookingAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("reservations.cancel");
@@ -56,6 +62,7 @@ export async function recordBoletaAction(_prev: ActionResult | null, fd: FormDat
     const docId = str(fd, "docId");
     const folio = str(fd, "folio");
     const reservationId = str(fd, "reservationId");
+    if (badField(folio)) throw new Error("Folio inválido.");
     if (folio) await adminRepository().recordBoleta(docId, folio, null);
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
@@ -66,6 +73,7 @@ export async function markAccessAction(_prev: ActionResult | null, fd: FormData)
     await requirePermission("reservations.access");
     const reservationId = str(fd, "reservationId");
     const code = str(fd, "code");
+    if (badField(code)) throw new Error("Código inválido.");
     if (code) await adminRepository().markAccess(reservationId, code);
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
