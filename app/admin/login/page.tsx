@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
 import { btn, inputCls } from "@/components/admin/ui/styles";
 import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
-import { SITE_URL } from "@/lib/site";
+import { resolveAuthOrigin } from "@/lib/site";
 
 type Status = "idle" | "sent" | "ratelimited";
 
@@ -20,11 +20,10 @@ function LoginForm() {
     e.preventDefault();
     setBusy(true);
     const supabase = createAuthBrowserClient();
-    // En producción fijamos el host del enlace al dominio canónico (no al host
-    // donde se abrió el panel, p. ej. una URL *.vercel.app, que Supabase no tiene
-    // en su allowlist y haría caer el redirect al Site URL). En local usamos el
-    // origen actual para que el enlace de Mailpit apunte a localhost.
-    const origin = process.env.NODE_ENV === "production" ? SITE_URL : window.location.origin;
+    // Host del enlace: canónico en el dominio de prod; el origen actual en
+    // preview (*.vercel.app) y local, para volver al mismo deployment y canjear
+    // el código contra su propia DB (staging/local). Ver resolveAuthOrigin.
+    const origin = resolveAuthOrigin();
     // shouldCreateUser:false: este login no crea usuarios (el signup de clientes
     // vive en /cuenta/login). El callback enruta por rol: sin claims RBAC no se
     // entra al panel aunque el correo exista como cliente.

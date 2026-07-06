@@ -32,6 +32,20 @@ export const whatsappLink = (msg: string = SITE.whatsappMsg) =>
  */
 export const SITE_URL = "https://www.fotfstudios.cl";
 
+/**
+ * Origen para los redirect de magic-link (solo cliente). En el host canónico de
+ * producción fijamos `SITE_URL` (el único allow-listeado en el proyecto de prod);
+ * en preview (`*.vercel.app`) o local usamos el origen actual —que el proyecto de
+ * Supabase de staging/local sí tiene en su allow-list— para que el enlace vuelva
+ * al mismo deployment donde se pidió y canjee el código contra su propia DB.
+ */
+export function resolveAuthOrigin(): string {
+  if (typeof window === "undefined") return SITE_URL;
+  return window.location.hostname.endsWith("fotfstudios.cl")
+    ? SITE_URL
+    : window.location.origin;
+}
+
 /** El modelo en tres pasos. */
 export const STEPS = [
   {
