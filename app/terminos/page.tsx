@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE, whatsappLink } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "29 de junio de 2026";
+const UPDATED = "6 de julio de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -111,13 +111,39 @@ export default function TerminosPage() {
           </ul>
         </Section>
 
-        <Section title="Cancelaciones y reembolsos">
+        <Section title="Cancelaciones, reembolsos y reagendamientos">
+          <p className="text-bone">Reagendar tu sesión (mover el horario):</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              Con <strong className="text-bone">12 horas o más de anticipación</strong> puedes
+              reagendar tu sesión <strong className="text-bone">sin costo</strong>, sin límite de
+              veces, sujeto a disponibilidad.
+            </li>
+            <li>
+              Con <strong className="text-bone">menos de 12 horas</strong>, o una vez iniciada la
+              sesión, no es posible reagendar.
+            </li>
+          </ul>
+          <p className="mt-6 text-bone">Cancelar y pedir reembolso:</p>
+          <p>El reembolso depende de con cuánta anticipación canceles, respecto de la hora de inicio de tu sesión:</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <strong className="text-bone">24 horas o más de anticipación:</strong> reembolso total
+              (100%).
+            </li>
+            <li>
+              <strong className="text-bone">Entre 12 y 24 horas de anticipación:</strong> reembolso
+              del 50%.
+            </li>
+            <li>
+              <strong className="text-bone">Menos de 12 horas</strong>, o si no te presentas
+              (no-show): <strong className="text-bone">no hay reembolso</strong>, ya que el horario
+              quedó reservado para ti.
+            </li>
+          </ul>
           <p>
-            Puedes cancelar o reagendar tu sesión con <strong className="text-bone">al menos 24 horas
-            de anticipación</strong> y recibir el reembolso o el cambio de horario. Dentro de las 24
-            horas previas a la sesión, o en caso de no presentarte (no-show),{" "}
-            <strong className="text-bone">no hay reembolso</strong>, ya que el horario quedó
-            reservado para ti.
+            En casos justificados podemos aplicar condiciones más flexibles a nuestro criterio; estos
+            tramos son la regla general.
           </p>
           <p>
             Para solicitar una cancelación o reagendamiento, escríbenos por{" "}
