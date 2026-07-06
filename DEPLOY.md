@@ -102,8 +102,10 @@ prod. No usa Branching (Pro): son **dos proyectos independientes**.
    lo maneja la integración nativa y no se toca — es Production-only, sin solape.) **Prueba de
    aceptación:** un deploy de preview pasa `assertBaseEnv()`.
 4. **Auth de staging** (dashboard, a mano) — Site URL + Redirect URLs deben incluir los dominios
-   de preview de Vercel (`https://*.vercel.app/**` o el alias del scope) + `/auth/callback`, para
-   que el magic-link aterrice. Misma clase de config que la checklist de prod (abajo).
+   de preview de Vercel, **scopeados al proyecto**: `https://fotfstudios-website-*.vercel.app/**`
+   (el `/**` ya cubre `/auth/callback?next=`). NO usar `https://*.vercel.app/**`: aunque hace
+   match (el `-` no separa), habilita como destino de redirect a *cualquier* app en `vercel.app`
+   (open redirect). Misma clase de config que la checklist de prod (abajo).
 5. **Seed inicial (una vez)** — `db push` aplica migraciones pero **no** `seed.sql`. Correr
    `seed.sql` contra staging a mano (SQL editor / `psql`), ajustando el email del super-admin.
 6. **No conectar** integraciones nativas de staging: ni **Vercel** (1:1, la tiene prod) ni
