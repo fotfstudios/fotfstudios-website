@@ -45,6 +45,6 @@
     "supabase": "^2.109.0",
     "tailwindcss": "^4.1.13",
     "typescript": "^5",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.10"
   }
 }
