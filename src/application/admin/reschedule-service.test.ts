@@ -42,6 +42,7 @@ function makeRepo(ctx: RescheduleContext | null): ReschedulePort {
     moveEqual: vi.fn(async () => {}),
     settleDown: vi.fn(async () => {}),
     createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
+    moveCourtesy: vi.fn(async () => {}),
   };
 }
 
@@ -57,7 +58,10 @@ const CTX: RescheduleContext = {
   reservation: { id: "r1", resourceId: "res1", startsAt: OLD_START, status: "confirmed", kind: "booking" },
   order: { id: "o1", status: "paid", amountClp: 9990, refundedAmountClp: 0, pointsRedeemedClp: 0, mpPaymentId: "mp_123" },
   addonKeys: [],
+  timezone: "America/Santiago",
 };
+
+const COURTESY: RescheduleContext = { ...CTX, order: null };
 
 const input = { reservationId: "r1", date: "2026-07-13", startMinute: 1080, durationHours: 1, now: NOW };
 
@@ -156,16 +160,52 @@ describe("RescheduleService.reschedule", () => {
     expect(repo.settleDown).not.toHaveBeenCalled();
   });
 
-  it("guardas: sin orden / no pagada / reserva no confirmada / puntos / tarde / destino pasado", async () => {
+  it("guardas: no pagada / reserva no confirmada / puntos / tarde", async () => {
     const guard = async (ctx: RescheduleContext, extra: Partial<typeof input> = {}, pricingTotal = 9990) => {
       const { service } = svc({ repo: makeRepo(ctx), pricing: makePricing(pricingTotal) });
       const res = await service.reschedule({ ...input, ...extra });
       return res.ok;
     };
-    expect(await guard({ ...CTX, order: null })).toBe(false); // sin orden
     expect(await guard({ ...CTX, order: { ...CTX.order!, status: "pending_payment" } })).toBe(false); // no pagada
     expect(await guard({ ...CTX, reservation: { ...CTX.reservation, status: "cancelled" } })).toBe(false); // no activa
     expect(await guard({ ...CTX, order: { ...CTX.order!, pointsRedeemedClp: 5000 } })).toBe(false); // puntos
     expect(await guard({ ...CTX, reservation: { ...CTX.reservation, startsAt: "2026-07-10T18:00:00Z" } })).toBe(false); // <12h
+  });
+});
+
+describe("RescheduleService.reschedule — cortesía (sin orden)", () => {
+  it("cortesía confirmada → moveCourtesy (rango por tz de la sala), sin cotizar ni MP", async () => {
+    const pricing = makePricing(9990);
+    const repo = makeRepo(COURTESY);
+    const { service } = svc({ repo, pricing });
+
+    const res = await service.reschedule(input);
+
+    expect(res.ok && res.value).toEqual({ kind: "moved" });
+    expect(pricing.quoteBooking).not.toHaveBeenCalled(); // sin plata no hay cotización
+    const args = (repo.moveCourtesy as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    // 2026-07-13 18:00 America/Santiago (UTC−4 en julio) → 22:00Z, 1 h.
+    expect(Date.parse(args.startsAt)).toBe(Date.parse("2026-07-13T22:00:00Z"));
+    expect(Date.parse(args.endsAt) - Date.parse(args.startsAt)).toBe(3_600_000);
+  });
+
+  it("cortesía a <12 h de su inicio → IGUAL se puede mover (sin plata no aplica la política)", async () => {
+    const repo = makeRepo({ ...COURTESY, reservation: { ...COURTESY.reservation, startsAt: "2026-07-10T14:00:00Z" } });
+    const { service } = svc({ repo });
+    const res = await service.reschedule(input);
+    expect(res.ok && res.value).toEqual({ kind: "moved" });
+  });
+
+  it("destino en el pasado → error", async () => {
+    const { service } = svc({ repo: makeRepo(COURTESY) });
+    const res = await service.reschedule({ ...input, date: "2026-07-01" });
+    expect(res.ok).toBe(false);
+  });
+
+  it("cortesía cancelada o bloqueo → not_active", async () => {
+    const cancelled = svc({ repo: makeRepo({ ...COURTESY, reservation: { ...COURTESY.reservation, status: "cancelled" } }) });
+    expect((await cancelled.service.reschedule(input)).ok).toBe(false);
+    const block = svc({ repo: makeRepo({ ...COURTESY, reservation: { ...COURTESY.reservation, kind: "block" } }) });
+    expect((await block.service.reschedule(input)).ok).toBe(false);
   });
 });

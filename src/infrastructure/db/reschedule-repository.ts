@@ -24,10 +24,11 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   async loadContext(reservationId: string): Promise<RescheduleContext | null> {
     const { data: r } = await this.db
       .from("reservations")
-      .select("id, resource_id, starts_at, status, kind, order_id")
+      .select("id, resource_id, starts_at, status, kind, order_id, resources(locations(timezone))")
       .eq("id", reservationId)
       .single();
     if (!r) return null;
+    const timezone = r.resources?.locations?.timezone ?? "America/Santiago";
 
     let order: RescheduleContext["order"] = null;
     let addonKeys: string[] = [];
@@ -59,7 +60,18 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       reservation: { id: r.id, resourceId: r.resource_id, startsAt: r.starts_at, status: r.status, kind: r.kind },
       order,
       addonKeys,
+      timezone,
     };
+  }
+
+  async moveCourtesy(p: { reservationId: string; startsAt: string; endsAt: string; note: string | null }): Promise<void> {
+    const { error } = await this.db.rpc("reschedule_courtesy", {
+      p_reservation: p.reservationId,
+      p_starts: p.startsAt,
+      p_ends: p.endsAt,
+      p_note: p.note ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
   }
 
   async moveEqual(p: RescheduleMoveParams): Promise<void> {

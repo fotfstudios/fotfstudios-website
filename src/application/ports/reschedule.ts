@@ -15,6 +15,8 @@ export interface RescheduleContext {
   } | null;
   /** addon_keys del pedido, para re-cotizar el nuevo horario con los mismos add-ons. */
   addonKeys: string[];
+  /** Zona horaria de la sala — para armar el rango destino sin cotizar (cortesías). */
+  timezone: string;
 }
 
 export interface RescheduleMoveParams {
@@ -47,6 +49,8 @@ export interface ReschedulePort {
   settleDown(p: RescheduleSettleDownParams): Promise<void>;
   /** Más caro: crea la orden de delta + fila pending_charge, SIN mover (RPC create_reschedule_charge). */
   createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }>;
+  /** Cortesía (sin orden): movimiento puro de calendario (RPC reschedule_courtesy). */
+  moveCourtesy(p: { reservationId: string; startsAt: string; endsAt: string; note: string | null }): Promise<void>;
 }
 
 /** Finaliza un cobro de reagendamiento diferido desde el webhook (RPC apply_reschedule_charge). */

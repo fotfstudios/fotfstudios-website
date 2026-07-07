@@ -37,6 +37,8 @@ export function RescheduleDialog(props: {
   initialMonth: string;
   addonKeys: string[];
   isOffline: boolean;
+  /** Cortesía (sin orden): movimiento sin cobro — no se cotiza ni hay delta. */
+  isCourtesy: boolean;
   customerPhone: string | null;
   volumeDiscounts: { minHours: number; pct: number }[];
 }) {
@@ -65,6 +67,7 @@ function ReschedulePicker({
   initialMonth,
   addonKeys,
   isOffline,
+  isCourtesy,
   customerPhone,
   volumeDiscounts,
   onClose,
@@ -199,7 +202,8 @@ function ReschedulePicker({
   const maxDuration = Math.min(16, selectedStart !== null ? (close - selectedStart) / 60 : close > open ? (close - open) / 60 : 8);
 
   // Cotización en vivo (debounce + abort). Delta = classify(oldLive, total).
-  const quoteKey = selectedStart !== null ? `${date}|${selectedStart}|${duration}` : null;
+  // Cortesía: sin plata no hay cotización (quoteKey null → el effect no corre).
+  const quoteKey = !isCourtesy && selectedStart !== null ? `${date}|${selectedStart}|${duration}` : null;
   useEffect(() => {
     if (quoteKey === null || selectedStart === null) return;
     const ctrl = new AbortController();
@@ -232,7 +236,7 @@ function ReschedulePicker({
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
   const delta = quote ? classifyReschedule(oldLive, quote.total) : null;
 
-  const canSubmit = selectedStart !== null && quote !== null && !pending && !loadingDay;
+  const canSubmit = selectedStart !== null && (isCourtesy || quote !== null) && !pending && !loadingDay;
 
   const submit = () => {
     if (selectedStart === null) return;
@@ -271,7 +275,7 @@ function ReschedulePicker({
         });
         return;
       } else {
-        setDone({ message: `Reserva reagendada a ${movedTo}.`, detail: null });
+        setDone({ message: `Reserva reagendada a ${movedTo}.`, detail: isCourtesy ? "Cortesía — sin cobro." : null });
       }
       toast({ tone: "ok", message: "Reserva reagendada." });
     });
@@ -390,7 +394,9 @@ function ReschedulePicker({
           <>
             <p className="text-sm text-bone">{selectionLabel}</p>
             <div className="mt-2 label-sm">
-              {quoting ? (
+              {isCourtesy ? (
+                <span className="text-bone-dim">Cortesía — se moverá sin cobro.</span>
+              ) : quoting ? (
                 <span className="text-bone-mute">Calculando…</span>
               ) : delta?.kind === "equal" ? (
                 <span className="text-bone-dim">Mismo precio — se moverá de inmediato.</span>

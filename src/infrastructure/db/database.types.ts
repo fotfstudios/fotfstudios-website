@@ -622,7 +622,7 @@ export type Database = {
           old_ends_at: string
           old_live_clp: number
           old_starts_at: string
-          original_order_id: string
+          original_order_id: string | null
           reservation_id: string
           status: string
         }
@@ -642,7 +642,7 @@ export type Database = {
           old_ends_at: string
           old_live_clp: number
           old_starts_at: string
-          original_order_id: string
+          original_order_id?: string | null
           reservation_id: string
           status?: string
         }
@@ -662,7 +662,7 @@ export type Database = {
           old_ends_at?: string
           old_live_clp?: number
           old_starts_at?: string
-          original_order_id?: string
+          original_order_id?: string | null
           reservation_id?: string
           status?: string
         }
@@ -1074,6 +1074,15 @@ export type Database = {
       release_order_redemption: {
         Args: { p_order: string; p_ref?: string }
         Returns: undefined
+      }
+      reschedule_courtesy: {
+        Args: {
+          p_ends: string
+          p_note?: string
+          p_reservation: string
+          p_starts: string
+        }
+        Returns: string
       }
       reschedule_down: {
         Args: {

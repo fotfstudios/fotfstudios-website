@@ -4,6 +4,7 @@ import type { ReschedulePort } from "@/src/application/ports/reschedule";
 import type { PaymentService } from "@/src/application/payment/payment-service";
 import type { PricingService } from "@/src/application/pricing/pricing-service";
 import { classifyReschedule } from "@/src/domain/scheduling/reschedule";
+import { rangeFor } from "@/src/domain/scheduling/time";
 import { reschedulePolicy } from "@/src/domain/scheduling/cancellation-policy";
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
@@ -59,9 +60,19 @@ export class RescheduleService {
 
     const ctx = await this.repo.loadContext(input.reservationId);
     if (!ctx) return err("not_found");
-    if (!ctx.order) return err("no_order");
-    if (ctx.order.status !== "paid") return err("not_paid");
     if (ctx.reservation.status !== "confirmed" || ctx.reservation.kind !== "booking") return err("not_active");
+
+    // Cortesía (sin orden): movimiento puro de calendario — sin plata no hay
+    // cotización, MP ni política de 12 h (misma flexibilidad que crearla). El
+    // rango destino se arma con la tz de la sala; el GiST es la red anti-solape.
+    if (!ctx.order) {
+      const range = rangeFor(input.date, input.startMinute, input.durationHours, ctx.timezone);
+      if (Date.parse(range.startsAt) <= now.getTime()) return err("target_past");
+      await this.repo.moveCourtesy({ reservationId: ctx.reservation.id, ...range, note: null });
+      return ok({ kind: "moved" });
+    }
+
+    if (ctx.order.status !== "paid") return err("not_paid");
     if (ctx.order.pointsRedeemedClp > 0) return err("points_order");
     if (!reschedulePolicy(ctx.reservation.startsAt, now).allowed) return err("too_late");
 

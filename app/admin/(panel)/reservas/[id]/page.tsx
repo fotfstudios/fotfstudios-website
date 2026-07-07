@@ -31,11 +31,14 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const isCourtesy = !isBlock && !b.orderId;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
 
-  // Reagendar: solo reservas pagadas, sin puntos, con ≥12 h de anticipación.
+  // Reagendar: reservas pagadas (sin puntos, ≥12 h de anticipación) o cortesías
+  // confirmadas (sin plata no aplica la política — misma flexibilidad que crearlas).
   // Los props del picker se calculan en el server (force-dynamic) solo si aplica.
   const canReschedule =
-    isPaid && b.status !== "cancelled" && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed;
-  const reschedProps = canReschedule ? await rescheduleDialogProps(b) : null;
+    b.status !== "cancelled" &&
+    ((isPaid && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed) ||
+      (isCourtesy && b.status === "confirmed"));
+  const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
@@ -262,8 +265,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           {reschedProps && (
             <Card title="Reagendar">
               <p className="text-sm leading-relaxed text-bone-dim">
-                Mueve la sesión a otro horario. Si el nuevo horario cuesta menos, se reembolsa la
-                diferencia al cliente.
+                {isCourtesy
+                  ? "Mueve la cortesía a otro horario. Sin cobro."
+                  : "Mueve la sesión a otro horario. Si el nuevo horario cuesta menos, se reembolsa la diferencia al cliente."}
               </p>
               <div className="mt-4">
                 <RescheduleDialog {...reschedProps} />
@@ -326,11 +330,11 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 }
 
 /** Props del picker de reagendamiento (sala default + catálogo), calculados en el server. */
-async function rescheduleDialogProps(b: AdminBookingDetail) {
+async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean) {
   const resource = await adminRepository().defaultResource();
   if (!resource) return null;
   const today = todayInTz(resource.timezone);
-  const catalog = await pricingService().getCatalog(resource.id);
+  const catalog = isCourtesy ? null : await pricingService().getCatalog(resource.id);
   return {
     reservationId: b.id,
     oldLive: (b.amount ?? 0) - (b.refundedAmount ?? 0),
@@ -341,6 +345,7 @@ async function rescheduleDialogProps(b: AdminBookingDetail) {
     initialMonth: today.slice(0, 7),
     addonKeys: b.addonKeys,
     isOffline: !b.mpPaymentId || b.mpPaymentId.startsWith("offline:"),
+    isCourtesy,
     customerPhone: b.customerPhone,
     volumeDiscounts: catalog?.volumeDiscounts ?? [],
   };

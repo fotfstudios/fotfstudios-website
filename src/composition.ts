@@ -200,7 +200,9 @@ export async function rescheduleNotifyInfo(
     .select("original_order_id, delta_clp")
     .eq("delta_order_id", deltaOrderId)
     .maybeSingle();
-  return data ? { originalOrderId: data.original_order_id, delta: data.delta_clp } : null;
+  // original_order_id es null solo en movimientos de cortesía (sin orden), que
+  // nunca tienen delta_order_id — pero el tipo lo exige.
+  return data?.original_order_id ? { originalOrderId: data.original_order_id, delta: data.delta_clp } : null;
 }
 
 /** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */

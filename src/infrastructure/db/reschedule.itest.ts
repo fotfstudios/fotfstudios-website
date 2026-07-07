@@ -239,3 +239,53 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("expired");
   });
 });
+
+// Cortesía (sin orden): movimiento puro de calendario — sin plata, sin boleta.
+describe("reschedule_courtesy", () => {
+  /** Cortesía confirmada directo en la DB (mismo shape que createCourtesyBooking). */
+  async function courtesy(startIso: string, endIso: string) {
+    const { rows } = await pg.query<{ id: string }>(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at, customer_name)
+       values ($1, 'booking', 'confirmed', $2, $3, 'Cortesía Test') returning id`,
+      [resourceId, startIso, endIso],
+    );
+    return rows[0].id;
+  }
+
+  it("mueve la cortesía a un slot libre y deja el evento en la auditoría (sin orden)", async () => {
+    const base = await paidBooking(600, "cc0"); // ancla horaria real del día
+    const cStart = addHours(base.endsAt, 1);
+    const cEnd = addHours(base.endsAt, 2);
+    const id = await courtesy(cStart, cEnd);
+
+    const newStart = addHours(base.endsAt, 3);
+    const newEnd = addHours(base.endsAt, 4);
+    await pg.query("select reschedule_courtesy($1,$2,$3)", [id, newStart, newEnd]);
+
+    const r = await pg.query<{ status: string; starts_at: string }>("select status, starts_at from reservations where id=$1", [id]);
+    expect(r.rows[0].status).toBe("confirmed");
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(new Date(newStart).toISOString());
+    const a = await pg.query<{ kind: string; status: string; original_order_id: string | null; delta_clp: number }>(
+      "select kind, status, original_order_id, delta_clp from reschedules where reservation_id=$1", [id]);
+    expect(a.rows[0]).toMatchObject({ kind: "equal", status: "applied", original_order_id: null, delta_clp: 0 });
+  });
+
+  it("mover sobre un slot ocupado → aborta (GiST), cortesía intacta", async () => {
+    const taken = await paidBooking(600, "cc1");
+    const cStart = addHours(taken.endsAt, 1);
+    const id = await courtesy(cStart, addHours(taken.endsAt, 2));
+
+    await expect(
+      pg.query("select reschedule_courtesy($1,$2,$3)", [id, taken.startsAt, taken.endsAt]),
+    ).rejects.toThrow();
+    const r = await pg.query<{ starts_at: string }>("select starts_at from reservations where id=$1", [id]);
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(new Date(cStart).toISOString());
+  });
+
+  it("reserva CON orden → rechazada (esa va por reschedule_move/down)", async () => {
+    const b = await paidBooking(600, "cc2");
+    await expect(
+      pg.query("select reschedule_courtesy($1,$2,$3)", [b.reservationId, addHours(b.endsAt, 1), addHours(b.endsAt, 2)]),
+    ).rejects.toThrow(/reschedule_not_active/);
+  });
+});
