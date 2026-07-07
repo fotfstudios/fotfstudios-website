@@ -980,6 +980,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      apply_reschedule_charge: {
+        Args: { p_delta_order: string; p_payment_id: string }
+        Returns: string
+      }
       award_retro_points: { Args: { p_customer: string }; Returns: number }
       cancel_booking: {
         Args: { p_refund_id?: string; p_reservation: string }
@@ -1028,7 +1032,28 @@ export type Database = {
         Args: { p_order: string; p_total: number }
         Returns: string
       }
+      create_reschedule_charge: {
+        Args: {
+          p_created_by?: string
+          p_delta: number
+          p_delta_net: number
+          p_delta_tax: number
+          p_ends: string
+          p_lines: Json
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: {
+          delta_order_id: string
+          reschedule_id: string
+        }[]
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      expire_abandoned_reschedules: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
       mark_refunded: {
         Args: {

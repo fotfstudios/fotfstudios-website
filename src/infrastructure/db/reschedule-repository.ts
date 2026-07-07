@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ReschedulePort,
+  RescheduleChargeParams,
   RescheduleContext,
+  RescheduleFinalizer,
   RescheduleMoveParams,
   RescheduleSettleDownParams,
 } from "@/src/application/ports/reschedule";
@@ -16,7 +18,7 @@ function rescheduleError(message: string): string {
   return message;
 }
 
-export class SupabaseRescheduleRepository implements ReschedulePort {
+export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleFinalizer {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
   async loadContext(reservationId: string): Promise<RescheduleContext | null> {
@@ -83,6 +85,47 @@ export class SupabaseRescheduleRepository implements ReschedulePort {
       p_refund_amount: p.refundAmount,
       p_note: p.note ?? undefined,
     });
+    if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }> {
+    const { data, error } = await this.db.rpc("create_reschedule_charge", {
+      p_reservation: p.reservationId,
+      p_starts: p.startsAt,
+      p_ends: p.endsAt,
+      p_snapshot: p.snapshot as unknown as Json,
+      p_lines: p.lines as unknown as Json,
+      p_delta: p.delta,
+      p_delta_net: p.deltaNet,
+      p_delta_tax: p.deltaTax,
+      p_created_by: p.createdBy ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
+    const row = data?.[0];
+    if (!row) throw new Error("No se pudo crear el cobro de reagendamiento.");
+    return { rescheduleId: row.reschedule_id, deltaOrderId: row.delta_order_id };
+  }
+
+  // ── RescheduleFinalizer (webhook) ──
+  async pendingChargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null> {
+    const { data } = await this.db
+      .from("reschedules")
+      .select("id, delta_order_id")
+      .eq("delta_order_id", orderId)
+      .eq("status", "pending_charge")
+      .maybeSingle();
+    if (!data?.delta_order_id) return null;
+    return { deltaOrderId: data.delta_order_id, rescheduleId: data.id };
+  }
+
+  async applyCharge(deltaOrderId: string, paymentId: string): Promise<"applied" | "slot_taken" | "noop"> {
+    const { data, error } = await this.db.rpc("apply_reschedule_charge", { p_delta_order: deltaOrderId, p_payment_id: paymentId });
+    if (error) throw new Error(rescheduleError(error.message));
+    return (data ?? "noop") as "applied" | "slot_taken" | "noop";
+  }
+
+  async markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void> {
+    const { error } = await this.db.rpc("mark_refunded", { p_order: deltaOrderId, p_refund_id: refundId });
     if (error) throw new Error(rescheduleError(error.message));
   }
 }

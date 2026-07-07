@@ -1,6 +1,7 @@
-import { notificationService } from "@/src/composition";
+import { notificationService, rescheduleNotifyInfo } from "@/src/composition";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import { createServiceClient } from "@/src/infrastructure/db/supabase-client";
+import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 import { verifyMpSignature } from "@/src/infrastructure/payments/mercadopago/verify-signature";
@@ -70,7 +71,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!type.includes("payment") || !resourceId) return new Response("ok", { status: 200 });
 
   const client = createServiceClient(url, key);
-  const service = new WebhookService(new MercadoPagoGateway(token), new SupabaseWebhookRepository(client));
+  // Con finalizer: los pagos de órdenes de delta de reagendamiento se finalizan
+  // (mover la reserva / reembolsar si el slot fue tomado) en vez del confirm normal.
+  const service = new WebhookService(
+    new MercadoPagoGateway(token),
+    new SupabaseWebhookRepository(client),
+    new SupabaseRescheduleRepository(client),
+  );
   try {
     const { result, orderId, refundedAmount } = await service.handlePaymentNotification(resourceId);
     if (result === "paid" && orderId) {
@@ -88,6 +95,22 @@ export async function POST(req: Request): Promise<Response> {
       await notificationService(client)
         .notifyCancellation(orderId, { refundAmount: refundedAmount ?? null })
         .catch((e) => console.error("[mp-webhook:cancel-email]", e));
+    } else if ((result === "reschedule_applied" || result === "reschedule_slot_taken") && orderId) {
+      // `orderId` acá es la orden de DELTA; el aviso es sobre la reserva ORIGINAL.
+      const info = await rescheduleNotifyInfo(orderId, client).catch(() => null);
+      if (info) {
+        if (result === "reschedule_applied") {
+          await notificationService(client)
+            .notifyReschedule(info.originalOrderId, { refundAmount: 0 })
+            .catch((e) => console.error("[mp-webhook:reschedule-email]", e));
+        } else {
+          // Slot tomado al pagar: se devolvió el excedente; la reserva NO se movió.
+          console.error(`[mp-webhook] REAGENDAMIENTO SIN CUPO — excedente devuelto (order ${info.originalOrderId})`);
+          await notificationService(client)
+            .notifyRescheduleFailed(info.originalOrderId, { refundAmount: info.delta })
+            .catch((e) => console.error("[mp-webhook:reschedule-failed-email]", e));
+        }
+      }
     }
   } catch (e) {
     console.error("[mp-webhook]", e);

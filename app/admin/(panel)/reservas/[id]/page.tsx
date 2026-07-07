@@ -310,6 +310,7 @@ async function rescheduleDialogProps(b: AdminBookingDetail) {
     initialMonth: today.slice(0, 7),
     addonKeys: b.addonKeys,
     isOffline: !b.mpPaymentId || b.mpPaymentId.startsWith("offline:"),
+    customerPhone: b.customerPhone,
     volumeDiscounts: catalog?.volumeDiscounts ?? [],
   };
 }

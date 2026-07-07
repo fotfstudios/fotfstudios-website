@@ -87,6 +87,19 @@ export function customerReschedule(
   return { subject: "Tu reserva en FOTF Studios cambió de horario", html, text };
 }
 
+export function customerRescheduleFailed(
+  v: { name: string | null; when: string; refunded: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">No pudimos cambiar tu horario</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}el horario que pediste ya estaba tomado cuando se procesó el pago. Mantuvimos tu reserva original del <strong style="color:#f5f2ec">${esc(v.when)}</strong> y te devolvimos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos para elegir otro horario</a>`,
+  );
+  const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
+  return { subject: "No pudimos cambiar tu horario en FOTF Studios", html, text };
+}
+
 /**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.

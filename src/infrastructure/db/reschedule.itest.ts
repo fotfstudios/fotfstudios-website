@@ -155,3 +155,87 @@ describe("reschedule_down (refund delta)", () => {
     ).rejects.toThrow();
   });
 });
+
+// Nuevo horario más caro (cobro diferido): la reserva NO se mueve hasta que el
+// delta esté pagado Y el slot siga libre.
+const linesUp = JSON.stringify([
+  { line_type: "room_time", description: "Sala · 1h (punta)", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 },
+]);
+const createCharge = (reservationId: string, start: string, end: string) =>
+  pg.query<{ reschedule_id: string; delta_order_id: string }>(
+    "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+    [reservationId, start, end, "{}", linesUp, 3000, 2521, 479, null],
+  );
+
+describe("reschedule charge (más caro, cobro diferido)", () => {
+  it("create_reschedule_charge NO mueve la reserva; apply (slot libre) la mueve y dobla el delta", async () => {
+    const { orderId, reservationId, startsAt, endsAt } = await paidBooking(600, "pc1"); // boleta 9990
+    const newStart = addHours(endsAt, 1);
+    const newEnd = addHours(endsAt, 2);
+
+    const c = await createCharge(reservationId, newStart, newEnd);
+    const deltaOrderId = c.rows[0].delta_order_id;
+
+    // Antes de pagar: reserva SIN mover, orden de delta pendiente, reschedule pending_charge.
+    let r = await pg.query<{ starts_at: string; status: string }>("select starts_at, status from reservations where id=$1", [reservationId]);
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(new Date(startsAt).toISOString());
+    const dOrd = await pg.query<{ status: string; amount: number }>("select status, amount_clp amount from orders where id=$1", [deltaOrderId]);
+    expect(dOrd.rows[0]).toMatchObject({ status: "pending_payment", amount: 3000 });
+    expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("pending_charge");
+
+    // Pago del delta → finalizar.
+    const applied = await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_delta_1"]);
+    expect(applied.rows[0].r).toBe("applied");
+
+    r = await pg.query<{ starts_at: string; status: string }>("select starts_at, status from reservations where id=$1", [reservationId]);
+    expect(r.rows[0].status).toBe("confirmed");
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(new Date(newStart).toISOString()); // ahora sí movida
+    const o = await pg.query<{ status: string; amount: number }>("select status, amount_clp amount from orders where id=$1", [orderId]);
+    expect(o.rows[0]).toMatchObject({ status: "paid", amount: 12990 }); // 9990 + 3000
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [deltaOrderId])).rows[0].status).toBe("fulfilled");
+    const docs = await pg.query<{ total: number }>("select total from tax_documents where order_id=$1 and kind='boleta'", [orderId]);
+    expect(docs.rows.map((d) => d.total)).toContain(3000); // boleta incremental por el delta
+    expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("applied");
+  });
+
+  it("apply con slot tomado → slot_taken: NO mueve, reschedule failed_slot_taken, boleta en la orden de delta", async () => {
+    const a = await paidBooking(600, "cs1"); // se quiere mover a las 12:00
+    const newStart = addHours(a.endsAt, 1);
+    const newEnd = addHours(a.endsAt, 2);
+    const c = await createCharge(a.reservationId, newStart, newEnd);
+    const deltaOrderId = c.rows[0].delta_order_id;
+
+    // Otro cliente toma el slot destino mientras el cobro estaba pendiente.
+    await paidBooking(720, "cs2"); // 12:00–13:00 == [newStart,newEnd]
+
+    const res = await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_delta_2"]);
+    expect(res.rows[0].r).toBe("slot_taken");
+
+    const r = await pg.query<{ starts_at: string }>("select starts_at from reservations where id=$1", [a.reservationId]);
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(new Date(a.startsAt).toISOString()); // NO se movió
+    expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("failed_slot_taken");
+    expect((await pg.query<{ total: number }>("select total from tax_documents where order_id=$1 and kind='boleta'", [deltaOrderId])).rows[0].total).toBe(3000);
+  });
+
+  it("apply repetido → noop (idempotente), sin doblar boleta ni monto", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "ci1");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    const deltaOrderId = c.rows[0].delta_order_id;
+    expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("applied");
+    expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("noop");
+    expect((await pg.query<{ amount: number }>("select amount_clp amount from orders where id=$1", [orderId])).rows[0].amount).toBe(12990); // no doblado
+    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and total=3000", [orderId])).rows[0].n).toBe("1");
+  });
+
+  it("expire_abandoned_reschedules cancela cobros pendientes viejos", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "ce1");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    const deltaOrderId = c.rows[0].delta_order_id;
+    await pg.query("update reschedules set created_at = now() - interval '73 hours' where delta_order_id=$1", [deltaOrderId]);
+
+    const n = await pg.query<{ n: number }>("select expire_abandoned_reschedules() n");
+    expect(Number(n.rows[0].n)).toBeGreaterThanOrEqual(1);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [deltaOrderId])).rows[0].status).toBe("cancelled");
+    expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("expired");
+  });
+});

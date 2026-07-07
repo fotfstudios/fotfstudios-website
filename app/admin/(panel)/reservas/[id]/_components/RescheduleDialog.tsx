@@ -13,6 +13,7 @@ import { overlaps } from "@/src/domain/scheduling/availability";
 import { classifyReschedule } from "@/src/domain/scheduling/reschedule";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { nowMinuteInTz } from "@/src/domain/scheduling/time";
+import { waLink } from "@/lib/whatsapp";
 import { AdminCalendar } from "../../nueva/_components/AdminCalendar";
 import { DayStrip } from "../../nueva/_components/DayStrip";
 import { DurationStepper } from "../../nueva/_components/DurationStepper";
@@ -35,6 +36,7 @@ export function RescheduleDialog(props: {
   initialMonth: string;
   addonKeys: string[];
   isOffline: boolean;
+  customerPhone: string | null;
   volumeDiscounts: { minHours: number; pct: number }[];
 }) {
   const [open, setOpen] = useState(false);
@@ -62,6 +64,7 @@ function ReschedulePicker({
   initialMonth,
   addonKeys,
   isOffline,
+  customerPhone,
   volumeDiscounts,
   onClose,
 }: Parameters<typeof RescheduleDialog>[0] & { onClose: () => void }) {
@@ -82,6 +85,7 @@ function ReschedulePicker({
   const [quoteRes, setQuoteRes] = useState<{ key: string; quote: QuoteView | null; error: boolean } | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [chargeLink, setChargeLink] = useState<{ initPoint: string; amount: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Disponibilidad del mes (contador monotónico → gana la última respuesta).
@@ -219,31 +223,66 @@ function ReschedulePicker({
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
   const delta = quote ? classifyReschedule(oldLive, quote.total) : null;
 
-  const canSubmit = selectedStart !== null && quote !== null && delta?.kind !== "charge" && !pending && !loadingDay;
+  const canSubmit = selectedStart !== null && quote !== null && !pending && !loadingDay;
 
   const submit = () => {
     if (selectedStart === null) return;
     setSubmitError(null);
     startTransition(async () => {
       const res = await rescheduleAction({ reservationId, date, startMinute: selectedStart, durationHours: duration });
-      if (res.ok) {
-        const msg =
-          res.data.kind === "refunded"
-            ? `Reserva reagendada. Se reembolsó ${formatCLP(res.data.amount)}${res.data.offline ? " (offline)" : ""}.`
-            : "Reserva reagendada.";
-        toast({ tone: "ok", message: msg });
-        onClose();
-        router.refresh();
-      } else {
+      if (!res.ok) {
         setSubmitError(res.error);
         toast({ tone: "error", message: res.error });
+        return;
       }
+      if (res.data.kind === "charge_pending") {
+        // Más caro: no se mueve todavía. Se muestra el link de pago para enviárselo
+        // al cliente; la reserva se mueve cuando pague (webhook).
+        setChargeLink({ initPoint: res.data.initPoint, amount: res.data.amount });
+        toast({ tone: "ok", message: "Cobro creado. Envía el link al cliente." });
+        return;
+      }
+      const msg =
+        res.data.kind === "refunded"
+          ? `Reserva reagendada. Se reembolsó ${formatCLP(res.data.amount)}${res.data.offline ? " (offline)" : ""}.`
+          : "Reserva reagendada.";
+      toast({ tone: "ok", message: msg });
+      onClose();
+      router.refresh();
     });
   };
 
   const dayLabel = DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL");
   const selectionLabel =
     selectedStart !== null ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${duration}h` : null;
+
+  if (chargeLink) {
+    const waMsg = `Hola, para confirmar tu nuevo horario en FOTF Studios necesitamos un cobro adicional de ${formatCLP(chargeLink.amount)}. Paga aquí: ${chargeLink.initPoint}`;
+    const waHref = customerPhone ? waLink(customerPhone, waMsg) : null;
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-sm leading-relaxed text-bone-dim">
+          Se creó un cobro de <strong className="text-bone">{formatCLP(chargeLink.amount)}</strong>. Envía este link al
+          cliente; la reserva se moverá automáticamente cuando pague (si el horario sigue libre).
+        </p>
+        <a href={chargeLink.initPoint} target="_blank" rel="noreferrer" className={btn("primary", "sm")}>
+          Abrir link de pago
+        </a>
+        {waHref ? (
+          <a href={waHref} target="_blank" rel="noreferrer" className={btn("secondary", "sm")}>
+            Enviar por WhatsApp
+          </a>
+        ) : (
+          <p className="label-sm text-bone-mute">Sin teléfono del cliente para WhatsApp; copia el link manualmente.</p>
+        )}
+        <div className="flex justify-end pt-1">
+          <button type="button" onClick={onClose} className={btn("secondary", "sm")}>
+            Listo
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -316,8 +355,9 @@ function ReschedulePicker({
                   {isOffline ? " — la devolución al cliente la haces tú (offline)." : " al medio de pago original."}
                 </span>
               ) : delta?.kind === "charge" ? (
-                <span className="text-sirena">
-                  Cuesta {formatCLP(delta.amount)} más. El cobro del extra aún no está disponible (próximamente).
+                <span className="text-bone-dim">
+                  Cuesta <strong className="text-bone">{formatCLP(delta.amount)}</strong> más. Se generará un cobro; la
+                  reserva se mueve cuando el cliente pague.
                 </span>
               ) : (
                 <span className="text-bone-mute">—</span>

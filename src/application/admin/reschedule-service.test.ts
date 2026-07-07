@@ -41,11 +41,16 @@ function makeRepo(ctx: RescheduleContext | null): ReschedulePort {
     loadContext: vi.fn(async () => ctx),
     moveEqual: vi.fn(async () => {}),
     settleDown: vi.fn(async () => {}),
+    createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
   };
 }
 
 function makeInbox(over = {}) {
   return { recordEvent: vi.fn(async () => true), ...over };
+}
+
+function makePayments() {
+  return { createPreferenceForOrder: vi.fn(async () => ok({ preferenceId: "pref1", initPoint: "https://mp/x" })) };
 }
 
 const CTX: RescheduleContext = {
@@ -56,18 +61,27 @@ const CTX: RescheduleContext = {
 
 const input = { reservationId: "r1", date: "2026-07-13", startMinute: 1080, durationHours: 1, now: NOW };
 
-function svc(o: { pricing?: Pick<PricingService, "quoteBooking">; gw?: Pick<PaymentGateway, "refundPayment">; repo?: ReschedulePort; inbox?: ReturnType<typeof makeInbox> } = {}) {
+function svc(o: {
+  pricing?: Pick<PricingService, "quoteBooking">;
+  gw?: Pick<PaymentGateway, "refundPayment">;
+  repo?: ReschedulePort;
+  inbox?: ReturnType<typeof makeInbox>;
+  payments?: ReturnType<typeof makePayments>;
+} = {}) {
   const repo = o.repo ?? makeRepo(CTX);
   const inbox = o.inbox ?? makeInbox();
+  const payments = o.payments ?? makePayments();
   return {
     service: new RescheduleService(
       (o.gw ?? makeGateway()) as PaymentGateway,
       (o.pricing ?? makePricing(9990)) as PricingService,
       repo,
       inbox as never,
+      payments,
     ),
     repo,
     inbox,
+    payments,
   };
 }
 
@@ -132,10 +146,14 @@ describe("RescheduleService.reschedule", () => {
     expect(repo.settleDown).not.toHaveBeenCalled();
   });
 
-  it("más caro (charge) → error (no soportado en 3a)", async () => {
-    const { service } = svc({ pricing: makePricing(19990) });
+  it("más caro (charge) → cobro diferido (charge_pending); NO mueve ni asienta", async () => {
+    const { service, repo, payments } = svc({ pricing: makePricing(19990) });
     const res = await service.reschedule(input);
-    expect(res.ok).toBe(false);
+    expect(res.ok && res.value).toMatchObject({ kind: "charge_pending", deltaOrderId: "do1", initPoint: "https://mp/x", amount: 10000 });
+    expect(repo.createCharge).toHaveBeenCalledOnce();
+    expect(payments.createPreferenceForOrder).toHaveBeenCalledWith("do1", { expiresInMinutes: 1440 });
+    expect(repo.moveEqual).not.toHaveBeenCalled();
+    expect(repo.settleDown).not.toHaveBeenCalled();
   });
 
   it("guardas: sin orden / no pagada / reserva no confirmada / puntos / tarde / destino pasado", async () => {

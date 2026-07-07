@@ -92,7 +92,13 @@ export async function reconcileOrder(
   const gateway = new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN"));
   const payment = await gateway.findPaymentByOrder(orderId);
   if (!payment) return null;
-  const service = new WebhookService(gateway, new SupabaseWebhookRepository(client));
+  // Con finalizer: los pagos de órdenes de delta de reagendamiento se finalizan
+  // (apply_reschedule_charge) en vez de ir por el confirm normal.
+  const service = new WebhookService(
+    gateway,
+    new SupabaseWebhookRepository(client),
+    new SupabaseRescheduleRepository(client),
+  );
   return service.handlePaymentNotification(payment.id);
 }
 
@@ -124,6 +130,8 @@ export async function reconcilePending(
       console.error("[reconcile]", id, e);
     }
   }
+  // Barre cobros de reagendamiento diferidos abandonados (best-effort).
+  await expireAbandonedReschedules(client).catch((e) => console.error("[reconcile:reschedules]", e));
   return { scanned: ids.length, paid, unreserved };
 }
 
@@ -163,13 +171,36 @@ export function refundService(client: SupabaseClient<Database> = db()): RefundSe
  * delta de precio en MP. Comparte el inbox del webhook (dedupe por refund id) para
  * que el loopback no cancele el booking que se mantiene vivo.
  */
-export function rescheduleService(client: SupabaseClient<Database> = db()): RescheduleService {
+export function rescheduleService(
+  client: SupabaseClient<Database> = db(),
+  requestHost?: string | null,
+): RescheduleService {
   return new RescheduleService(
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     pricingService(client),
     new SupabaseRescheduleRepository(client),
     new SupabaseWebhookRepository(client),
+    paymentService(client, requestHost),
   );
+}
+
+/** Barre cobros de reagendamiento diferidos abandonados (>72 h sin pagar). */
+export async function expireAbandonedReschedules(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data } = await client.rpc("expire_abandoned_reschedules");
+  return data ?? 0;
+}
+
+/** Mapea una orden de delta → orden original + monto del delta (para el aviso del webhook). */
+export async function rescheduleNotifyInfo(
+  deltaOrderId: string,
+  client: SupabaseClient<Database> = db(),
+): Promise<{ originalOrderId: string; delta: number } | null> {
+  const { data } = await client
+    .from("reschedules")
+    .select("original_order_id, delta_clp")
+    .eq("delta_order_id", deltaOrderId)
+    .maybeSingle();
+  return data ? { originalOrderId: data.original_order_id, delta: data.delta_clp } : null;
 }
 
 /** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */
