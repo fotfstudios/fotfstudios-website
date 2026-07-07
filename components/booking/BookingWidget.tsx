@@ -95,6 +95,7 @@ export default function BookingWidget({
   const [loginCode, setLoginCode] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginVerified, setLoginVerified] = useState(false);
   const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
 
   // Al llegar la sesión (tras verificar el código → router.refresh() re-resuelve
@@ -140,13 +141,15 @@ export default function BookingWidget({
     setLoginError(null);
     const supabase = createAuthBrowserClient();
     const { error } = await supabase.auth.verifyOtp({ email: loginEmail, token, type: "email" });
-    setLoginBusy(false);
     if (error) {
+      setLoginBusy(false);
       setLoginError("Código inválido o expirado. Pide uno nuevo.");
       return;
     }
-    // El server component vuelve a resolver `customer` (prefill + puntos); el
-    // efecto de arriba cierra el panel. El widget no se desmonta → estado intacto.
+    // Éxito: NO reseteamos loginBusy — el estado de carga puentea sin corte hasta
+    // que llega `customer` (el server component re-resuelve prefill + puntos) y el
+    // ajuste en render cierra el panel. El widget no se desmonta → estado intacto.
+    setLoginVerified(true);
     router.refresh();
   }, [loginEmail, loginCode, router]);
 
@@ -611,7 +614,12 @@ export default function BookingWidget({
                 />
               </div>
               {customer ? (
-                <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+                <>
+                  {loginVerified && (
+                    <p className="label-sm mt-2 text-gold">✓ ¡Sesión iniciada! Ya puedes usar tus puntos.</p>
+                  )}
+                  <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+                </>
               ) : (
                 accountEnabled() &&
                 (loginOpen ? (
@@ -673,7 +681,7 @@ export default function BookingWidget({
                             disabled={loginBusy || !loginCode.trim()}
                             className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
                           >
-                            {loginBusy ? "Verificando…" : "Verificar"}
+                            {loginVerified ? "Iniciando sesión…" : loginBusy ? "Verificando…" : "Verificar"}
                           </button>
                           <button
                             type="button"
