@@ -28,6 +28,10 @@ export interface CreateCheckoutParams {
   lines: CheckoutLine[];
   customerId?: string; // cuenta del cliente (canje de puntos)
   pointsRedeemed?: number;
+  /** Consentimiento T&C: 'customer' (clic en /reservar) | 'staff' (atestiguado por el dueño). NULL = sin registro. */
+  termsSource?: "customer" | "staff";
+  /** Versión de los T&C aceptada — la fija el server (TERMS_VERSION), no el cliente. */
+  termsVersion?: string;
 }
 
 export interface CheckoutRepository {

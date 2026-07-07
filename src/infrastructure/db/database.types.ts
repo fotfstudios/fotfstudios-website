@@ -344,6 +344,9 @@ export type Database = {
           refunded_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           tax_clp: number
+          terms_accepted_at: string | null
+          terms_source: string | null
+          terms_version: string | null
         }
         Insert: {
           amount_clp: number
@@ -366,6 +369,9 @@ export type Database = {
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp: number
+          terms_accepted_at?: string | null
+          terms_source?: string | null
+          terms_version?: string | null
         }
         Update: {
           amount_clp?: number
@@ -388,6 +394,9 @@ export type Database = {
           refunded_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           tax_clp?: number
+          terms_accepted_at?: string | null
+          terms_source?: string | null
+          terms_version?: string | null
         }
         Relationships: []
       }
@@ -914,6 +923,8 @@ export type Database = {
           p_snapshot: Json
           p_starts: string
           p_tax: number
+          p_terms_source?: string
+          p_terms_version?: string
           p_ttl?: string
         }
         Returns: string

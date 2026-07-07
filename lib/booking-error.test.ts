@@ -23,6 +23,12 @@ describe("bookingErrorMessage", () => {
     );
   });
 
+  it("terms_required → aceptar términos", () => {
+    expect(bookingErrorMessage("terms_required")).toBe(
+      "Debes aceptar los términos y condiciones para reservar.",
+    );
+  });
+
   it("points_session → sesión expirada", () => {
     expect(bookingErrorMessage("points_session")).toBe("Tu sesión expiró. Vuelve a entrar para usar tus puntos.");
   });

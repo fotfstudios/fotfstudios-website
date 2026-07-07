@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
 import { adminRepository, checkoutService, pricingService } from "@/src/composition";
+import { TERMS_VERSION } from "@/lib/site";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
@@ -74,8 +75,20 @@ export async function createManualBookingAction(
 
     // Pago offline (efectivo/transferencia): cobra el total y marca pagado. El admin queda
     // exento de la anticipación mínima (walk-ins), pero el pasado sigue vetado.
+    // Consentimiento atestiguado por el staff (no bloquea): registra terms_source='staff' en
+    // el pedido. La cortesía no pasa por acá (no crea orden → sin registro; el link de T&C
+    // igual viaja en el WhatsApp de confirmación).
+    const attested = input.termsAccepted === true;
     const booking = await checkoutService().createBooking(
-      { resourceId: resource.id, date, startMinute, durationHours, addonKeys, customer },
+      {
+        resourceId: resource.id,
+        date,
+        startMinute,
+        durationHours,
+        addonKeys,
+        customer,
+        ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
+      },
       { enforceLeadTime: false },
     );
     if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));

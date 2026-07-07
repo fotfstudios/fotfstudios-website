@@ -196,3 +196,27 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
     expect(params.lines.some((l) => l.description === "Canje de puntos")).toBe(false);
   });
 });
+
+describe("CheckoutService.createBooking — consentimiento T&C", () => {
+  it("propaga termsSource y termsVersion a la DB", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    await svc.createBooking({ ...input, termsSource: "customer", termsVersion: "2026-07-06" });
+
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.termsSource).toBe("customer");
+    expect(params.termsVersion).toBe("2026-07-06");
+  });
+
+  it("sin consentimiento: termsSource/termsVersion quedan undefined", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    await svc.createBooking(input);
+
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.termsSource).toBeUndefined();
+    expect(params.termsVersion).toBeUndefined();
+  });
+});

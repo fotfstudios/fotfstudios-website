@@ -28,6 +28,8 @@ export interface ManualBookingInput {
   method: string;
   customer: { name?: string; email?: string; phone?: string };
   notes: string;
+  /** Atestación del staff: el dueño confirma que el cliente aceptó los T&C (registra terms_source='staff'). */
+  termsAccepted?: boolean;
 }
 
 export interface ManualBookingResult {

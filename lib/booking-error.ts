@@ -19,6 +19,8 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
       return "No tienes puntos suficientes para ese canje. Actualiza la página e intenta de nuevo.";
     case "points_session":
       return "Tu sesión expiró. Vuelve a entrar para usar tus puntos.";
+    case "terms_required":
+      return "Debes aceptar los términos y condiciones para reservar.";
     default:
       return "No se pudo crear la reserva.";
   }
