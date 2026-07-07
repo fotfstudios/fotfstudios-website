@@ -25,6 +25,17 @@ export const metadata = { title: "Reserva — Admin", robots: { index: false } }
 /** Categoría de cada evento del timeline de actividad. */
 type ActivityTag = "Reservas" | "Pagos" | "Notificaciones";
 
+/**
+ * Tono por categoría (leyenda + punto + chip). Oro = plata (mismo código que
+ * StatusPill usa para pagada); Sirena queda fuera — es solo para urgencia.
+ */
+const TAG_TONE: Record<ActivityTag, { dot: string; text: string }> = {
+  Pagos: { dot: "bg-gold", text: "text-gold" },
+  Reservas: { dot: "bg-bone", text: "text-bone" },
+  Notificaciones: { dot: "bg-bone-dim", text: "text-bone-dim" },
+};
+const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Notificaciones"];
+
 export default async function BookingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const b = await adminRepository().getBooking(id);
@@ -329,15 +340,27 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
       {/* Timeline de actividad: ancho completo, al final de la página. */}
       {!isBlock && (
         <div className="mt-6">
-          <Card title="Actividad">
+          <Card
+            title="Actividad"
+            action={
+              <div className="flex items-center gap-4">
+                {TAG_ORDER.filter((t) => timeline.some((e) => e.tag === t)).map((t) => (
+                  <span key={t} className={`inline-flex items-center gap-1.5 label-sm ${TAG_TONE[t].text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${TAG_TONE[t].dot}`} />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            }
+          >
             <ol className="flex flex-col gap-4">
               {timeline.map((a, i) => (
                 <li key={i} className="flex gap-3">
-                  <span className="mt-1 size-2 shrink-0 rounded-full bg-gold" />
+                  <span className={`mt-1 size-2 shrink-0 rounded-full ${TAG_TONE[a.tag].dot}`} />
                   <div className="-mt-0.5 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-bone">{a.label}</p>
-                      <span className="border hairline px-2 py-0.5 label-sm text-bone-mute">{a.tag}</span>
+                      <span className={`border hairline px-2 py-0.5 label-sm ${TAG_TONE[a.tag].text}`}>{a.tag}</span>
                     </div>
                     {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
                     <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
