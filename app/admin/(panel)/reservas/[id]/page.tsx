@@ -22,6 +22,9 @@ import { RescheduleDialog } from "./_components/RescheduleDialog";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
 
+/** Categoría de cada evento del timeline de actividad. */
+type ActivityTag = "Reservas" | "Pagos" | "Notificaciones";
+
 export default async function BookingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const b = await adminRepository().getBooking(id);
@@ -43,13 +46,14 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
-  const activity: { label: string; detail?: string; at: string | null }[] = [
-    { label: "Reserva creada", at: b.createdAt },
+  const activity: { label: string; detail?: string; at: string | null; tag: ActivityTag }[] = [
+    { label: "Reserva creada", at: b.createdAt, tag: "Reservas" },
   ];
-  if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt });
-  else if (b.status === "confirmed" && !b.orderId) activity.push({ label: "Confirmada (cortesía)", at: null });
+  if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt, tag: "Pagos" });
+  else if (b.status === "confirmed" && !b.orderId)
+    activity.push({ label: "Confirmada (cortesía)", at: null, tag: "Reservas" });
   // Reagendamientos (auditoría): cada movimiento con su horario viejo → nuevo y el
-  // delta de plata si lo hubo. Van tras el pago (solo reservas pagadas se reagendan).
+  // delta de plata si lo hubo.
   for (const m of b.reschedules) {
     const move = `${fmtDateTime(m.oldStartsAt)} → ${fmtDateTime(m.newStartsAt)}`;
     if (m.status === "applied") {
@@ -59,26 +63,39 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           : m.kind === "charge"
             ? ` · cobro extra ${formatCLP(m.deltaClp)}`
             : "";
-      activity.push({ label: "Reagendada", detail: `${move}${money}`, at: m.appliedAt ?? m.createdAt });
+      activity.push({ label: "Reagendada", detail: `${move}${money}`, at: m.appliedAt ?? m.createdAt, tag: "Reservas" });
     } else if (m.status === "pending_charge") {
       activity.push({
         label: "Reagendamiento pendiente de pago",
         detail: `${move} · ${formatCLP(m.deltaClp)} extra — se mueve al pagarse`,
         at: m.createdAt,
+        tag: "Pagos",
       });
     } else if (m.status === "failed_slot_taken") {
       activity.push({
         label: "Reagendamiento fallido (horario tomado)",
         detail: `${move} · excedente ${formatCLP(m.deltaClp)} devuelto`,
         at: m.createdAt,
+        tag: "Pagos",
       });
     } else if (m.status === "expired") {
-      activity.push({ label: "Cobro de reagendamiento expirado", detail: move, at: m.createdAt });
+      activity.push({ label: "Cobro de reagendamiento expirado", detail: move, at: m.createdAt, tag: "Pagos" });
     }
   }
-  if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt });
-  if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt });
-  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt });
+  if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt, tag: "Notificaciones" });
+  if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt, tag: "Pagos" });
+  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt, tag: "Reservas" });
+
+  // Más reciente primero. Sin timestamp (cortesía confirmada) cuenta como la creación;
+  // en empates gana el evento posterior del ciclo de vida (índice de armado invertido).
+  const timeline = activity
+    .map((e, i) => ({ e, i }))
+    .sort((x, y) => {
+      const tx = Date.parse(x.e.at ?? b.createdAt);
+      const ty = Date.parse(y.e.at ?? b.createdAt);
+      return ty - tx || y.i - x.i;
+    })
+    .map(({ e }) => e);
 
   return (
     <>
@@ -245,23 +262,6 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
-          {!isBlock && (
-            <Card title="Actividad">
-              <ol className="flex flex-col gap-4">
-                {activity.map((a, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="mt-1 size-2 shrink-0 rounded-full bg-gold" />
-                    <div className="-mt-0.5">
-                      <p className="text-sm text-bone">{a.label}</p>
-                      {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
-                      <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </Card>
-          )}
-
           {reschedProps && (
             <Card title="Reagendar">
               <p className="text-sm leading-relaxed text-bone-dim">
@@ -325,6 +325,29 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           )}
         </aside>
       </div>
+
+      {/* Timeline de actividad: ancho completo, al final de la página. */}
+      {!isBlock && (
+        <div className="mt-6">
+          <Card title="Actividad">
+            <ol className="flex flex-col gap-4">
+              {timeline.map((a, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="mt-1 size-2 shrink-0 rounded-full bg-gold" />
+                  <div className="-mt-0.5 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-bone">{a.label}</p>
+                      <span className="border hairline px-2 py-0.5 label-sm text-bone-mute">{a.tag}</span>
+                    </div>
+                    {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
+                    <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+      )}
     </>
   );
 }
