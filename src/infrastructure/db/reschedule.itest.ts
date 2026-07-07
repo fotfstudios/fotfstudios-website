@@ -206,8 +206,10 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     const o = await pg.query<{ status: string; amount: number }>("select status, amount_clp amount from orders where id=$1", [orderId]);
     expect(o.rows[0]).toMatchObject({ status: "paid", amount: 12990 }); // 9990 + 3000
     expect((await pg.query<{ status: string }>("select status from orders where id=$1", [deltaOrderId])).rows[0].status).toBe("fulfilled");
-    const docs = await pg.query<{ total: number }>("select total from tax_documents where order_id=$1 and kind='boleta'", [orderId]);
-    expect(docs.rows.map((d) => d.total)).toContain(3000); // boleta incremental por el delta
+    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1 order by created_at", [orderId]);
+    // Consolidación: boleta vieja 9990, NC 9990 que la anula, boleta nueva 12990 (= live).
+    expect(docs.rows.filter((d) => d.kind === "boleta").map((d) => d.total).sort((a, b) => a - b)).toEqual([9990, 12990]);
+    expect(docs.rows.filter((d) => d.kind === "nota_credito").map((d) => d.total)).toEqual([9990]);
     expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("applied");
   });
 
@@ -237,7 +239,17 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("applied");
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("noop");
     expect((await pg.query<{ amount: number }>("select amount_clp amount from orders where id=$1", [orderId])).rows[0].amount).toBe(12990); // no doblado
-    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and total=3000", [orderId])).rows[0].n).toBe("1");
+    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and total=12990", [orderId])).rows[0].n).toBe("1");
+  });
+
+  it("tras el encarecimiento, un mark_refunded posterior emite NC que calza con la boleta viva (12990)", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "cinv");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select apply_reschedule_charge($1,$2)", [c.rows[0].delta_order_id, "mp_inv"]);
+    await pg.query("select mark_refunded($1,$2,$3)", [orderId, "mp_ref_inv", 12990]);
+    const ncs = await pg.query<{ total: number }>("select total from tax_documents where order_id=$1 and kind='nota_credito' order by created_at", [orderId]);
+    // Dos NC: la de consolidación (9990) y la del reembolso total posterior (12990, = boleta viva).
+    expect(ncs.rows.map((d) => d.total)).toEqual([9990, 12990]);
   });
 
   it("expire_abandoned_reschedules cancela cobros pendientes viejos", async () => {
