@@ -1,4 +1,5 @@
 import type { Quote } from "@/src/domain/pricing/types";
+import type { OrderLine } from "@/src/domain/pricing/order-lines";
 
 export interface Customer {
   name?: string;
@@ -6,14 +7,8 @@ export interface Customer {
   phone?: string;
 }
 
-export interface CheckoutLine {
-  line_type: "room_time" | "flat_service" | "discount";
-  addon_key?: string;
-  description: string;
-  quantity: number;
-  unit_price_clp: number;
-  subtotal_clp: number;
-}
+/** Shape de línea de pedido — vive en el dominio (`order-lines`); acá se reexporta. */
+export type CheckoutLine = OrderLine;
 
 export interface CreateCheckoutParams {
   resourceId: string;
