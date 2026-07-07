@@ -57,4 +57,8 @@ export interface PaymentGateway {
   findPaymentByOrder(orderId: string): Promise<PaymentInfo | null>;
   /** Reembolsa un pago. Sin `amount` → total; con `amount` → parcial. */
   refundPayment(paymentId: string, amount?: number): Promise<RefundResult>;
+  /** Lista los reembolsos de un pago (MP: `GET /v1/payments/{id}/refunds`). */
+  listRefunds(paymentId: string): Promise<PaymentRefundInfo[]>;
+  /** Obtiene un reembolso puntual (MP: `GET /v1/payments/{id}/refunds/{refundId}`); null si no existe. */
+  getRefund(paymentId: string, refundId: string): Promise<PaymentRefundInfo | null>;
 }

@@ -49,6 +49,12 @@ class StubGateway implements PaymentGateway {
   async refundPayment(): Promise<RefundResult> {
     throw new Error("unused");
   }
+  async listRefunds() {
+    return this.info.refunds ?? [];
+  }
+  async getRefund() {
+    return this.info.refunds?.[0] ?? null;
+  }
 }
 
 const MON = futureDate(1); // lunes futuro
