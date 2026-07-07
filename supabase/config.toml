@@ -260,6 +260,30 @@ otp_expiry = 3600
 # subject = "Your password has been changed"
 # content_path = "./templates/password_changed_notification.html"
 
+# Plantillas de autenticación (FOTF Studios). Copy reformulado para que el código de
+# inicio de sesión NO se confunda con la clave de la sala (esa se coordina por WhatsApp).
+# Ambas apuntan al mismo archivo — el texto es idéntico. Nuevo cliente por magic link
+# recibe `confirmation`; cliente/admin recurrente recibe `magic_link`. Solo aplica al
+# stack LOCAL; en staging/prod estas plantillas viven en el Dashboard (espejar a mano).
+[auth.email.template.magic_link]
+subject = "Tu código para iniciar sesión en FOTF Studios: {{ .Token }}"
+content_path = "./supabase/templates/login-code.html"
+
+[auth.email.template.confirmation]
+subject = "Tu código para iniciar sesión en FOTF Studios: {{ .Token }}"
+content_path = "./supabase/templates/login-code.html"
+
+# App passwordless (magic link/OTP): recovery y email_change no los dispara la app hoy,
+# pero se dejan on-brand por si se gatillan (acción de admin / API). Mismo criterio:
+# "código de verificación", nunca "código de acceso".
+[auth.email.template.recovery]
+subject = "Tu código para recuperar el acceso a FOTF Studios: {{ .Token }}"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirma tu nuevo correo en FOTF Studios: {{ .Token }}"
+content_path = "./supabase/templates/email-change.html"
+
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false
