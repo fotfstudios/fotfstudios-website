@@ -154,6 +154,19 @@ describe("reschedule_down (refund delta)", () => {
       pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, "mp_x", 99999, null]),
     ).rejects.toThrow();
   });
+
+  it("con p_refund_id NULL (siembra-primero) mueve + NC + boleta del saldo, mp_refund_id queda null", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pd3");
+    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
+      reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, null, 2000, null,
+    ]);
+    const o = await pg.query<{ status: string; refunded: number; refund_id: string | null }>(
+      "select status, refunded_amount_clp refunded, mp_refund_id refund_id from orders where id=$1", [orderId]);
+    expect(o.rows[0]).toMatchObject({ status: "paid", refunded: 2000, refund_id: null });
+    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1", [orderId]);
+    expect(docs.rows.filter((d) => d.kind === "nota_credito").map((d) => d.total)).toContain(9990);
+    expect(docs.rows.filter((d) => d.kind === "boleta").map((d) => d.total)).toContain(7990);
+  });
 });
 
 // Nuevo horario más caro (cobro diferido): la reserva NO se mueve hasta que el
