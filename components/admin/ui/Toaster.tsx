@@ -38,7 +38,10 @@ function subscribe(fn: () => void): () => void {
 }
 
 const getSnapshot = () => toasts;
-const getServerSnapshot = (): Toast[] => [];
+// Referencia estable: React exige que el snapshot de servidor no cambie entre
+// llamadas (un `[]` nuevo por llamada dispara el warning de loop infinito).
+const EMPTY: Toast[] = [];
+const getServerSnapshot = () => EMPTY;
 
 /** Dispara toasts de éxito/error desde cualquier client component del admin. */
 export function useToast(): Push {
