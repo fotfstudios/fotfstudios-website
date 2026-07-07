@@ -274,7 +274,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             )}
           </Card>
 
-          {b.orderId && b.orderStatus === "pending_payment" && b.status !== "cancelled" && (
+          {/* Solo para holds vivos: expired/cancelled ya no tienen cupo que cobrar
+              (ver BookingsTable "overdue", que excluye ambos por el mismo motivo). */}
+          {b.orderId && b.orderStatus === "pending_payment" && b.status === "held" && (
             <Card title="Cobro">
               <p className="text-sm leading-relaxed text-bone-dim">
                 Reserva pendiente de pago. Márcala pagada (efectivo/transferencia) o comparte un link de Mercado Pago.

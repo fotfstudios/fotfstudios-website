@@ -220,4 +220,24 @@ describe("liquidación idempotente de una pendiente", () => {
     expect(o.rows[0].pid).toBe("offline:efectivo"); // gana el primero (where status <> 'paid')
     expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [r.orderId])).rows[0].n).toBe("1");
   });
+
+  // B1 Task 4 fix: un hold firme puede expirar (sweep `expire_stale_holds`) mientras la
+  // orden queda `pending_payment` — sin sweep que la cancele. Characterization test:
+  // fija que `confirm_payment` en ese caso deja la orden 'paid' pero devuelve
+  // 'paid_no_hold' y NO genera boleta. Es la rama exacta que `markPaidOfflineAction`
+  // ahora distingue (aviso al dueño + mensaje preciso) en vez de tirar un error
+  // genérico que esconde que el pago SÍ quedó registrado.
+  it("hold expirado + confirm_payment → 'paid_no_hold', orden paid, sin boleta", async () => {
+    const r = await firmCheckout(); // pending + held NULL
+    await pg.query("update reservations set status='expired' where order_id=$1", [r.orderId]);
+
+    const res = await pg.query<{ c: string }>("select confirm_payment($1,$2) c", [r.orderId, "offline:efectivo"]);
+    expect(res.rows[0].c).toBe("paid_no_hold");
+
+    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [r.orderId]);
+    expect(o.rows[0].status).toBe("paid");
+    expect(
+      (await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1", [r.orderId])).rows[0].n,
+    ).toBe("0");
+  });
 });

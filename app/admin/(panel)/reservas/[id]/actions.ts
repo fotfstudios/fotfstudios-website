@@ -162,12 +162,27 @@ export async function markPaidOfflineAction(_prev: ActionResult | null, fd: Form
     const order = await adminRepository().orderForReservation(reservationId);
     if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
     const status = await adminRepository().confirmOffline(order.orderId, method);
+    if (status === "paid_no_hold") {
+      // Carrera rara: el cupo expiró entre el render de la página (que ya filtra la
+      // card por `held`) y el clic. confirm_payment YA dejó la orden en 'paid' — no
+      // hay boleta ni reserva confirmada que mostrar, así que se avisa al dueño para
+      // revisión manual, igual que hace el webhook de MP ante el mismo desenlace.
+      await notificationService()
+        .notifyPaymentNeedsReview(order.orderId, `offline:${method}`)
+        .catch((e) => console.error("[markPaidOffline:review]", e));
+      throw new Error("El cupo ya no estaba reservado (expiró). El pago quedó registrado y se avisó para revisión.");
+    }
     if (status !== "confirmed") throw new Error("No se pudo registrar el pago (el cupo pudo expirar).");
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
 }
 
-/** Genera un link de pago MP (72 h) para una reserva pendiente; el webhook confirma al pagarse. */
+/**
+ * Genera un link de pago MP (72 h) para una reserva pendiente; el webhook confirma al pagarse.
+ * No muta el pago: la card ya la oculta la gate `status === "held"` arriba, y si de todas
+ * formas se paga un link para un hold ya expirado, el webhook de MP maneja `paid_no_hold`
+ * (mismo aviso al dueño) — no hace falta duplicar esa lógica acá.
+ */
 export async function sharePaymentLinkAction(reservationId: string): Promise<ActionDataResult<{ initPoint: string; amount: number }>> {
   return runData(async () => {
     await requirePermission("reservations.create");
