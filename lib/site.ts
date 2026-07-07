@@ -33,6 +33,14 @@ export const whatsappLink = (msg: string = SITE.whatsappMsg) =>
 export const SITE_URL = "https://www.fotfstudios.cl";
 
 /**
+ * Versión del bundle legal (T&C + privacidad) que el cliente acepta al reservar.
+ * Se guarda junto al consentimiento en cada pedido (`orders.terms_version`) para
+ * saber QUÉ versión aceptó. ISO para orden lexicográfico. **Súbela** cuando cambie
+ * `/terminos` o `/privacidad` (usa la fecha más reciente de ambas).
+ */
+export const TERMS_VERSION = "2026-07-06";
+
+/**
  * Origen para los redirect de magic-link (solo cliente). En el host canónico de
  * producción fijamos `SITE_URL` (el único allow-listeado en el proyecto de prod);
  * en preview (`*.vercel.app`) o local usamos el origen actual —que el proyecto de

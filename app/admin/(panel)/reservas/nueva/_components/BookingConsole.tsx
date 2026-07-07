@@ -94,6 +94,7 @@ export default function BookingConsole({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [termsAttested, setTermsAttested] = useState(false);
 
   /** Última cotización recibida, con la clave de sus parámetros: si la clave ya
    *  no calza con la selección actual, simplemente no se muestra (sin limpiar). */
@@ -267,6 +268,7 @@ export default function BookingConsole({
       method,
       customer: { name: name.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined },
       notes,
+      termsAccepted: termsAttested,
     };
     startTransition(async () => {
       const res = await createManualBookingAction(input);
@@ -301,6 +303,7 @@ export default function BookingConsole({
     setEmail("");
     setPhone("");
     setNotes("");
+    setTermsAttested(false);
     setSubmitError(null);
   };
 
@@ -457,6 +460,27 @@ export default function BookingConsole({
             <Field label="Notas internas" hint="Solo para el panel. No se envían al cliente.">
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
             </Field>
+            {/* Atestación de consentimiento (staff): confirma que el cliente aceptó los T&C.
+                No bloquea el agendado; registra terms_source='staff' en el pedido pagado. */}
+            <label className="flex items-start gap-2.5 text-bone-dim">
+              <input
+                type="checkbox"
+                checked={termsAttested}
+                onChange={(e) => setTermsAttested(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+              />
+              <span className="label-sm leading-relaxed">
+                El cliente aceptó los{" "}
+                <a href="/terminos" target="_blank" rel="noreferrer" className="text-gold hover:opacity-80">
+                  términos y condiciones
+                </a>{" "}
+                y la{" "}
+                <a href="/privacidad" target="_blank" rel="noreferrer" className="text-gold hover:opacity-80">
+                  política de privacidad
+                </a>
+                .
+              </span>
+            </label>
           </div>
         </Card>
       </div>

@@ -9,6 +9,9 @@ export interface CreateBookingInput extends BookingQuoteInput {
   /** Cuenta autenticada (requerida para canjear; el saldo lo valida la DB con row lock). */
   customerId?: string;
   pointsToRedeem?: number;
+  /** Consentimiento T&C — lo asigna el borde: 'customer' (route /reservar) | 'staff' (admin). */
+  termsSource?: "customer" | "staff";
+  termsVersion?: string;
 }
 
 export interface CreateBookingResult {
@@ -96,6 +99,8 @@ export class CheckoutService {
         lines,
         customerId: input.customerId,
         pointsRedeemed: redemption.pointsApplied,
+        termsSource: input.termsSource,
+        termsVersion: input.termsVersion,
       });
       return ok({
         orderId,

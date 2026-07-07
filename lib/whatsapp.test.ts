@@ -55,6 +55,17 @@ describe("manualBookingWhatsAppMessage", () => {
     expect(msg).toContain("pagado por transferencia");
   });
 
+  it("incluye los links de términos y privacidad (consentimiento)", () => {
+    const msg = manualBookingWhatsAppMessage(base);
+    expect(msg).toContain("https://www.fotfstudios.cl/terminos");
+    expect(msg).toContain("https://www.fotfstudios.cl/privacidad");
+  });
+
+  it("cortesía también lleva los links de términos", () => {
+    const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null });
+    expect(msg).toContain("https://www.fotfstudios.cl/terminos");
+  });
+
   it("variante cortesía: sin línea de total", () => {
     const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null });
     expect(msg).toContain("*Cortesía:* sesión sin cobro.");

@@ -49,6 +49,7 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
           startMinute: 600,
           durationHours: 1,
           customer: { email: "x@e.cl" },
+          termsAccepted: true,
         }),
       }),
     );
@@ -76,10 +77,29 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
             startMinute: 660,
             durationHours: 1,
             customer: { email: "y@e.cl" },
+            termsAccepted: true,
           }),
         }),
       );
     expect((await make()).status).toBe(200);
     expect((await make()).status).toBe(409);
+  });
+
+  it("rechaza sin aceptar los términos (400 terms_required)", async () => {
+    const res = await bookingsPOST(
+      new Request("http://x/api/bookings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          resourceId,
+          date: MON,
+          startMinute: 720,
+          durationHours: 1,
+          customer: { email: "z@e.cl" },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("terms_required");
   });
 });

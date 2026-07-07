@@ -110,7 +110,7 @@ export default function BookingWidget({
     setLoginOpen(false);
   }
 
-  // Paso 1: pide el código de acceso al correo (sin emailRedirectTo → no navega).
+  // Paso 1: pide el código de verificación al correo (sin emailRedirectTo → no navega).
   const sendLoginCode = useCallback(async () => {
     if (!loginEmail) return;
     setLoginBusy(true);
@@ -288,6 +288,7 @@ export default function BookingWidget({
             addonKeys: [...(rec !== "none" ? [rec] : []), ...extras],
             customer: { name, email, phone },
             pointsToRedeem: pointsApplied,
+            termsAccepted: acceptedTerms,
           }),
         });
         ok = res.ok;
@@ -303,7 +304,7 @@ export default function BookingWidget({
       setSubmitting(false);
       throw err;
     }
-  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone, pointsApplied]);
+  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone, pointsApplied, acceptedTerms]);
 
   // Flujo clásico (fallback): redirect a init_point. `submitting` queda en true
   // a propósito → "Redirigiendo…" mientras el navegador navega.
@@ -627,7 +628,7 @@ export default function BookingWidget({
                     {loginStep === "email" ? (
                       <>
                         <span className="label-sm block text-bone-mute">
-                          Te enviamos un código de acceso a tu correo — sin salir de aquí.
+                          Te enviamos un código de verificación a tu correo — sin salir de aquí.
                         </span>
                         <div className="mt-3 space-y-2">
                           <label htmlFor="bk-login-email" className="sr-only">
@@ -662,7 +663,7 @@ export default function BookingWidget({
                         </span>
                         <div className="mt-3 space-y-2">
                           <label htmlFor="bk-login-code" className="sr-only">
-                            Código de acceso
+                            Código de verificación
                           </label>
                           <input
                             id="bk-login-code"

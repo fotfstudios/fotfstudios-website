@@ -21,6 +21,8 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       p_lines: p.lines as unknown as Json,
       p_customer_id: p.customerId,
       p_points: p.pointsRedeemed ?? 0,
+      p_terms_version: p.termsVersion,
+      p_terms_source: p.termsSource,
     });
     if (error) throw new Error(error.message);
     return data as string;

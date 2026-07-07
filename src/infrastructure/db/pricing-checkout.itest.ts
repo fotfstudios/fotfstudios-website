@@ -79,6 +79,47 @@ describe("CheckoutService.createBooking", () => {
     expect(Number(held.rows[0].n)).toBe(1);
   });
 
+  it("persiste el consentimiento T&C en el pedido (source/version/at)", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 960,
+      durationHours: 1,
+      customer: { email: "consent@e.cl" },
+      termsSource: "customer",
+      termsVersion: "2026-07-06",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const o = await pg.query<{ terms_source: string | null; terms_version: string | null; terms_accepted_at: string | null }>(
+      "select terms_source, terms_version, terms_accepted_at from orders where id=$1",
+      [r.value.orderId],
+    );
+    expect(o.rows[0].terms_source).toBe("customer");
+    expect(o.rows[0].terms_version).toBe("2026-07-06");
+    expect(o.rows[0].terms_accepted_at).not.toBeNull();
+  });
+
+  it("sin consentimiento: columnas terms_* quedan NULL", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 960,
+      durationHours: 1,
+      customer: { email: "noconsent@e.cl" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const o = await pg.query<{ terms_source: string | null; terms_accepted_at: string | null }>(
+      "select terms_source, terms_accepted_at from orders where id=$1",
+      [r.value.orderId],
+    );
+    expect(o.rows[0].terms_source).toBeNull();
+    expect(o.rows[0].terms_accepted_at).toBeNull();
+  });
+
   it("rechaza un segundo booking que se traslapa (slot_taken)", async () => {
     const first = await checkout.createBooking({
       resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: "a@e.cl" },

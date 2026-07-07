@@ -4,7 +4,7 @@
  * La dirección inversa (cliente→estudio) vive en `lib/pricing.ts bookingMessage`.
  */
 import { DateTime } from "luxon";
-import { SITE } from "@/lib/site";
+import { SITE, SITE_URL } from "@/lib/site";
 import { formatCLP } from "@/src/domain/money/money";
 import type { ManualPaymentMethod } from "@/lib/manual-booking";
 
@@ -59,6 +59,12 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
     const via = p.method === "transferencia" ? "por transferencia" : "en efectivo";
     lines.push(`${bold("Total (IVA incl.):")} \`${formatCLP(p.total)}\` — pagado ${via}`);
   }
-  lines.push(`${bold("Dirección:")} ${SITE.address}`, "", "Llegas, conectas tu música y a darle. Nos vemos en cabina.");
+  lines.push(
+    `${bold("Dirección:")} ${SITE.address}`,
+    "",
+    `Al reservar aceptas nuestros términos y política de privacidad: ${SITE_URL}/terminos · ${SITE_URL}/privacidad`,
+    "",
+    "Llegas, conectas tu música y a darle. Nos vemos en cabina.",
+  );
   return lines.join("\n");
 }

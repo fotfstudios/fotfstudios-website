@@ -8,6 +8,7 @@ import {
 } from "@/src/composition";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
+import { TERMS_VERSION } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function POST(req: Request): Promise<Response> {
     addonKeys?: string[];
     customer?: { name?: string; email?: string; phone?: string };
     pointsToRedeem?: number;
+    termsAccepted?: boolean;
   };
 
   if (
@@ -47,6 +49,11 @@ export async function POST(req: Request): Promise<Response> {
     !b.customer?.email
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
+  }
+
+  // Consentimiento T&C obligatorio para el flujo del cliente (backstop del gate de UI).
+  if (b.termsAccepted !== true) {
+    return Response.json({ error: "terms_required" }, { status: 400 });
   }
 
   try {
@@ -74,6 +81,8 @@ export async function POST(req: Request): Promise<Response> {
       customer,
       customerId,
       pointsToRedeem: points,
+      termsSource: "customer",
+      termsVersion: TERMS_VERSION,
     });
     if (!booking.ok) {
       const status =
