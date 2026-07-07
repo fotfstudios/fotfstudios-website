@@ -314,3 +314,18 @@ describe("reschedule_courtesy", () => {
     ).rejects.toThrow(/reschedule_not_active/);
   });
 });
+
+describe("create_nota_credito_amount / create_boleta_amount — guard $0", () => {
+  it("con total 0 no emiten documento (return null, sin fila de $0)", async () => {
+    const { orderId } = await paidBooking(600, "z0");
+    // Guard a nivel documento: los helpers se llaman directo (mark_refunded ya tiene su
+    // propio `v_boleta <= 0` guard que enmascararía esto). Protege a los llamadores
+    // directos como apply_reschedule_charge, que invoca create_nota_credito_amount sin pasar
+    // por mark_refunded.
+    const nc = await pg.query<{ id: string | null }>("select create_nota_credito_amount($1, 0) id", [orderId]);
+    const bo = await pg.query<{ id: string | null }>("select create_boleta_amount($1, 0) id", [orderId]);
+    expect(nc.rows[0].id).toBeNull();
+    expect(bo.rows[0].id).toBeNull();
+    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and total=0", [orderId])).rows[0].n).toBe("0");
+  });
+});

@@ -75,6 +75,10 @@ export class WebhookService {
           const outcome = await this.finalizer.applyCharge(orderId, paymentId);
           if (outcome === "slot_taken") {
             const r = await this.gateway.refundPayment(paymentId);
+            // Inbox-first (como todos los demás caminos de reembolso): la creación del
+            // reembolso dispara su propia notificación MP; sin esto, la re-entrega vería
+            // el refund como fresco y emitiría una NC espuria de $0 sobre la orden de delta.
+            await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
             await this.finalizer.markChargeRefunded(orderId, r.id);
             return { result: "reschedule_slot_taken", orderId };
           }
