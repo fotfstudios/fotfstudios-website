@@ -27,6 +27,8 @@ export interface CreateCheckoutParams {
   termsSource?: "customer" | "staff";
   /** Versión de los T&C aceptada — la fija el server (TERMS_VERSION), no el cliente. */
   termsVersion?: string;
+  /** TTL del hold. undefined → 10 min (checkout cliente); null → hold firme (manual pendiente). */
+  holdTtlMinutes?: number | null;
 }
 
 export interface CheckoutRepository {

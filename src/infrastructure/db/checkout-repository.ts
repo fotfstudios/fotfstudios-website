@@ -19,6 +19,9 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       p_customer: p.customer as unknown as Json,
       p_snapshot: p.snapshot as unknown as Json,
       p_lines: p.lines as unknown as Json,
+      // El generador tipa p_ttl como `string | undefined` (no refleja que la función SQL
+      // acepta NULL explícito → hold firme); el cast documenta el gap, no cambia runtime.
+      p_ttl: (p.holdTtlMinutes === null ? null : `${p.holdTtlMinutes ?? 10} minutes`) as string | undefined,
       p_customer_id: p.customerId,
       p_points: p.pointsRedeemed ?? 0,
       p_terms_version: p.termsVersion,

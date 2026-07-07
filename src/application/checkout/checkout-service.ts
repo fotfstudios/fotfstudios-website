@@ -31,7 +31,7 @@ export class CheckoutService {
 
   async createBooking(
     input: CreateBookingInput,
-    opts?: { enforceLeadTime?: boolean },
+    opts?: { enforceLeadTime?: boolean; firmHold?: boolean },
   ): Promise<Result<CreateBookingResult, string>> {
     const res = await this.pricing.quoteBooking(input);
     if (!res.ok) return err(res.error);
@@ -79,6 +79,9 @@ export class CheckoutService {
         pointsRedeemed: redemption.pointsApplied,
         termsSource: input.termsSource,
         termsVersion: input.termsVersion,
+        // firmHold: reserva manual pendiente de pago (B1) → hold sin expiración.
+        // Sin la opción (checkout del cliente), holdTtlMinutes queda undefined → 10 min.
+        holdTtlMinutes: opts?.firmHold ? null : undefined,
       });
       return ok({
         orderId,
