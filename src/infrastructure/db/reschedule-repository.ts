@@ -93,10 +93,17 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       p_ends: p.endsAt,
       p_snapshot: p.snapshot as unknown as Json,
       p_lines: p.lines as unknown as Json,
-      p_refund_id: p.refundId,
+      // El SQL (`reschedule_down`, p_refund_id text) acepta NULL vía coalesce; el
+      // typegen de Supabase no modela nullabilidad de argumentos de función.
+      p_refund_id: p.refundId as string,
       p_refund_amount: p.refundAmount,
       p_note: p.note ?? undefined,
     });
+    if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async setRefundId(orderId: string, refundId: string): Promise<void> {
+    const { error } = await this.db.from("orders").update({ mp_refund_id: refundId }).eq("id", orderId);
     if (error) throw new Error(rescheduleError(error.message));
   }
 

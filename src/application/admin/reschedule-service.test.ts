@@ -41,6 +41,7 @@ function makeRepo(ctx: RescheduleContext | null): ReschedulePort {
     loadContext: vi.fn(async () => ctx),
     moveEqual: vi.fn(async () => {}),
     settleDown: vi.fn(async () => {}),
+    setRefundId: vi.fn(async () => {}),
     createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
     moveCourtesy: vi.fn(async () => {}),
   };
@@ -98,7 +99,7 @@ describe("RescheduleService.reschedule", () => {
     expect(repo.settleDown).not.toHaveBeenCalled();
   });
 
-  it("más barato con pago MP → refund PRIMERO → inbox → settleDown (en ese orden)", async () => {
+  it("más barato con pago MP → settleDown PRIMERO → refund → inbox → setRefundId (en ese orden)", async () => {
     const calls: string[] = [];
     const gw = makeGateway({
       refundPayment: vi.fn(async () => {
@@ -109,6 +110,7 @@ describe("RescheduleService.reschedule", () => {
     const inbox = makeInbox({ recordEvent: vi.fn(async () => { calls.push("record"); return true; }) });
     const repo = makeRepo(CTX);
     (repo.settleDown as ReturnType<typeof vi.fn>).mockImplementation(async () => { calls.push("settle"); });
+    (repo.setRefundId as ReturnType<typeof vi.fn>).mockImplementation(async () => { calls.push("setRefundId"); });
 
     const { service } = svc({ pricing: makePricing(7990), gw, repo, inbox });
     const res = await service.reschedule(input);
@@ -116,9 +118,10 @@ describe("RescheduleService.reschedule", () => {
     expect(res.ok && res.value).toEqual({ kind: "refunded", amount: 2000, offline: false });
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000);
     expect(inbox.recordEvent).toHaveBeenCalledWith("refund:ref_9", "refund", expect.anything());
+    expect(repo.setRefundId).toHaveBeenCalledWith("o1", "ref_9");
     const settle = (repo.settleDown as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(settle).toMatchObject({ refundId: "ref_9", refundAmount: 2000 });
-    expect(calls).toEqual(["refund", "record", "settle"]); // MP → inbox → asiento
+    expect(settle).toMatchObject({ refundId: null, refundAmount: 2000 });
+    expect(calls).toEqual(["settle", "refund", "record", "setRefundId"]); // asiento → MP → inbox → id
   });
 
   it("más barato con pago OFFLINE → settleDown offline:reschedule, sin MP ni inbox", async () => {
@@ -133,21 +136,23 @@ describe("RescheduleService.reschedule", () => {
     expect((repo.settleDown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({ refundId: "offline:reschedule", refundAmount: 2000 });
   });
 
-  it("más barato + loopback ganó (recordEvent→false) → NO asienta; refund_looped_back", async () => {
+  it("más barato + loopback ganó (recordEvent→false) tras el asiento → refund_looped_back", async () => {
     const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
     const repo = makeRepo(CTX);
     const { service } = svc({ pricing: makePricing(7990), repo, inbox });
     const res = await service.reschedule(input);
     expect(res.ok && res.value).toEqual({ kind: "refund_looped_back" });
-    expect(repo.settleDown).not.toHaveBeenCalled();
+    expect(repo.settleDown).toHaveBeenCalledOnce(); // el asiento ya ocurrió (siembra-primero)
+    expect(repo.setRefundId).not.toHaveBeenCalled();
   });
 
-  it("más barato + MP falla → aborta, sin asiento", async () => {
-    const gw = makeGateway({ refundPayment: vi.fn(async () => { throw new Error("MP 500"); }) });
+  it("más barato + slot tomado en la siembra (settleDown lanza) → NO se reembolsa en MP", async () => {
     const repo = makeRepo(CTX);
+    (repo.settleDown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Ese horario ya está tomado."));
+    const gw = makeGateway();
     const { service } = svc({ pricing: makePricing(7990), gw, repo });
-    await expect(service.reschedule(input)).rejects.toThrow("MP 500");
-    expect(repo.settleDown).not.toHaveBeenCalled();
+    await expect(service.reschedule(input)).rejects.toThrow("Ese horario ya está tomado.");
+    expect(gw.refundPayment).not.toHaveBeenCalled(); // I2: nada de plata si el asiento aborta
   });
 
   it("más caro (charge) → cobro diferido (charge_pending); NO mueve ni asienta", async () => {

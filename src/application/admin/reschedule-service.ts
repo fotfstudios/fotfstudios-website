@@ -42,9 +42,9 @@ function isRealMpPayment(id: string | null): id is string {
  * según el delta contra la boleta viva: mueve sin plata (equal), reembolsa el
  * delta en MP manteniendo el booking vivo (refund) o —en 3b— cobra el extra (charge).
  *
- * Orden MP→inbox→DB idéntico a RefundService: el reembolso ocurre ANTES del asiento
- * (si MP falla, nada cambia) y se registra en el inbox ANTES de `settleDown` para
- * que el webhook loopback NO cancele el booking que estamos manteniendo vivo.
+ * Orden money-safety: en el camino MP real el asiento (reschedule_down) va PRIMERO
+ * —aborta limpio por GiST sin tocar plata—, luego el reembolso irreversible en MP, y
+ * el inbox reclama el refund id para que el webhook loopback no cancele el booking vivo.
  */
 export class RescheduleService {
   constructor(
@@ -105,13 +105,15 @@ export class RescheduleService {
         await this.repo.settleDown({ ...base, refundId: "offline:reschedule", refundAmount: delta.amount });
         return ok({ kind: "refunded", amount: delta.amount, offline: true });
       }
-      // MP real: reembolso PRIMERO (si lanza, aborta con la DB intacta).
+      // MP real — I2: SEMBRAR primero (el asiento aborta limpio por GiST si el slot se
+      // tomó en la carrera, SIN tocar plata), y recién con el asiento firme reembolsar.
+      await this.repo.settleDown({ ...base, refundId: null, refundAmount: delta.amount });
       const refund = await this.gateway.refundPayment(ctx.order.mpPaymentId, delta.amount);
-      // Inbox ANTES del asiento: si el loopback ya ganó, no reasentamos (y ese
-      // camino ya canceló vía mark_refunded — se avisa para revisión del dueño).
+      // Reclamar el inbox para que el loopback de ESTE reembolso dedupee (no cancele el
+      // booking ya movido). Si el loopback ganó la ventana (raro), se avisa para revisión.
       const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
       if (!fresh) return ok({ kind: "refund_looped_back" });
-      await this.repo.settleDown({ ...base, refundId: refund.id, refundAmount: delta.amount });
+      await this.repo.setRefundId(ctx.order.id, refund.id);
       return ok({ kind: "refunded", amount: delta.amount, offline: false });
     }
 

@@ -29,7 +29,7 @@ export interface RescheduleMoveParams {
 }
 
 export interface RescheduleSettleDownParams extends RescheduleMoveParams {
-  refundId: string;
+  refundId: string | null;
   refundAmount: number;
 }
 
@@ -47,6 +47,8 @@ export interface ReschedulePort {
   moveEqual(p: RescheduleMoveParams): Promise<void>;
   /** Más barato: reembolso del delta + asiento, manteniendo el booking vivo (RPC reschedule_down). */
   settleDown(p: RescheduleSettleDownParams): Promise<void>;
+  /** Fija el mp_refund_id en la orden tras un reembolso MP exitoso (post-siembra). */
+  setRefundId(orderId: string, refundId: string): Promise<void>;
   /** Más caro: crea la orden de delta + fila pending_charge, SIN mover (RPC create_reschedule_charge). */
   createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }>;
   /** Cortesía (sin orden): movimiento puro de calendario (RPC reschedule_courtesy). */
