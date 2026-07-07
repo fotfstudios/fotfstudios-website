@@ -61,6 +61,16 @@ export interface AdminBookingDetail extends AdminBooking {
   /** Puntos canjeados (CLP). >0 bloquea el reagendamiento en v1. */
   pointsRedeemedClp: number;
   taxDocs: { id: string; kind: string; status: string; folio: string | null; total: number }[];
+  /** Eventos de reagendamiento (auditoría) para la línea de tiempo. */
+  reschedules: {
+    kind: string; // equal | refund | charge
+    status: string; // applied | pending_charge | failed_slot_taken | expired | cancelled
+    oldStartsAt: string;
+    newStartsAt: string;
+    deltaClp: number;
+    createdAt: string;
+    appliedAt: string | null;
+  }[];
   mpPaymentId: string | null;
   mpPreferenceId: string | null;
   mpRefundId: string | null;
@@ -516,12 +526,29 @@ export class SupabaseAdminRepository {
         total: d.total,
       }));
     }
+    // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).
+    const { data: moves } = await this.db
+      .from("reschedules")
+      .select("kind, status, old_starts_at, new_starts_at, delta_clp, created_at, applied_at")
+      .eq("reservation_id", id)
+      .order("created_at", { ascending: true });
+    const reschedules = (moves ?? []).map((m) => ({
+      kind: m.kind,
+      status: m.status,
+      oldStartsAt: m.old_starts_at,
+      newStartsAt: m.new_starts_at,
+      deltaClp: m.delta_clp,
+      createdAt: m.created_at,
+      appliedAt: m.applied_at,
+    }));
+
     return {
       ...base,
       lines,
       addonKeys,
       pointsRedeemedClp: row.orders?.points_redeemed_clp ?? 0,
       taxDocs,
+      reschedules,
       mpPaymentId: row.orders?.mp_payment_id ?? null,
       mpPreferenceId: row.orders?.mp_preference_id ?? null,
       mpRefundId: row.orders?.mp_refund_id ?? null,

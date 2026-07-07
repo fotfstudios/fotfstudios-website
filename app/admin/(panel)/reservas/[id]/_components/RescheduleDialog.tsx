@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { DateTime } from "luxon";
 import { Dialog } from "@/components/admin/ui/Dialog";
+import { Icon } from "@/components/admin/ui/icons";
 import { Skeleton } from "@/components/admin/ui/Skeleton";
 import { btn } from "@/components/admin/ui/styles";
 import { useToast } from "@/components/admin/ui/Toaster";
@@ -86,7 +87,15 @@ function ReschedulePicker({
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [chargeLink, setChargeLink] = useState<{ initPoint: string; amount: number } | null>(null);
+  /** Confirmación explícita post-éxito (el toast solo, se pierde con la vista en el dialog). */
+  const [done, setDone] = useState<{ message: string; detail: string | null } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  /** Cierra y refresca la página de fondo (heading + línea de tiempo al día). */
+  const finish = () => {
+    onClose();
+    router.refresh();
+  };
 
   // Disponibilidad del mes (contador monotónico → gana la última respuesta).
   const monthReq = useRef(0);
@@ -242,19 +251,55 @@ function ReschedulePicker({
         toast({ tone: "ok", message: "Cobro creado. Envía el link al cliente." });
         return;
       }
-      const msg =
-        res.data.kind === "refunded"
-          ? `Reserva reagendada. Se reembolsó ${formatCLP(res.data.amount)}${res.data.offline ? " (offline)" : ""}.`
-          : "Reserva reagendada.";
-      toast({ tone: "ok", message: msg });
-      onClose();
-      router.refresh();
+      // Confirmación explícita en el dialog (el toast se auto-oculta en segundos y
+      // durante la espera la vista está acá, no en la esquina): queda a la vista
+      // hasta que el dueño cierre con "Listo".
+      const movedTo = `${DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL")} · ${hhmm(selectedStart)}–${hhmm(
+        selectedStart + duration * 60,
+      )}`;
+      if (res.data.kind === "refunded") {
+        setDone({
+          message: `Reserva reagendada a ${movedTo}.`,
+          detail: res.data.offline
+            ? `Registra la devolución de ${formatCLP(res.data.amount)} al cliente (pago offline: la haces tú por transferencia/efectivo).`
+            : `Se reembolsaron ${formatCLP(res.data.amount)} al medio de pago original.`,
+        });
+      } else if (res.data.kind === "refund_looped_back") {
+        setDone({
+          message: "El reembolso ya había sido procesado por Mercado Pago.",
+          detail: "La reserva quedó cancelada por esa vía (no reagendada). Revisa el estado y reagenda de nuevo si corresponde.",
+        });
+        return;
+      } else {
+        setDone({ message: `Reserva reagendada a ${movedTo}.`, detail: null });
+      }
+      toast({ tone: "ok", message: "Reserva reagendada." });
     });
   };
 
   const dayLabel = DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL");
   const selectionLabel =
     selectedStart !== null ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${duration}h` : null;
+
+  if (done) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="flex items-start gap-2.5 text-sm leading-relaxed text-bone">
+          <span className="mt-0.5 text-gold">
+            <Icon name="check" size={16} />
+          </span>
+          <span>{done.message}</span>
+        </p>
+        {done.detail && <p className="text-sm leading-relaxed text-bone-dim">{done.detail}</p>}
+        <p className="label-sm text-bone-mute">El cambio quedó registrado en la actividad de la reserva.</p>
+        <div className="flex justify-end pt-1">
+          <button type="button" onClick={finish} className={btn("primary", "sm")}>
+            Listo
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (chargeLink) {
     const waMsg = `Hola, para confirmar tu nuevo horario en FOTF Studios necesitamos un cobro adicional de ${formatCLP(chargeLink.amount)}. Paga aquí: ${chargeLink.initPoint}`;
@@ -276,7 +321,7 @@ function ReschedulePicker({
           <p className="label-sm text-bone-mute">Sin teléfono del cliente para WhatsApp; copia el link manualmente.</p>
         )}
         <div className="flex justify-end pt-1">
-          <button type="button" onClick={onClose} className={btn("secondary", "sm")}>
+          <button type="button" onClick={finish} className={btn("secondary", "sm")}>
             Listo
           </button>
         </div>

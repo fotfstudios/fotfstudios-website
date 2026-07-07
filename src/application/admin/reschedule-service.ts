@@ -79,8 +79,9 @@ export class RescheduleService {
     const oldLive = ctx.order.amountClp - ctx.order.refundedAmountClp;
     const delta = classifyReschedule(oldLive, quote.total);
     const lines = orderLinesFromQuote(quote);
-    const note = "Reagendada";
-    const base = { reservationId: ctx.reservation.id, startsAt, endsAt, snapshot: quote, lines, note };
+    // Sin nota automática: la tabla `reschedules` es el registro (la línea de
+    // tiempo del admin lo muestra); las notas quedan para el operador.
+    const base = { reservationId: ctx.reservation.id, startsAt, endsAt, snapshot: quote, lines, note: null };
 
     if (delta.kind === "equal") {
       await this.repo.moveEqual(base);

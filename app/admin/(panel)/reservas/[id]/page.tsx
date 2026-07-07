@@ -40,9 +40,39 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
-  const activity: { label: string; at: string | null }[] = [{ label: "Reserva creada", at: b.createdAt }];
+  const activity: { label: string; detail?: string; at: string | null }[] = [
+    { label: "Reserva creada", at: b.createdAt },
+  ];
   if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt });
   else if (b.status === "confirmed" && !b.orderId) activity.push({ label: "Confirmada (cortesía)", at: null });
+  // Reagendamientos (auditoría): cada movimiento con su horario viejo → nuevo y el
+  // delta de plata si lo hubo. Van tras el pago (solo reservas pagadas se reagendan).
+  for (const m of b.reschedules) {
+    const move = `${fmtDateTime(m.oldStartsAt)} → ${fmtDateTime(m.newStartsAt)}`;
+    if (m.status === "applied") {
+      const money =
+        m.kind === "refund"
+          ? ` · reembolso ${formatCLP(m.deltaClp)}`
+          : m.kind === "charge"
+            ? ` · cobro extra ${formatCLP(m.deltaClp)}`
+            : "";
+      activity.push({ label: "Reagendada", detail: `${move}${money}`, at: m.appliedAt ?? m.createdAt });
+    } else if (m.status === "pending_charge") {
+      activity.push({
+        label: "Reagendamiento pendiente de pago",
+        detail: `${move} · ${formatCLP(m.deltaClp)} extra — se mueve al pagarse`,
+        at: m.createdAt,
+      });
+    } else if (m.status === "failed_slot_taken") {
+      activity.push({
+        label: "Reagendamiento fallido (horario tomado)",
+        detail: `${move} · excedente ${formatCLP(m.deltaClp)} devuelto`,
+        at: m.createdAt,
+      });
+    } else if (m.status === "expired") {
+      activity.push({ label: "Cobro de reagendamiento expirado", detail: move, at: m.createdAt });
+    }
+  }
   if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt });
   if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt });
   if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt });
@@ -220,6 +250,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                     <span className="mt-1 size-2 shrink-0 rounded-full bg-gold" />
                     <div className="-mt-0.5">
                       <p className="text-sm text-bone">{a.label}</p>
+                      {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
                       <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
                     </div>
                   </li>

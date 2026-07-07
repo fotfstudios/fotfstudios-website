@@ -1,30 +1,55 @@
 "use client";
 
-import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
+import { type ReactNode, useSyncExternalStore } from "react";
 import { Icon } from "./icons";
 
 type Tone = "ok" | "error";
 type Toast = { id: number; tone: Tone; message: string };
 type Push = (t: { tone: Tone; message: string }) => void;
 
-const ToastCtx = createContext<Push>(() => {});
+/**
+ * Store a nivel de módulo (fuera del árbol de React). Motivo: cuando una server
+ * action hace `revalidatePath` de la RUTA ACTUAL, Next re-renderiza la página al
+ * resolver la action y un toast guardado como estado del componente se pierde en
+ * esa reconciliación (el patrón toast-tras-action quedaba invisible en toda
+ * página que revalida su propio path). Con el store externo + useSyncExternalStore,
+ * el Toaster —aunque se re-monte— siempre lee los toasts vigentes.
+ */
+let toasts: Toast[] = [];
+const subscribers = new Set<() => void>();
+
+function emit(): void {
+  for (const fn of subscribers) fn();
+}
+
+const push: Push = ({ tone, message }) => {
+  const id = Date.now() + Math.random();
+  toasts = [...toasts, { id, tone, message }];
+  emit();
+  setTimeout(() => {
+    toasts = toasts.filter((t) => t.id !== id);
+    emit();
+  }, 4200);
+};
+
+function subscribe(fn: () => void): () => void {
+  subscribers.add(fn);
+  return () => subscribers.delete(fn);
+}
+
+const getSnapshot = () => toasts;
+const getServerSnapshot = (): Toast[] => [];
 
 /** Dispara toasts de éxito/error desde cualquier client component del admin. */
 export function useToast(): Push {
-  return useContext(ToastCtx);
+  return push;
 }
 
 export function Toaster({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<Toast[]>([]);
-
-  const push = useCallback<Push>(({ tone, message }) => {
-    const id = Date.now() + Math.random();
-    setItems((prev) => [...prev, { id, tone, message }]);
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4200);
-  }, []);
+  const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (
-    <ToastCtx.Provider value={push}>
+    <>
       {children}
       <div className="pointer-events-none fixed bottom-5 right-5 z-[60] flex w-[min(22rem,calc(100vw-2.5rem))] flex-col gap-2">
         {items.map((t) => (
@@ -42,6 +67,6 @@ export function Toaster({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
-    </ToastCtx.Provider>
+    </>
   );
 }
