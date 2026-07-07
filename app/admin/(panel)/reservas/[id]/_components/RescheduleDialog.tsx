@@ -1,0 +1,344 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { DateTime } from "luxon";
+import { Dialog } from "@/components/admin/ui/Dialog";
+import { Skeleton } from "@/components/admin/ui/Skeleton";
+import { btn } from "@/components/admin/ui/styles";
+import { useToast } from "@/components/admin/ui/Toaster";
+import { hhmm } from "@/components/booking/format";
+import { formatCLP } from "@/src/domain/money/money";
+import { overlaps } from "@/src/domain/scheduling/availability";
+import { classifyReschedule } from "@/src/domain/scheduling/reschedule";
+import type { DayStatus } from "@/src/domain/scheduling/month-availability";
+import { nowMinuteInTz } from "@/src/domain/scheduling/time";
+import { AdminCalendar } from "../../nueva/_components/AdminCalendar";
+import { DayStrip } from "../../nueva/_components/DayStrip";
+import { DurationStepper } from "../../nueva/_components/DurationStepper";
+import { SlotGrid, type SlotView } from "../../nueva/_components/SlotGrid";
+import type { DayConsoleData } from "../../nueva/types";
+import { getRescheduleDayAction, rescheduleAction } from "../actions";
+
+interface QuoteView {
+  total: number;
+}
+
+export function RescheduleDialog(props: {
+  reservationId: string;
+  /** Boleta viva actual (total − ya reembolsado), CLP. Base del delta. */
+  oldLive: number;
+  resourceId: string;
+  tz: string;
+  today: string;
+  maxDate: string;
+  initialMonth: string;
+  addonKeys: string[];
+  isOffline: boolean;
+  volumeDiscounts: { minHours: number; pct: number }[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className={btn("secondary", "sm")} onClick={() => setOpen(true)}>
+        Reagendar
+      </button>
+      {open && (
+        <Dialog title="Reagendar reserva" onClose={() => setOpen(false)}>
+          <ReschedulePicker {...props} onClose={() => setOpen(false)} />
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+function ReschedulePicker({
+  reservationId,
+  oldLive,
+  resourceId,
+  tz,
+  today,
+  maxDate,
+  initialMonth,
+  addonKeys,
+  isOffline,
+  volumeDiscounts,
+  onClose,
+}: Parameters<typeof RescheduleDialog>[0] & { onClose: () => void }) {
+  const toast = useToast();
+  const router = useRouter();
+
+  const [month, setMonth] = useState(initialMonth);
+  const [dayStatus, setDayStatus] = useState<Record<string, DayStatus>>({});
+  const [loadingMonth, setLoadingMonth] = useState(true);
+
+  const [date, setDate] = useState(today);
+  const [dayData, setDayData] = useState<DayConsoleData | null>(null);
+  const [loadingDay, setLoadingDay] = useState(true);
+  const [dayError, setDayError] = useState(false);
+
+  const [start, setStart] = useState<number | null>(null);
+  const [duration, setDuration] = useState(1);
+  const [quoteRes, setQuoteRes] = useState<{ key: string; quote: QuoteView | null; error: boolean } | null>(null);
+
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // Disponibilidad del mes (contador monotónico → gana la última respuesta).
+  const monthReq = useRef(0);
+  const loadMonth = useCallback(
+    (m: string) => {
+      const id = ++monthReq.current;
+      void (async () => {
+        try {
+          const d = await (await fetch(`/api/availability/month?resource=${resourceId}&month=${m}`)).json();
+          if (monthReq.current === id) setDayStatus((d?.days ?? {}) as Record<string, DayStatus>);
+        } catch {
+          if (monthReq.current === id) setDayStatus({});
+        } finally {
+          if (monthReq.current === id) setLoadingMonth(false);
+        }
+      })();
+    },
+    [resourceId],
+  );
+
+  // Día seleccionado (server action: ocupación sin la propia reserva).
+  const dayReq = useRef(0);
+  const loadDay = useCallback(
+    (d: string) => {
+      const id = ++dayReq.current;
+      void getRescheduleDayAction(reservationId, d)
+        .then((res) => {
+          if (dayReq.current !== id) return;
+          if (res.ok) setDayData(res.data);
+          else {
+            setDayData(null);
+            setDayError(true);
+          }
+        })
+        .catch(() => {
+          if (dayReq.current === id) {
+            setDayData(null);
+            setDayError(true);
+          }
+        })
+        .finally(() => {
+          if (dayReq.current === id) setLoadingDay(false);
+        });
+    },
+    [reservationId],
+  );
+
+  // Carga inicial al abrir.
+  useEffect(() => {
+    loadMonth(initialMonth);
+    loadDay(today);
+  }, [loadMonth, loadDay, initialMonth, today]);
+
+  const changeMonth = (m: string) => {
+    setMonth(m);
+    setLoadingMonth(true);
+    loadMonth(m);
+  };
+  const selectDate = (d: string) => {
+    if (d === date) return;
+    setDate(d);
+    setStart(null);
+    setLoadingDay(true);
+    setDayError(false);
+    loadDay(d);
+  };
+  const retryDay = () => {
+    setLoadingDay(true);
+    setDayError(false);
+    loadDay(date);
+  };
+
+  // ── derivados
+  const nowMin = nowMinuteInTz(tz);
+  const avail = dayData?.avail ?? null;
+  const occupancy = dayData?.occupancy ?? [];
+  const open = avail && !avail.closed ? avail.openMinute : 0;
+  const close = avail && !avail.closed ? avail.closeMinute : 0;
+
+  const buildSlot = (m: number): SlotView => {
+    const hour = { start: m, end: m + 60 };
+    const full = { start: m, end: m + duration * 60 };
+    const hits = occupancy.filter((o) => overlaps(hour, o));
+    if (hits.length > 0) {
+      const isBlock = hits.some((o) => o.kind === "block");
+      return { minute: m, tag: isBlock ? "bloqueo" : "ocupado", disabled: true, warn: false };
+    }
+    if (full.end > close || occupancy.some((o) => overlaps(full, o))) {
+      return { minute: m, tag: "no alcanza", disabled: true, warn: false };
+    }
+    const isPast = date < today || (date === today && m <= nowMin);
+    if (isPast) return { minute: m, tag: "pasado", disabled: true, warn: false };
+    return { minute: m, tag: null, disabled: false, warn: false };
+  };
+
+  const slots: SlotView[] = [];
+  for (let m = open; m + 60 <= close; m += 60) slots.push(buildSlot(m));
+
+  const selectedSlot = start !== null ? (slots.find((s) => s.minute === start && !s.disabled) ?? null) : null;
+  const selectedStart = selectedSlot?.minute ?? null;
+  const maxDuration = Math.min(16, selectedStart !== null ? (close - selectedStart) / 60 : close > open ? (close - open) / 60 : 8);
+
+  // Cotización en vivo (debounce + abort). Delta = classify(oldLive, total).
+  const quoteKey = selectedStart !== null ? `${date}|${selectedStart}|${duration}` : null;
+  useEffect(() => {
+    if (quoteKey === null || selectedStart === null) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      const qs = new URLSearchParams({
+        resource: resourceId,
+        date,
+        start: String(selectedStart),
+        duration: String(duration),
+        addons: addonKeys.join(","),
+      });
+      void (async () => {
+        try {
+          const r = await fetch(`/api/pricing/quote?${qs}`, { signal: ctrl.signal });
+          const d = await r.json();
+          if (!r.ok || d?.error) setQuoteRes({ key: quoteKey, quote: null, error: true });
+          else setQuoteRes({ key: quoteKey, quote: d as QuoteView, error: false });
+        } catch {
+          if (!ctrl.signal.aborted) setQuoteRes({ key: quoteKey, quote: null, error: true });
+        }
+      })();
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [quoteKey, resourceId, date, selectedStart, duration, addonKeys]);
+
+  const quote = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.quote : null;
+  const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
+  const delta = quote ? classifyReschedule(oldLive, quote.total) : null;
+
+  const canSubmit = selectedStart !== null && quote !== null && delta?.kind !== "charge" && !pending && !loadingDay;
+
+  const submit = () => {
+    if (selectedStart === null) return;
+    setSubmitError(null);
+    startTransition(async () => {
+      const res = await rescheduleAction({ reservationId, date, startMinute: selectedStart, durationHours: duration });
+      if (res.ok) {
+        const msg =
+          res.data.kind === "refunded"
+            ? `Reserva reagendada. Se reembolsó ${formatCLP(res.data.amount)}${res.data.offline ? " (offline)" : ""}.`
+            : "Reserva reagendada.";
+        toast({ tone: "ok", message: msg });
+        onClose();
+        router.refresh();
+      } else {
+        setSubmitError(res.error);
+        toast({ tone: "error", message: res.error });
+      }
+    });
+  };
+
+  const dayLabel = DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL");
+  const selectionLabel =
+    selectedStart !== null ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${duration}h` : null;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-5 md:grid-cols-2 md:items-start">
+        <AdminCalendar
+          month={month}
+          today={today}
+          maxDate={maxDate}
+          selected={date}
+          dayStatus={dayStatus}
+          loading={loadingMonth}
+          onSelect={selectDate}
+          onMonth={changeMonth}
+        />
+        <div className="flex flex-col gap-4">
+          <div>
+            <span className="label-sm text-bone-mute">Duración</span>
+            <div className="mt-2">
+              <DurationStepper duration={duration} maxDuration={maxDuration} volumeDiscounts={volumeDiscounts} onChange={setDuration} />
+            </div>
+          </div>
+          <div>
+            <span className="label-sm text-bone-mute">Horarios</span>
+            <div className="mt-2">
+              {loadingDay ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10" />
+                  ))}
+                </div>
+              ) : dayError ? (
+                <div className="flex flex-col items-start gap-2">
+                  <p className="label-sm text-sirena">No se pudo cargar la disponibilidad.</p>
+                  <button type="button" onClick={retryDay} className={btn("secondary", "sm")}>
+                    Reintentar
+                  </button>
+                </div>
+              ) : avail?.closed ? (
+                <p className="label-sm py-6 text-bone-mute">Cerrado ese día.</p>
+              ) : (
+                <SlotGrid slots={slots} outOfHours={[]} selected={selectedStart} onSelect={setStart} />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {!loadingDay && !dayError && !avail?.closed && (
+        <DayStrip
+          open={open}
+          close={close}
+          occupancy={occupancy}
+          selection={selectedStart !== null ? { start: selectedStart, end: selectedStart + duration * 60 } : null}
+        />
+      )}
+
+      {/* Resumen del cambio + delta */}
+      <div className="border-t hairline pt-4">
+        {selectionLabel ? (
+          <>
+            <p className="text-sm text-bone">{selectionLabel}</p>
+            <div className="mt-2 label-sm">
+              {quoting ? (
+                <span className="text-bone-mute">Calculando…</span>
+              ) : delta?.kind === "equal" ? (
+                <span className="text-bone-dim">Mismo precio — se moverá de inmediato.</span>
+              ) : delta?.kind === "refund" ? (
+                <span className="text-bone-dim">
+                  Se reembolsará <strong className="text-bone">{formatCLP(delta.amount)}</strong>
+                  {isOffline ? " — la devolución al cliente la haces tú (offline)." : " al medio de pago original."}
+                </span>
+              ) : delta?.kind === "charge" ? (
+                <span className="text-sirena">
+                  Cuesta {formatCLP(delta.amount)} más. El cobro del extra aún no está disponible (próximamente).
+                </span>
+              ) : (
+                <span className="text-bone-mute">—</span>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="label-sm text-bone-mute">Elige un nuevo día y horario.</p>
+        )}
+      </div>
+
+      {submitError && <p className="label-sm text-sirena">{submitError}</p>}
+
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onClose} className={btn("secondary", "sm")}>
+          Volver
+        </button>
+        <button type="button" onClick={submit} disabled={!canSubmit} className={btn("primary", "sm")}>
+          {pending ? "Reagendando…" : "Confirmar reagendamiento"}
+        </button>
+      </div>
+    </div>
+  );
+}

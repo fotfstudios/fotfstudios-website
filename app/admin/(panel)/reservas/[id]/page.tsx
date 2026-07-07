@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DateTime } from "luxon";
 import { cancelBookingAction, markAccessAction, recordBoletaAction } from "./actions";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
@@ -10,11 +11,13 @@ import { Input } from "@/components/admin/ui/Field";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { adminRepository } from "@/src/composition";
-import type { PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
+import { adminRepository, pricingService } from "@/src/composition";
+import type { AdminBookingDetail, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
-import { refundPolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
+import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
+import { todayInTz } from "@/src/domain/scheduling/time";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
+import { RescheduleDialog } from "./_components/RescheduleDialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
@@ -27,6 +30,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const isBlock = b.kind === "block";
   const isCourtesy = !isBlock && !b.orderId;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
+
+  // Reagendar: solo reservas pagadas, sin puntos, con ≥12 h de anticipación.
+  // Los props del picker se calculan en el server (force-dynamic) solo si aplica.
+  const canReschedule =
+    isPaid && b.status !== "cancelled" && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed;
+  const reschedProps = canReschedule ? await rescheduleDialogProps(b) : null;
 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
@@ -219,6 +228,18 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
+          {reschedProps && (
+            <Card title="Reagendar">
+              <p className="text-sm leading-relaxed text-bone-dim">
+                Mueve la sesión a otro horario. Si el nuevo horario cuesta menos, se reembolsa la
+                diferencia al cliente.
+              </p>
+              <div className="mt-4">
+                <RescheduleDialog {...reschedProps} />
+              </div>
+            </Card>
+          )}
+
           {b.status !== "cancelled" && (
             <Card title="Zona de peligro">
               {isPaid ? (
@@ -271,6 +292,26 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
       </div>
     </>
   );
+}
+
+/** Props del picker de reagendamiento (sala default + catálogo), calculados en el server. */
+async function rescheduleDialogProps(b: AdminBookingDetail) {
+  const resource = await adminRepository().defaultResource();
+  if (!resource) return null;
+  const today = todayInTz(resource.timezone);
+  const catalog = await pricingService().getCatalog(resource.id);
+  return {
+    reservationId: b.id,
+    oldLive: (b.amount ?? 0) - (b.refundedAmount ?? 0),
+    resourceId: resource.id,
+    tz: resource.timezone,
+    today,
+    maxDate: DateTime.fromISO(today).plus({ days: 180 }).toFormat("yyyy-MM-dd"),
+    initialMonth: today.slice(0, 7),
+    addonKeys: b.addonKeys,
+    isOffline: !b.mpPaymentId || b.mpPaymentId.startsWith("offline:"),
+    volumeDiscounts: catalog?.volumeDiscounts ?? [],
+  };
 }
 
 function MpRow({ label, value }: { label: string; value: string }) {
