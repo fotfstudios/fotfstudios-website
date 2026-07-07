@@ -40,6 +40,9 @@ class StubGateway implements PaymentGateway {
   async refundPayment(): Promise<RefundResult> {
     throw new Error("unused");
   }
+  async cancelPayment(): Promise<{ id: string; status: string }> {
+    throw new Error("unused");
+  }
 }
 
 const MON = futureDate(1); // día futuro (valle a las 10:00 → $9.990/h)

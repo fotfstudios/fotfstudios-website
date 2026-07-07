@@ -51,12 +51,36 @@ export class RefundService {
     private readonly inbox: RefundInbox,
   ) {}
 
+  /**
+   * Best-effort: anula en MP un pago pendiente/in_process de la orden (MP "Create
+   * cancellation"). Un pago aprobado NO se anula (MP lo rechaza y ya capturó). Un
+   * fallo de MP se registra pero no bloquea la cancelación en DB.
+   */
+  private async voidPendingPayment(orderId: string): Promise<void> {
+    try {
+      const payment = await this.gateway.findPaymentByOrder(orderId);
+      if (payment && (payment.status === "pending" || payment.status === "in_process")) {
+        await this.gateway.cancelPayment(payment.id);
+      }
+    } catch (e) {
+      console.error("[cancel:void-mp]", e);
+    }
+  }
+
   async cancelBooking(
     reservationId: string,
     opts: { refundAmount: number | null },
   ): Promise<{ alreadyProcessed: boolean }> {
     // Sin reembolso: cancelación simple (orden pagada queda 'paid'; no pagada → 'cancelled').
     if (opts.refundAmount == null) {
+      // Si la orden NO está pagada, anula en MP un pago aún no aprobado antes de
+      // cancelar en DB (MP "Create cancellation"): así un pago pendiente que
+      // apruebe tarde no captura plata contra una reserva ya cancelada. Best-effort:
+      // nunca bloquea la cancelación (binary_mode hace esto raro, pero no imposible).
+      const target = await this.repo.orderForReservation(reservationId);
+      if (target && target.status !== "paid") {
+        await this.voidPendingPayment(target.orderId);
+      }
       await this.repo.cancelBooking(reservationId);
       return { alreadyProcessed: false };
     }

@@ -49,6 +49,9 @@ class StubGateway implements PaymentGateway {
   async refundPayment(): Promise<RefundResult> {
     throw new Error("unused");
   }
+  async cancelPayment(): Promise<{ id: string; status: string }> {
+    throw new Error("unused");
+  }
 }
 
 const MON = futureDate(1); // lunes futuro

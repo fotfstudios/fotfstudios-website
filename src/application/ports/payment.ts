@@ -57,4 +57,10 @@ export interface PaymentGateway {
   findPaymentByOrder(orderId: string): Promise<PaymentInfo | null>;
   /** Reembolsa un pago. Sin `amount` → total; con `amount` → parcial. */
   refundPayment(paymentId: string, amount?: number): Promise<RefundResult>;
+  /**
+   * Anula un pago aún no aprobado (MP "Create cancellation":
+   * `PUT /v1/payments/{id}` `{status:"cancelled"}`). Solo válido si el pago está
+   * `pending`/`in_process`; MP rechaza anular un pago ya aprobado.
+   */
+  cancelPayment(paymentId: string): Promise<{ id: string; status: string }>;
 }
