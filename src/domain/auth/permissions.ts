@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   "reservations.view": "Ver reservas",
   "reservations.create": "Crear reserva manual",
   "reservations.cancel": "Cancelar / reembolsar",
+  "reservations.reschedule": "Reagendar reserva",
   "reservations.access": "Marcar acceso",
   "reservations.boleta": "Registrar boleta",
   "blocks.manage": "Gestionar bloqueos",

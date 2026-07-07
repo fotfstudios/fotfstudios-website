@@ -20,8 +20,8 @@ describe("permissions", () => {
     expect(hasPermission({ app_role: "staff" }, "reservations.view")).toBe(false);
   });
 
-  it("el catálogo tiene 9 permisos por acción", () => {
-    expect(PERMISSION_KEYS).toHaveLength(9);
-    expect(PERMISSION_KEYS).toContain("analytics.view");
+  it("el catálogo tiene 10 permisos por acción", () => {
+    expect(PERMISSION_KEYS).toHaveLength(10);
+    expect(PERMISSION_KEYS).toContain("reservations.reschedule");
   });
 });
