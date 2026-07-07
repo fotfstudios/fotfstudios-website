@@ -63,18 +63,18 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt, tag: "Pagos" });
   else if (b.status === "confirmed" && !b.orderId)
     activity.push({ label: "Confirmada (cortesía)", at: null, tag: "Reservas" });
-  // Reagendamientos (auditoría): cada movimiento con su horario viejo → nuevo y el
-  // delta de plata si lo hubo.
+  // Reagendamientos (auditoría): el movimiento (Reservas) y el delta de plata
+  // (Pagos) son hechos distintos → cada uno con su propia línea. Mismo timestamp:
+  // el desempate por índice deja el movimiento arriba (resulta del cobro/reembolso).
   for (const m of b.reschedules) {
     const move = `${fmtDateTime(m.oldStartsAt)} → ${fmtDateTime(m.newStartsAt)}`;
     if (m.status === "applied") {
-      const money =
-        m.kind === "refund"
-          ? ` · reembolso ${formatCLP(m.deltaClp)}`
-          : m.kind === "charge"
-            ? ` · cobro extra ${formatCLP(m.deltaClp)}`
-            : "";
-      activity.push({ label: "Reagendada", detail: `${move}${money}`, at: m.appliedAt ?? m.createdAt, tag: "Reservas" });
+      const when = m.appliedAt ?? m.createdAt;
+      if (m.kind === "refund")
+        activity.push({ label: "Reembolso por reagendamiento", detail: formatCLP(m.deltaClp), at: when, tag: "Pagos" });
+      else if (m.kind === "charge")
+        activity.push({ label: "Cobro extra por reagendamiento", detail: formatCLP(m.deltaClp), at: when, tag: "Pagos" });
+      activity.push({ label: "Reagendada", detail: move, at: when, tag: "Reservas" });
     } else if (m.status === "pending_charge") {
       activity.push({
         label: "Reagendamiento pendiente de pago",
