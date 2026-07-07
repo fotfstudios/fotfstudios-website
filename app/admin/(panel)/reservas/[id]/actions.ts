@@ -170,6 +170,7 @@ export async function markPaidOfflineAction(_prev: ActionResult | null, fd: Form
       await notificationService()
         .notifyPaymentNeedsReview(order.orderId, `offline:${method}`)
         .catch((e) => console.error("[markPaidOffline:review]", e));
+      revalidatePath(`/admin/reservas/${reservationId}`);
       throw new Error("El cupo ya no estaba reservado (expiró). El pago quedó registrado y se avisó para revisión.");
     }
     if (status !== "confirmed") throw new Error("No se pudo registrar el pago (el cupo pudo expirar).");

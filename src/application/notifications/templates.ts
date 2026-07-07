@@ -113,9 +113,9 @@ export function ownerNeedsReview(
      <p style="color:#b9b5ab;margin:0 0 16px">Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que <strong style="color:#f5f2ec">devolver o reasignar</strong>.</p>
      <p style="margin:0 0 4px">Horario solicitado: <strong>${esc(v.when)}</strong></p>
      <p style="color:#b9b5ab;margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
-     <p style="color:#b9b5ab;margin:0 0 16px">Pago MP: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
+     <p style="color:#b9b5ab;margin:0 0 16px">Pago: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
   );
-  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago MP ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
+  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
   return { subject: "⚠️ Pago sin reserva — acción requerida", html, text };
 }
 
