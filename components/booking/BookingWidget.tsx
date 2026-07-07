@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { DateTime } from "luxon";
@@ -11,6 +12,7 @@ import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { accountEnabled } from "@/lib/flags";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
+import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
@@ -63,6 +65,7 @@ export default function BookingWidget({
   /** Sesión de cliente (server la resuelve): prefill + puntos canjeables. */
   customer?: { email: string; name: string; phone: string; points: number } | null;
 }) {
+  const router = useRouter();
   const today = todayInSantiago();
   const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
 
@@ -84,6 +87,71 @@ export default function BookingWidget({
   const [error, setError] = useState<string | null>(null);
   const [usePoints, setUsePoints] = useState(false);
   const [pointsInput, setPointsInput] = useState(0);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Login en línea (código OTP): entrar sin salir del flujo de reserva.
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginStep, setLoginStep] = useState<"email" | "code">("email");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginCode, setLoginCode] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginVerified, setLoginVerified] = useState(false);
+  const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
+
+  // Al llegar la sesión (tras verificar el código → router.refresh() re-resuelve
+  // `customer` en el server sin desmontar el widget): prefill + cerrar el panel.
+  // Patrón "ajustar estado al cambiar un prop" en render (no en efecto) — las
+  // selecciones de reserva (fecha/hora/duración) sobreviven al refresh.
+  if (customer && customer.email !== syncedCustomer) {
+    setSyncedCustomer(customer.email);
+    setEmail(customer.email);
+    setName((n) => n || customer.name);
+    setPhone((p) => p || customer.phone);
+    setLoginOpen(false);
+  }
+
+  // Paso 1: pide el código de acceso al correo (sin emailRedirectTo → no navega).
+  const sendLoginCode = useCallback(async () => {
+    if (!loginEmail) return;
+    setLoginBusy(true);
+    setLoginError(null);
+    const supabase = createAuthBrowserClient();
+    // shouldCreateUser:true — entrar y crear cuenta son el mismo gesto.
+    const { error } = await supabase.auth.signInWithOtp({
+      email: loginEmail,
+      options: { shouldCreateUser: true },
+    });
+    setLoginBusy(false);
+    if (error) {
+      setLoginError(
+        error.status === 429
+          ? "Demasiados intentos. Espera unos minutos."
+          : "No pudimos enviar el código. Revisa el correo e inténtalo de nuevo.",
+      );
+      return;
+    }
+    setLoginStep("code");
+  }, [loginEmail]);
+
+  // Paso 2: verifica el código → establece sesión en el browser → refresh server.
+  const verifyLoginCode = useCallback(async () => {
+    const token = loginCode.trim();
+    if (!token) return;
+    setLoginBusy(true);
+    setLoginError(null);
+    const supabase = createAuthBrowserClient();
+    const { error } = await supabase.auth.verifyOtp({ email: loginEmail, token, type: "email" });
+    if (error) {
+      setLoginBusy(false);
+      setLoginError("Código inválido o expirado. Pide uno nuevo.");
+      return;
+    }
+    // Éxito: NO reseteamos loginBusy — el estado de carga puentea sin corte hasta
+    // que llega `customer` (el server component re-resuelve prefill + puntos) y el
+    // ajuste en render cierra el panel. El widget no se desmonta → estado intacto.
+    setLoginVerified(true);
+    router.refresh();
+  }, [loginEmail, loginCode, router]);
 
   // Disponibilidad del mes visible (pinta el calendario). Degrada a {} si falla.
   useEffect(() => {
@@ -269,7 +337,8 @@ export default function BookingWidget({
   const isDesktop = useIsDesktop();
   const [walletFailed, setWalletFailed] = useState(false);
   // Gate de montaje del brick: SIN !submitting (desmontaría el brick a mitad del pago).
-  const payReady = selectedStart !== null && !!email;
+  // Requiere aceptar T&C → ninguna vía de pago (clásica, Wallet, puntos) la evita.
+  const payReady = selectedStart !== null && !!email && acceptedTerms;
   const walletEnabled = !!process.env.NEXT_PUBLIC_MP_PUBLIC_KEY && !walletFailed;
   const canPay = payReady && !submitting;
   const quoting = selectedStart !== null && !quote;
@@ -545,18 +614,136 @@ export default function BookingWidget({
                 />
               </div>
               {customer ? (
-                <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+                <>
+                  {loginVerified && (
+                    <p className="label-sm mt-2 text-gold">✓ ¡Sesión iniciada! Ya puedes usar tus puntos.</p>
+                  )}
+                  <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+                </>
               ) : (
-                accountEnabled() && (
+                accountEnabled() &&
+                (loginOpen ? (
+                  <div className="mt-3 border hairline p-4">
+                    {loginStep === "email" ? (
+                      <>
+                        <span className="label-sm block text-bone-mute">
+                          Te enviamos un código de acceso a tu correo — sin salir de aquí.
+                        </span>
+                        <div className="mt-3 space-y-2">
+                          <label htmlFor="bk-login-email" className="sr-only">
+                            Correo
+                          </label>
+                          <input
+                            id="bk-login-email"
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="tu@correo.cl"
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && void sendLoginCode()}
+                            className={inputCls}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void sendLoginCode()}
+                            disabled={loginBusy || !loginEmail}
+                            className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
+                          >
+                            {loginBusy ? "Enviando…" : "Enviar código"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="label-sm block text-bone-mute">
+                          Escribe el código que enviamos a{" "}
+                          <strong className="text-bone">{loginEmail}</strong>.
+                        </span>
+                        <div className="mt-3 space-y-2">
+                          <label htmlFor="bk-login-code" className="sr-only">
+                            Código de acceso
+                          </label>
+                          <input
+                            id="bk-login-code"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="Código de 6 dígitos"
+                            value={loginCode}
+                            onChange={(e) => setLoginCode(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && void verifyLoginCode()}
+                            className={inputCls}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void verifyLoginCode()}
+                            disabled={loginBusy || !loginCode.trim()}
+                            className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
+                          >
+                            {loginVerified ? "Iniciando sesión…" : loginBusy ? "Verificando…" : "Verificar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void sendLoginCode()}
+                            disabled={loginBusy}
+                            className="label-sm text-bone-mute transition-colors hover:text-gold disabled:opacity-40"
+                          >
+                            Reenviar código
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {loginError && <p className="mt-2 label-sm text-sirena">{loginError}</p>}
+                  </div>
+                ) : (
                   <p className="label-sm mt-2 text-bone-mute">
                     ¿Tienes cuenta?{" "}
-                    <Link href="/cuenta/login?next=/reservar" className="text-gold transition-opacity hover:opacity-80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginError(null);
+                        setLoginStep("email");
+                        setLoginEmail(email);
+                        setLoginOpen(true);
+                      }}
+                      className="text-gold transition-opacity hover:opacity-80"
+                    >
                       Inicia sesión
-                    </Link>{" "}
+                    </button>{" "}
                     para usar tus puntos.
                   </p>
-                )
+                ))
               )}
+
+              {/* Aceptación de T&C — obligatoria para pagar (gatea payReady). */}
+              <label className="mt-4 flex items-start gap-2.5 text-bone-dim">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+                />
+                <span className="label-sm leading-relaxed">
+                  Acepto los{" "}
+                  <Link
+                    href="/terminos"
+                    target="_blank"
+                    className="text-gold transition-opacity hover:opacity-80"
+                  >
+                    términos y condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link
+                    href="/privacidad"
+                    target="_blank"
+                    className="text-gold transition-opacity hover:opacity-80"
+                  >
+                    política de privacidad
+                  </Link>
+                  .
+                </span>
+              </label>
             </div>
           )}
 
@@ -594,6 +781,8 @@ export default function BookingWidget({
           )}
           {selectedStart !== null && !email ? (
             <p className="mt-3 text-center label-sm text-gold">Ingresa tu email para continuar</p>
+          ) : selectedStart !== null && !acceptedTerms ? (
+            <p className="mt-3 text-center label-sm text-gold">Acepta los términos para continuar</p>
           ) : fullPoints ? (
             <p className="mt-3 text-center label-sm text-bone-mute">Tu reserva queda confirmada al instante</p>
           ) : (
