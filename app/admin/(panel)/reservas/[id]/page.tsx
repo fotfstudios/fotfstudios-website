@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
 import { cancelBookingAction, markAccessAction, recordBoletaAction } from "./actions";
-import { fmtDate, fmtDateTime } from "@/components/admin/format";
+import { fmtDate, fmtDateTime, fmtDateTimeSec } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
@@ -57,10 +57,36 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
+  // Contexto de auditoría para creación y pago. El horario original es el del
+  // primer reagendamiento aplicado (si lo hubo); el origen se infiere de la
+  // preferencia MP (solo el checkout web crea una). amount_clp acumula los
+  // cobros extra de reagendamientos → se restan para recuperar el monto
+  // confirmado en el pago original.
+  const firstApplied = b.reschedules.find((m) => m.status === "applied");
+  const originalStart = firstApplied ? firstApplied.oldStartsAt : b.startsAt;
+  const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
+  const chargedDeltas = b.reschedules
+    .filter((m) => m.status === "applied" && m.kind === "charge")
+    .reduce((sum, m) => sum + m.deltaClp, 0);
+  const paidAmount = (b.amount ?? 0) - chargedDeltas;
+  const snapshotMethod = b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";
+  const payMethod =
+    snapshotMethod !== "—"
+      ? snapshotMethod
+      : b.mpPaymentId?.startsWith("offline:")
+        ? `${b.mpPaymentId.slice("offline:".length)} (manual)`
+        : "Mercado Pago";
+
   const activity: { label: string; detail?: string; at: string | null; tag: ActivityTag }[] = [
-    { label: "Reserva creada", at: b.createdAt, tag: "Reservas" },
+    { label: "Reserva creada", detail: `${origin} · ${fmtDateTime(originalStart)}`, at: b.createdAt, tag: "Reservas" },
   ];
-  if (b.paidAt) activity.push({ label: "Pago confirmado", at: b.paidAt, tag: "Pagos" });
+  if (b.paidAt)
+    activity.push({
+      label: "Pago confirmado",
+      detail: `${formatCLP(paidAmount)} · ${payMethod}`,
+      at: b.paidAt,
+      tag: "Pagos",
+    });
   else if (b.status === "confirmed" && !b.orderId)
     activity.push({ label: "Confirmada (cortesía)", at: null, tag: "Reservas" });
   // Reagendamientos (auditoría): el movimiento (Reservas) y el delta de plata
@@ -363,7 +389,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                       <span className={`border hairline px-2 py-0.5 label-sm ${TAG_TONE[a.tag].text}`}>{a.tag}</span>
                     </div>
                     {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
-                    <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTime(a.at) : "—"}</p>
+                    <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTimeSec(a.at) : "—"}</p>
                   </div>
                 </li>
               ))}
