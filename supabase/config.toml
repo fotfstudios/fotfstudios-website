@@ -249,6 +249,18 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Magic Link / OTP y Confirm signup comparten la plantilla: prioriza el CÓDIGO
+# ({{ .Token }}) para el login en línea de /reservar (verifyOtp, sin salir del flujo);
+# el enlace ({{ .ConfirmationURL }}) queda secundario para /cuenta/login y /admin/login.
+# El código va en el asunto para verse en la vista previa de la notificación.
+[auth.email.template.magic_link]
+subject = "{{ .Token }} es tu código de acceso — FOTF Studios"
+content_path = "./supabase/templates/otp_code.html"
+
+[auth.email.template.confirmation]
+subject = "{{ .Token }} es tu código de acceso — FOTF Studios"
+content_path = "./supabase/templates/otp_code.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
