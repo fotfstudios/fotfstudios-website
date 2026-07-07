@@ -17,6 +17,8 @@ import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MemberService } from "@/src/application/admin/member-service";
 import { RefundService } from "@/src/application/admin/refund-service";
+import { RescheduleService } from "@/src/application/admin/reschedule-service";
+import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { CustomerService } from "@/src/application/customers/customer-service";
 import { SupabaseCustomerRepository } from "@/src/infrastructure/db/customer-repository";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
@@ -152,6 +154,20 @@ export function refundService(client: SupabaseClient<Database> = db()): RefundSe
   return new RefundService(
     new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
     adminRepository(client),
+    new SupabaseWebhookRepository(client),
+  );
+}
+
+/**
+ * Reagendamiento (admin): mueve una reserva pagada a otro horario con manejo del
+ * delta de precio en MP. Comparte el inbox del webhook (dedupe por refund id) para
+ * que el loopback no cancele el booking que se mantiene vivo.
+ */
+export function rescheduleService(client: SupabaseClient<Database> = db()): RescheduleService {
+  return new RescheduleService(
+    new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
+    pricingService(client),
+    new SupabaseRescheduleRepository(client),
     new SupabaseWebhookRepository(client),
   );
 }

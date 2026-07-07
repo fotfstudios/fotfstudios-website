@@ -1,0 +1,88 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  ReschedulePort,
+  RescheduleContext,
+  RescheduleMoveParams,
+  RescheduleSettleDownParams,
+} from "@/src/application/ports/reschedule";
+import type { Database, Json } from "./database.types";
+
+/** Traduce los errores de las RPC de reagendamiento a mensajes es-CL para el admin. */
+function rescheduleError(message: string): string {
+  if (/exclusion|23P01|overlap|reservations_no_overlap/i.test(message)) return "Ese horario ya está tomado.";
+  if (/reschedule_not_active|reschedule_not_eligible/i.test(message))
+    return "Esta reserva ya no se puede reagendar (debe estar pagada y activa).";
+  if (/reschedule_bad_delta/i.test(message)) return "El monto del reembolso no corresponde al cambio.";
+  return message;
+}
+
+export class SupabaseRescheduleRepository implements ReschedulePort {
+  constructor(private readonly db: SupabaseClient<Database>) {}
+
+  async loadContext(reservationId: string): Promise<RescheduleContext | null> {
+    const { data: r } = await this.db
+      .from("reservations")
+      .select("id, resource_id, starts_at, status, kind, order_id")
+      .eq("id", reservationId)
+      .single();
+    if (!r) return null;
+
+    let order: RescheduleContext["order"] = null;
+    let addonKeys: string[] = [];
+    if (r.order_id) {
+      const { data: o } = await this.db
+        .from("orders")
+        .select("id, status, amount_clp, refunded_amount_clp, points_redeemed_clp, mp_payment_id")
+        .eq("id", r.order_id)
+        .single();
+      if (o) {
+        order = {
+          id: o.id,
+          status: o.status,
+          amountClp: o.amount_clp,
+          refundedAmountClp: o.refunded_amount_clp ?? 0,
+          pointsRedeemedClp: o.points_redeemed_clp ?? 0,
+          mpPaymentId: o.mp_payment_id,
+        };
+        const { data: lines } = await this.db
+          .from("order_lines")
+          .select("addon_key")
+          .eq("order_id", r.order_id)
+          .not("addon_key", "is", null);
+        addonKeys = (lines ?? []).map((l) => l.addon_key).filter((k): k is string => !!k);
+      }
+    }
+
+    return {
+      reservation: { id: r.id, resourceId: r.resource_id, startsAt: r.starts_at, status: r.status, kind: r.kind },
+      order,
+      addonKeys,
+    };
+  }
+
+  async moveEqual(p: RescheduleMoveParams): Promise<void> {
+    const { error } = await this.db.rpc("reschedule_move", {
+      p_reservation: p.reservationId,
+      p_starts: p.startsAt,
+      p_ends: p.endsAt,
+      p_snapshot: p.snapshot as unknown as Json,
+      p_lines: p.lines as unknown as Json,
+      p_note: p.note ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async settleDown(p: RescheduleSettleDownParams): Promise<void> {
+    const { error } = await this.db.rpc("reschedule_down", {
+      p_reservation: p.reservationId,
+      p_starts: p.startsAt,
+      p_ends: p.endsAt,
+      p_snapshot: p.snapshot as unknown as Json,
+      p_lines: p.lines as unknown as Json,
+      p_refund_id: p.refundId,
+      p_refund_amount: p.refundAmount,
+      p_note: p.note ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
+  }
+}

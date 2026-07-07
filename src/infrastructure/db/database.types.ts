@@ -605,6 +605,91 @@ export type Database = {
           },
         ]
       }
+      reschedules: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          created_by: string | null
+          delta_clp: number
+          delta_order_id: string | null
+          id: string
+          kind: string
+          new_ends_at: string
+          new_lines: Json | null
+          new_snapshot: Json | null
+          new_starts_at: string
+          new_total_clp: number
+          old_ends_at: string
+          old_live_clp: number
+          old_starts_at: string
+          original_order_id: string
+          reservation_id: string
+          status: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta_clp?: number
+          delta_order_id?: string | null
+          id?: string
+          kind: string
+          new_ends_at: string
+          new_lines?: Json | null
+          new_snapshot?: Json | null
+          new_starts_at: string
+          new_total_clp: number
+          old_ends_at: string
+          old_live_clp: number
+          old_starts_at: string
+          original_order_id: string
+          reservation_id: string
+          status?: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta_clp?: number
+          delta_order_id?: string | null
+          id?: string
+          kind?: string
+          new_ends_at?: string
+          new_lines?: Json | null
+          new_snapshot?: Json | null
+          new_starts_at?: string
+          new_total_clp?: number
+          old_ends_at?: string
+          old_live_clp?: number
+          old_starts_at?: string
+          original_order_id?: string
+          reservation_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reschedules_delta_order_id_fkey"
+            columns: ["delta_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reschedules_original_order_id_fkey"
+            columns: ["original_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reschedules_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reservations: {
         Row: {
           access_code: string | null
@@ -964,6 +1049,30 @@ export type Database = {
       release_order_redemption: {
         Args: { p_order: string; p_ref?: string }
         Returns: undefined
+      }
+      reschedule_down: {
+        Args: {
+          p_ends: string
+          p_lines: Json
+          p_note?: string
+          p_refund_amount: number
+          p_refund_id: string
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: string
+      }
+      reschedule_move: {
+        Args: {
+          p_ends: string
+          p_lines: Json
+          p_note?: string
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: string
       }
     }
     Enums: {
