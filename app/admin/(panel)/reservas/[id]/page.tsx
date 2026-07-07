@@ -17,6 +17,7 @@ import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
+import { CobroPendiente } from "./_components/CobroPendiente";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
 
 export const dynamic = "force-dynamic";
@@ -272,6 +273,17 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </div>
             )}
           </Card>
+
+          {b.orderId && b.orderStatus === "pending_payment" && b.status !== "cancelled" && (
+            <Card title="Cobro">
+              <p className="text-sm leading-relaxed text-bone-dim">
+                Reserva pendiente de pago. Márcala pagada (efectivo/transferencia) o comparte un link de Mercado Pago.
+              </p>
+              <div className="mt-4">
+                <CobroPendiente reservationId={b.id} amount={b.amount ?? 0} customerPhone={b.customerPhone} />
+              </div>
+            </Card>
+          )}
 
           {b.orderId && (b.mpPaymentId || b.paymentSnapshot) && (
             <Card title="Mercado Pago">

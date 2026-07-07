@@ -1,11 +1,13 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
-import { adminRepository, notificationService, refundService, rescheduleService } from "@/src/composition";
+import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
 import type { RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { hostFromHeaders } from "@/lib/urls";
 import { getRescheduleDay } from "./reschedule-data";
 import type { DayConsoleData } from "../nueva/types";
 
@@ -147,5 +149,33 @@ export async function rescheduleAction(input: {
     revalidatePath(`/admin/reservas/${reservationId}`);
     revalidatePath("/admin/reservas");
     return res.value;
+  });
+}
+
+/** Liquida una reserva pendiente pagándola offline (efectivo/transferencia) — vía confirm_payment. */
+export async function markPaidOfflineAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.create");
+    const reservationId = str(fd, "reservationId");
+    const method = str(fd, "method");
+    if (method !== "efectivo" && method !== "transferencia") throw new Error("Método inválido.");
+    const order = await adminRepository().orderForReservation(reservationId);
+    if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
+    const status = await adminRepository().confirmOffline(order.orderId, method);
+    if (status !== "confirmed") throw new Error("No se pudo registrar el pago (el cupo pudo expirar).");
+    revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
+/** Genera un link de pago MP (72 h) para una reserva pendiente; el webhook confirma al pagarse. */
+export async function sharePaymentLinkAction(reservationId: string): Promise<ActionDataResult<{ initPoint: string; amount: number }>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    const order = await adminRepository().orderForReservation(reservationId);
+    if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
+    const host = hostFromHeaders(await headers());
+    const pref = await paymentService(db(), host).createPreferenceForOrder(order.orderId, { expiresInMinutes: 72 * 60 });
+    if (!pref.ok) throw new Error(pref.error);
+    return { initPoint: pref.value.initPoint, amount: order.amountClp };
   });
 }

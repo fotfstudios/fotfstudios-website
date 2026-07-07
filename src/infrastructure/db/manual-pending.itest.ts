@@ -202,3 +202,22 @@ describe("expire_abandoned_manual_holds", () => {
     expect((await pg.query<{ status: string }>("select status from orders where id=$1", [res.value.orderId])).rows[0].status).toBe("pending_payment");
   });
 });
+
+// B1 Task 4: liquidación de una pendiente — offline y "pago del link" convergen en
+// confirm_payment, que es idempotente (`where status <> 'paid'`). Characterization
+// test: fija esa idempotencia existente como la garantía de diseño de la liquidación
+// (marcar pagado + compartir link pueden correr en paralelo, gana el primero que
+// confirma, sin doble boleta).
+describe("liquidación idempotente de una pendiente", () => {
+  it("marcar pagado y luego 'pagar el link' → una sola confirmación, una sola boleta", async () => {
+    const r = await firmCheckout(); // pending + held NULL
+    // 1) Marcar pagado offline.
+    expect(await pg.query<{ c: string }>("select confirm_payment($1,$2) c", [r.orderId, "offline:efectivo"])).toBeTruthy();
+    // 2) El "pago del link" llega después (confirm_payment de nuevo, otro payment id).
+    await pg.query("select confirm_payment($1,$2)", [r.orderId, "mp_123"]);
+    const o = await pg.query<{ status: string; pid: string }>("select status, mp_payment_id pid from orders where id=$1", [r.orderId]);
+    expect(o.rows[0].status).toBe("paid");
+    expect(o.rows[0].pid).toBe("offline:efectivo"); // gana el primero (where status <> 'paid')
+    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [r.orderId])).rows[0].n).toBe("1");
+  });
+});
