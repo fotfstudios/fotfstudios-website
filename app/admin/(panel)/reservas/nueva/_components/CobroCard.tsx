@@ -15,6 +15,7 @@ export interface QuoteView {
 }
 
 const METHODS: { key: ManualPaymentMethod; label: string }[] = [
+  { key: "pendiente", label: "Pendiente" },
   { key: "efectivo", label: "Efectivo" },
   { key: "transferencia", label: "Transferencia" },
   { key: "cortesia", label: "Cortesía" },
@@ -57,6 +58,7 @@ export function CobroCard({
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
+  const isPendiente = method === "pendiente";
   return (
     <Card title="Cobro" className="lg:sticky lg:top-8">
       <span className="label text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</span>
@@ -119,7 +121,7 @@ export function CobroCard({
 
       <div className="mt-6 border-t hairline pt-5">
         <span className="label-sm text-bone-mute">Método de pago</span>
-        <div role="radiogroup" aria-label="Método de pago" className="mt-2.5 grid grid-cols-3 border hairline">
+        <div role="radiogroup" aria-label="Método de pago" className="mt-2.5 grid grid-cols-4 border hairline">
           {METHODS.map((m, i) => (
             <button
               key={m.key}
@@ -166,12 +168,16 @@ export function CobroCard({
         ) : (
           <>
             <Icon name="add" size={16} />
-            {isCortesia ? "Registrar cortesía" : "Crear reserva"}
+            {isCortesia ? "Registrar cortesía" : isPendiente ? "Crear pendiente" : "Crear reserva"}
           </>
         )}
       </button>
       <p className="label-sm mt-3 text-center text-bone-mute">
-        {isCortesia ? "Sin cobro ni boleta." : "IVA incluido · queda pagada · boleta por emitir."}
+        {isCortesia
+          ? "Sin cobro ni boleta."
+          : isPendiente
+            ? "Sin cobro ahora · se liquida después (efectivo/transferencia o link de pago)."
+            : "IVA incluido · queda pagada · boleta por emitir."}
       </p>
     </Card>
   );

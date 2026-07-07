@@ -73,6 +73,23 @@ export async function createManualBookingAction(
       return { reservationId, orderId: null, amount: null };
     }
 
+    // Pendiente de pago: crea la reserva con hold firme y orden pending_payment; se
+    // liquida después desde la ficha (marcar pagado / link MP). Sin confirmar, sin boleta.
+    if (method === "pendiente") {
+      const attested = input.termsAccepted === true;
+      const booking = await checkoutService().createBooking(
+        {
+          resourceId: resource.id, date, startMinute, durationHours, addonKeys, customer,
+          ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
+        },
+        { enforceLeadTime: false, firmHold: true },
+      );
+      if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
+      const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
+      revalidatePath("/admin/reservas");
+      return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount };
+    }
+
     // Pago offline (efectivo/transferencia): cobra el total y marca pagado. El admin queda
     // exento de la anticipación mínima (walk-ins), pero el pasado sigue vetado.
     // Consentimiento atestiguado por el staff (no bloquea): registra terms_source='staff' en

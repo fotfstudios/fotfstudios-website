@@ -45,9 +45,14 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
   const bold = (s: string) => `*${s}*`;
   const dateLabel = DateTime.fromISO(p.date).setLocale("es").toFormat("cccc d 'de' MMMM");
   const end = p.startMinute + p.durationHours * 60;
+  // "pendiente": el hold es firme pero el pago aún no se registra — nunca se le
+  // dice al cliente que está "confirmada" ni "pagada" (sería falso).
+  const isPendiente = p.method === "pendiente";
 
   const lines: string[] = [
-    `Hola${p.name ? ` ${p.name}` : ""}, tu reserva en ${bold(SITE.name)} está confirmada.`,
+    isPendiente
+      ? `Hola${p.name ? ` ${p.name}` : ""}, tu reserva en ${bold(SITE.name)} quedó agendada, ${bold("pendiente de pago")}.`
+      : `Hola${p.name ? ` ${p.name}` : ""}, tu reserva en ${bold(SITE.name)} está confirmada.`,
     "",
     `${bold("Día y hora:")} ${dateLabel}, ${hhmm(p.startMinute)}–${hhmm(end)} h`,
     `${bold("Duración:")} ${horas(p.durationHours)}`,
@@ -55,6 +60,8 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
   if (p.addonNames.length > 0) lines.push(`${bold("Extras:")} ${p.addonNames.join(", ")}`);
   if (p.method === "cortesia" || p.total === null) {
     lines.push(`${bold("Cortesía:")} sesión sin cobro.`);
+  } else if (isPendiente) {
+    lines.push(`${bold("Total a pagar (IVA incl.):")} \`${formatCLP(p.total)}\` — pendiente de pago`);
   } else {
     const via = p.method === "transferencia" ? "por transferencia" : "en efectivo";
     lines.push(`${bold("Total (IVA incl.):")} \`${formatCLP(p.total)}\` — pagado ${via}`);

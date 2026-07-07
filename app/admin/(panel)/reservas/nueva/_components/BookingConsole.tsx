@@ -29,6 +29,7 @@ const OOH_START = 8 * 60;
 const OOH_END = 24 * 60;
 
 const METHOD_LABEL: Record<ManualPaymentMethod, string> = {
+  pendiente: "Pendiente",
   efectivo: "Efectivo",
   transferencia: "Transferencia",
   cortesia: "Cortesía",
@@ -89,7 +90,7 @@ export default function BookingConsole({
   const [duration, setDuration] = useState(1);
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
-  const [method, setMethod] = useState<ManualPaymentMethod>("efectivo");
+  const [method, setMethod] = useState<ManualPaymentMethod>("pendiente");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -327,8 +328,10 @@ export default function BookingConsole({
       addonNames: snapshot.addonNames,
     });
     const waHref = snapshot.phone ? waLink(snapshot.phone, message) : null;
+    const isPendiente = snapshot.method === "pendiente";
     return (
       <SuccessPanel
+        heading={isPendiente ? "Reserva creada, pendiente de pago" : "Reserva creada"}
         rows={[
           {
             label: "Día y hora",
@@ -514,7 +517,7 @@ export default function BookingConsole({
             </div>
           </div>
           <button type="button" onClick={submit} disabled={!canSubmit} className={btn("primary")}>
-            {pending ? "…" : isCortesia ? "Registrar cortesía" : "Crear reserva"}
+            {pending ? "…" : isCortesia ? "Registrar cortesía" : method === "pendiente" ? "Crear pendiente" : "Crear reserva"}
           </button>
         </div>
       )}

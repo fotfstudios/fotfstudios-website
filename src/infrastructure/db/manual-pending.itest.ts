@@ -114,6 +114,25 @@ describe("CheckoutService.createBooking con opts.firmHold", () => {
     expect(r.rows[0]).toMatchObject({ status: "held", expires_at: null });
   });
 
+  // Task 3 (B1): fija el contrato de "pendiente" a nivel servicio como regresión —
+  // orden pending_payment, reserva held con expires_at NULL y SIN boleta (no
+  // confirmada). Este es el camino que usará el nuevo método de creación manual.
+  it("createBooking con firmHold deja pending_payment + held NULL, sin boleta", async () => {
+    const b = await checkout.createBooking(
+      { resourceId, date: MON, startMinute: 840, durationHours: 1, customer: { email: "p@e.cl" } },
+      { enforceLeadTime: false, firmHold: true },
+    );
+    if (!b.ok) throw new Error(b.error);
+    const o = await pg.query<{ status: string }>("select status from orders where id=$1", [b.value.orderId]);
+    expect(o.rows[0].status).toBe("pending_payment");
+    const res = await pg.query<{ status: string; expires_at: string | null }>(
+      "select status, expires_at from reservations where order_id=$1", [b.value.orderId]);
+    expect(res.rows[0]).toMatchObject({ status: "held", expires_at: null });
+    expect(
+      (await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1", [b.value.orderId])).rows[0].n,
+    ).toBe("0");
+  });
+
   it("sin opts (checkout del cliente) mantiene el hold de 10 min, sin cambios", async () => {
     const res = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: "cliente@e.cl" } });
     if (!res.ok) throw new Error(`book failed: ${res.error}`);

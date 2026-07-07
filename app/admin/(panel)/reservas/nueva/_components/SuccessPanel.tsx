@@ -7,12 +7,15 @@ import { btn } from "@/components/admin/ui/styles";
  * El CTA principal es la confirmación por WhatsApp cuando hay teléfono válido.
  */
 export function SuccessPanel({
+  heading = "Reserva creada",
   rows,
   waHref,
   reservationId,
   noPhone,
   onReset,
 }: {
+  /** Título del panel; "Reserva creada, pendiente de pago" para el método "pendiente". */
+  heading?: string;
   rows: { label: string; value: string }[];
   waHref: string | null;
   reservationId: string | null;
@@ -24,7 +27,7 @@ export function SuccessPanel({
       <span className="mx-auto flex h-12 w-12 items-center justify-center border border-gold/40 text-gold">
         <Icon name="check" size={22} />
       </span>
-      <h2 className="mt-4 font-display text-3xl text-bone">Reserva creada</h2>
+      <h2 className="mt-4 font-display text-3xl text-bone">{heading}</h2>
 
       <dl className="mt-6 flex flex-col gap-2.5 border-t hairline pt-5 text-left">
         {rows.map((r) => (
