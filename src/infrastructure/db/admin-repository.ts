@@ -60,7 +60,15 @@ export interface AdminBookingDetail extends AdminBooking {
   addonKeys: string[];
   /** Puntos canjeados (CLP). >0 bloquea el reagendamiento en v1. */
   pointsRedeemedClp: number;
-  taxDocs: { id: string; kind: string; status: string; folio: string | null; total: number }[];
+  taxDocs: {
+    id: string;
+    kind: string;
+    status: string;
+    folio: string | null;
+    total: number;
+    createdAt: string;
+    emittedAt: string | null;
+  }[];
   /** Eventos de reagendamiento (auditoría) para la línea de tiempo. */
   reschedules: {
     kind: string; // equal | refund | charge
@@ -515,7 +523,7 @@ export class SupabaseAdminRepository {
       // parcialmente puede tener boleta original + NC + boleta del saldo.
       const { data: docs } = await this.db
         .from("tax_documents")
-        .select("id, kind, status, folio, total, created_at")
+        .select("id, kind, status, folio, total, created_at, emitted_at")
         .eq("order_id", base.orderId)
         .order("created_at", { ascending: true });
       taxDocs = (docs ?? []).map((d) => ({
@@ -524,6 +532,8 @@ export class SupabaseAdminRepository {
         status: d.status,
         folio: d.folio,
         total: d.total,
+        createdAt: d.created_at,
+        emittedAt: d.emitted_at,
       }));
     }
     // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).

@@ -23,18 +23,20 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
 
 /** Categoría de cada evento del timeline de actividad. */
-type ActivityTag = "Reservas" | "Pagos" | "Notificaciones";
+type ActivityTag = "Reservas" | "Pagos" | "Documentos tributarios" | "Notificaciones";
 
 /**
- * Tono por categoría (leyenda + punto + chip). Oro = plata (mismo código que
- * StatusPill usa para pagada); Sirena queda fuera — es solo para urgencia.
+ * Tono por categoría (leyenda + punto + chip). Familia oro = plata: oro vivo para
+ * pagos en vivo, oro profundo para los documentos del SII (misma familia, distinto
+ * tono). Los grises quedan para lo administrativo. Sirena fuera — solo urgencia.
  */
 const TAG_TONE: Record<ActivityTag, { dot: string; text: string }> = {
   Pagos: { dot: "bg-gold", text: "text-gold" },
+  "Documentos tributarios": { dot: "bg-gold-deep", text: "text-gold-deep" },
   Reservas: { dot: "bg-bone", text: "text-bone" },
   Notificaciones: { dot: "bg-bone-dim", text: "text-bone-dim" },
 };
-const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Notificaciones"];
+const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Documentos tributarios", "Notificaciones"];
 
 export default async function BookingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -122,6 +124,21 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt, tag: "Notificaciones" });
   if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt, tag: "Pagos" });
   if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt, tag: "Reservas" });
+  // Documentos tributarios (boleta / nota de crédito): dos hitos por documento —
+  // generado (created_at, queda pendiente de emisión) y emitido en el SII con folio
+  // (emitted_at). Comparten timestamp con el pago/reembolso que los origina; el
+  // desempate por índice los deja encima (son su consecuencia).
+  for (const d of b.taxDocs) {
+    const doc = taxDocLabel(d.kind);
+    activity.push({ label: `${doc} generada`, detail: formatCLP(d.total), at: d.createdAt, tag: "Documentos tributarios" });
+    if (d.emittedAt)
+      activity.push({
+        label: `${doc} emitida`,
+        detail: `${d.folio ? `Folio ${d.folio} · ` : ""}${formatCLP(d.total)}`,
+        at: d.emittedAt,
+        tag: "Documentos tributarios",
+      });
+  }
 
   // Más reciente primero. Sin timestamp (cortesía confirmada) cuenta como la creación;
   // en empates gana el evento posterior del ciclo de vida (índice de armado invertido).
@@ -369,9 +386,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           <Card
             title="Actividad"
             action={
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
                 {TAG_ORDER.filter((t) => timeline.some((e) => e.tag === t)).map((t) => (
-                  <span key={t} className={`inline-flex items-center gap-1.5 label-sm ${TAG_TONE[t].text}`}>
+                  <span key={t} className={`inline-flex items-center gap-1.5 whitespace-nowrap label-sm ${TAG_TONE[t].text}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${TAG_TONE[t].dot}`} />
                     {t}
                   </span>
@@ -386,7 +403,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                   <div className="-mt-0.5 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-bone">{a.label}</p>
-                      <span className={`border hairline px-2 py-0.5 label-sm ${TAG_TONE[a.tag].text}`}>{a.tag}</span>
+                      <span className={`shrink-0 whitespace-nowrap border hairline px-2 py-0.5 label-sm ${TAG_TONE[a.tag].text}`}>
+                        {a.tag}
+                      </span>
                     </div>
                     {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
                     <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTimeSec(a.at) : "—"}</p>
