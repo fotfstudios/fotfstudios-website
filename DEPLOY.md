@@ -135,7 +135,13 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
 2. **Redirect URLs**: confirmar el wildcard `https://www.fotfstudios.cl/**` (cubre
    `?next=`). Sin él, el magic-link cae al home tras el login.
 3. **Site URL** de prod = `https://www.fotfstudios.cl`.
-4. **Templates de email** (Magic Link + Confirm signup) reescritos en es-CL neutro.
+4. **Templates de email de Auth** — reescritos en es-CL neutro como **código de inicio de
+   sesión / verificación**. ⚠️ NO usar "código de acceso": se confunde con la **clave de la
+   sala** del lock (esa se coordina por WhatsApp). Aplica a los **4**: *Magic Link*, *Confirm
+   signup*, *Reset Password* (recovery) y *Change Email address*. Fuente local a copiar
+   **textual** (subject + body): [supabase/config.toml](supabase/config.toml)
+   `[auth.email.template.*]` → `supabase/templates/*.html`. Espejar cada uno en el dashboard de
+   **staging y prod** (mismo subject + body). Verificable local en Mailpit (`http://127.0.0.1:54424`).
 5. **SMTP propio** (Resend) o aceptar el límite por defecto (~2 emails/h) en soft launch.
 6. **Custom Access Token (JWT) hook** — habilitar en **Authentication → Hooks** apuntando a la
    función Postgres `public.custom_access_token_hook`. La migración crea la función (+ grants a
