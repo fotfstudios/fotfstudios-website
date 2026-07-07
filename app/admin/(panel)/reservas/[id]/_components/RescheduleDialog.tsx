@@ -26,6 +26,10 @@ interface QuoteView {
   total: number;
 }
 
+/** Ventana "fuera de horario" para cortesías: 08:00–24:00 (igual que al crearlas). */
+const OOH_START = 8 * 60;
+const OOH_END = 24 * 60;
+
 export function RescheduleDialog(props: {
   reservationId: string;
   /** Boleta viva actual (total − ya reembolsado), CLP. Base del delta. */
@@ -178,7 +182,7 @@ function ReschedulePicker({
   const open = avail && !avail.closed ? avail.openMinute : 0;
   const close = avail && !avail.closed ? avail.closeMinute : 0;
 
-  const buildSlot = (m: number): SlotView => {
+  const buildSlot = (m: number, outOfHours: boolean, windowEnd: number): SlotView => {
     const hour = { start: m, end: m + 60 };
     const full = { start: m, end: m + duration * 60 };
     const hits = occupancy.filter((o) => overlaps(hour, o));
@@ -186,20 +190,41 @@ function ReschedulePicker({
       const isBlock = hits.some((o) => o.kind === "block");
       return { minute: m, tag: isBlock ? "bloqueo" : "ocupado", disabled: true, warn: false };
     }
-    if (full.end > close || occupancy.some((o) => overlaps(full, o))) {
+    if (full.end > windowEnd || occupancy.some((o) => overlaps(full, o))) {
       return { minute: m, tag: "no alcanza", disabled: true, warn: false };
     }
+    // A diferencia de crear una cortesía, mover AL pasado no tiene sentido: el
+    // service lo rechaza (target_past) y acá queda deshabilitado.
     const isPast = date < today || (date === today && m <= nowMin);
     if (isPast) return { minute: m, tag: "pasado", disabled: true, warn: false };
-    return { minute: m, tag: null, disabled: false, warn: false };
+    return { minute: m, tag: null, disabled: false, warn: outOfHours };
   };
 
   const slots: SlotView[] = [];
-  for (let m = open; m + 60 <= close; m += 60) slots.push(buildSlot(m));
+  for (let m = open; m + 60 <= close; m += 60) slots.push(buildSlot(m, false, close));
 
-  const selectedSlot = start !== null ? (slots.find((s) => s.minute === start && !s.disabled) ?? null) : null;
+  // Cortesía: ventana fuera de horario 08:00–24:00 (igual que al crearla). En un
+  // día cerrado open=close=0 → toda la ventana queda disponible como OOH.
+  const oohSlots: SlotView[] = [];
+  if (isCourtesy && avail) {
+    for (let m = OOH_START; m + 60 <= OOH_END; m += 60) {
+      if (m >= open && m < close) continue; // ya listado en el horario normal
+      oohSlots.push(buildSlot(m, true, OOH_END));
+    }
+  }
+
+  const selectedSlot =
+    start !== null ? ([...slots, ...oohSlots].find((s) => s.minute === start && !s.disabled) ?? null) : null;
   const selectedStart = selectedSlot?.minute ?? null;
-  const maxDuration = Math.min(16, selectedStart !== null ? (close - selectedStart) / 60 : close > open ? (close - open) / 60 : 8);
+  const selectedOoh = selectedStart !== null && (selectedStart < open || selectedStart >= close);
+  const maxDuration = Math.min(
+    16,
+    selectedStart !== null
+      ? ((selectedOoh ? OOH_END : close) - selectedStart) / 60
+      : close > open
+        ? (close - open) / 60
+        : 8,
+  );
 
   // Cotización en vivo (debounce + abort). Delta = classify(oldLive, total).
   // Cortesía: sin plata no hay cotización (quoteKey null → el effect no corre).
@@ -369,10 +394,15 @@ function ReschedulePicker({
                     Reintentar
                   </button>
                 </div>
-              ) : avail?.closed ? (
+              ) : avail?.closed && !isCourtesy ? (
                 <p className="label-sm py-6 text-bone-mute">Cerrado ese día.</p>
               ) : (
-                <SlotGrid slots={slots} outOfHours={[]} selected={selectedStart} onSelect={setStart} />
+                <>
+                  {avail?.closed && (
+                    <p className="label-sm mb-2 text-bone-mute">Cerrado ese día — una cortesía puede ir fuera de horario.</p>
+                  )}
+                  <SlotGrid slots={slots} outOfHours={oohSlots} selected={selectedStart} onSelect={setStart} />
+                </>
               )}
             </div>
           </div>
@@ -395,7 +425,10 @@ function ReschedulePicker({
             <p className="text-sm text-bone">{selectionLabel}</p>
             <div className="mt-2 label-sm">
               {isCourtesy ? (
-                <span className="text-bone-dim">Cortesía — se moverá sin cobro.</span>
+                <span className="text-bone-dim">
+                  Cortesía — se moverá sin cobro.
+                  {selectedOoh && <span className="text-sirena"> Fuera del horario de apertura.</span>}
+                </span>
               ) : quoting ? (
                 <span className="text-bone-mute">Calculando…</span>
               ) : delta?.kind === "equal" ? (
