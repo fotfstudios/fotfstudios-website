@@ -125,3 +125,61 @@ describe("CheckoutService.createBooking con opts.firmHold", () => {
     expect(minutesLeft).toBeLessThan(11);
   });
 });
+
+// B1 Task 2: barrido de holds manuales abandonados. Mirror de expire_abandoned_reschedules
+// (20260707140000_reschedule_charge.sql:117-131) — cancela pending_payment con reserva held
+// y expires_at NULL (hold firme) más viejo que 72 h, vía cancel_unpaid_order. No debe tocar
+// holds firmes frescos ni holds de cliente (expires_at no NULL, TTL de 10 min).
+describe("expire_abandoned_manual_holds", () => {
+  it("cancela pendientes manuales >72 h (orden cancelled, reserva expired) y respeta frescas", async () => {
+    const stale = await firmCheckout();
+    await pg.query("update orders set created_at = now() - interval '73 hours' where id=$1", [stale.orderId]);
+    // Otra reserva manual fresca en OTRO slot (no debe tocarse).
+    const fresh = await pg.query<{ order_id: string }>(
+      `select create_checkout(
+         p_resource      => $1::uuid,
+         p_starts        => $2::timestamptz,
+         p_ends          => $3::timestamptz,
+         p_amount        => $4::int,
+         p_net           => $5::int,
+         p_tax           => $6::int,
+         p_currency      => $7::text,
+         p_customer      => $8::jsonb,
+         p_snapshot      => $9::jsonb,
+         p_lines         => $10::jsonb,
+         p_ttl           => null,
+         p_terms_source  => 'staff'
+       ) as order_id`,
+      [
+        resourceId,
+        `${MON}T16:00:00-04:00`,
+        `${MON}T17:00:00-04:00`,
+        9990,
+        8395,
+        1595,
+        "CLP",
+        JSON.stringify({ name: "Manual 2", email: "m2@e.cl" }),
+        JSON.stringify({}),
+        lines1h,
+      ],
+    );
+    const freshOrderId = fresh.rows[0].order_id;
+
+    const n = await pg.query<{ n: number }>("select expire_abandoned_manual_holds() n");
+    expect(Number(n.rows[0].n)).toBe(1);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [stale.orderId])).rows[0].status).toBe("cancelled");
+    expect((await pg.query<{ status: string }>("select status from reservations where id=$1", [stale.reservationId])).rows[0].status).toBe("expired");
+    // La fresca queda intacta.
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [freshOrderId])).rows[0].status).toBe("pending_payment");
+  });
+
+  it("no toca holds del cliente (expires_at no NULL) aunque la orden sea vieja", async () => {
+    const res = await checkout.createBooking({ resourceId, date: MON, startMinute: 660, durationHours: 1, customer: { email: "cliente2@e.cl" } });
+    if (!res.ok) throw new Error(`book failed: ${res.error}`);
+    await pg.query("update orders set created_at = now() - interval '73 hours' where id=$1", [res.value.orderId]);
+
+    const n = await pg.query<{ n: number }>("select expire_abandoned_manual_holds() n");
+    expect(Number(n.rows[0].n)).toBe(0);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [res.value.orderId])).rows[0].status).toBe("pending_payment");
+  });
+});

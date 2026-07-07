@@ -132,6 +132,8 @@ export async function reconcilePending(
   }
   // Barre cobros de reagendamiento diferidos abandonados (best-effort).
   await expireAbandonedReschedules(client).catch((e) => console.error("[reconcile:reschedules]", e));
+  // Barre reservas manuales pendientes abandonadas (hold firme, best-effort).
+  await expireAbandonedManualHolds(client).catch((e) => console.error("[reconcile:manual-holds]", e));
   return { scanned: ids.length, paid, unreserved };
 }
 
@@ -187,6 +189,12 @@ export function rescheduleService(
 /** Barre cobros de reagendamiento diferidos abandonados (>72 h sin pagar). */
 export async function expireAbandonedReschedules(client: SupabaseClient<Database> = db()): Promise<number> {
   const { data } = await client.rpc("expire_abandoned_reschedules");
+  return data ?? 0;
+}
+
+/** Barre reservas manuales pendientes abandonadas (hold firme, >72 h sin pagar). */
+export async function expireAbandonedManualHolds(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data } = await client.rpc("expire_abandoned_manual_holds");
   return data ?? 0;
 }
 

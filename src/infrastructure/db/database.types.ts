@@ -1050,6 +1050,10 @@ export type Database = {
         }[]
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      expire_abandoned_manual_holds: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       expire_abandoned_reschedules: {
         Args: { p_older_than?: string }
         Returns: number
