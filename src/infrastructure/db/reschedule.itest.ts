@@ -72,6 +72,20 @@ const linesDown = JSON.stringify([
 
 const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules cascade";
 
+/** Cliente con usuario auth real (customers.id → auth.users.id), como en points.itest.ts. */
+const insertAuthUser = (id: string, email: string) =>
+  pg.query(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+       confirmation_token, recovery_token, email_change_token_new, email_change
+     ) values (
+       '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated',
+       $2, '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', ''
+     ) on conflict (id) do nothing`,
+    [id, email],
+  );
+
 beforeAll(async () => {
   await pg.connect();
   resourceId = (await pg.query<{ id: string }>("select id from resources limit 1")).rows[0].id;
@@ -327,5 +341,67 @@ describe("create_nota_credito_amount / create_boleta_amount — guard $0", () =>
     expect(nc.rows[0].id).toBeNull();
     expect(bo.rows[0].id).toBeNull();
     expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and total=0", [orderId])).rows[0].n).toBe("0");
+  });
+});
+
+// A1 reordenó "más barato" a seat-first: reschedule_down se llama con p_refund_id
+// NULL (el refund id de MP aún no existe al momento del asiento). El claw-back de
+// earn quedaba keyed a un ref CONSTANTE ('manual') → un segundo reagendamiento más
+// barato de la MISMA orden colisiona con el unique (order_id, kind, ref) del primero
+// y su revocación incremental se descarta en silencio (el cliente conserva puntos
+// que ya no le corresponden). Repro: dos reschedule_down consecutivos, cada uno con
+// p_refund_id NULL (el camino real).
+describe("reschedule_down — claw-back de earn no colisiona entre reagendamientos sucesivos", () => {
+  const EARN_CUST_ID = "e0000000-0000-4000-a000-000000000099";
+  const EARN_EMAIL = "resched-earn@e.cl";
+
+  const earnSum = async (orderId: string) =>
+    Number(
+      (
+        await pg.query<{ s: string }>(
+          "select coalesce(sum(amount),0)::text s from points_ledger where order_id=$1 and kind in ('earn','earn_revoke')",
+          [orderId],
+        )
+      ).rows[0].s,
+    );
+
+  it("dos reschedule_down consecutivos (más barato), ambos con p_refund_id NULL, revocan CADA incremento de earn", async () => {
+    await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
+    await pg.query("insert into customers (id, email) values ($1,$2) on conflict (id) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+
+    // Cliente con perfil ANTES de pagar → confirm_payment otorga el earn real (5%).
+    const b = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: EARN_EMAIL } });
+    if (!b.ok) throw new Error(`book failed: ${b.error}`);
+    const orderId = b.value.orderId;
+    expect(await pay(orderId, "pearn1", 9990)).toBe("paid");
+    const r0 = await pg.query<{ id: string; ends_at: string }>("select id, ends_at from reservations where order_id=$1", [orderId]);
+    const reservationId = r0.rows[0].id;
+    const endsAt = r0.rows[0].ends_at;
+
+    expect(await earnSum(orderId)).toBe(499); // floor(0.05·9990)
+
+    const lines7990 = JSON.stringify([
+      { line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 7990, subtotal_clp: 7990 },
+    ]);
+    const lines5990 = JSON.stringify([
+      { line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 5990, subtotal_clp: 5990 },
+    ]);
+
+    // Reagenda #1 (seat-first, como RescheduleService): 9990 → 7990, delta 2000.
+    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
+      reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", lines7990, null, 2000, null,
+    ]);
+    expect(await earnSum(orderId)).toBe(399); // floor(0.05·7990); primer claw-back de -100 aplicado
+
+    // Reagenda #2, misma orden, otra vez seat-first: 7990 → 5990, delta 2000.
+    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
+      reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", lines5990, null, 2000, null,
+    ]);
+
+    // Con la regresión, el segundo claw-back (-100) colisiona en (order_id,'earn_revoke','manual')
+    // con el primero y se descarta: earnSum queda en 399 en vez de converger a 299.
+    expect(await earnSum(orderId)).toBe(299); // floor(0.05·5990)
+    const revokes = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn_revoke'", [orderId]);
+    expect(Number(revokes.rows[0].n)).toBe(2); // dos claw-backs distintos, ninguno colisionado
   });
 });
