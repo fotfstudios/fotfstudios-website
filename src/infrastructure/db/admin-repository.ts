@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import {
   RESERVA_TABS,
   escapeIlike,
@@ -83,6 +84,19 @@ export interface AdminBookingDetail extends AdminBooking {
   mpPreferenceId: string | null;
   mpRefundId: string | null;
   paymentSnapshot: PaymentSnapshot | null;
+}
+
+/** Categorías del timeline (leyenda de colores) — espejo de booking_events.category. */
+export type BookingTimelineCategory = "Reservas" | "Pagos" | "Puntos" | "Documentos tributarios" | "Notificaciones";
+
+/** Un evento del log booking_events, listo para renderizar (fuente única y ordenada). */
+export interface BookingTimelineEvent {
+  type: string;
+  category: BookingTimelineCategory;
+  amountClp: number | null;
+  paymentRef: string | null;
+  detail: { old_starts_at?: string; new_starts_at?: string; folio?: string | null } | null;
+  occurredAt: string;
 }
 
 export interface ReservasListResult {
@@ -566,6 +580,27 @@ export class SupabaseAdminRepository {
     };
   }
 
+  /**
+   * Timeline de la reserva desde el log append-only booking_events: fuente única,
+   * ya ordenada (más reciente primero, con `seq` como desempate a igual instante).
+   */
+  async getBookingTimeline(reservationId: string): Promise<BookingTimelineEvent[]> {
+    const { data } = await this.db
+      .from("booking_events")
+      .select("type, category, amount_clp, payment_ref, detail, occurred_at")
+      .eq("reservation_id", reservationId)
+      .order("occurred_at", { ascending: false })
+      .order("seq", { ascending: false });
+    return (data ?? []).map((e) => ({
+      type: e.type,
+      category: e.category as BookingTimelineCategory,
+      amountClp: e.amount_clp,
+      paymentRef: e.payment_ref,
+      detail: e.detail as BookingTimelineEvent["detail"],
+      occurredAt: e.occurred_at,
+    }));
+  }
+
   async pendingBoletas(): Promise<PendingBoleta[]> {
     const { data } = await this.db
       .from("tax_documents")
@@ -646,6 +681,12 @@ export class SupabaseAdminRepository {
       pointsRedeemedClp: o.points_redeemed_clp ?? 0,
       startsAt: r.starts_at,
     };
+  }
+
+  /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
+  async backingBoletas(orderId: string): Promise<BackingBoleta[]> {
+    const { data } = await this.db.rpc("order_backing_boletas", { p_order: orderId });
+    return (data ?? []).map((r) => ({ liveAmount: r.live_amount, paymentId: r.payment_id }));
   }
 
   /**
