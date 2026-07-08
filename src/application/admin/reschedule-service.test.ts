@@ -36,7 +36,10 @@ function makeGateway(over: Partial<PaymentGateway> = {}): Pick<PaymentGateway, "
   return { refundPayment: vi.fn(async () => ({ id: "ref_9", status: "approved", amount: 2000 })), ...over };
 }
 
-function makeRepo(ctx: RescheduleContext | null): ReschedulePort {
+function makeRepo(ctx: RescheduleContext | null, backing?: { liveAmount: number; paymentId: string | null }[]): ReschedulePort {
+  // Por defecto: una boleta viva financiada por el pago del pedido (caso común, un pago).
+  const boletas =
+    backing ?? (ctx?.order ? [{ liveAmount: ctx.order.amountClp - ctx.order.refundedAmountClp, paymentId: ctx.order.mpPaymentId }] : []);
   return {
     loadContext: vi.fn(async () => ctx),
     moveEqual: vi.fn(async () => {}),
@@ -44,6 +47,7 @@ function makeRepo(ctx: RescheduleContext | null): ReschedulePort {
     setRefundId: vi.fn(async () => {}),
     createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
     moveCourtesy: vi.fn(async () => {}),
+    backingBoletas: vi.fn(async () => boletas),
   };
 }
 
@@ -122,6 +126,24 @@ describe("RescheduleService.reschedule", () => {
     const settle = (repo.settleDown as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(settle).toMatchObject({ refundId: null, refundAmount: 2000 });
     expect(calls).toEqual(["settle", "refund", "record", "setRefundId"]); // asiento → MP → inbox → id
+  });
+
+  it("más barato multi-pago (encarecido antes) → reparte el reembolso por-pago", async () => {
+    // oldLive 12990 (original 9990 @mp_123 + delta 3000 @mp_delta); abaratar a 2000 → refund 10990.
+    const ctx2: RescheduleContext = { ...CTX, order: { ...CTX.order!, amountClp: 12990 } };
+    const gw = { refundPayment: vi.fn(async (pid: string, amt: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })) };
+    const repo = makeRepo(ctx2, [
+      { liveAmount: 9990, paymentId: "mp_123" },
+      { liveAmount: 3000, paymentId: "mp_delta" },
+    ]);
+    const { service } = svc({ pricing: makePricing(2000), gw, repo });
+    const res = await service.reschedule(input);
+    expect(res.ok && res.value).toEqual({ kind: "refunded", amount: 10990, offline: false });
+    // Cada pago recibe solo lo que capturó (MP rechaza sobre-reembolsos), más-antigua-primero.
+    expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 9990);
+    expect(gw.refundPayment).toHaveBeenCalledWith("mp_delta", 1000);
+    expect(gw.refundPayment).toHaveBeenCalledTimes(2);
+    expect(repo.setRefundId).toHaveBeenCalledWith("o1", "ref_mp_123");
   });
 
   it("más barato con pago OFFLINE → settleDown offline:reschedule, sin MP ni inbox", async () => {

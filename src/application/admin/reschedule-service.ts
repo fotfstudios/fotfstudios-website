@@ -4,6 +4,7 @@ import type { ReschedulePort } from "@/src/application/ports/reschedule";
 import type { PaymentService } from "@/src/application/payment/payment-service";
 import type { PricingService } from "@/src/application/pricing/pricing-service";
 import { classifyReschedule } from "@/src/domain/scheduling/reschedule";
+import { splitRefundAcrossPayments } from "@/src/domain/scheduling/refund-split";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { reschedulePolicy } from "@/src/domain/scheduling/cancellation-policy";
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
@@ -100,20 +101,31 @@ export class RescheduleService {
     }
 
     if (delta.kind === "refund") {
-      // Pago offline: sin MP y sin inbox (la devolución física la hace el dueño).
-      if (!isRealMpPayment(ctx.order.mpPaymentId)) {
+      // Reparto por-pago: un pedido encarecido tiene boletas de distintos pagos MP
+      // (original + orden de delta). Se lee ANTES de asentar (settleDown anula las
+      // boletas), más-antigua-primero (el mismo orden en que reschedule_down emite las NC).
+      const splits = splitRefundAcrossPayments(await this.repo.backingBoletas(ctx.order.id), delta.amount);
+
+      // Todo offline: sin MP y sin inbox (la devolución física la hace el dueño).
+      if (!splits.some((s) => isRealMpPayment(s.paymentId))) {
         await this.repo.settleDown({ ...base, refundId: "offline:reschedule", refundAmount: delta.amount });
         return ok({ kind: "refunded", amount: delta.amount, offline: true });
       }
       // MP real — I2: SEMBRAR primero (el asiento aborta limpio por GiST si el slot se
-      // tomó en la carrera, SIN tocar plata), y recién con el asiento firme reembolsar.
+      // tomó en la carrera, SIN tocar plata), y recién con el asiento firme reembolsar
+      // cada pago contra SU medio. La porción offline la devuelve el dueño.
       await this.repo.settleDown({ ...base, refundId: null, refundAmount: delta.amount });
-      const refund = await this.gateway.refundPayment(ctx.order.mpPaymentId, delta.amount);
-      // Reclamar el inbox para que el loopback de ESTE reembolso dedupee (no cancele el
-      // booking ya movido). Si el loopback ganó la ventana (raro), se avisa para revisión.
-      const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
-      if (!fresh) return ok({ kind: "refund_looped_back" });
-      await this.repo.setRefundId(ctx.order.id, refund.id);
+      let primaryRefundId: string | null = null;
+      for (const s of splits) {
+        if (!isRealMpPayment(s.paymentId)) continue;
+        const refund = await this.gateway.refundPayment(s.paymentId, s.amount);
+        // Reclamar el inbox para que el loopback de ESTE reembolso dedupee (no cancele el
+        // booking ya movido). Si el loopback ganó la ventana (raro), se avisa para revisión.
+        const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
+        if (!fresh) return ok({ kind: "refund_looped_back" });
+        primaryRefundId = primaryRefundId ?? refund.id;
+      }
+      if (primaryRefundId) await this.repo.setRefundId(ctx.order.id, primaryRefundId);
       return ok({ kind: "refunded", amount: delta.amount, offline: false });
     }
 

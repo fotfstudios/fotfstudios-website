@@ -1,5 +1,6 @@
 import type { Quote } from "@/src/domain/pricing/types";
 import type { OrderLine } from "@/src/domain/pricing/order-lines";
+import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 
 /** Contexto de una reserva candidata a reagendar (lo arma el repo desde la DB). */
 export interface RescheduleContext {
@@ -49,6 +50,8 @@ export interface ReschedulePort {
   settleDown(p: RescheduleSettleDownParams): Promise<void>;
   /** Fija el mp_refund_id en la orden tras un reembolso MP exitoso (post-siembra). */
   setRefundId(orderId: string, refundId: string): Promise<void>;
+  /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
+  backingBoletas(orderId: string): Promise<BackingBoleta[]>;
   /** Más caro: crea la orden de delta + fila pending_charge, SIN mover (RPC create_reschedule_charge). */
   createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }>;
   /** Cortesía (sin orden): movimiento puro de calendario (RPC reschedule_courtesy). */

@@ -1,5 +1,6 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import { splitRefundAcrossPayments, type BackingBoleta } from "@/src/domain/scheduling/refund-split";
 
 /** Repo mínimo que la cancelación necesita (lo satisface SupabaseAdminRepository). */
 export interface RefundBookingRepo {
@@ -12,6 +13,8 @@ export interface RefundBookingRepo {
     pointsRedeemedClp: number;
     startsAt: string | null;
   } | null>;
+  /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
+  backingBoletas(orderId: string): Promise<BackingBoleta[]>;
   /** Cancelación SIN reembolso (los reembolsos pasan por `mark_refunded`). */
   cancelBooking(reservationId: string): Promise<void>;
   /** Orden 100% puntos: cancela + repone puntos (sin MP, sin boleta/NC). */
@@ -83,25 +86,33 @@ export class RefundService {
       throw new Error(`El monto excede el saldo reembolsable ($${liveBoleta}).`);
     }
 
-    // Pago offline (efectivo/transferencia): sin MP y SIN inbox (la clave
-    // `refund:offline:manual` no es única y no existe loopback). La devolución
-    // física la hace el dueño; aquí queda el asiento (NC + saldo).
-    if (!isRealMpPayment(target.mpPaymentId)) {
+    // Reembolso POR-PAGO: un pedido encarecido tiene boletas de distintos pagos MP
+    // (original + orden de delta). MP rechaza devolver a un pago más de lo que capturó,
+    // así que se reparte el monto por-pago, más-antigua-primero (el mismo orden en que
+    // `mark_refunded` anula las boletas en la DB → dinero y asiento coinciden).
+    const splits = splitRefundAcrossPayments(await this.repo.backingBoletas(target.orderId), opts.refundAmount);
+
+    // Todo offline (efectivo/transferencia): sin MP y SIN inbox. La devolución física
+    // la hace el dueño; aquí queda el asiento (NC por boleta + saldo).
+    if (!splits.some((s) => isRealMpPayment(s.paymentId))) {
       await this.inbox.markRefunded(target.orderId, "offline:manual", opts.refundAmount);
       return { alreadyProcessed: false };
     }
 
-    // MP real: monto SIEMPRE explícito (idempotency key por monto; MP rechaza
-    // sobre-reembolsos). Si lanza, se aborta con la DB intacta.
-    const refund = await this.gateway.refundPayment(target.mpPaymentId, opts.refundAmount);
-
-    // Inbox PRIMERO (dedupe contra el webhook loopback), luego el asiento.
-    const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
-    if (!fresh) {
-      // El loopback ganó la carrera (p. ej. reintento tras un corte): ya está asentado.
-      return { alreadyProcessed: true };
+    // Hay pago(s) MP real(es): devolver cada uno contra SU pago (monto explícito;
+    // idempotency key por monto). La porción offline la devuelve el dueño. Si MP lanza,
+    // se aborta con la DB intacta (el asiento va después).
+    let primaryRefundId: string | null = null;
+    for (const s of splits) {
+      if (!isRealMpPayment(s.paymentId)) continue;
+      const refund = await this.gateway.refundPayment(s.paymentId, s.amount);
+      // Inbox PRIMERO (dedupe contra el webhook loopback de cada reembolso).
+      const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
+      if (!fresh) return { alreadyProcessed: true };
+      primaryRefundId = primaryRefundId ?? refund.id;
     }
-    await this.inbox.markRefunded(target.orderId, refund.id, opts.refundAmount);
+    // El asiento (mark_refunded) anula las boletas por-pago y acumula el reembolso.
+    await this.inbox.markRefunded(target.orderId, primaryRefundId ?? "offline:manual", opts.refundAmount);
     return { alreadyProcessed: false };
   }
 }

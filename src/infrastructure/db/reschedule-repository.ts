@@ -7,6 +7,7 @@ import type {
   RescheduleMoveParams,
   RescheduleSettleDownParams,
 } from "@/src/application/ports/reschedule";
+import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import type { Database, Json } from "./database.types";
 
 /** Traduce los errores de las RPC de reagendamiento a mensajes es-CL para el admin. */
@@ -105,6 +106,12 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   async setRefundId(orderId: string, refundId: string): Promise<void> {
     const { error } = await this.db.from("orders").update({ mp_refund_id: refundId }).eq("id", orderId);
     if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async backingBoletas(orderId: string): Promise<BackingBoleta[]> {
+    const { data, error } = await this.db.rpc("order_backing_boletas", { p_order: orderId });
+    if (error) throw new Error(rescheduleError(error.message));
+    return (data ?? []).map((r) => ({ liveAmount: r.live_amount, paymentId: r.payment_id }));
   }
 
   async createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }> {
