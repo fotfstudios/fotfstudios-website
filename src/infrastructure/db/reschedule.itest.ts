@@ -220,10 +220,19 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     const o = await pg.query<{ status: string; amount: number }>("select status, amount_clp amount from orders where id=$1", [orderId]);
     expect(o.rows[0]).toMatchObject({ status: "paid", amount: 12990 }); // 9990 + 3000
     expect((await pg.query<{ status: string }>("select status from orders where id=$1", [deltaOrderId])).rows[0].status).toBe("fulfilled");
-    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1 order by created_at", [orderId]);
-    // Consolidación: boleta vieja 9990, NC 9990 que la anula, boleta nueva 12990 (= live).
-    expect(docs.rows.filter((d) => d.kind === "boleta").map((d) => d.total).sort((a, b) => a - b)).toEqual([9990, 12990]);
-    expect(docs.rows.filter((d) => d.kind === "nota_credito").map((d) => d.total)).toEqual([9990]);
+    const docs = await pg.query<{ kind: string; total: number; live: boolean }>(
+      "select kind, total, is_live live from tax_documents where order_id=$1 order by created_at", [orderId]);
+    // Aditivo: la boleta original (9990) sigue VIVA + una boleta delta (3000) nueva. Sin NC.
+    expect(docs.rows.filter((d) => d.kind === "boleta" && d.live).map((d) => d.total).sort((a, b) => a - b)).toEqual([3000, 9990]);
+    expect(docs.rows.filter((d) => d.kind === "nota_credito")).toEqual([]);
+    // I1': boletas vivas suman amount − refunded (12990).
+    const live = await pg.query<{ s: string }>(
+      "select coalesce(sum(total - reversed_clp),0)::text s from tax_documents where order_id=$1 and kind='boleta'", [orderId]);
+    expect(Number(live.rows[0].s)).toBe(12990);
+    // La boleta delta la financia el pago de la orden de delta (per-payment refund).
+    const dBol = await pg.query<{ settlement: string }>(
+      "select settlement_order_id settlement from tax_documents where order_id=$1 and kind='boleta' and total=3000", [orderId]);
+    expect(dBol.rows[0].settlement).toBe(deltaOrderId);
     expect((await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [deltaOrderId])).rows[0].status).toBe("applied");
   });
 
@@ -253,17 +262,24 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("applied");
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("noop");
     expect((await pg.query<{ amount: number }>("select amount_clp amount from orders where id=$1", [orderId])).rows[0].amount).toBe(12990); // no doblado
-    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and total=12990", [orderId])).rows[0].n).toBe("1");
+    // Aditivo idempotente: una sola boleta delta de 3000 (no duplicada).
+    expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and total=3000", [orderId])).rows[0].n).toBe("1");
   });
 
-  it("tras el encarecimiento, un mark_refunded posterior emite NC que calza con la boleta viva (12990)", async () => {
+  it("tras el encarecimiento aditivo, mark_refunded total anula CADA boleta viva (NC por boleta)", async () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "cinv");
     const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
     await pg.query("select apply_reschedule_charge($1,$2)", [c.rows[0].delta_order_id, "mp_inv"]);
+    // Boletas vivas [9990, 3000]; el reembolso total emite UNA NC por CADA una (regla SII:
+    // la NC referencia el folio de una boleta, no un monto agregado).
     await pg.query("select mark_refunded($1,$2,$3)", [orderId, "mp_ref_inv", 12990]);
-    const ncs = await pg.query<{ total: number }>("select total from tax_documents where order_id=$1 and kind='nota_credito' order by created_at", [orderId]);
-    // Dos NC: la de consolidación (9990) y la del reembolso total posterior (12990, = boleta viva).
-    expect(ncs.rows.map((d) => d.total)).toEqual([9990, 12990]);
+    const ncs = await pg.query<{ total: number; reverses: string }>(
+      "select total, reverses_document_id reverses from tax_documents where order_id=$1 and kind='nota_credito' order by total", [orderId]);
+    expect(ncs.rows.map((d) => d.total)).toEqual([3000, 9990]);
+    expect(ncs.rows.every((d) => d.reverses !== null)).toBe(true); // cada NC enlazada a su boleta
+    // Sin boletas vivas tras el reembolso total (I1': 0 = 12990 − 12990).
+    const live = await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta' and is_live", [orderId]);
+    expect(live.rows[0].n).toBe("0");
   });
 
   it("expire_abandoned_reschedules cancela cobros pendientes viejos", async () => {
@@ -329,18 +345,46 @@ describe("reschedule_courtesy", () => {
   });
 });
 
-describe("create_nota_credito_amount / create_boleta_amount — guard $0", () => {
-  it("con total 0 no emiten documento (return null, sin fila de $0)", async () => {
+describe("create_boleta_amount — guard $0", () => {
+  it("con total 0 no emite documento (return null, sin fila de $0)", async () => {
     const { orderId } = await paidBooking(600, "z0");
-    // Guard a nivel documento: los helpers se llaman directo (mark_refunded ya tiene su
-    // propio `v_boleta <= 0` guard que enmascararía esto). Protege a los llamadores
-    // directos como apply_reschedule_charge, que invoca create_nota_credito_amount sin pasar
-    // por mark_refunded.
-    const nc = await pg.query<{ id: string | null }>("select create_nota_credito_amount($1, 0) id", [orderId]);
+    // (El guard $0 de create_nota_credito_amount 3-arg está cubierto en tax-reversal.itest.ts.)
     const bo = await pg.query<{ id: string | null }>("select create_boleta_amount($1, 0) id", [orderId]);
-    expect(nc.rows[0].id).toBeNull();
     expect(bo.rows[0].id).toBeNull();
     expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and total=0", [orderId])).rows[0].n).toBe("0");
+  });
+});
+
+// Escenario compuesto: pagar → encarecer (aditivo) → abaratar. Verifica I1' y que el
+// abaratamiento anula boletas vivas más-antigua-primero conservando el financiamiento
+// por-pago de las boletas no tocadas.
+describe("compuesto encarecer→abaratar (multi-boleta)", () => {
+  it("9990 → +3000 (aditivo) → −4990: I1' se mantiene; NC más-antigua-primero; boleta delta intacta", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "cmp1");
+    // Encarecer a 12990 (delta 3000) y pagarlo.
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    const deltaOrderId = c.rows[0].delta_order_id;
+    await pg.query("select apply_reschedule_charge($1,$2)", [deltaOrderId, "mp_cmp"]);
+
+    // Abaratar 12990 → 8000 (refund 4990). El refund cabe en la boleta original (9990).
+    const lines8000 = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 8000, subtotal_clp: 8000 }]);
+    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
+      reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", lines8000, "mp_cmp_ref", 4990, null,
+    ]);
+
+    const o = await pg.query<{ amount: number; refunded: number }>(
+      "select amount_clp amount, refunded_amount_clp refunded from orders where id=$1", [orderId]);
+    expect(o.rows[0]).toMatchObject({ amount: 12990, refunded: 4990 });
+
+    // I1': boletas vivas suman amount − refunded = 8000.
+    const live = await pg.query<{ id: string; total: number; reversed: number; settlement: string }>(
+      "select id, total, reversed_clp reversed, settlement_order_id settlement from tax_documents where order_id=$1 and kind='boleta' and is_live order by total", [orderId]);
+    expect(live.rows.reduce((s, r) => s + (r.total - r.reversed), 0)).toBe(8000);
+    // La boleta original (9990) se anuló y se reemitió su saldo (5000), financiado por el pago original;
+    // la boleta delta (3000, financiada por la orden de delta) quedó intacta.
+    expect(live.rows.map((r) => r.total - r.reversed).sort((a, b) => a - b)).toEqual([3000, 5000]);
+    const deltaLive = live.rows.find((r) => r.total === 3000);
+    expect(deltaLive?.settlement).toBe(deltaOrderId);
   });
 });
 
@@ -403,5 +447,29 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
     expect(await earnSum(orderId)).toBe(299); // floor(0.05·5990)
     const revokes = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn_revoke'", [orderId]);
     expect(Number(revokes.rows[0].n)).toBe(2); // dos claw-backs distintos, ninguno colisionado
+  });
+
+  it("encarecer hace TRUING de earn (floor del total, no floor-por-tramo): 9990→19980 ⇒ 999 (no 998)", async () => {
+    await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
+    await pg.query("insert into customers (id, email) values ($1,$2) on conflict (id) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+
+    const b = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: EARN_EMAIL } });
+    if (!b.ok) throw new Error(`book failed: ${b.error}`);
+    const orderId = b.value.orderId;
+    expect(await pay(orderId, "pearn_up", 9990)).toBe("paid");
+    const r0 = await pg.query<{ id: string; ends_at: string }>("select id, ends_at from reservations where order_id=$1", [orderId]);
+    expect(await earnSum(orderId)).toBe(499);
+
+    // Encarecer +9990 → total 19980. floor(0.05·19980)=999; floor-por-tramo daría 499+499=998.
+    const linesUp2 = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 19980, subtotal_clp: 19980 }]);
+    const c = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [r0.rows[0].id, addHours(r0.rows[0].ends_at, 1), addHours(r0.rows[0].ends_at, 2), "{}", linesUp2, 9990, 8395, 1595, null],
+    );
+    await pg.query("select apply_reschedule_charge($1,$2)", [c.rows[0].delta_order_id, "mp_up"]);
+
+    expect(await earnSum(orderId)).toBe(999); // truing: no pierde el punto del redondeo
+    const earns = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn'", [orderId]);
+    expect(earns.rows[0].n).toBe("2"); // earn inicial + earn del encarecimiento (una sola fila)
   });
 });
