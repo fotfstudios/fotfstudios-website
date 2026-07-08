@@ -12,7 +12,7 @@ import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { adminRepository, pricingService } from "@/src/composition";
-import type { AdminBookingDetail, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
+import type { AdminBookingDetail, BookingTimelineEvent, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
@@ -23,21 +23,75 @@ import { RescheduleDialog } from "./_components/RescheduleDialog";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
 
-/** Categoría de cada evento del timeline de actividad. */
-type ActivityTag = "Reservas" | "Pagos" | "Documentos tributarios" | "Notificaciones";
+/** Categoría de cada evento del timeline de actividad (espejo de booking_events.category). */
+type ActivityTag = "Reservas" | "Pagos" | "Puntos" | "Documentos tributarios" | "Notificaciones";
 
 /**
  * Tono por categoría (leyenda + punto + chip). Familia oro = plata: oro vivo para
- * pagos en vivo, oro profundo para los documentos del SII (misma familia, distinto
- * tono). Los grises quedan para lo administrativo. Sirena fuera — solo urgencia.
+ * pagos en vivo, oro profundo para los documentos del SII, oro atenuado para los
+ * puntos (dinero-equivalente que NO toca el banco). Los grises quedan para lo
+ * administrativo. Sirena fuera — solo urgencia.
  */
 const TAG_TONE: Record<ActivityTag, { dot: string; text: string }> = {
   Pagos: { dot: "bg-gold", text: "text-gold" },
+  Puntos: { dot: "bg-gold/60", text: "text-gold/70" },
   "Documentos tributarios": { dot: "bg-gold-deep", text: "text-gold-deep" },
   Reservas: { dot: "bg-bone", text: "text-bone" },
   Notificaciones: { dot: "bg-bone-dim", text: "text-bone-dim" },
 };
-const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Documentos tributarios", "Notificaciones"];
+const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Puntos", "Documentos tributarios", "Notificaciones"];
+
+/** Renderiza un evento del log al par (label es-CL, detalle) del timeline. */
+function timelineEntry(
+  e: BookingTimelineEvent,
+  ctx: { origin: string; originalStart: string; payMethod: string },
+): { label: string; detail?: string } {
+  const clp = (n: number | null) => (n != null ? formatCLP(n) : "");
+  const move = () =>
+    e.detail?.old_starts_at && e.detail?.new_starts_at
+      ? `${fmtDateTime(e.detail.old_starts_at)} → ${fmtDateTime(e.detail.new_starts_at)}`
+      : undefined;
+  switch (e.type) {
+    case "created":
+      return { label: "Reserva creada", detail: `${ctx.origin} · ${fmtDateTime(ctx.originalStart)}` };
+    case "courtesy_confirmed":
+      return { label: "Confirmada (cortesía)" };
+    case "payment_confirmed":
+      return { label: "Pago confirmado", detail: `${clp(e.amountClp)} · ${ctx.payMethod}` };
+    case "access_sent":
+      return { label: "Acceso enviado" };
+    case "reschedule_moved":
+      return { label: "Reagendada", detail: move() };
+    case "reschedule_charge_pending":
+      return { label: "Reagendamiento pendiente de pago", detail: `${move() ?? ""} · ${clp(e.amountClp)} extra — se mueve al pagarse` };
+    case "reschedule_charge_paid":
+      return { label: "Cobro extra por reagendamiento", detail: clp(e.amountClp) };
+    case "reschedule_refund":
+      return { label: "Reembolso por reagendamiento", detail: clp(e.amountClp) };
+    case "reschedule_failed_slot_taken":
+      return { label: "Reagendamiento fallido (horario tomado)", detail: `${move() ?? ""} · excedente ${clp(e.amountClp)} devuelto` };
+    case "reschedule_expired":
+      return { label: "Cobro de reagendamiento expirado", detail: move() };
+    case "boleta_issued":
+      return { label: "Boleta generada", detail: clp(e.amountClp) };
+    case "boleta_emitted":
+      return { label: "Boleta emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
+    case "nota_credito_issued":
+      return { label: "Nota de crédito generada", detail: clp(e.amountClp) };
+    case "nota_credito_emitted":
+      return { label: "Nota de crédito emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
+    case "points_earned":
+      return { label: "Puntos otorgados", detail: e.amountClp != null ? `+${e.amountClp} pts` : undefined };
+    case "points_revoked":
+      return { label: "Puntos revocados", detail: e.amountClp != null ? `−${e.amountClp} pts` : undefined };
+    case "cancelled":
+      return { label: "Cancelada" };
+    case "refunded":
+      return { label: "Reembolsada", detail: clp(e.amountClp) };
+    default:
+      return { label: e.type };
+  }
+}
 
 export default async function BookingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -60,18 +114,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
 
-  // Contexto de auditoría para creación y pago. El horario original es el del
-  // primer reagendamiento aplicado (si lo hubo); el origen se infiere de la
-  // preferencia MP (solo el checkout web crea una). amount_clp acumula los
-  // cobros extra de reagendamientos → se restan para recuperar el monto
-  // confirmado en el pago original.
+  // Enriquecimiento del render que depende del pedido (no vive en cada evento):
+  // el origen de "Reserva creada" y el método de "Pago confirmado". El horario
+  // original es el del primer reagendamiento aplicado (si lo hubo).
   const firstApplied = b.reschedules.find((m) => m.status === "applied");
   const originalStart = firstApplied ? firstApplied.oldStartsAt : b.startsAt;
   const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
-  const chargedDeltas = b.reschedules
-    .filter((m) => m.status === "applied" && m.kind === "charge")
-    .reduce((sum, m) => sum + m.deltaClp, 0);
-  const paidAmount = (b.amount ?? 0) - chargedDeltas;
   const snapshotMethod = b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";
   const payMethod =
     snapshotMethod !== "—"
@@ -80,77 +128,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
         ? `${b.mpPaymentId.slice("offline:".length)} (manual)`
         : "Mercado Pago";
 
-  const activity: { label: string; detail?: string; at: string | null; tag: ActivityTag }[] = [
-    { label: "Reserva creada", detail: `${origin} · ${fmtDateTime(originalStart)}`, at: b.createdAt, tag: "Reservas" },
-  ];
-  if (b.paidAt)
-    activity.push({
-      label: "Pago confirmado",
-      detail: `${formatCLP(paidAmount)} · ${payMethod}`,
-      at: b.paidAt,
-      tag: "Pagos",
-    });
-  else if (b.status === "confirmed" && !b.orderId)
-    activity.push({ label: "Confirmada (cortesía)", at: null, tag: "Reservas" });
-  // Reagendamientos (auditoría): el movimiento (Reservas) y el delta de plata
-  // (Pagos) son hechos distintos → cada uno con su propia línea. Mismo timestamp:
-  // el desempate por índice deja el movimiento arriba (resulta del cobro/reembolso).
-  for (const m of b.reschedules) {
-    const move = `${fmtDateTime(m.oldStartsAt)} → ${fmtDateTime(m.newStartsAt)}`;
-    if (m.status === "applied") {
-      const when = m.appliedAt ?? m.createdAt;
-      if (m.kind === "refund")
-        activity.push({ label: "Reembolso por reagendamiento", detail: formatCLP(m.deltaClp), at: when, tag: "Pagos" });
-      else if (m.kind === "charge")
-        activity.push({ label: "Cobro extra por reagendamiento", detail: formatCLP(m.deltaClp), at: when, tag: "Pagos" });
-      activity.push({ label: "Reagendada", detail: move, at: when, tag: "Reservas" });
-    } else if (m.status === "pending_charge") {
-      activity.push({
-        label: "Reagendamiento pendiente de pago",
-        detail: `${move} · ${formatCLP(m.deltaClp)} extra — se mueve al pagarse`,
-        at: m.createdAt,
-        tag: "Pagos",
-      });
-    } else if (m.status === "failed_slot_taken") {
-      activity.push({
-        label: "Reagendamiento fallido (horario tomado)",
-        detail: `${move} · excedente ${formatCLP(m.deltaClp)} devuelto`,
-        at: m.createdAt,
-        tag: "Pagos",
-      });
-    } else if (m.status === "expired") {
-      activity.push({ label: "Cobro de reagendamiento expirado", detail: move, at: m.createdAt, tag: "Pagos" });
-    }
-  }
-  if (b.accessSentAt) activity.push({ label: "Acceso enviado", at: b.accessSentAt, tag: "Notificaciones" });
-  if (b.refundedAt) activity.push({ label: "Reembolsada", at: b.refundedAt, tag: "Pagos" });
-  if (b.status === "cancelled") activity.push({ label: "Cancelada", at: b.cancelledAt, tag: "Reservas" });
-  // Documentos tributarios (boleta / nota de crédito): dos hitos por documento —
-  // generado (created_at, queda pendiente de emisión) y emitido en el SII con folio
-  // (emitted_at). Comparten timestamp con el pago/reembolso que los origina; el
-  // desempate por índice los deja encima (son su consecuencia).
-  for (const d of b.taxDocs) {
-    const doc = taxDocLabel(d.kind);
-    activity.push({ label: `${doc} generada`, detail: formatCLP(d.total), at: d.createdAt, tag: "Documentos tributarios" });
-    if (d.emittedAt)
-      activity.push({
-        label: `${doc} emitida`,
-        detail: `${d.folio ? `Folio ${d.folio} · ` : ""}${formatCLP(d.total)}`,
-        at: d.emittedAt,
-        tag: "Documentos tributarios",
-      });
-  }
-
-  // Más reciente primero. Sin timestamp (cortesía confirmada) cuenta como la creación;
-  // en empates gana el evento posterior del ciclo de vida (índice de armado invertido).
-  const timeline = activity
-    .map((e, i) => ({ e, i }))
-    .sort((x, y) => {
-      const tx = Date.parse(x.e.at ?? b.createdAt);
-      const ty = Date.parse(y.e.at ?? b.createdAt);
-      return ty - tx || y.i - x.i;
-    })
-    .map(({ e }) => e);
+  // Timeline: fuente ÚNICA y ya ordenada (booking_events, newest-first con `seq`).
+  const events = await adminRepository().getBookingTimeline(b.id);
+  const timeline = events.map((e) => {
+    const { label, detail } = timelineEntry(e, { origin, originalStart, payMethod });
+    return { label, detail, at: e.occurredAt, tag: e.category };
+  });
 
   return (
     <>
