@@ -3,6 +3,7 @@ import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
 import {
+  customerAccessCode,
   customerCancellation,
   customerConfirmation,
   customerCourtesyConfirmation,
@@ -82,6 +83,32 @@ export class NotificationService {
           termsUrl: this.config.termsUrl,
           privacyUrl: this.config.privacyUrl,
         },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Código/instrucciones de acceso al CLIENTE. Se dispara cada vez que el staff
+   * guarda el acceso en la ficha (un código corregido también debe viajar).
+   * Best-effort y datos en mano: la ficha ya tiene todo, sin ida extra a la DB.
+   */
+  async notifyAccessCode(input: {
+    email: string | null;
+    name: string | null;
+    startsAt: string;
+    code: string;
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    const when = DateTime.fromISO(input.startsAt)
+      .setZone(this.config.tz)
+      .setLocale("es")
+      .toFormat("cccc d 'de' LLLL, HH:mm 'h'");
+    await this.mailer.send({
+      to: input.email,
+      ...customerAccessCode(
+        { name: input.name, when, code: input.code },
+        { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;

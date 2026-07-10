@@ -89,6 +89,11 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                     <SubmitButton size="sm">Guardar acceso</SubmitButton>
                     {b.accessSentAt && <span className="label-sm text-bone-mute">Registrado</span>}
                   </div>
+                  <p className="label-sm mt-2 text-bone-mute">
+                    {b.customerEmail
+                      ? "Al guardar, el código se envía por email al cliente."
+                      : "Sin email — envía el código por WhatsApp."}
+                  </p>
                 </ActionForm>
               </Card>
 

@@ -55,3 +55,38 @@ describe("notifyCourtesy", () => {
     ).rejects.toThrow("resend down");
   });
 });
+
+describe("notifyAccessCode", () => {
+  it("sin email: no envía y devuelve false (sin tocar la DB)", async () => {
+    const { service, mailer, repo } = makeService();
+    const sent = await service.notifyAccessCode({ email: null, name: "Ana", startsAt: "2026-07-12T18:00:00Z", code: "1234" });
+    expect(sent).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(repo.getOrderForEmail).not.toHaveBeenCalled();
+  });
+
+  it("con email: envía el código con horario en zona Santiago", async () => {
+    const { service, mailer } = makeService();
+    const sent = await service.notifyAccessCode({
+      email: "ana@e.cl",
+      name: "Ana",
+      startsAt: "2026-07-12T18:00:00Z",
+      code: "clave 4471",
+    });
+    expect(sent).toBe(true);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.subject).toMatch(/acceso/i);
+    expect(msg.html).toContain("domingo 12 de julio, 14:00 h");
+    expect(msg.html).toContain("clave 4471");
+  });
+
+  it("si el mailer falla, el error se propaga (el .catch vive en el call site)", async () => {
+    const { service, mailer } = makeService();
+    mailer.send.mockRejectedValueOnce(new Error("resend down"));
+    await expect(
+      service.notifyAccessCode({ email: "ana@e.cl", name: null, startsAt: "2026-07-12T18:00:00Z", code: "1234" }),
+    ).rejects.toThrow("resend down");
+  });
+});
