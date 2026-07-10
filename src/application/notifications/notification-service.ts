@@ -2,13 +2,21 @@ import { DateTime } from "luxon";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
-import { customerCancellation, customerConfirmation, ownerNeedsReview, ownerNotification } from "./templates";
+import {
+  customerCancellation,
+  customerConfirmation,
+  customerCourtesyConfirmation,
+  ownerNeedsReview,
+  ownerNotification,
+} from "./templates";
 
 export interface NotificationConfig {
   ownerEmail: string;
   tz: string;
   address: string;
   whatsappUrl: string;
+  termsUrl: string;
+  privacyUrl: string;
 }
 
 /** Envía emails de confirmación (cliente + dueño) al pagarse una reserva. */
@@ -44,6 +52,38 @@ export class NotificationService {
     }
 
     await this.repo.markNotified(orderId);
+    return true;
+  }
+
+  /**
+   * Confirmación al CLIENTE de una sesión de cortesía. Sin orden no hay pipeline de
+   * pagos (ni `notified_at` ni barrido del cron): un solo disparo best-effort desde la
+   * acción del admin, misma filosofía que notifyCancellation. Datos en mano porque la
+   * reserva no guarda add-ons estructurados (van fundidos en notes).
+   */
+  async notifyCourtesy(input: {
+    email: string | null;
+    name: string | null;
+    startsAt: string;
+    addonNames: string[];
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    const when = DateTime.fromISO(input.startsAt)
+      .setZone(this.config.tz)
+      .setLocale("es")
+      .toFormat("cccc d 'de' LLLL, HH:mm 'h'");
+    await this.mailer.send({
+      to: input.email,
+      ...customerCourtesyConfirmation(
+        { name: input.name, when, addonNames: input.addonNames },
+        {
+          address: this.config.address,
+          whatsappUrl: this.config.whatsappUrl,
+          termsUrl: this.config.termsUrl,
+          privacyUrl: this.config.privacyUrl,
+        },
+      ),
+    });
     return true;
   }
 
