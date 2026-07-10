@@ -74,7 +74,17 @@ export async function markAccessAction(_prev: ActionResult | null, fd: FormData)
     const reservationId = str(fd, "reservationId");
     const code = str(fd, "code");
     if (badField(code)) throw new Error("Código inválido.");
-    if (code) await adminRepository().markAccess(reservationId, code);
+    if (code) {
+      await adminRepository().markAccess(reservationId, code);
+      // Email best-effort con el código: solo reservas confirmadas con email. Cada
+      // guardado reenvía a propósito (un código corregido también debe llegar).
+      const b = await adminRepository().getBooking(reservationId).catch(() => null);
+      if (b?.status === "confirmed" && b.customerEmail) {
+        await notificationService()
+          .notifyAccessCode({ email: b.customerEmail, name: b.customerName, startsAt: b.startsAt, code })
+          .catch((e) => console.error("[access:notify]", e));
+      }
+    }
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
 }
