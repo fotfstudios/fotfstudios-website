@@ -28,17 +28,29 @@ update tax_documents set settlement_order_id = order_id where kind = 'boleta';
 
 -- (b) enlazar cada NC a la boleta que anula. Históricamente toda NC (mark_refunded,
 -- reschedule_down viejo, consolidación) anulaba una boleta del MISMO pedido por su
--- total EXACTO → el match por total, más antigua primero, es exacto.
-with pairs as (
-  select nc.id as nc_id, b.id as b_id,
-         row_number() over (partition by nc.id order by b.created_at, b.id) rn
-  from tax_documents nc
-  join tax_documents b
-    on b.order_id = nc.order_id and b.kind = 'boleta' and b.total = nc.total
-  where nc.kind = 'nota_credito'
+-- total EXACTO. Un pedido puede tener VARIAS boleta/NC del mismo total (p. ej. dos
+-- reservas iguales, o el bug histórico de boletas apiladas) → un match "cualquier
+-- boleta con ese total" deja que dos NC distintas colapsen sobre la MISMA boleta
+-- (violó tax_doc_reversed_le_total en prod: 2 NC de $9.990 ambas enlazadas a la
+-- boleta más antigua de $9.990 → reversed_clp=$19.980 > total=$9.990). El emparejado
+-- correcto es 1:1 cronológico DENTRO de cada grupo (pedido, total): la k-ésima NC de
+-- ese total reversa la k-ésima boleta de ese total, no siempre "la más antigua".
+with nc_ranked as (
+  select id, order_id, total,
+         row_number() over (partition by order_id, total order by created_at, id) rn
+  from tax_documents
+  where kind = 'nota_credito'
+),
+b_ranked as (
+  select id, order_id, total,
+         row_number() over (partition by order_id, total order by created_at, id) rn
+  from tax_documents
+  where kind = 'boleta'
 )
-update tax_documents nc set reverses_document_id = p.b_id
-from pairs p where nc.id = p.nc_id and p.rn = 1;
+update tax_documents nc set reverses_document_id = b.id
+from nc_ranked r
+join b_ranked b on b.order_id = r.order_id and b.total = r.total and b.rn = r.rn
+where nc.id = r.id;
 
 -- (c) re-derivar reversed_clp de los enlaces recién puestos.
 update tax_documents b set reversed_clp = coalesce(
