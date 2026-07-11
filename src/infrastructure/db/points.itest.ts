@@ -50,6 +50,12 @@ class StubGateway implements PaymentGateway {
   async cancelPayment(): Promise<{ id: string; status: string }> {
     throw new Error("unused");
   }
+  async listRefunds() {
+    return this.info.refunds ?? [];
+  }
+  async getRefund() {
+    return this.info.refunds?.[0] ?? null;
+  }
 }
 
 // Cliente de prueba con usuario auth real (customers.id → auth.users.id).

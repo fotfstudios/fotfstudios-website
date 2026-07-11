@@ -2,10 +2,29 @@ import { MercadoPagoConfig, Payment, PaymentRefund, Preference } from "mercadopa
 import type {
   PaymentGateway,
   PaymentInfo,
+  PaymentRefundInfo,
   PreferenceInput,
   PreferenceResult,
   RefundResult,
 } from "@/src/application/ports/payment";
+
+/** Forma cruda de un reembolso en el SDK de MP (embebido en el pago, o de list/get). */
+type RawRefund = {
+  id?: number | string | null;
+  amount?: number | null;
+  status?: string | null;
+  date_created?: string | null;
+};
+
+/** Mapea un reembolso crudo de MP a nuestro `PaymentRefundInfo`. Único punto de mapeo. */
+export function toRefundInfo(r: RawRefund): PaymentRefundInfo {
+  return {
+    id: String(r.id),
+    amount: r.amount ?? 0,
+    status: r.status ?? "unknown",
+    dateCreated: r.date_created ?? undefined,
+  };
+}
 
 /** Adaptador de Mercado Pago (Checkout Pro). Único lugar que conoce el SDK de MP. */
 export class MercadoPagoGateway implements PaymentGateway {
@@ -87,13 +106,28 @@ export class MercadoPagoGateway implements PaymentGateway {
       dateApproved: p.date_approved ?? undefined,
       payerEmail: p.payer?.email ?? undefined,
       payerName,
-      refunds: (p.refunds ?? []).map((r) => ({
-        id: String(r.id),
-        amount: r.amount ?? 0,
-        status: r.status ?? "unknown",
-        dateCreated: r.date_created ?? undefined,
-      })),
+      refunds: (p.refunds ?? []).map(toRefundInfo),
     };
+  }
+
+  async listRefunds(paymentId: string): Promise<PaymentRefundInfo[]> {
+    const refunds = new PaymentRefund(this.client);
+    try {
+      const res = await refunds.list({ payment_id: paymentId });
+      return (Array.isArray(res) ? res : []).map(toRefundInfo);
+    } catch (e) {
+      throw new Error(`No se pudieron listar los reembolsos en Mercado Pago: ${mpErrorMessage(e)}`);
+    }
+  }
+
+  async getRefund(paymentId: string, refundId: string): Promise<PaymentRefundInfo | null> {
+    const refunds = new PaymentRefund(this.client);
+    try {
+      const r = await refunds.get({ payment_id: paymentId, refund_id: refundId });
+      return r?.id ? toRefundInfo(r) : null;
+    } catch (e) {
+      throw new Error(`No se pudo obtener el reembolso en Mercado Pago: ${mpErrorMessage(e)}`);
+    }
   }
 
   async refundPayment(paymentId: string, amount?: number): Promise<RefundResult> {

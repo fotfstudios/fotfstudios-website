@@ -63,4 +63,8 @@ export interface PaymentGateway {
    * `pending`/`in_process`; MP rechaza anular un pago ya aprobado.
    */
   cancelPayment(paymentId: string): Promise<{ id: string; status: string }>;
+  /** Lista los reembolsos de un pago (MP: `GET /v1/payments/{id}/refunds`). */
+  listRefunds(paymentId: string): Promise<PaymentRefundInfo[]>;
+  /** Obtiene un reembolso puntual (MP: `GET /v1/payments/{id}/refunds/{refundId}`); null si no existe. */
+  getRefund(paymentId: string, refundId: string): Promise<PaymentRefundInfo | null>;
 }
