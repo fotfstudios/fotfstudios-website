@@ -8,6 +8,7 @@ function makeGateway(over: Partial<PaymentGateway> = {}): PaymentGateway {
     getPayment: vi.fn(),
     findPaymentByOrder: vi.fn(),
     refundPayment: vi.fn(async () => ({ id: "ref_1", status: "approved", amount: 9990 })),
+    cancelPayment: vi.fn(async () => ({ id: "mp_pend", status: "cancelled" })),
     ...over,
   } as PaymentGateway;
 }
@@ -181,5 +182,88 @@ describe("RefundService.cancelBooking", () => {
   it("bloqueo/cortesía (sin orden) + reembolso pedido → error claro", async () => {
     const svc = new RefundService(makeGateway(), makeRepo(null), makeInbox());
     await expect(svc.cancelBooking("r1", { refundAmount: 5000 })).rejects.toThrow(/pago asociado/);
+  });
+});
+
+// Anulación (MP "Create cancellation") al cancelar SIN reembolso una orden no pagada:
+// evita que un pago pendiente que apruebe tarde capture plata contra una reserva cancelada.
+const PENDING: Target = {
+  orderId: "o1",
+  status: "pending_payment",
+  mpPaymentId: null, // el pago pendiente no queda guardado en la orden (confirm_payment solo en 'paid')
+  amountClp: 9990,
+  refundedAmountClp: 0,
+  pointsRedeemedClp: 0,
+  startsAt: "2026-07-09T18:00:00-04:00",
+};
+
+describe("RefundService.cancelBooking — anulación de pago pendiente (sin reembolso)", () => {
+  it("orden no pagada con pago MP pendiente → anula en MP y luego cancela en DB", async () => {
+    const calls: string[] = [];
+    const gw = makeGateway({
+      findPaymentByOrder: vi.fn(async () => ({ id: "mp_pend", status: "pending", externalReference: "o1" })),
+      cancelPayment: vi.fn(async () => {
+        calls.push("cancelPayment");
+        return { id: "mp_pend", status: "cancelled" };
+      }),
+    });
+    const repo = makeRepo(PENDING);
+    (repo.cancelBooking as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      calls.push("cancelBooking");
+    });
+
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+
+    expect(gw.findPaymentByOrder).toHaveBeenCalledWith("o1");
+    expect(gw.cancelPayment).toHaveBeenCalledWith("mp_pend");
+    expect(calls).toEqual(["cancelPayment", "cancelBooking"]); // anular ANTES de cancelar en DB
+  });
+
+  it("orden no pagada sin pago en MP → nada que anular; solo cancela en DB", async () => {
+    const gw = makeGateway({ findPaymentByOrder: vi.fn(async () => null) });
+    const repo = makeRepo(PENDING);
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+    expect(gw.cancelPayment).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
+  });
+
+  it("orden no pagada con pago ya aprobado → NO anula (solo pending/in_process)", async () => {
+    const gw = makeGateway({
+      findPaymentByOrder: vi.fn(async () => ({ id: "mp_ok", status: "approved", externalReference: "o1" })),
+    });
+    const repo = makeRepo(PENDING);
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+    expect(gw.cancelPayment).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
+  });
+
+  it("la anulación en MP falla → best-effort: igual cancela en DB", async () => {
+    const gw = makeGateway({
+      findPaymentByOrder: vi.fn(async () => ({ id: "mp_pend", status: "in_process", externalReference: "o1" })),
+      cancelPayment: vi.fn(async () => {
+        throw new Error("MP 400");
+      }),
+    });
+    const repo = makeRepo(PENDING);
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+    expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
+  });
+
+  it("orden PAGADA cancelada sin reembolso → no intenta anular (el pago ya se capturó)", async () => {
+    const gw = makeGateway();
+    const repo = makeRepo(PAID);
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+    expect(gw.findPaymentByOrder).not.toHaveBeenCalled();
+    expect(gw.cancelPayment).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
+  });
+
+  it("bloqueo/cortesía (sin orden) sin reembolso → cancela en DB, sin tocar MP", async () => {
+    const gw = makeGateway();
+    const repo = makeRepo(null);
+    await new RefundService(gw, repo, makeInbox()).cancelBooking("r1", { refundAmount: null });
+    expect(gw.findPaymentByOrder).not.toHaveBeenCalled();
+    expect(gw.cancelPayment).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
   });
 });

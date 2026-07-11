@@ -155,6 +155,18 @@ export class MercadoPagoGateway implements PaymentGateway {
     return { id: String(r.id), status: r.status ?? "unknown", amount: r.amount ?? undefined };
   }
 
+  async cancelPayment(paymentId: string): Promise<{ id: string; status: string }> {
+    const payment = new Payment(this.client);
+    let p;
+    try {
+      // PUT /v1/payments/{id} {status:"cancelled"} — solo pending/in_process.
+      p = await payment.cancel({ id: paymentId });
+    } catch (e) {
+      throw new Error(`No se pudo anular el pago en Mercado Pago: ${mpErrorMessage(e)}`);
+    }
+    return { id: String(p.id), status: p.status ?? "unknown" };
+  }
+
   async findPaymentByOrder(orderId: string): Promise<PaymentInfo | null> {
     const payment = new Payment(this.client);
     const res = await payment.search({ options: { external_reference: orderId } });
