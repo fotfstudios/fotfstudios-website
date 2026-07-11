@@ -17,6 +17,8 @@ import { PricingService } from "@/src/application/pricing/pricing-service";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MemberService } from "@/src/application/admin/member-service";
 import { RefundService } from "@/src/application/admin/refund-service";
+import { RescheduleService } from "@/src/application/admin/reschedule-service";
+import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { CustomerService } from "@/src/application/customers/customer-service";
 import { SupabaseCustomerRepository } from "@/src/infrastructure/db/customer-repository";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
@@ -90,7 +92,13 @@ export async function reconcileOrder(
   const gateway = new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN"));
   const payment = await gateway.findPaymentByOrder(orderId);
   if (!payment) return null;
-  const service = new WebhookService(gateway, new SupabaseWebhookRepository(client));
+  // Con finalizer: los pagos de órdenes de delta de reagendamiento se finalizan
+  // (apply_reschedule_charge) en vez de ir por el confirm normal.
+  const service = new WebhookService(
+    gateway,
+    new SupabaseWebhookRepository(client),
+    new SupabaseRescheduleRepository(client),
+  );
   return service.handlePaymentNotification(payment.id);
 }
 
@@ -122,6 +130,10 @@ export async function reconcilePending(
       console.error("[reconcile]", id, e);
     }
   }
+  // Barre cobros de reagendamiento diferidos abandonados (best-effort).
+  await expireAbandonedReschedules(client).catch((e) => console.error("[reconcile:reschedules]", e));
+  // Barre reservas manuales pendientes abandonadas (hold firme, best-effort).
+  await expireAbandonedManualHolds(client).catch((e) => console.error("[reconcile:manual-holds]", e));
   return { scanned: ids.length, paid, unreserved };
 }
 
@@ -156,6 +168,51 @@ export function refundService(client: SupabaseClient<Database> = db()): RefundSe
     adminRepository(client),
     new SupabaseWebhookRepository(client),
   );
+}
+
+/**
+ * Reagendamiento (admin): mueve una reserva pagada a otro horario con manejo del
+ * delta de precio en MP. Comparte el inbox del webhook (dedupe por refund id) para
+ * que el loopback no cancele el booking que se mantiene vivo.
+ */
+export function rescheduleService(
+  client: SupabaseClient<Database> = db(),
+  requestHost?: string | null,
+): RescheduleService {
+  return new RescheduleService(
+    new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN")),
+    pricingService(client),
+    new SupabaseRescheduleRepository(client),
+    new SupabaseWebhookRepository(client),
+    paymentService(client, requestHost),
+  );
+}
+
+/** Barre cobros de reagendamiento diferidos abandonados (>72 h sin pagar). */
+export async function expireAbandonedReschedules(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data } = await client.rpc("expire_abandoned_reschedules");
+  return data ?? 0;
+}
+
+/** Barre reservas manuales pendientes abandonadas (hold firme, >72 h sin pagar). */
+export async function expireAbandonedManualHolds(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data } = await client.rpc("expire_abandoned_manual_holds");
+  return data ?? 0;
+}
+
+/** Mapea una orden de delta → orden original + monto del delta (para el aviso del webhook). */
+export async function rescheduleNotifyInfo(
+  deltaOrderId: string,
+  client: SupabaseClient<Database> = db(),
+): Promise<{ originalOrderId: string; delta: number } | null> {
+  const { data } = await client
+    .from("reschedules")
+    .select("original_order_id, delta_clp")
+    .eq("delta_order_id", deltaOrderId)
+    .maybeSingle();
+  // original_order_id es null solo en movimientos de cortesía (sin orden), que
+  // nunca tienen delta_order_id — pero el tipo lo exige.
+  return data?.original_order_id ? { originalOrderId: data.original_order_id, delta: data.delta_clp } : null;
 }
 
 /** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */

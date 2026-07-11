@@ -28,6 +28,7 @@ export class PaymentService {
 
   async createPreferenceForOrder(
     orderId: string,
+    opts?: { expiresInMinutes?: number | null },
   ): Promise<Result<{ preferenceId: string; initPoint: string }, string>> {
     const order = await this.orders.getOrderForPayment(orderId);
     if (!order) return err("pedido no encontrado");
@@ -37,7 +38,10 @@ export class PaymentService {
     // El checkout vence junto con el hold (10 min). Alinearlos evita que un pago
     // llegue cuando el horario ya se liberó/revendió. El borde restante lo cubre
     // confirm_payment (estado `paid_no_hold` → revisión, sin confirmar al cliente).
-    const expiresAt = new Date(Date.now() + HOLD_TTL_MINUTES * 60_000).toISOString();
+    // El cobro de reagendamiento pasa una ventana más larga o `null` (no hay hold
+    // que alinear; el cliente ausente paga cuando puede).
+    const minutes = opts?.expiresInMinutes === undefined ? HOLD_TTL_MINUTES : opts.expiresInMinutes;
+    const expiresAt = minutes == null ? undefined : new Date(Date.now() + minutes * 60_000).toISOString();
     // payer.first_name/last_name a partir del nombre del cliente (mejor aprobación MP).
     const [firstName, ...rest] = (order.name ?? "").trim().split(/\s+/).filter(Boolean);
     const lastName = rest.join(" ") || undefined;

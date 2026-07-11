@@ -7,6 +7,8 @@ import {
   customerCancellation,
   customerConfirmation,
   customerCourtesyConfirmation,
+  customerReschedule,
+  customerRescheduleFailed,
   ownerNeedsReview,
   ownerNotification,
 } from "./templates";
@@ -134,6 +136,48 @@ export class NotificationService {
           when,
           refunded: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
         },
+        { whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Aviso al CLIENTE de que su reserva cambió de horario (best-effort). `startsAt`
+   * ya refleja el NUEVO horario (la reserva se movió). Con reembolso del delta si el
+   * nuevo horario era más barato.
+   */
+  async notifyReschedule(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    const when = o.startsAt
+      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
+      : "—";
+    await this.mailer.send({
+      to: o.email,
+      ...customerReschedule(
+        { name: o.name, when, refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null },
+        { whatsappUrl: this.config.whatsappUrl, address: this.config.address },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Aviso al CLIENTE cuando el cobro de un reagendamiento se pagó pero el slot ya
+   * estaba tomado: la reserva NO se movió (sigue en su horario original) y se le
+   * devolvió el excedente. Best-effort.
+   */
+  async notifyRescheduleFailed(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    const when = o.startsAt
+      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
+      : "—";
+    await this.mailer.send({
+      to: o.email,
+      ...customerRescheduleFailed(
+        { name: o.name, when, refunded: formatCLP(opts.refundAmount) },
         { whatsappUrl: this.config.whatsappUrl },
       ),
     });

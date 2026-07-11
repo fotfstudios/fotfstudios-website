@@ -1,6 +1,7 @@
 import type { CheckoutLine, CheckoutRepository, Customer } from "@/src/application/ports/checkout";
 import type { BookingQuoteInput, PricingService } from "@/src/application/pricing/pricing-service";
 import { applyRedemption } from "@/src/domain/points/points";
+import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 
@@ -30,7 +31,7 @@ export class CheckoutService {
 
   async createBooking(
     input: CreateBookingInput,
-    opts?: { enforceLeadTime?: boolean },
+    opts?: { enforceLeadTime?: boolean; firmHold?: boolean },
   ): Promise<Result<CreateBookingResult, string>> {
     const res = await this.pricing.quoteBooking(input);
     if (!res.ok) return err(res.error);
@@ -46,32 +47,9 @@ export class CheckoutService {
     const lead = opts?.enforceLeadTime === false ? 0 : MIN_LEAD_MINUTES;
     if (new Date(startsAt).getTime() <= Date.now() + lead * 60_000) return err("too_soon");
 
-    const lines: CheckoutLine[] = [
-      ...quote.tierLines.map((l) => ({
-        line_type: "room_time" as const,
-        description: `Sala · ${l.hours}h (${l.key})`,
-        quantity: l.hours,
-        unit_price_clp: l.rate,
-        subtotal_clp: l.subtotal,
-      })),
-      ...quote.addonLines.map((a) => ({
-        line_type: "flat_service" as const,
-        addon_key: a.key,
-        description: a.name,
-        quantity: 1,
-        unit_price_clp: a.amount,
-        subtotal_clp: a.amount,
-      })),
-    ];
-
-    // Línea de ajuste/descuento: hace que las líneas SUMEN exactamente el total
-    // cobrado (absorbe descuento por volumen + redondeo a $10).
-    const gross = quote.tierLines.reduce((s, l) => s + l.subtotal, 0) + quote.addonsTotal;
-    const adjust = quote.total - gross;
-    if (adjust !== 0) {
-      const label = quote.volumePct > 0 ? `Descuento por volumen (${Math.round(quote.volumePct * 100)}%)` : "Ajuste";
-      lines.push({ line_type: "discount", description: label, quantity: 1, unit_price_clp: adjust, subtotal_clp: adjust });
-    }
+    // Líneas de sala + add-ons + ajuste (volumen/redondeo). Extraído a dominio
+    // para reutilizarlo desde el reagendamiento (misma forma de líneas).
+    const lines: CheckoutLine[] = orderLinesFromQuote(quote);
 
     // Canje de puntos: descuento adicional para que las líneas sigan sumando el
     // EFECTIVO cobrado (amount_clp queda como "lo que cobra MP / cubre la boleta").
@@ -101,6 +79,9 @@ export class CheckoutService {
         pointsRedeemed: redemption.pointsApplied,
         termsSource: input.termsSource,
         termsVersion: input.termsVersion,
+        // firmHold: reserva manual pendiente de pago (B1) → hold sin expiración.
+        // Sin la opción (checkout del cliente), holdTtlMinutes queda undefined → 10 min.
+        holdTtlMinutes: opts?.firmHold ? null : undefined,
       });
       return ok({
         orderId,

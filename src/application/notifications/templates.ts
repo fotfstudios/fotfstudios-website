@@ -119,6 +119,37 @@ export function customerCancellation(
   return { subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
 }
 
+export function customerReschedule(
+  v: { name: string | null; when: string; refunded: string | null },
+  ctx: { whatsappUrl: string; address: string },
+): EmailContent {
+  const refundLine = v.refunded
+    ? `<p style="color:#b9b5ab;margin:0 0 16px">Como el nuevo horario cuesta menos, te reembolsamos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
+    : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Reserva reagendada</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}tu sesión quedó reagendada para el <strong style="color:#f5f2ec">${esc(v.when)}</strong>.</p>
+     ${refundLine}
+     <p style="color:#b9b5ab;margin:0 0 20px">Te esperamos en ${esc(ctx.address)}.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu reserva quedó reagendada para el ${v.when}.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: "Tu reserva en FOTF Studios cambió de horario", html, text };
+}
+
+export function customerRescheduleFailed(
+  v: { name: string | null; when: string; refunded: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">No pudimos cambiar tu horario</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}el horario que pediste ya estaba tomado cuando se procesó el pago. Mantuvimos tu reserva original del <strong style="color:#f5f2ec">${esc(v.when)}</strong> y te devolvimos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos para elegir otro horario</a>`,
+  );
+  const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
+  return { subject: "No pudimos cambiar tu horario en FOTF Studios", html, text };
+}
+
 /**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.
@@ -132,9 +163,9 @@ export function ownerNeedsReview(
      <p style="color:#b9b5ab;margin:0 0 16px">Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que <strong style="color:#f5f2ec">devolver o reasignar</strong>.</p>
      <p style="margin:0 0 4px">Horario solicitado: <strong>${esc(v.when)}</strong></p>
      <p style="color:#b9b5ab;margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
-     <p style="color:#b9b5ab;margin:0 0 16px">Pago MP: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
+     <p style="color:#b9b5ab;margin:0 0 16px">Pago: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
   );
-  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago MP ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
+  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
   return { subject: "⚠️ Pago sin reserva — acción requerida", html, text };
 }
 

@@ -96,3 +96,55 @@ describe("WebhookService.handlePaymentNotification", () => {
     expect(repo.confirmPaid).not.toHaveBeenCalled();
   });
 });
+
+function makeFinalizer(over = {}) {
+  return {
+    pendingChargeForOrder: vi.fn(async () => ({ deltaOrderId: "do1", rescheduleId: "rs1" })),
+    applyCharge: vi.fn(async () => "applied" as const),
+    markChargeRefunded: vi.fn(async () => {}),
+    ...over,
+  };
+}
+
+describe("WebhookService — cobro de reagendamiento diferido", () => {
+  it("orden de delta pagada + slot libre → reschedule_applied (sin confirm normal)", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer();
+    const svc = new WebhookService(makeGateway({ status: "approved", externalReference: "do1", amount: 3000 }), repo, fin);
+    const res = await svc.handlePaymentNotification("payd");
+    expect(res).toEqual({ result: "reschedule_applied", orderId: "do1" });
+    expect(fin.applyCharge).toHaveBeenCalledWith("do1", "payd");
+    expect(repo.confirmPaid).not.toHaveBeenCalled(); // NO confirm normal para la orden de delta
+  });
+
+  it("slot tomado al pagar → devuelve el excedente, registra el inbox y marca refund → reschedule_slot_taken", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({ applyCharge: vi.fn(async () => "slot_taken" as const) });
+    const gw = makeGateway({ status: "approved", externalReference: "do1", amount: 3000 });
+    (gw.refundPayment as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ref_slot", status: "approved", amount: 3000 });
+    const svc = new WebhookService(gw, repo, fin);
+    const res = await svc.handlePaymentNotification("payd");
+    expect(res).toEqual({ result: "reschedule_slot_taken", orderId: "do1" });
+    expect(gw.refundPayment).toHaveBeenCalledWith("payd");
+    // Inbox-first: reclama refund:ref_slot para que la re-entrega del webhook dedupee.
+    expect(repo.recordEvent).toHaveBeenCalledWith("refund:ref_slot", "refund", expect.anything());
+    expect(fin.markChargeRefunded).toHaveBeenCalledWith("do1", "ref_slot");
+  });
+
+  it("segunda entrega (inbox duplicado) → duplicate, sin re-finalizar", async () => {
+    const repo = makeRepo({ recordEvent: vi.fn(async () => false) });
+    const fin = makeFinalizer();
+    const svc = new WebhookService(makeGateway({ status: "approved", externalReference: "do1" }), repo, fin);
+    expect((await svc.handlePaymentNotification("payd")).result).toBe("duplicate");
+    expect(fin.applyCharge).not.toHaveBeenCalled();
+  });
+
+  it("orden normal (no es cobro de reagendamiento) → confirm normal", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({ pendingChargeForOrder: vi.fn(async () => null) });
+    const svc = new WebhookService(makeGateway({ status: "approved", externalReference: "o1", amount: 9990 }), repo, fin);
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("paid");
+    expect(fin.applyCharge).not.toHaveBeenCalled();
+    expect(repo.confirmPaid).toHaveBeenCalled();
+  });
+});

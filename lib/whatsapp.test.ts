@@ -84,4 +84,12 @@ describe("manualBookingWhatsAppMessage", () => {
     expect(msg).toContain("*Duración:* 1 hora");
     expect(msg).toContain("18:00–19:00 h");
   });
+
+  it("variante pendiente: no dice 'confirmada' ni 'pagado', total queda a pagar", () => {
+    const msg = manualBookingWhatsAppMessage({ ...base, method: "pendiente" });
+    expect(msg).toContain("quedó agendada, *pendiente de pago*.");
+    expect(msg).not.toContain("está confirmada");
+    expect(msg).not.toContain("pagado en efectivo");
+    expect(msg).toContain("*Total a pagar (IVA incl.):* `$49.980` — pendiente de pago");
+  });
 });

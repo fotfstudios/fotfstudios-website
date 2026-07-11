@@ -4,6 +4,10 @@ import { DateTime } from "luxon";
 export const fmtDateTime = (iso: string): string =>
   DateTime.fromISO(iso).setZone("America/Santiago").setLocale("es").toFormat("ccc d LLL · HH:mm");
 
+/** Fecha/hora con segundos (Chile) — para logs/auditoría donde el orden fino importa. */
+export const fmtDateTimeSec = (iso: string): string =>
+  DateTime.fromISO(iso).setZone("America/Santiago").setLocale("es").toFormat("ccc d LLL · HH:mm:ss");
+
 /** Solo fecha (Chile) — para migas de pan y encabezados. */
 export const fmtDate = (iso: string): string =>
   DateTime.fromISO(iso).setZone("America/Santiago").setLocale("es").toFormat("ccc d LLL");

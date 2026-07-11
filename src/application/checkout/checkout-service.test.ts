@@ -220,3 +220,28 @@ describe("CheckoutService.createBooking — consentimiento T&C", () => {
     expect(params.termsVersion).toBeUndefined();
   });
 });
+
+describe("CheckoutService.createBooking — hold firme (opt firmHold)", () => {
+  it("con firmHold:true, holdTtlMinutes viaja null (hold sin expiración)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    await svc.createBooking(input, { firmHold: true });
+
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.holdTtlMinutes).toBeNull();
+  });
+
+  it("sin firmHold, holdTtlMinutes queda undefined (TTL por defecto de 10 min)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    await svc.createBooking(input);
+    let params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.holdTtlMinutes).toBeUndefined();
+
+    await svc.createBooking(input, { enforceLeadTime: false });
+    params = vi.mocked(repo.createCheckout).mock.calls[1][0];
+    expect(params.holdTtlMinutes).toBeUndefined();
+  });
+});

@@ -37,6 +37,6 @@ export interface ManualBookingResult {
   reservationId: string | null;
   /** null = cortesía (sin orden). */
   orderId: string | null;
-  /** Total cobrado según el servidor; null = cortesía. */
+  /** Total según el servidor: cobrado (efectivo/transferencia) o a cobrar (pendiente); null = cortesía. */
   amount: number | null;
 }

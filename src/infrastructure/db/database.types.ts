@@ -179,6 +179,86 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_events: {
+        Row: {
+          amount_clp: number | null
+          category: string
+          created_at: string
+          created_by: string | null
+          detail: Json | null
+          id: string
+          occurred_at: string
+          order_id: string | null
+          payment_ref: string | null
+          reschedule_id: string | null
+          reservation_id: string
+          seq: number
+          tax_document_id: string | null
+          type: string
+        }
+        Insert: {
+          amount_clp?: number | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          detail?: Json | null
+          id?: string
+          occurred_at?: string
+          order_id?: string | null
+          payment_ref?: string | null
+          reschedule_id?: string | null
+          reservation_id: string
+          seq?: never
+          tax_document_id?: string | null
+          type: string
+        }
+        Update: {
+          amount_clp?: number | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          detail?: Json | null
+          id?: string
+          occurred_at?: string
+          order_id?: string | null
+          payment_ref?: string | null
+          reschedule_id?: string | null
+          reservation_id?: string
+          seq?: never
+          tax_document_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_events_reschedule_id_fkey"
+            columns: ["reschedule_id"]
+            isOneToOne: false
+            referencedRelation: "reschedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_events_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_events_tax_document_id_fkey"
+            columns: ["tax_document_id"]
+            isOneToOne: false
+            referencedRelation: "tax_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -605,6 +685,91 @@ export type Database = {
           },
         ]
       }
+      reschedules: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          created_by: string | null
+          delta_clp: number
+          delta_order_id: string | null
+          id: string
+          kind: string
+          new_ends_at: string
+          new_lines: Json | null
+          new_snapshot: Json | null
+          new_starts_at: string
+          new_total_clp: number
+          old_ends_at: string
+          old_live_clp: number
+          old_starts_at: string
+          original_order_id: string | null
+          reservation_id: string
+          status: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta_clp?: number
+          delta_order_id?: string | null
+          id?: string
+          kind: string
+          new_ends_at: string
+          new_lines?: Json | null
+          new_snapshot?: Json | null
+          new_starts_at: string
+          new_total_clp: number
+          old_ends_at: string
+          old_live_clp: number
+          old_starts_at: string
+          original_order_id?: string | null
+          reservation_id: string
+          status?: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delta_clp?: number
+          delta_order_id?: string | null
+          id?: string
+          kind?: string
+          new_ends_at?: string
+          new_lines?: Json | null
+          new_snapshot?: Json | null
+          new_starts_at?: string
+          new_total_clp?: number
+          old_ends_at?: string
+          old_live_clp?: number
+          old_starts_at?: string
+          original_order_id?: string | null
+          reservation_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reschedules_delta_order_id_fkey"
+            columns: ["delta_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reschedules_original_order_id_fkey"
+            columns: ["original_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reschedules_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reservations: {
         Row: {
           access_code: string | null
@@ -759,12 +924,16 @@ export type Database = {
           emitted_at: string | null
           folio: string | null
           id: string
+          is_live: boolean | null
           iva: number
           kind: Database["public"]["Enums"]["tax_doc_kind"]
           neto: number
           order_id: string
           pdf_url: string | null
           receptor_rut: string | null
+          reversed_clp: number
+          reverses_document_id: string | null
+          settlement_order_id: string | null
           status: Database["public"]["Enums"]["tax_doc_status"]
           total: number
         }
@@ -773,12 +942,16 @@ export type Database = {
           emitted_at?: string | null
           folio?: string | null
           id?: string
+          is_live?: boolean | null
           iva: number
           kind: Database["public"]["Enums"]["tax_doc_kind"]
           neto: number
           order_id: string
           pdf_url?: string | null
           receptor_rut?: string | null
+          reversed_clp?: number
+          reverses_document_id?: string | null
+          settlement_order_id?: string | null
           status?: Database["public"]["Enums"]["tax_doc_status"]
           total: number
         }
@@ -787,12 +960,16 @@ export type Database = {
           emitted_at?: string | null
           folio?: string | null
           id?: string
+          is_live?: boolean | null
           iva?: number
           kind?: Database["public"]["Enums"]["tax_doc_kind"]
           neto?: number
           order_id?: string
           pdf_url?: string | null
           receptor_rut?: string | null
+          reversed_clp?: number
+          reverses_document_id?: string | null
+          settlement_order_id?: string | null
           status?: Database["public"]["Enums"]["tax_doc_status"]
           total?: number
         }
@@ -800,6 +977,20 @@ export type Database = {
           {
             foreignKeyName: "tax_documents_order_id_fkey"
             columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_documents_reverses_document_id_fkey"
+            columns: ["reverses_document_id"]
+            isOneToOne: false
+            referencedRelation: "tax_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_documents_settlement_order_id_fkey"
+            columns: ["settlement_order_id"]
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
@@ -895,7 +1086,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      apply_reschedule_charge: {
+        Args: { p_delta_order: string; p_payment_id: string }
+        Returns: string
+      }
       award_retro_points: { Args: { p_customer: string }; Returns: number }
+      booking_event_category: { Args: { p_type: string }; Returns: string }
       cancel_booking: {
         Args: { p_refund_id?: string; p_reservation: string }
         Returns: undefined
@@ -906,7 +1102,7 @@ export type Database = {
         Returns: string
       }
       create_boleta_amount: {
-        Args: { p_order: string; p_total: number }
+        Args: { p_order: string; p_settlement?: string; p_total: number }
         Returns: string
       }
       create_checkout: {
@@ -940,11 +1136,51 @@ export type Database = {
       }
       create_nota_credito: { Args: { p_order: string }; Returns: string }
       create_nota_credito_amount: {
-        Args: { p_order: string; p_total: number }
+        Args: { p_boleta: string; p_order: string; p_total: number }
         Returns: string
       }
+      create_reschedule_charge: {
+        Args: {
+          p_created_by?: string
+          p_delta: number
+          p_delta_net: number
+          p_delta_tax: number
+          p_ends: string
+          p_lines: Json
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: {
+          delta_order_id: string
+          reschedule_id: string
+        }[]
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      expire_abandoned_manual_holds: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
+      expire_abandoned_reschedules: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
+      log_booking_event: {
+        Args: {
+          p_amount?: number
+          p_created_by?: string
+          p_detail?: Json
+          p_occurred_at?: string
+          p_order?: string
+          p_payment_ref?: string
+          p_reschedule?: string
+          p_reservation: string
+          p_tax_doc?: string
+          p_type: string
+        }
+        Returns: string
+      }
       mark_refunded: {
         Args: {
           p_order: string
@@ -952,6 +1188,20 @@ export type Database = {
           p_refund_id?: string
         }
         Returns: undefined
+      }
+      order_backing_boletas: {
+        Args: { p_order: string }
+        Returns: {
+          live_amount: number
+          payment_id: string
+        }[]
+      }
+      order_live_boletas: {
+        Args: { p_order: string }
+        Returns: {
+          id: string
+          live_amount: number
+        }[]
       }
       refund_points_order: {
         Args: { p_order: string; p_ref?: string; p_restore: number }
@@ -965,6 +1215,40 @@ export type Database = {
         Args: { p_order: string; p_ref?: string }
         Returns: undefined
       }
+      reschedule_courtesy: {
+        Args: {
+          p_ends: string
+          p_note?: string
+          p_reservation: string
+          p_starts: string
+        }
+        Returns: string
+      }
+      reschedule_down: {
+        Args: {
+          p_ends: string
+          p_lines: Json
+          p_note?: string
+          p_refund_amount: number
+          p_refund_id: string
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: string
+      }
+      reschedule_move: {
+        Args: {
+          p_ends: string
+          p_lines: Json
+          p_note?: string
+          p_reservation: string
+          p_snapshot: Json
+          p_starts: string
+        }
+        Returns: string
+      }
+      reservation_for_order: { Args: { p_order: string }; Returns: string }
     }
     Enums: {
       order_status:

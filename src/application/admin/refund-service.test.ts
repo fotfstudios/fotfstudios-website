@@ -13,9 +13,13 @@ function makeGateway(over: Partial<PaymentGateway> = {}): PaymentGateway {
 }
 
 type Target = Awaited<ReturnType<RefundBookingRepo["orderForReservation"]>>;
-function makeRepo(target: Target): RefundBookingRepo {
+function makeRepo(target: Target, backing?: { liveAmount: number; paymentId: string | null }[]): RefundBookingRepo {
+  // Por defecto: una boleta viva financiada por el pago del pedido (caso común, un pago).
+  const boletas =
+    backing ?? (target && target.amountClp > 0 ? [{ liveAmount: target.amountClp - target.refundedAmountClp, paymentId: target.mpPaymentId }] : []);
   return {
     orderForReservation: vi.fn(async () => target),
+    backingBoletas: vi.fn(async () => boletas),
     cancelBooking: vi.fn(async () => {}),
     refundPointsOrder: vi.fn(async () => {}),
   };
@@ -70,6 +74,22 @@ describe("RefundService.cancelBooking", () => {
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_1", 9990);
     expect(calls).toEqual(["recordEvent", "markRefunded"]); // orden inbox→asiento (anti NC duplicada)
     expect(repo.cancelBooking).not.toHaveBeenCalled(); // mark_refunded ya cancela la reserva
+    expect(res.alreadyProcessed).toBe(false);
+  });
+
+  it("reembolso multi-pago (encarecido antes) → reparte por-pago, cada uno contra su pago", async () => {
+    // amount 12990 = original 9990 @orig + delta 3000 @delta; cancelar total.
+    const gw = makeGateway({ refundPayment: vi.fn(async (pid: string, amt: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })) });
+    const repo = makeRepo({ ...PAID, mpPaymentId: "orig", amountClp: 12990 }, [
+      { liveAmount: 9990, paymentId: "orig" },
+      { liveAmount: 3000, paymentId: "delta" },
+    ]);
+    const inbox = makeInbox();
+    const res = await new RefundService(gw, repo, inbox).cancelBooking("r1", { refundAmount: 12990 });
+    expect(gw.refundPayment).toHaveBeenCalledWith("orig", 9990);
+    expect(gw.refundPayment).toHaveBeenCalledWith("delta", 3000);
+    expect(gw.refundPayment).toHaveBeenCalledTimes(2);
+    expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_orig", 12990);
     expect(res.alreadyProcessed).toBe(false);
   });
 

@@ -7,7 +7,7 @@
 import { DateTime } from "luxon";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
-export const MANUAL_METHODS = ["efectivo", "transferencia", "cortesia"] as const;
+export const MANUAL_METHODS = ["pendiente", "efectivo", "transferencia", "cortesia"] as const;
 export type ManualPaymentMethod = (typeof MANUAL_METHODS)[number];
 
 export interface ManualBookingFields {

@@ -1,4 +1,5 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
+import type { RescheduleFinalizer } from "@/src/application/ports/reschedule";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
 
 export type WebhookOutcome =
@@ -8,7 +9,9 @@ export type WebhookOutcome =
   | "refunded"
   | "pending"
   | "duplicate"
-  | "ignored";
+  | "ignored"
+  | "reschedule_applied"
+  | "reschedule_slot_taken";
 
 export interface WebhookResult {
   result: WebhookOutcome;
@@ -31,6 +34,8 @@ export class WebhookService {
   constructor(
     private readonly gateway: PaymentGateway,
     private readonly repo: PaymentNotificationRepository,
+    /** Opcional: finaliza cobros de reagendamiento diferidos (Phase 3b). */
+    private readonly finalizer?: RescheduleFinalizer,
   ) {}
 
   async handlePaymentNotification(paymentId: string): Promise<WebhookResult> {
@@ -60,6 +65,27 @@ export class WebhookService {
     if (!orderId) return { result: "ignored", orderId };
 
     if (payment.status === "approved") {
+      // Cobro de reagendamiento diferido: la orden de delta no tiene reserva, así
+      // que NO va por confirm_payment (daría paid_no_hold). Se finaliza el movimiento;
+      // si el slot fue tomado mientras el cliente pagaba, se devuelve el excedente.
+      // El inbox (arriba) ya dedupea por `{paymentId}:approved` → sin doble finalización.
+      if (this.finalizer) {
+        const pend = await this.finalizer.pendingChargeForOrder(orderId);
+        if (pend) {
+          const outcome = await this.finalizer.applyCharge(orderId, paymentId);
+          if (outcome === "slot_taken") {
+            const r = await this.gateway.refundPayment(paymentId);
+            // Inbox-first (como todos los demás caminos de reembolso): la creación del
+            // reembolso dispara su propia notificación MP; sin esto, la re-entrega vería
+            // el refund como fresco y emitiría una NC espuria de $0 sobre la orden de delta.
+            await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
+            await this.finalizer.markChargeRefunded(orderId, r.id);
+            return { result: "reschedule_slot_taken", orderId };
+          }
+          return { result: outcome === "applied" ? "reschedule_applied" : "duplicate", orderId };
+        }
+      }
+
       // Verificar monto contra el snapshot del pedido (defensa en profundidad).
       const expected = await this.repo.getOrderAmount(orderId);
       if (expected != null && payment.amount != null && payment.amount !== expected) {

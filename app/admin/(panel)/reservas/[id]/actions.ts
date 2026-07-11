@@ -1,10 +1,15 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { type ActionResult, run } from "@/components/admin/ui/action";
-import { adminRepository, notificationService, refundService } from "@/src/composition";
+import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
+import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
+import type { RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { hostFromHeaders } from "@/lib/urls";
+import { getRescheduleDay } from "./reschedule-data";
+import type { DayConsoleData } from "../nueva/types";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k));
@@ -86,5 +91,117 @@ export async function markAccessAction(_prev: ActionResult | null, fd: FormData)
       }
     }
     revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
+/** Disponibilidad + ocupación del día para el picker de reagendamiento (excluye la propia reserva). */
+export async function getRescheduleDayAction(reservationId: string, date: string): Promise<ActionDataResult<DayConsoleData>> {
+  return runData(async () => {
+    await requirePermission("reservations.reschedule");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida.");
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    return getRescheduleDay(resource.id, resource.timezone, date, reservationId);
+  });
+}
+
+/** Códigos del servicio de reagendamiento → mensaje es-CL para el admin. */
+function rescheduleErrorMessage(code: string): string {
+  switch (code) {
+    case "not_found":
+    case "no_order":
+    case "not_active":
+      return "Esta reserva no se puede reagendar.";
+    case "not_paid":
+      return "La reserva no está pagada.";
+    case "points_order":
+      return "Esta reserva usó Puntos FOTF; para cambiarla, cancélala y vuelve a crearla.";
+    case "too_late":
+      return "Ya no se puede reagendar (menos de 12 h para la sesión).";
+    case "target_past":
+      return "Ese horario ya pasó. Elige otro.";
+    case "charge_unsupported":
+      return "El nuevo horario cuesta más y el cobro del extra aún no está disponible.";
+    default:
+      return code; // errores de la RPC (p. ej. "Ese horario ya está tomado.") ya vienen en es-CL
+  }
+}
+
+export async function rescheduleAction(input: {
+  reservationId: string;
+  date: string;
+  startMinute: number;
+  durationHours: number;
+}): Promise<ActionDataResult<RescheduleOutcome>> {
+  return runData(async () => {
+    await requirePermission("reservations.reschedule");
+    const { reservationId, date, startMinute, durationHours } = input;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida.");
+    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1440) throw new Error("Hora inválida.");
+    if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 16) throw new Error("Duración inválida.");
+
+    const res = await rescheduleService().reschedule({ reservationId, date, startMinute, durationHours });
+    if (!res.ok) throw new Error(rescheduleErrorMessage(res.error));
+
+    // Aviso al cliente del cambio de horario (best-effort). El loopback raro
+    // (refund_looped_back) canceló la reserva vía webhook: ahí no avisamos "reagendada".
+    if (res.value.kind !== "refund_looped_back") {
+      const target = await adminRepository().orderForReservation(reservationId).catch(() => null);
+      if (target) {
+        await notificationService()
+          .notifyReschedule(target.orderId, {
+            refundAmount: res.value.kind === "refunded" ? res.value.amount : 0,
+          })
+          .catch((e) => console.error("[reschedule:email]", e));
+      }
+    }
+
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    revalidatePath("/admin/reservas");
+    return res.value;
+  });
+}
+
+/** Liquida una reserva pendiente pagándola offline (efectivo/transferencia) — vía confirm_payment. */
+export async function markPaidOfflineAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.create");
+    const reservationId = str(fd, "reservationId");
+    const method = str(fd, "method");
+    if (method !== "efectivo" && method !== "transferencia") throw new Error("Método inválido.");
+    const order = await adminRepository().orderForReservation(reservationId);
+    if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
+    const status = await adminRepository().confirmOffline(order.orderId, method);
+    if (status === "paid_no_hold") {
+      // Carrera rara: el cupo expiró entre el render de la página (que ya filtra la
+      // card por `held`) y el clic. confirm_payment YA dejó la orden en 'paid' — no
+      // hay boleta ni reserva confirmada que mostrar, así que se avisa al dueño para
+      // revisión manual, igual que hace el webhook de MP ante el mismo desenlace.
+      await notificationService()
+        .notifyPaymentNeedsReview(order.orderId, `offline:${method}`)
+        .catch((e) => console.error("[markPaidOffline:review]", e));
+      revalidatePath(`/admin/reservas/${reservationId}`);
+      throw new Error("El cupo ya no estaba reservado (expiró). El pago quedó registrado y se avisó para revisión.");
+    }
+    if (status !== "confirmed") throw new Error("No se pudo registrar el pago (el cupo pudo expirar).");
+    revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
+/**
+ * Genera un link de pago MP (72 h) para una reserva pendiente; el webhook confirma al pagarse.
+ * No muta el pago: la card ya la oculta la gate `status === "held"` arriba, y si de todas
+ * formas se paga un link para un hold ya expirado, el webhook de MP maneja `paid_no_hold`
+ * (mismo aviso al dueño) — no hace falta duplicar esa lógica acá.
+ */
+export async function sharePaymentLinkAction(reservationId: string): Promise<ActionDataResult<{ initPoint: string; amount: number }>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    const order = await adminRepository().orderForReservation(reservationId);
+    if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
+    const host = hostFromHeaders(await headers());
+    const pref = await paymentService(db(), host).createPreferenceForOrder(order.orderId, { expiresInMinutes: 72 * 60 });
+    if (!pref.ok) throw new Error(pref.error);
+    return { initPoint: pref.value.initPoint, amount: order.amountClp };
   });
 }

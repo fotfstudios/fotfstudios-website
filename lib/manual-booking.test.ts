@@ -46,10 +46,15 @@ describe("validateManualBooking", () => {
     expect(r).toEqual({ ok: false, error: "Método de pago inválido." });
   });
 
-  it("acepta los tres métodos", () => {
-    for (const method of ["efectivo", "transferencia", "cortesia"]) {
+  it("acepta los cuatro métodos", () => {
+    for (const method of ["pendiente", "efectivo", "transferencia", "cortesia"]) {
       expect(validateManualBooking({ ...base, method }).ok).toBe(true);
     }
+  });
+
+  it("acepta el método 'pendiente'", () => {
+    const r = validateManualBooking({ ...base, method: "pendiente" });
+    expect(r.ok).toBe(true);
   });
 
   it.each([[["audio", "no válido!"]], ["audio"], [[""]], [[7]]])("rechaza add-ons inválidos: %j", (addonKeys) => {
