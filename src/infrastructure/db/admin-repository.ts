@@ -585,12 +585,13 @@ export class SupabaseAdminRepository {
    * ya ordenada (más reciente primero, con `seq` como desempate a igual instante).
    */
   async getBookingTimeline(reservationId: string): Promise<BookingTimelineEvent[]> {
-    const { data } = await this.db
+    const { data, error } = await this.db
       .from("booking_events")
       .select("type, category, amount_clp, payment_ref, detail, occurred_at")
       .eq("reservation_id", reservationId)
       .order("occurred_at", { ascending: false })
       .order("seq", { ascending: false });
+    if (error) throw new Error(error.message);
     return (data ?? []).map((e) => ({
       type: e.type,
       category: e.category as BookingTimelineCategory,
@@ -685,7 +686,8 @@ export class SupabaseAdminRepository {
 
   /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
   async backingBoletas(orderId: string): Promise<BackingBoleta[]> {
-    const { data } = await this.db.rpc("order_backing_boletas", { p_order: orderId });
+    const { data, error } = await this.db.rpc("order_backing_boletas", { p_order: orderId });
+    if (error) throw new Error(error.message);
     return (data ?? []).map((r) => ({ liveAmount: r.live_amount, paymentId: r.payment_id }));
   }
 
