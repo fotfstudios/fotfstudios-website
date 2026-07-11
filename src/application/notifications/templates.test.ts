@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerCancellation, customerConfirmation, ownerNotification } from "./templates";
+import { customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNotification } from "./templates";
 
 const view = {
   name: "Ana",
@@ -59,6 +59,106 @@ describe("email templates", () => {
       name: "<script>alert(1)</script>",
       email: "a@e.cl",
     });
+    expect(m.html).not.toContain("<script>");
+    expect(m.html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("cortesía", () => {
+  const ctx = {
+    address: "Los Chercanes 78a",
+    whatsappUrl: "https://wa.me/56962803298",
+    termsUrl: "https://www.fotfstudios.cl/terminos",
+    privacyUrl: "https://www.fotfstudios.cl/privacidad",
+  };
+
+  it("confirma la sesión sin cobro: horario, dirección, WhatsApp y T&C", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
+    expect(m.subject).toMatch(/cortesía/i);
+    expect(m.html).toContain("sin cobro");
+    expect(m.html).toContain(view.when);
+    expect(m.html).toContain("Los Chercanes 78a");
+    expect(m.html).toContain("https://wa.me/56962803298");
+    expect(m.html).toContain("https://www.fotfstudios.cl/terminos");
+    expect(m.html).toContain("https://www.fotfstudios.cl/privacidad");
+    expect(m.text).toContain("https://www.fotfstudios.cl/terminos");
+    expect(m.text).toContain("https://www.fotfstudios.cl/privacidad");
+  });
+
+  it("no menciona dinero: sin Total, sin montos, sin IVA", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
+    expect(m.html).not.toContain("Total");
+    expect(m.html).not.toMatch(/\$\d/);
+    expect(m.html).not.toContain("IVA");
+    expect(m.text).not.toContain("Total");
+    expect(m.text).not.toMatch(/\$\d/);
+  });
+
+  it("con extras: línea Incluye con los nombres", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: ["Humo", "Luces"] }, ctx);
+    expect(m.html).toContain("Incluye");
+    expect(m.html).toContain("Humo");
+    expect(m.html).toContain("Luces");
+    expect(m.text).toContain("Humo");
+  });
+
+  it("sin extras: sin línea Incluye", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
+    expect(m.html).not.toContain("Incluye");
+    expect(m.text).not.toContain("Incluye");
+  });
+
+  it("sin nombre: sin saludo, igual renderiza", () => {
+    const m = customerCourtesyConfirmation({ name: null, when: view.when, addonNames: [] }, ctx);
+    expect(m.html).not.toContain("Hola");
+    expect(m.html).toContain("sin cobro");
+  });
+
+  it("escapa nombre y extras (anti-XSS)", () => {
+    const m = customerCourtesyConfirmation(
+      { name: "<img src=x>", when: view.when, addonNames: ["<b>x</b>"] },
+      ctx,
+    );
+    expect(m.html).not.toContain("<img src=x>");
+    expect(m.html).toContain("&lt;img");
+    expect(m.html).not.toContain("<b>x</b>");
+    expect(m.html).toContain("&lt;b&gt;");
+  });
+});
+
+describe("código de acceso", () => {
+  const ctx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" };
+
+  it("incluye código, horario, dirección y WhatsApp", () => {
+    const m = customerAccessCode({ name: "Ana", when: view.when, code: "1234#" }, ctx);
+    expect(m.subject).toMatch(/acceso/i);
+    expect(m.html).toContain("1234#");
+    expect(m.html).toContain(view.when);
+    expect(m.html).toContain("Los Chercanes 78a");
+    expect(m.html).toContain("https://wa.me/56962803298");
+    expect(m.text).toContain("1234#");
+    expect(m.text).toContain(view.when);
+  });
+
+  it("sin dinero ni montos", () => {
+    const m = customerAccessCode({ name: "Ana", when: view.when, code: "1234" }, ctx);
+    expect(m.html).not.toContain("Total");
+    expect(m.html).not.toMatch(/\$\d/);
+  });
+
+  it("sin nombre: sin saludo, igual renderiza", () => {
+    const m = customerAccessCode({ name: null, when: view.when, code: "1234" }, ctx);
+    expect(m.html).not.toContain("Hola");
+    expect(m.html).toContain("1234");
+  });
+
+  it("escapa nombre y código (anti-XSS)", () => {
+    const m = customerAccessCode(
+      { name: "<img src=x>", when: view.when, code: "<script>1</script>" },
+      ctx,
+    );
+    expect(m.html).not.toContain("<img src=x>");
+    expect(m.html).toContain("&lt;img");
     expect(m.html).not.toContain("<script>");
     expect(m.html).toContain("&lt;script&gt;");
   });

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
-import { adminRepository, checkoutService, pricingService } from "@/src/composition";
+import { adminRepository, checkoutService, notificationService, pricingService } from "@/src/composition";
 import { TERMS_VERSION } from "@/lib/site";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -47,14 +47,15 @@ export async function createManualBookingAction(
     // A propósito NO valida pasado/horario de apertura (el cliente avisa, no bloquea).
     if (method === "cortesia") {
       const { startsAt, endsAt } = rangeFor(date, startMinute, durationHours, resource.timezone);
-      let courtesyNotes = notes;
+      let addonNames: string[] = [];
       if (addonKeys.length > 0) {
         const catalog = await pricingService().getCatalog(resource.id);
-        const names = (catalog?.addons ?? []).filter((a) => addonKeys.includes(a.key)).map((a) => a.name);
-        if (names.length > 0) {
-          courtesyNotes = [notes, `Incluye: ${names.join(", ")}`].filter(Boolean).join(" · ");
-        }
+        addonNames = (catalog?.addons ?? []).filter((a) => addonKeys.includes(a.key)).map((a) => a.name);
       }
+      const courtesyNotes =
+        addonNames.length > 0
+          ? [notes, `Incluye: ${addonNames.join(", ")}`].filter(Boolean).join(" · ")
+          : notes;
       let reservationId: string;
       try {
         reservationId = await repo.createCourtesyBooking(
@@ -69,6 +70,10 @@ export async function createManualBookingAction(
           e instanceof Error && e.message === "slot_taken" ? "Ese horario ya está tomado." : "No se pudo crear la reserva.",
         );
       }
+      // Best-effort: el email nunca voltea una reserva ya creada.
+      await notificationService()
+        .notifyCourtesy({ email: customer.email ?? null, name: customer.name ?? null, startsAt, addonNames })
+        .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
       return { reservationId, orderId: null, amount: null };
     }
@@ -94,7 +99,7 @@ export async function createManualBookingAction(
     // exento de la anticipación mínima (walk-ins), pero el pasado sigue vetado.
     // Consentimiento atestiguado por el staff (no bloquea): registra terms_source='staff' en
     // el pedido. La cortesía no pasa por acá (no crea orden → sin registro; el link de T&C
-    // igual viaja en el WhatsApp de confirmación).
+    // igual viaja en el WhatsApp y el email de confirmación).
     const attested = input.termsAccepted === true;
     const booking = await checkoutService().createBooking(
       {
@@ -121,6 +126,11 @@ export async function createManualBookingAction(
 
     // Notas después de confirmar; no fatal: la reserva ya quedó pagada.
     const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
+    // Email de confirmación al tiro (como el checkout con puntos); si falla, el cron
+    // diario lo barre igual (notified_at sigue null).
+    await notificationService()
+      .notifyOrder(booking.value.orderId)
+      .catch((e) => console.error("[manual-booking:email]", e));
     revalidatePath("/admin/reservas");
     return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount };
   });

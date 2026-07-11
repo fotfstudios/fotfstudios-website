@@ -4,7 +4,7 @@
  * importa desde aquí. Lee la config de entorno de forma perezosa (en request).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SITE } from "@/lib/site";
+import { SITE, SITE_URL } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
@@ -149,6 +149,8 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     tz: "America/Santiago",
     address: SITE.address,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
+    termsUrl: `${SITE_URL}/terminos`,
+    privacyUrl: `${SITE_URL}/privacidad`,
   });
 }
 

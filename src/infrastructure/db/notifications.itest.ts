@@ -63,6 +63,8 @@ describe("NotificationService", () => {
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
       whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
     });
 
     expect(await svc.notifyOrder(b.value.orderId)).toBe(true);

@@ -51,6 +51,56 @@ export function customerConfirmation(
   return { subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 
+/**
+ * Email al cliente: confirmación de una sesión de CORTESÍA (sin cobro, sin orden).
+ * Sin tabla de líneas ni total; los extras van como texto ("Incluye: …"), igual que
+ * en las notas de la reserva. Los T&C viajan acá porque la cortesía no registra
+ * consentimiento (no hay orden), espejo del mensaje de WhatsApp manual.
+ */
+export function customerCourtesyConfirmation(
+  v: { name: string | null; when: string; addonNames: string[] },
+  ctx: { address: string; whatsappUrl: string; termsUrl: string; privacyUrl: string },
+): EmailContent {
+  const addonsLine =
+    v.addonNames.length > 0
+      ? `<p style="color:#b9b5ab;margin:0 0 16px">Incluye: ${esc(v.addonNames.join(", "))}</p>`
+      : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">¡Reserva confirmada!</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}tu sesión quedó reservada.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(ctx.address)}</p>
+     <p style="margin:8px 0 16px;border-top:1px solid #1e1d1a;border-bottom:1px solid #1e1d1a;padding:8px 0"><strong>Cortesía:</strong> sesión sin cobro.</p>
+     ${addonsLine}
+     <p style="color:#b9b5ab;margin:16px 0">Coordinaremos tu <strong style="color:#f5f2ec">acceso por WhatsApp</strong> antes de tu sesión.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
+     <p style="color:#6f6c64;font-size:12px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:#6f6c64">términos</a> y <a href="${ctx.privacyUrl}" style="color:#6f6c64">política de privacidad</a>.</p>`,
+  );
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Coordinaremos tu acceso por WhatsApp: ${ctx.whatsappUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
+  return { subject: "Tu sesión de cortesía en FOTF Studios está confirmada", html, text };
+}
+
+/**
+ * Email al cliente: código/instrucciones de acceso a la sala. El "código" es texto
+ * libre del staff (puede ser un código de puerta o instrucciones cortas). Se envía
+ * cada vez que el staff guarda el acceso — un código corregido también viaja.
+ */
+export function customerAccessCode(
+  v: { name: string | null; when: string; code: string },
+  ctx: { address: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu acceso a la sala</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}aquí tienes el acceso para tu sesión del <strong style="color:#f5f2ec">${esc(v.when)}</strong>.</p>
+     <p style="background:#1e1d1a;color:#e8c94a;font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.08em;padding:14px 18px;margin:0 0 16px">${esc(v.code)}</p>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(ctx.address)}</p>
+     <p style="color:#b9b5ab;margin:16px 0">Llegas, conectas tu música y a darle.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu acceso para el ${v.when}: ${v.code}. ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: "Tu código de acceso — FOTF Studios", html, text };
+}
+
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
   v: { name: string | null; when: string; refunded: string | null },
