@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.7",
-    "@supabase/ssr": "^0.12.0",
+    "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
@@ -29,20 +29,20 @@
     "next": "^15.5.20",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "resend": "^6.17.1"
+    "resend": "^6.17.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.2",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/luxon": "^3.7.2",
-    "@types/node": "^24.13.2",
+    "@types/node": "^24.13.3",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
-    "eslint": "9.39.4",
+    "eslint": "9.39.5",
     "eslint-config-next": "16.2.10",
     "pg": "^8.22.0",
-    "supabase": "^2.109.0",
+    "supabase": "^2.109.1",
     "tailwindcss": "^4.1.13",
     "typescript": "^5",
     "vitest": "^4.1.10"
