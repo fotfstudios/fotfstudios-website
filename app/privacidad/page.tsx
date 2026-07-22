@@ -3,7 +3,7 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ConsentReopenLink from "@/components/ConsentReopenLink";
-import { SITE } from "@/lib/site";
+import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
 const UPDATED = "29 de junio de 2026";
@@ -95,7 +95,11 @@ export default function PrivacidadPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-3xl px-6 py-20 md:py-28">
+      <main
+        className={`mx-auto max-w-3xl px-6 pb-20 md:pb-28 ${
+          CLOSURE.active ? "pt-40 md:pt-36" : "pt-20 md:pt-28"
+        }`}
+      >
         <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
           ← FOTF Studios
         </Link>

@@ -20,6 +20,24 @@ export const SITE = {
     "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a+Vi%C3%B1a+del+Mar",
 } as const;
 
+/**
+ * Cierre temporal de la sala. Cuando `active` es `true`:
+ *  - `ClosureBanner` muestra la franja Sirena sobre el nav (urgencia real: es el
+ *    único uso legítimo de Sirena según el Manual de Marca),
+ *  - `BookingCta` deshabilita TODOS los CTA de reserva (nav ×2, hero, cierre),
+ *    para que nadie pague una hora que no podemos entregar.
+ *
+ * Para reabrir: `active: false` (o borrar el bloque + sus dos usos). Ojo: NO
+ * cancela reservas ya pagadas ni bloquea `/reservar` por URL directa.
+ */
+export const CLOSURE = {
+  active: true,
+  title: "Cerrado temporalmente",
+  body: "Corte de luz por el temporal. Volvemos apenas se restablezca la electricidad.",
+  /** Texto de los CTA de reserva mientras dura el cierre. */
+  ctaLabel: "Reservas pausadas",
+} as const;
+
 export const whatsappLink = (msg: string = SITE.whatsappMsg) =>
   `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(msg)}`;
 
