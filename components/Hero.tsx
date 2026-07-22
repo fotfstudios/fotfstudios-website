@@ -4,7 +4,7 @@ import MaskText from "./MaskText";
 import Magnetic from "./Magnetic";
 import HeroVideo from "./HeroVideo";
 import { BookingCta, bookingOnline } from "./BookingCta";
-import { SITE, whatsappLink } from "@/lib/site";
+import { CLOSURE, SITE, whatsappLink } from "@/lib/site";
 import { getPhotos, heroPhoto } from "@/lib/photos";
 
 export default function Hero() {
@@ -63,7 +63,12 @@ export default function Hero() {
       )}
 
       {/* Contenido */}
-      <div className="relative z-10 mx-auto flex w-full max-w-[1280px] flex-1 flex-col justify-center px-5 pt-32 pb-16 md:px-10">
+      {/* pt extra mientras hay cierre: la franja Sirena hace más alto el header fijo */}
+      <div
+        className={`relative z-10 mx-auto flex w-full max-w-[1280px] flex-1 flex-col justify-center px-5 pb-16 md:px-10 ${
+          CLOSURE.active ? "pt-52 md:pt-40" : "pt-32"
+        }`}
+      >
         {/* Eyebrow */}
         <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
           <MeterBars className="text-[15px] text-gold" />

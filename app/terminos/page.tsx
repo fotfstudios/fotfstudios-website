@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE, whatsappLink } from "@/lib/site";
+import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE, whatsappLink } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
 const UPDATED = "6 de julio de 2026";
@@ -29,7 +29,11 @@ export default function TerminosPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-3xl px-6 py-20 md:py-28">
+      <main
+        className={`mx-auto max-w-3xl px-6 pb-20 md:pb-28 ${
+          CLOSURE.active ? "pt-40 md:pt-36" : "pt-20 md:pt-28"
+        }`}
+      >
         <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
           ← FOTF Studios
         </Link>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { accountEnabled } from "@/lib/flags";
 import Logo from "./Logo";
 import Magnetic from "./Magnetic";
+import ClosureBanner from "./ClosureBanner";
 import { BookingCta } from "./BookingCta";
 
 const LINKS = [
@@ -33,6 +34,7 @@ export default function Nav() {
         scrolled ? "bg-ink/85 backdrop-blur-md border-b hairline" : "bg-transparent border-b border-transparent"
       }`}
     >
+      <ClosureBanner />
       <nav className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4 md:px-10">
         <a href="#top" aria-label="FOTF Studios — inicio" className="shrink-0">
           <Logo variant="mini" height={40} />
