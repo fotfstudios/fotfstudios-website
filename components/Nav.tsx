@@ -8,13 +8,15 @@ import Magnetic from "./Magnetic";
 import ClosureBanner from "./ClosureBanner";
 import { BookingCta } from "./BookingCta";
 
+// Hrefs con "/#" (no "#") para que los anclas funcionen también desde páginas
+// internas (/unete, /privacidad): en el home siguen siendo scroll same-document.
 const LINKS = [
-  { href: "#sala", label: "La sala" },
-  { href: "#equipo", label: "Equipo" },
-  { href: "#galeria", label: "Galería" },
-  { href: "#como", label: "Cómo funciona" },
-  { href: "#precio", label: "Precio" },
-  { href: "#ubicacion", label: "Ubicación" },
+  { href: "/#sala", label: "La sala" },
+  { href: "/#equipo", label: "Equipo" },
+  { href: "/#galeria", label: "Galería" },
+  { href: "/#como", label: "Cómo funciona" },
+  { href: "/#precio", label: "Precio" },
+  { href: "/#ubicacion", label: "Ubicación" },
 ];
 
 export default function Nav() {
@@ -36,9 +38,9 @@ export default function Nav() {
     >
       <ClosureBanner />
       <nav className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4 md:px-10">
-        <a href="#top" aria-label="FOTF Studios — inicio" className="shrink-0">
+        <Link href="/#top" aria-label="FOTF Studios — inicio" className="shrink-0">
           <Logo variant="mini" height={40} />
-        </a>
+        </Link>
 
         <div className="hidden items-center gap-8 lg:flex">
           {LINKS.map((l) => (
@@ -50,6 +52,9 @@ export default function Nav() {
               {l.label}
             </a>
           ))}
+          <Link href="/unete" className="label text-bone-dim transition-colors hover:text-gold">
+            Súmate
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -96,6 +101,13 @@ export default function Nav() {
               {l.label}
             </a>
           ))}
+          <Link
+            href="/unete"
+            onClick={() => setOpen(false)}
+            className="label border-b hairline py-4 text-bone-dim transition-colors hover:text-gold"
+          >
+            Súmate
+          </Link>
           {accountEnabled() && (
             <Link
               href="/cuenta"

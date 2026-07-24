@@ -12,6 +12,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
     members: hasPermission(claims, "members.manage"),
     roles: hasPermission(claims, "roles.manage"),
     analytics: hasPermission(claims, "analytics.view"),
+    applications: hasPermission(claims, "applications.manage"),
   };
   return (
     <Toaster>

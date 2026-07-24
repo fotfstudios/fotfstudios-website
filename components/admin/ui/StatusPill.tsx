@@ -26,6 +26,10 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   redeem_release: { label: "Devueltos", tone: "dim" },
   redeem_restore: { label: "Devueltos", tone: "dim" },
   adjust: { label: "Ajuste", tone: "mute" },
+  // Postulaciones de DJ
+  nueva: { label: "Nueva", tone: "gold" },
+  contactada: { label: "Contactada", tone: "dim" },
+  descartada: { label: "Descartada", tone: "mute" },
 };
 
 const TONE: Record<Tone, string> = {

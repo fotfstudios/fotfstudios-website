@@ -8,6 +8,8 @@ import { SITE, SITE_URL } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
+import { SupabaseApplicationRepository } from "@/src/infrastructure/db/application-repository";
+import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-repository";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
@@ -156,6 +158,18 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
   return new SupabaseAdminRepository(client);
+}
+
+/** Postulaciones de DJ (/unete): alta pública + lista/triage del admin. */
+export function applicationRepository(
+  client: SupabaseClient<Database> = db(),
+): SupabaseApplicationRepository {
+  return new SupabaseApplicationRepository(client);
+}
+
+/** Rate limiter por clave (Postgres, ventana fija). Antiabuso de endpoints públicos. */
+export function rateLimiter(client: SupabaseClient<Database> = db()): SupabaseRateLimiter {
+  return new SupabaseRateLimiter(client);
 }
 
 /**

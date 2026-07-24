@@ -90,3 +90,52 @@ describe("notifyAccessCode", () => {
     ).rejects.toThrow("resend down");
   });
 });
+
+describe("notifyApplication", () => {
+  const makeWithOwner = (ownerEmail: string) => {
+    const mailer = { send: vi.fn(async () => {}) };
+    const repo = {
+      getOrderForEmail: vi.fn(),
+      pendingPaidOrderIds: vi.fn(),
+      markNotified: vi.fn(),
+    } as unknown as NotificationRepository;
+    const service = new NotificationService(mailer, repo, {
+      ownerEmail,
+      tz: "America/Santiago",
+      address: "Los Chercanes 78a",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    });
+    return { service, mailer };
+  };
+
+  const app = {
+    name: "Valentina",
+    email: "vale@correo.cl",
+    phone: "+56912345678",
+    format: "ambas" as const,
+    availability: "Tardes de semana",
+    mixUrl: "https://soundcloud.com/vale/set",
+    instagram: "vale.dj",
+    genres: "House, techno",
+    pitch: "Llevo 5 años pinchando.",
+  };
+
+  it("con ownerEmail: envía dueño PRIMERO y luego postulante", async () => {
+    const { service, mailer } = makeWithOwner("dueno@fotf.cl");
+    await service.notifyApplication(app);
+    expect(mailer.send).toHaveBeenCalledTimes(2);
+    expect(mailer.send.mock.calls[0][0].to).toBe("dueno@fotf.cl");
+    expect(mailer.send.mock.calls[0][0].subject).toMatch(/postulaci[oó]n de dj/i);
+    expect(mailer.send.mock.calls[1][0].to).toBe("vale@correo.cl");
+    expect(mailer.send.mock.calls[1][0].subject).toMatch(/recibimos tu postulaci[oó]n/i);
+  });
+
+  it("sin ownerEmail: solo envía al postulante", async () => {
+    const { service, mailer } = makeWithOwner("");
+    await service.notifyApplication(app);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    expect(mailer.send.mock.calls[0][0].to).toBe("vale@correo.cl");
+  });
+});

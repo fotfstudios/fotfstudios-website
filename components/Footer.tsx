@@ -18,7 +18,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <span className="label-sm text-bone-mute">Reservas</span>
+            <span className="label-sm text-bone-mute">Contacto</span>
             <ul className="mt-4 space-y-3">
               <li>
                 <a
@@ -49,6 +49,11 @@ export default function Footer() {
                 >
                   Cómo llegar
                 </a>
+              </li>
+              <li>
+                <Link href="/unete" className="text-bone transition-colors hover:text-gold">
+                  Súmate al equipo
+                </Link>
               </li>
               {accountEnabled() && (
                 <li>

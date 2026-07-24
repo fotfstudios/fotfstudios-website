@@ -289,6 +289,51 @@ export type Database = {
         }
         Relationships: []
       }
+      dj_applications: {
+        Row: {
+          availability: string
+          created_at: string
+          email: string
+          genres: string | null
+          id: string
+          instagram: string | null
+          mix_url: string
+          name: string
+          phone: string
+          pitch: string
+          session_format: string
+          status: string
+        }
+        Insert: {
+          availability: string
+          created_at?: string
+          email: string
+          genres?: string | null
+          id?: string
+          instagram?: string | null
+          mix_url: string
+          name: string
+          phone: string
+          pitch: string
+          session_format: string
+          status?: string
+        }
+        Update: {
+          availability?: string
+          created_at?: string
+          email?: string
+          genres?: string | null
+          id?: string
+          instagram?: string | null
+          mix_url?: string
+          name?: string
+          phone?: string
+          pitch?: string
+          session_format?: string
+          status?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           active: boolean
@@ -593,6 +638,24 @@ export type Database = {
           name?: string
           status?: Database["public"]["Enums"]["price_book_status"]
           valid_from?: string
+        }
+        Relationships: []
+      }
+      rate_limit_counters: {
+        Row: {
+          bucket_key: string
+          count: number
+          expires_at: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          expires_at: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          expires_at?: string
         }
         Relationships: []
       }
@@ -1202,6 +1265,10 @@ export type Database = {
           id: string
           live_amount: number
         }[]
+      }
+      rate_limit_hit: {
+        Args: { p_key: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
       }
       refund_points_order: {
         Args: { p_order: string; p_ref?: string; p_restore: number }

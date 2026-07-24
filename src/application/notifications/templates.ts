@@ -1,4 +1,5 @@
 import type { EmailContent } from "@/src/application/ports/mailer";
+import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applications/application";
 
 export interface BookingView {
   name: string | null;
@@ -167,6 +168,61 @@ export function ownerNeedsReview(
   );
   const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
   return { subject: "⚠️ Pago sin reserva — acción requerida", html, text };
+}
+
+/**
+ * Email al dueño: nueva postulación de DJ (/unete). El teléfono llega normalizado
+ * (`+56912345678`); para el link wa.me van solo los dígitos. Instagram y géneros
+ * son opcionales: sus líneas se omiten si vienen null. Todo el input del postulante
+ * es hostil → pasa por esc(), incluido dentro de href (la URL ya se validó http(s)).
+ */
+export function ownerNewApplication(v: {
+  name: string;
+  email: string;
+  phone: string;
+  format: SessionFormat;
+  availability: string;
+  mixUrl: string;
+  instagram: string | null;
+  genres: string | null;
+  pitch: string;
+}): EmailContent {
+  const waDigits = v.phone.replace(/\D/g, "");
+  const formatLabel = SESSION_FORMAT_LABELS[v.format];
+  const optional = (label: string, value: string) =>
+    `<p style="color:#b9b5ab;margin:0 0 4px">${label}: <strong style="color:#f5f2ec">${esc(value)}</strong></p>`;
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Nueva postulación de DJ</h1>
+     <p style="margin:0 0 4px"><strong>${esc(v.name)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Email: <a href="mailto:${esc(v.email)}" style="color:#e8c94a">${esc(v.email)}</a></p>
+     <p style="color:#b9b5ab;margin:0 0 16px">WhatsApp: <a href="https://wa.me/${esc(waDigits)}" style="color:#e8c94a">${esc(v.phone)}</a></p>
+     ${optional("Puede hacer", formatLabel)}
+     ${optional("Disponibilidad", v.availability)}
+     <p style="margin:12px 0 12px">Set: <a href="${esc(v.mixUrl)}" style="color:#e8c94a">${esc(v.mixUrl)}</a></p>
+     ${v.instagram ? optional("Instagram", v.instagram) : ""}
+     ${v.genres ? optional("Géneros", v.genres) : ""}
+     <p style="color:#b9b5ab;margin:16px 0 4px">Experiencia:</p>
+     <p style="border-left:2px solid #1e1d1a;padding:4px 0 4px 12px;margin:0;color:#f5f2ec;white-space:pre-wrap">${esc(v.pitch)}</p>`,
+  );
+  const igText = v.instagram ? ` IG: ${v.instagram}.` : "";
+  const genresText = v.genres ? ` Géneros: ${v.genres}.` : "";
+  const text = `Nueva postulación de DJ: ${v.name}. Puede hacer: ${formatLabel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}. Set: ${v.mixUrl}.${igText}${genresText}\n\n${v.pitch}`;
+  return { subject: `Nueva postulación de DJ — ${v.name}`, html, text };
+}
+
+/** Email al postulante: confirmación de que recibimos su postulación. Sin plazos prometidos. */
+export function applicantConfirmation(
+  v: { name: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu postulación</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Gracias por querer sumarte al equipo, ${esc(v.name)}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Mientras tanto, síguenos y mándanos lo que estés preparando.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Recibimos tu postulación al equipo, ${v.name}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1: ${ctx.whatsappUrl}`;
+  return { subject: "Recibimos tu postulación — FOTF Studios", html, text };
 }
 
 /** Email al dueño: aviso de nueva reserva pagada. */

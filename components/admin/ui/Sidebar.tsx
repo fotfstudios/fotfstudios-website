@@ -11,7 +11,7 @@ type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
 function groups(
-  show: { members: boolean; roles: boolean; analytics: boolean },
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean },
   porHacer: number,
 ): Group[] {
   const analysis: Item[] = show.analytics
@@ -20,16 +20,20 @@ function groups(
   const config: Item[] = [];
   if (show.members) config.push({ href: "/admin/miembros", label: "Miembros", icon: "members" });
   if (show.roles) config.push({ href: "/admin/roles", label: "Roles", icon: "roles" });
+  const operacion: Item[] = [
+    { href: "/admin", label: "Hoy", icon: "today", badge: porHacer },
+    { href: "/admin/agenda", label: "Agenda", icon: "clock" },
+    { href: "/admin/reservas", label: "Reservas", icon: "bookings" },
+    { href: "/admin/reservas/nueva", label: "Nueva reserva", icon: "add" },
+    { href: "/admin/bloqueos", label: "Bloqueos", icon: "block" },
+  ];
+  if (show.applications) {
+    operacion.push({ href: "/admin/postulaciones", label: "Postulaciones", icon: "user" });
+  }
   return [
     {
       title: "Operación",
-      items: [
-        { href: "/admin", label: "Hoy", icon: "today", badge: porHacer },
-        { href: "/admin/agenda", label: "Agenda", icon: "clock" },
-        { href: "/admin/reservas", label: "Reservas", icon: "bookings" },
-        { href: "/admin/reservas/nueva", label: "Nueva reserva", icon: "add" },
-        { href: "/admin/bloqueos", label: "Bloqueos", icon: "block" },
-      ],
+      items: operacion,
     },
     ...(analysis.length ? [{ title: "Análisis", items: analysis }] : []),
     ...(config.length ? [{ title: "Configuración", items: config }] : []),
@@ -88,7 +92,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
   );
 }
 
-export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean; analytics: boolean }; porHacer?: number }) {
+export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean }; porHacer?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const data = groups(show, porHacer);
