@@ -50,11 +50,22 @@ jobs:
       - name: Start local Supabase (migrations + seed)
         run: npx supabase start
       # Guard against schema drift: the committed generated types must match what
-      # `supabase gen types` produces from the just-applied migrations. If this
-      # fails, run `npm run db:types` locally and commit the result.
+      # `supabase gen types` produces from the just-applied migrations. If the diff
+      # check fails, run `npm run db:types` locally and commit the result.
       - name: Check generated DB types are in sync
         run: |
-          npm run db:types
+          # `supabase gen types` pulls postgres-meta from ECR Public, which
+          # anonymous-rate-limits shared CI runners (toomanyrequests). `supabase
+          # start` retries internally; this call doesn't, so retry it here.
+          ok=false
+          for i in 1 2 3; do
+            if npm run db:types; then ok=true; break; fi
+            echo "db:types attempt $i failed (likely a transient image pull); retrying in 15s…"
+            sleep 15
+          done
+          if [ "$ok" != true ]; then
+            echo "::error::supabase gen types failed after 3 attempts (image pull)."; exit 1
+          fi
           git diff --ignore-space-at-eol --exit-code src/infrastructure/db/database.types.ts \
             || { echo "::error::database.types.ts is out of date — run 'npm run db:types' and commit."; exit 1; }
       # Export the same env the itests read locally, straight from the running
