@@ -6,7 +6,7 @@ import ConsentReopenLink from "@/components/ConsentReopenLink";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
-const UPDATED = "29 de junio de 2026";
+const UPDATED = "24 de julio de 2026";
 
 export const metadata: Metadata = {
   title: "Privacidad y cookies",
@@ -148,6 +148,16 @@ export default function PrivacidadPage() {
               del sitio (páginas vistas, dispositivo, métricas de rendimiento), parte de ella sujeta a
               tu consentimiento.
             </li>
+            <li>
+              <strong className="text-bone">Datos de postulación:</strong> si postulas para sumarte al
+              equipo, tu nombre, correo, WhatsApp, disponibilidad, enlaces (set, redes) y la información
+              que decidas contarnos.
+            </li>
+            <li>
+              <strong className="text-bone">Datos de seguridad:</strong> tu dirección IP, de forma
+              temporal y seudonimizada (guardamos solo un hash), para prevenir el abuso y el spam de
+              nuestros formularios.
+            </li>
           </ul>
         </Section>
 
@@ -157,6 +167,8 @@ export default function PrivacidadPage() {
             <li>Emitir la boleta electrónica ante el SII.</li>
             <li>Enviarte la confirmación y coordinar el acceso a la sala.</li>
             <li>Responder tus mensajes (por ejemplo, por WhatsApp).</li>
+            <li>Revisar tu postulación al equipo y contactarte si calza.</li>
+            <li>Prevenir el abuso y el spam en nuestros formularios (seguridad del sitio).</li>
             <li>Medir el tráfico del sitio y mejorar la experiencia.</li>
           </ul>
         </Section>
@@ -165,9 +177,10 @@ export default function PrivacidadPage() {
           <p>
             Tratamos tus datos sobre la base de: tu <strong className="text-bone">consentimiento</strong>{" "}
             (para la analítica y las cookies no esenciales), la{" "}
-            <strong className="text-bone">ejecución de la reserva</strong> que solicitas, y el{" "}
+            <strong className="text-bone">ejecución de la reserva</strong> que solicitas, el{" "}
             <strong className="text-bone">cumplimiento de obligaciones legales</strong> tributarias
-            (boleta).
+            (boleta), y nuestro <strong className="text-bone">interés legítimo</strong> en revisar las
+            postulaciones que nos envías y en mantener el sitio seguro frente al abuso.
           </p>
         </Section>
 

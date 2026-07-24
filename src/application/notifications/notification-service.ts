@@ -2,7 +2,9 @@ import { DateTime } from "luxon";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
+import type { ApplicationInput } from "@/src/domain/applications/application";
 import {
+  applicantConfirmation,
   customerAccessCode,
   customerCancellation,
   customerConfirmation,
@@ -10,6 +12,7 @@ import {
   customerReschedule,
   customerRescheduleFailed,
   ownerNeedsReview,
+  ownerNewApplication,
   ownerNotification,
 } from "./templates";
 
@@ -199,6 +202,22 @@ export class NotificationService {
     await this.mailer.send({
       to: this.config.ownerEmail,
       ...ownerNeedsReview({ when, total: formatCLP(o.amount), email: o.email, paymentId }),
+    });
+  }
+
+  /**
+   * Nueva postulación de DJ (/unete): aviso al dueño + confirmación al postulante.
+   * Dueño PRIMERO: su email es el que importa para el triage; el del postulante es
+   * input no verificado y puede rebotar (no debe suprimir el aviso al dueño). Sin repo
+   * ni `notified_at` — un solo disparo best-effort (el .catch vive en el route handler).
+   */
+  async notifyApplication(app: ApplicationInput): Promise<void> {
+    if (this.config.ownerEmail) {
+      await this.mailer.send({ to: this.config.ownerEmail, ...ownerNewApplication(app) });
+    }
+    await this.mailer.send({
+      to: app.email,
+      ...applicantConfirmation({ name: app.name }, { whatsappUrl: this.config.whatsappUrl }),
     });
   }
 

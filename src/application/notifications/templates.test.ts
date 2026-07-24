@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNotification } from "./templates";
+import { applicantConfirmation, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const view = {
   name: "Ana",
@@ -161,5 +161,78 @@ describe("código de acceso", () => {
     expect(m.html).toContain("&lt;img");
     expect(m.html).not.toContain("<script>");
     expect(m.html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("postulación de DJ — aviso al dueño", () => {
+  const app = {
+    name: "Valentina",
+    email: "vale@correo.cl",
+    phone: "+56912345678",
+    format: "ambas" as const,
+    availability: "Tardes de semana y sábados",
+    mixUrl: "https://soundcloud.com/vale/set",
+    instagram: "vale.dj",
+    genres: "House, techno",
+    pitch: "Llevo 5 años pinchando en Valpo.",
+  };
+
+  it("incluye contacto, link al set y el pitch", () => {
+    const m = ownerNewApplication(app);
+    expect(m.subject).toMatch(/postulaci[oó]n/i);
+    expect(m.subject).toContain("Valentina");
+    expect(m.html).toContain("mailto:vale@correo.cl");
+    expect(m.html).toContain("https://wa.me/56912345678"); // teléfono normalizado → wa.me
+    expect(m.html).toContain("https://soundcloud.com/vale/set");
+    expect(m.html).toContain("Llevo 5 años pinchando en Valpo.");
+    expect(m.text).toContain("vale@correo.cl");
+    expect(m.text).toContain("https://soundcloud.com/vale/set");
+  });
+
+  it("muestra el formato (etiqueta legible) y la disponibilidad", () => {
+    const m = ownerNewApplication(app);
+    expect(m.html).toContain("Ambas"); // etiqueta, no "ambas"
+    expect(m.html).toContain("Tardes de semana y sábados");
+    expect(m.text).toContain("Tardes de semana y sábados");
+  });
+
+  it("traduce cada formato a su etiqueta", () => {
+    expect(ownerNewApplication({ ...app, format: "clases" }).html).toContain("Clases grupales");
+    expect(ownerNewApplication({ ...app, format: "uno_a_uno" }).html).toContain("Sesiones 1:1");
+  });
+
+  it("omite Instagram y géneros cuando son null", () => {
+    const m = ownerNewApplication({ ...app, instagram: null, genres: null });
+    expect(m.html).not.toMatch(/instagram/i);
+    expect(m.html).not.toMatch(/géneros/i);
+  });
+
+  it("muestra Instagram y géneros cuando existen", () => {
+    const m = ownerNewApplication(app);
+    expect(m.html).toContain("vale.dj");
+    expect(m.html).toContain("House, techno");
+  });
+
+  it("escapa el pitch y el nombre (anti-XSS)", () => {
+    const m = ownerNewApplication({ ...app, name: "<img src=x>", pitch: "<script>alert(1)</script>" });
+    expect(m.html).not.toContain("<img src=x>");
+    expect(m.html).not.toContain("<script>");
+    expect(m.html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("postulación de DJ — confirmación al postulante", () => {
+  it("agradece, menciona WhatsApp de seguimiento y escapa el nombre", () => {
+    const m = applicantConfirmation({ name: "Valentina" }, { whatsappUrl: "https://wa.me/56962803298" });
+    expect(m.subject).toMatch(/postulaci[oó]n/i);
+    expect(m.html).toContain("Valentina");
+    expect(m.html).toContain("https://wa.me/56962803298");
+    expect(m.text).toContain("https://wa.me/56962803298");
+  });
+
+  it("escapa el nombre (anti-XSS)", () => {
+    const m = applicantConfirmation({ name: "<img src=x>" }, { whatsappUrl: "https://wa.me/1" });
+    expect(m.html).not.toContain("<img src=x>");
+    expect(m.html).toContain("&lt;img");
   });
 });
