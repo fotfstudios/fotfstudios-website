@@ -31,7 +31,7 @@ export const SITE = {
  * cancela reservas ya pagadas ni bloquea `/reservar` por URL directa.
  */
 export const CLOSURE = {
-  active: true,
+  active: false,
   title: "Cerrado temporalmente",
   body: "Corte de luz por el temporal. Volvemos apenas se restablezca la electricidad.",
   /** Texto de los CTA de reserva mientras dura el cierre. */
