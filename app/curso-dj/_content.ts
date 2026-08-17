@@ -92,7 +92,7 @@ export const NO_ES_NOTA =
 export const FAQ = [
   {
     q: "¿Necesito saber algo de música?",
-    a: "No. El curso parte de cero: oído, conteo y técnica se entrenan en la sala, sesión a sesión.",
+    a: "No. Este curso de DJ parte de cero: oído, conteo y técnica se entrenan en la sala, sesión a sesión.",
   },
   {
     q: "¿Tengo que llevar mi propio equipo?",
@@ -104,6 +104,6 @@ export const FAQ = [
   },
   {
     q: "¿Dónde queda?",
-    a: "En Viña del Mar. La dirección exacta se comparte al confirmar tu inscripción.",
+    a: "El curso de DJ se dicta en nuestra sala de Viña del Mar, Región de Valparaíso. La dirección exacta se comparte al confirmar tu inscripción.",
   },
 ] as const;

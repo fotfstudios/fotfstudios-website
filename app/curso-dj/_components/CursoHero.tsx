@@ -12,7 +12,7 @@ export default function CursoHero() {
         <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
           <MeterBars className="text-[15px] text-gold" />
           <span className="label text-bone-dim">
-            Curso de Iniciación DJ · {SITE.city}
+            {SITE.name} · Primera generación · {CURSO.cupos} cupos
           </span>
         </div>
 
@@ -21,9 +21,9 @@ export default function CursoHero() {
           immediate
           baseDelay={140}
           lines={[
-            "Aprende a mezclar",
+            "Curso de DJ",
             <span key="g" className="text-gold">
-              en equipos Pioneer reales
+              en {SITE.city}
             </span>,
           ]}
           className="font-display mt-7 max-w-5xl text-bone text-[clamp(2.6rem,9vw,7rem)]"
@@ -40,7 +40,8 @@ export default function CursoHero() {
           className="rise mt-6 max-w-md text-sm leading-relaxed text-bone-dim"
           style={{ animationDelay: "0.26s" }}
         >
-          4 sesiones en la cabina de FOTF Studios: 8 horas de clase, 4 horas de
+          Aprende a mezclar en equipos Pioneer reales —2× XDJ-1000MK2 y mixer
+          DJM-450— en la cabina de FOTF Studios: 8 horas de clase, 4 horas de
           práctica libre y tu set final grabado en audio y video.
         </p>
 

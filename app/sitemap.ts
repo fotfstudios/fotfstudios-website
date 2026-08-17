@@ -22,6 +22,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${SITE_URL}/aprender-dj`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
+      url: `${SITE_URL}/cuanto-cuesta-un-curso-de-dj`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
+      url: `${SITE_URL}/xdj-vs-controlador`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
       url: `${SITE_URL}/unete`,
       lastModified: new Date(),
       changeFrequency: "monthly",

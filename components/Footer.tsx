@@ -52,7 +52,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/curso-dj" className="text-bone transition-colors hover:text-gold">
-                  Curso de Iniciación DJ
+                  Curso de DJ · Viña del Mar
                 </Link>
               </li>
               <li>
@@ -83,6 +83,31 @@ export default function Footer() {
             <p className="mt-2 text-sm text-bone-mute">
               Sala de ensayo de DJ por hora · aislada acústicamente.
             </p>
+
+            <span className="label-sm mt-8 block text-bone-mute">Guías</span>
+            <ul className="mt-4 space-y-3">
+              <li>
+                <Link href="/aprender-dj" className="text-bone transition-colors hover:text-gold">
+                  Aprender a ser DJ
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/cuanto-cuesta-un-curso-de-dj"
+                  className="text-bone transition-colors hover:text-gold"
+                >
+                  ¿Cuánto cuesta un curso de DJ?
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/xdj-vs-controlador"
+                  className="text-bone transition-colors hover:text-gold"
+                >
+                  ¿Controlador o equipos de club?
+                </Link>
+              </li>
+            </ul>
           </div>
         </div>
 

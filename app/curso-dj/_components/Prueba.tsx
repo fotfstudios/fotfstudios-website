@@ -28,7 +28,7 @@ export default function Prueba() {
               <p className="mt-6 max-w-md leading-relaxed text-bone-dim">
                 Sesión guiada de 1 hora con un DJ del equipo, en los mismos
                 equipos del curso. Si te inscribes dentro de una semana, se
-                descuenta completa del precio del curso.
+                descuenta completa del precio del curso de DJ.
               </p>
             </Reveal>
 
