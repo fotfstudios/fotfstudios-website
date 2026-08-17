@@ -1,6 +1,6 @@
 import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
-import { formatCLP } from "@/lib/pricing";
+import { formatCLP, PACK_EGRESADO } from "@/lib/pricing";
 import { CURSO, PRECIOS, INCLUYE } from "../_content";
 
 export default function Precios() {
@@ -70,7 +70,8 @@ export default function Precios() {
 
       <Reveal delay={120}>
         <p className="mt-6 label-sm text-bone-mute">
-          Mismo programa en ambos formatos · pago 100% anticipado
+          Mismo programa en ambos formatos · pago 100% anticipado · al terminar:
+          Pack Egresado — {PACK_EGRESADO.hours} horas valle por {formatCLP(PACK_EGRESADO.price)}
         </p>
       </Reveal>
     </Section>
