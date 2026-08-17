@@ -1,13 +1,17 @@
+import Link from "next/link";
 import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
-import { TIERS, ADDONS, GUIDED_RATE, formatCLP } from "@/lib/pricing";
+import { TIERS, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
+import { whatsappLink } from "@/lib/site";
 
 const VOLUME_DISPLAY = [
   { when: "2 horas", off: "−10%" },
   { when: "3 horas", off: "−15%" },
   { when: "4+ horas", off: "−20%" },
 ];
+
+const PACKS_WA = "Hola *FOTF Studios*. Quiero comprar un *Pack de horas valle*.";
 
 export default function Precio() {
   return (
@@ -84,9 +88,26 @@ export default function Precio() {
                   <span className="text-lg text-bone">Audio + Video</span>
                   <span className="font-display text-2xl text-gold">{formatCLP(ADDONS.audioVideo.price)}</span>
                 </li>
+                {PACKS.map((p) => (
+                  <li key={p.hours} className="flex items-baseline justify-between gap-3 border-t hairline px-6 py-5">
+                    <span className="text-lg text-bone">Pack {p.hours} horas valle</span>
+                    <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
+                  </li>
+                ))}
+                <li className="flex items-baseline justify-between gap-3 border-t hairline px-6 py-5">
+                  <span className="text-lg text-bone">Perfeccionamiento 1:1 · {GUIDED_BLOCK.sessions} sesiones de 1h</span>
+                  <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
+                </li>
               </ul>
               <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                Próximamente: clases y membresías
+                Packs por{" "}
+                <a href={whatsappLink(PACKS_WA)} target="_blank" rel="noopener noreferrer" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
+                  WhatsApp
+                </a>{" "}
+                · Clases:{" "}
+                <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
+                  Curso de Iniciación DJ
+                </Link>
               </p>
             </div>
           </Reveal>
