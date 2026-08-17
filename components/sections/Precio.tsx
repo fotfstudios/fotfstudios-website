@@ -109,25 +109,33 @@ export default function Precio() {
             <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               <li className="px-6 py-5">
                 <div className="text-lg text-bone">Packs de horas valle</div>
-                <div className="mt-2 space-y-1.5">
+                <div className="mt-2 space-y-2">
                   {PACKS.map((p) => (
-                    <div key={p.hours} className="flex items-baseline justify-between gap-3">
+                    <div key={p.hours} className="flex items-end justify-between gap-3">
                       <span className="label-sm text-bone-mute">
                         {p.hours} horas · ahorras {formatCLP(p.hours * RATES.valle - p.price)}
                       </span>
-                      <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
+                      <span className="text-right">
+                        <s className="block label-sm text-bone-mute">{formatCLP(p.hours * RATES.valle)}</s>
+                        <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
               </li>
               <li className="px-6 py-5">
                 <div className="text-lg text-bone">Perfeccionamiento 1:1</div>
-                <div className="mt-2 flex items-baseline justify-between gap-3">
+                <div className="mt-2 flex items-end justify-between gap-3">
                   <span className="label-sm text-bone-mute">
                     {GUIDED_BLOCK.sessions} sesiones de 1h · ahorras{" "}
                     {formatCLP(GUIDED_BLOCK.sessions * GUIDED_RATE - GUIDED_BLOCK.price)}
                   </span>
-                  <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
+                  <span className="text-right">
+                    <s className="block label-sm text-bone-mute">
+                      {formatCLP(GUIDED_BLOCK.sessions * GUIDED_RATE)}
+                    </s>
+                    <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
+                  </span>
                 </div>
               </li>
             </ul>
