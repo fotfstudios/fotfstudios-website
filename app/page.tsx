@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
+  "@id": `${SITE_URL}/#negocio`,
   name: SITE.name,
   description:
     "Sala de ensayo de DJ por hora en Viña del Mar. Aislada acústicamente, equipo Pioneer y monitores de estudio. Plug & play, acceso autogestionado.",
@@ -35,6 +36,21 @@ const jsonLd = {
   },
   areaServed: "Viña del Mar",
   priceRange: PRICING.priceRange,
+  hasMap: SITE.mapsUrl,
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Sunday"],
+      opens: "09:00",
+      closes: "22:00",
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Friday", "Saturday"],
+      opens: "09:00",
+      closes: "23:00",
+    },
+  ],
   sameAs: [SITE.instagramUrl],
   url: SITE_URL,
 };

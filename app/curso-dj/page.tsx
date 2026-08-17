@@ -3,7 +3,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
 import { SITE, SITE_URL } from "@/lib/site";
-import { PRECIOS } from "./_content";
+import { FAQ, PRECIOS } from "./_content";
 import CursoHero from "./_components/CursoHero";
 import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
@@ -14,25 +14,49 @@ import Prueba from "./_components/Prueba";
 import Faq from "./_components/Faq";
 import CierreCurso from "./_components/CierreCurso";
 
+const DESCRIPTION =
+  "Curso de DJ para principiantes en Viña del Mar: 4 sesiones en equipos Pioneer reales, 12 horas de estudio y tu set final grabado en audio y video. 6 cupos por generación.";
+
 export const metadata: Metadata = {
-  title: "Curso de Iniciación DJ",
-  description:
-    "Aprende a mezclar en equipos Pioneer reales en Viña del Mar: 4 sesiones, 12 horas de estudio y tu set final grabado en audio y video. 6 cupos por generación.",
+  title: "Curso de DJ en Viña del Mar",
+  description: DESCRIPTION,
   alternates: { canonical: "/curso-dj" },
+  openGraph: {
+    title: "Curso de DJ en Viña del Mar · FOTF Studios",
+    description: DESCRIPTION,
+    url: "/curso-dj",
+    siteName: "FOTF Studios",
+    locale: "es_CL",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Curso de DJ en Viña del Mar · FOTF Studios",
+    description: DESCRIPTION,
+  },
 };
 
-const jsonLd = {
+// One entity graph: Course + FAQPage + BreadcrumbList. The provider node carries
+// the same @id as the home page's LocalBusiness so Google merges them.
+const courseLd = {
   "@context": "https://schema.org",
   "@type": "Course",
-  name: "Curso de Iniciación DJ",
+  name: "Curso de DJ en Viña del Mar",
   description:
-    "Curso presencial de iniciación DJ en Viña del Mar: 4 sesiones de 2 horas en equipos Pioneer (XDJ-1000MK2, DJM-450), 4 horas de práctica libre y set final grabado en audio y video.",
+    "Curso de DJ presencial para principiantes en Viña del Mar: 4 sesiones de 2 horas en equipos Pioneer (XDJ-1000MK2, DJM-450), 4 horas de práctica libre y set final grabado en audio y video.",
   url: `${SITE_URL}/curso-dj`,
   inLanguage: "es-CL",
   provider: {
     "@type": "LocalBusiness",
+    "@id": `${SITE_URL}/#negocio`,
     name: SITE.name,
     url: SITE_URL,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: SITE.city,
+      addressRegion: SITE.region,
+      addressCountry: "CL",
+    },
   },
   offers: [
     {
@@ -63,6 +87,12 @@ const jsonLd = {
     "@type": "CourseInstance",
     courseMode: "Onsite",
     courseWorkload: "PT12H",
+    courseSchedule: {
+      "@type": "Schedule",
+      repeatCount: 4,
+      repeatFrequency: "Weekly",
+      duration: "PT2H",
+    },
     location: {
       "@type": "Place",
       name: SITE.name,
@@ -75,6 +105,27 @@ const jsonLd = {
     },
   },
 };
+
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQ.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Inicio", item: SITE_URL },
+    { "@type": "ListItem", position: 2, name: "Curso de DJ", item: `${SITE_URL}/curso-dj` },
+  ],
+};
+
+const jsonLd = [courseLd, faqLd, breadcrumbLd];
 
 export default function CursoDjPage() {
   return (
