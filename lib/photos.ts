@@ -118,6 +118,8 @@ export const PLACEMENT = {
     "equipo-djm-1.JPG",
     "equipo-vm70-cono-2.JPG",
   ],
+  /** /curso-dj landing: [0..1] → Equipos section, [2] → closing CTA. */
+  curso: ["cabina-7.JPG", "cabina-9.JPG", "cabina-8.JPG"],
 } as const;
 
 /** Fotos visibles antes de "Ver más" en la galería. */
@@ -164,15 +166,24 @@ export function gearHighlights(photos: Photo[]): Photo[] {
     .filter((p): p is Photo => Boolean(p));
 }
 
+/** Photos reserved for the /curso-dj landing (kept out of the home gallery). */
+export function cursoPhotos(photos: Photo[]): Photo[] {
+  const picked = PLACEMENT.curso
+    .map((f) => bySrc(photos, f))
+    .filter((p): p is Photo => Boolean(p));
+  return picked.length ? picked : photos.filter((p) => p.category === "sala").slice(0, 3);
+}
+
 /**
  * Galería: todas las fotos MENOS las reservadas en otras secciones (hero, sala,
- * cierre, destacados de equipo). Orden: destacadas primero, luego el resto.
+ * cierre, destacados de equipo, curso). Orden: destacadas primero, luego el resto.
  */
 export function galleryPhotos(photos: Photo[]): Photo[] {
   const reserved = new Set<string>([
     `/photos/${PLACEMENT.hero}`,
     `/photos/${PLACEMENT.cierre}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
+    ...PLACEMENT.curso.map((f) => `/photos/${f}`),
     ...gearHighlights(photos).map((p) => p.src),
   ]);
 
