@@ -106,18 +106,24 @@ export default function Precio() {
               <span className="label text-bone-mute">Horas por adelantado</span>
               <span className="label-sm text-bone-mute">Se compran por WhatsApp</span>
             </div>
-            <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              {PACKS.map((p) => (
-                <li key={p.hours} className="px-6 py-5">
-                  <div className="text-lg text-bone">Pack {p.hours} horas valle</div>
-                  <div className="mt-1 font-display text-2xl text-gold">{formatCLP(p.price)}</div>
-                </li>
-              ))}
+            <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               <li className="px-6 py-5">
-                <div className="text-lg text-bone">
-                  Perfeccionamiento 1:1 · {GUIDED_BLOCK.sessions} sesiones de 1h
+                <div className="text-lg text-bone">Packs de horas valle</div>
+                <div className="mt-2 space-y-1.5">
+                  {PACKS.map((p) => (
+                    <div key={p.hours} className="flex items-baseline justify-between gap-3">
+                      <span className="label-sm text-bone-mute">{p.hours} horas</span>
+                      <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-1 font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</div>
+              </li>
+              <li className="px-6 py-5">
+                <div className="text-lg text-bone">Perfeccionamiento 1:1</div>
+                <div className="mt-2 flex items-baseline justify-between gap-3">
+                  <span className="label-sm text-bone-mute">{GUIDED_BLOCK.sessions} sesiones de 1h</span>
+                  <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
+                </div>
               </li>
             </ul>
             <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
