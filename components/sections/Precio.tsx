@@ -1,7 +1,7 @@
 import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
-import { TIERS, ADDONS, formatCLP } from "@/lib/pricing";
+import { TIERS, ADDONS, GUIDED_RATE, formatCLP } from "@/lib/pricing";
 
 const VOLUME_DISPLAY = [
   { when: "2 horas", off: "−10%" },
@@ -62,7 +62,7 @@ export default function Precio() {
                 ))}
               </ul>
               <p className="px-6 py-4 label-sm text-bone-mute">
-                Sobre la tarifa de la franja · aplica también al 1:1
+                Sobre la tarifa de la franja
               </p>
             </div>
           </Reveal>
@@ -74,7 +74,7 @@ export default function Precio() {
               <ul>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
                   <span className="text-lg text-bone">Sesión 1:1 guiada</span>
-                  <span className="label-sm text-right text-gold">DJ que te guía · misma tarifa/h</span>
+                  <span className="label-sm text-right text-gold">DJ que te guía · {formatCLP(GUIDED_RATE)}/h</span>
                 </li>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
                   <span className="text-lg text-bone">{ADDONS.audio.name}</span>

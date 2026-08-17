@@ -80,6 +80,12 @@ export const ADDONS = {
   },
 } as const;
 
+/**
+ * 1:1 guided session: flat per-hour rate, excluded from volume discounts.
+ * Mirrors DB addons.guided (supabase/migrations/20260701000000_guided_addon.sql).
+ */
+export const GUIDED_RATE = 14990;
+
 export const BOOKING = {
   minHours: 1,
   stepHours: 1,
@@ -197,13 +203,10 @@ export function quote(input: QuoteInput): Quote {
   const coachHours = Math.min(input.coachHours ?? 0, hours);
 
   const room = sumSlots(day, start, hours);
-  const coach =
-    coachHours > 0
-      ? sumSlots(day, start, coachHours)
-      : { subtotal: 0, byTier: new Map() };
+  const coachSubtotal = coachHours * GUIDED_RATE;
 
   const pct = volumePct(hours);
-  const discountableBase = room.subtotal + coach.subtotal;
+  const discountableBase = room.subtotal; // volume discount applies to room time only
   const discount = discountableBase * pct;
 
   const audio = input.audioVideo
@@ -212,7 +215,7 @@ export function quote(input: QuoteInput): Quote {
       ? ADDONS.audio.price
       : 0;
 
-  const total = roundTo(discountableBase - discount + audio);
+  const total = roundTo(room.subtotal - discount + coachSubtotal + audio);
 
   const tierLines: TierLine[] = TIERS.filter((t) => room.byTier.has(t.key)).map(
     (t) => {
@@ -225,7 +228,7 @@ export function quote(input: QuoteInput): Quote {
   if (coachHours > 0)
     addonLines.push({
       name: `1:1 guiado · ${formatDuration(coachHours)}`,
-      amount: coach.subtotal,
+      amount: coachSubtotal,
     });
   if (input.audioVideo)
     addonLines.push({
@@ -237,7 +240,7 @@ export function quote(input: QuoteInput): Quote {
 
   return {
     roomSubtotal: room.subtotal,
-    coachSubtotal: coach.subtotal,
+    coachSubtotal,
     volumePct: pct,
     discount,
     addonsFlat: audio,
@@ -314,7 +317,9 @@ export function bookingMessage(input: QuoteInput, q: Quote): string {
     );
   }
   if (hasCoach) {
-    detalle.push(`- 1:1 guiado ${horasCortas(coachHours)}: ${money(q.coachSubtotal)}`);
+    detalle.push(
+      `- 1:1 guiado ${horasCortas(coachHours)} (${money(GUIDED_RATE)}/h): ${money(q.coachSubtotal)}`
+    );
   }
   if (q.volumePct > 0) {
     detalle.push(

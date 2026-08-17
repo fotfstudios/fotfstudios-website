@@ -14,6 +14,7 @@ import {
   formatHour,
   BOOKING,
   ADDONS,
+  GUIDED_RATE,
 } from "@/lib/pricing";
 
 // Orden de presentación: Lun → Dom
@@ -146,7 +147,7 @@ export default function PriceCalculator() {
           <Field label="Sesión 1:1 guiada · opcional">
             <p className="mb-3 max-w-sm text-sm leading-relaxed text-bone-mute">
               ¿Quieres acompañamiento? Suma un DJ que te guía durante tu reserva. Se
-              cobra por hora, a la misma tarifa de la sala (con el mismo descuento).
+              cobra {formatCLP(GUIDED_RATE)}/h, aparte del descuento por volumen de la sala.
             </p>
             <Toggle
               on={coach}
