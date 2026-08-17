@@ -57,7 +57,7 @@ export const SITE_URL = "https://www.fotfstudios.cl";
  * saber QUÉ versión aceptó. ISO para orden lexicográfico. **Súbela** cuando cambie
  * `/terminos` o `/privacidad` (usa la fecha más reciente de ambas).
  */
-export const TERMS_VERSION = "2026-07-06";
+export const TERMS_VERSION = "2026-08-17";
 
 /**
  * Origen para los redirect de magic-link (solo cliente). En el host canónico de
