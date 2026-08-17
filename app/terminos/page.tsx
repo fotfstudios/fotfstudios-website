@@ -200,7 +200,8 @@ export default function TerminosPage() {
             Los packs son créditos de horas para usar en{" "}
             <strong className="text-bone">horario valle</strong> (lunes a viernes hasta las
             17:00). Son personales y tienen una vigencia de{" "}
-            <strong className="text-bone">90 días</strong> desde la compra.
+            <strong className="text-bone">90 días</strong> desde la compra. ¿Se te pasó la
+            fecha? Escríbenos y lo vemos caso a caso.
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
