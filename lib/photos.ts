@@ -120,6 +120,8 @@ export const PLACEMENT = {
   ],
   /** /curso-dj landing: [0..1] → Equipos section, [2] → closing CTA. */
   curso: ["cabina-7.JPG", "cabina-9.JPG", "cabina-8.JPG"],
+  /** /grabacion landing: ambas fotos → sección Qué incluye. */
+  grabacion: ["cabina-10.JPG", "cabina-11.JPG"],
 } as const;
 
 /** Fotos visibles antes de "Ver más" en la galería. */
@@ -174,6 +176,14 @@ export function cursoPhotos(photos: Photo[]): Photo[] {
   return picked.length ? picked : photos.filter((p) => p.category === "sala").slice(0, 3);
 }
 
+/** Photos reserved for the /grabacion landing (kept out of the home gallery). */
+export function grabacionPhotos(photos: Photo[]): Photo[] {
+  const picked = PLACEMENT.grabacion
+    .map((f) => bySrc(photos, f))
+    .filter((p): p is Photo => Boolean(p));
+  return picked.length ? picked : photos.filter((p) => p.category === "sala").slice(0, 2);
+}
+
 /**
  * Galería: todas las fotos MENOS las reservadas en otras secciones (hero, sala,
  * cierre, destacados de equipo, curso). Orden: destacadas primero, luego el resto.
@@ -184,6 +194,7 @@ export function galleryPhotos(photos: Photo[]): Photo[] {
     `/photos/${PLACEMENT.cierre}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
     ...PLACEMENT.curso.map((f) => `/photos/${f}`),
+    ...PLACEMENT.grabacion.map((f) => `/photos/${f}`),
     ...gearHighlights(photos).map((p) => p.src),
   ]);
 
