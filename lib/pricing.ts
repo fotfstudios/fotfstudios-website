@@ -86,6 +86,31 @@ export const ADDONS = {
  */
 export const GUIDED_RATE = 14990;
 
+/** Prepaid valle-hour packs (Phase 1: sold via WhatsApp, delivered as admin manual bookings). */
+export const PACKS = [
+  { hours: 8, price: 67990 },
+  { hours: 12, price: 95990 },
+] as const;
+
+/** Course-graduate pack: one per graduate, within windowDays of finishing. */
+export const PACK_EGRESADO = { hours: 5, price: 39990, windowDays: 90 } as const;
+
+/** 4×1h guided block (per-session bookings; 90-day validity — see /terminos). */
+export const GUIDED_BLOCK = { sessions: 4, price: 54990 } as const;
+
+/** Closed-price recording sessions (valle scheduling by default; raw capture). */
+export const RECORDING_SESSIONS = {
+  audio: [
+    { hours: 2, price: 29990 },
+    { hours: 3, price: 35990 },
+  ],
+  audioVideo: [
+    { hours: 1, price: 49990 },
+    { hours: 2, price: 59990 },
+    { hours: 3, price: 65990 },
+  ],
+} as const;
+
 export const BOOKING = {
   minHours: 1,
   stepHours: 1,
