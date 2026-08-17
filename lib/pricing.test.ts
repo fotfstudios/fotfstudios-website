@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDED_RATE, quote, bookingMessage } from "./pricing";
+import { GUIDED_RATE, quote, bookingMessage, ADDONS } from "./pricing";
 
 describe("guided (1:1) pricing — canonical flat rate", () => {
   it("charges GUIDED_RATE per coach hour regardless of tier", () => {
@@ -22,5 +22,13 @@ describe("guided (1:1) pricing — canonical flat rate", () => {
     const q = quote({ day: 1, start: 9, hours: 2, coachHours: 1 });
     const msg = bookingMessage({ day: 1, start: 9, hours: 2, coachHours: 1 }, q);
     expect(msg).toContain("$14.990");
+  });
+});
+
+describe("A+V add-on reprice (spec 2026-08-17)", () => {
+  it("is 39990 everywhere the marketing engine sees it", () => {
+    expect(ADDONS.audioVideo.price).toBe(39990);
+    const q = quote({ day: 1, start: 9, hours: 1, audioVideo: true });
+    expect(q.total).toBe(49980); // 9990 room + 39990 A+V, no discount at 1h
   });
 });

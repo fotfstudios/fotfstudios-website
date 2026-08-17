@@ -76,7 +76,7 @@ export const ADDONS = {
   audioVideo: {
     key: "audioVideo",
     name: "Grabación audio + video",
-    price: 49990,
+    price: 39990,
   },
 } as const;
 
