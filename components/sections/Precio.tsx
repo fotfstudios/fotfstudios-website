@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
-import { TIERS, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
+import { TIERS, RATES, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
 import { whatsappLink } from "@/lib/site";
 
 const VOLUME_DISPLAY = [
@@ -112,7 +112,9 @@ export default function Precio() {
                 <div className="mt-2 space-y-1.5">
                   {PACKS.map((p) => (
                     <div key={p.hours} className="flex items-baseline justify-between gap-3">
-                      <span className="label-sm text-bone-mute">{p.hours} horas</span>
+                      <span className="label-sm text-bone-mute">
+                        {p.hours} horas · ahorras {formatCLP(p.hours * RATES.valle - p.price)}
+                      </span>
                       <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
                     </div>
                   ))}
@@ -121,7 +123,10 @@ export default function Precio() {
               <li className="px-6 py-5">
                 <div className="text-lg text-bone">Perfeccionamiento 1:1</div>
                 <div className="mt-2 flex items-baseline justify-between gap-3">
-                  <span className="label-sm text-bone-mute">{GUIDED_BLOCK.sessions} sesiones de 1h</span>
+                  <span className="label-sm text-bone-mute">
+                    {GUIDED_BLOCK.sessions} sesiones de 1h · ahorras{" "}
+                    {formatCLP(GUIDED_BLOCK.sessions * GUIDED_RATE - GUIDED_BLOCK.price)}
+                  </span>
                   <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
                 </div>
               </li>
