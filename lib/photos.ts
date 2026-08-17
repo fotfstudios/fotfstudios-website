@@ -186,7 +186,7 @@ export function grabacionPhotos(photos: Photo[]): Photo[] {
 
 /**
  * Galería: todas las fotos MENOS las reservadas en otras secciones (hero, sala,
- * cierre, destacados de equipo, curso). Orden: destacadas primero, luego el resto.
+ * cierre, destacados de equipo, curso, grabación). Orden: destacadas primero, luego el resto.
  */
 export function galleryPhotos(photos: Photo[]): Photo[] {
   const reserved = new Set<string>([

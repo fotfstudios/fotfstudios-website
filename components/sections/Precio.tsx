@@ -100,7 +100,7 @@ export default function Precio() {
                 </li>
               </ul>
               <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                Packs por{" "}
+                Packs y perfeccionamiento por{" "}
                 <a href={whatsappLink(PACKS_WA)} target="_blank" rel="noopener noreferrer" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
                   WhatsApp
                 </a>{" "}

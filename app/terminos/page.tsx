@@ -181,7 +181,12 @@ export default function TerminosPage() {
             <li>
               Puedes usar tus puntos para pagar reservas y servicios adicionales a precio de
               lista, hasta el 100% del valor de la reserva. Los puntos no sirven para comprar
-              packs de horas ni el curso de iniciación DJ.
+              packs de horas, bloques de Perfeccionamiento 1:1 ni el curso de iniciación DJ.
+            </li>
+            <li>
+              Las reservas pagadas con puntos (total o parcialmente) no se pueden reagendar: si
+              necesitas cambiarla, cancélala —aplican los tramos de reembolso, devuelto en
+              puntos— y crea una nueva.
             </li>
             <li>
               Si te reembolsamos una reserva, se descuentan los puntos que esa reserva había
@@ -199,7 +204,8 @@ export default function TerminosPage() {
           <p>
             Los packs son créditos de horas para usar en{" "}
             <strong className="text-bone">horario valle</strong> (lunes a viernes hasta las
-            17:00). Son personales y tienen una vigencia de{" "}
+            17:00). Son personales (puedes entrar con acompañantes a tu sesión, como en
+            cualquier reserva) y tienen una vigencia de{" "}
             <strong className="text-bone">90 días</strong> desde la compra. ¿Se te pasó la
             fecha? Escríbenos y lo vemos caso a caso.
           </p>
@@ -216,6 +222,12 @@ export default function TerminosPage() {
               El Pack Egresado se rige por estas mismas reglas. Es un beneficio único por
               egresado del curso de iniciación DJ, y debe activarse dentro de los 90 días
               siguientes al término del curso.
+            </li>
+            <li>
+              Los bloques de Perfeccionamiento 1:1 (4 sesiones de 1h) se agendan sesión por
+              sesión bajo las reglas generales de reserva de esta página (reagendamiento con 12
+              horas o más de anticipación, tramos de reembolso), y tienen una vigencia de 90 días
+              desde la compra. ¿Se te pasó la fecha? Escríbenos y lo vemos caso a caso.
             </li>
           </ul>
         </Section>
