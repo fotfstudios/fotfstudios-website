@@ -51,6 +51,11 @@ export default function Footer() {
                 </a>
               </li>
               <li>
+                <Link href="/curso-dj" className="text-bone transition-colors hover:text-gold">
+                  Curso de Iniciación DJ
+                </Link>
+              </li>
+              <li>
                 <Link href="/unete" className="text-bone transition-colors hover:text-gold">
                   Súmate al equipo
                 </Link>

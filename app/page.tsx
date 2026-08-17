@@ -7,6 +7,7 @@ import Ticker from "@/components/Ticker";
 import Como from "@/components/sections/Como";
 import Precio from "@/components/sections/Precio";
 import Ubicacion from "@/components/sections/Ubicacion";
+import Curso from "@/components/sections/Curso";
 import CierreCTA from "@/components/sections/CierreCTA";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
@@ -55,6 +56,7 @@ export default function Home() {
         <Como />
         <Precio />
         <Ubicacion />
+        <Curso />
         <Ticker reverse />
         <CierreCTA />
       </main>

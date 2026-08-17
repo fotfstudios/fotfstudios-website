@@ -17,6 +17,7 @@ const LINKS = [
   { href: "/#como", label: "Cómo funciona" },
   { href: "/#precio", label: "Precio" },
   { href: "/#ubicacion", label: "Ubicación" },
+  { href: "/curso-dj", label: "Curso" },
 ];
 
 export default function Nav() {
