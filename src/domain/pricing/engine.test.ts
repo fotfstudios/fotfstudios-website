@@ -22,7 +22,7 @@ const plan: RatePlan = {
   ],
   addons: [
     { key: "audio", name: "Grabación de audio", amount: 9990, kind: "flat_service" },
-    { key: "audioVideo", name: "Grabación audio + video", amount: 49990, kind: "flat_service" },
+    { key: "audioVideo", name: "Grabación audio + video", amount: 39990, kind: "flat_service" },
     { key: "guided", name: "Sesión 1:1 guiada", amount: 14990, kind: "per_hour" },
   ],
 };
@@ -96,8 +96,8 @@ describe("quote (paridad con legacy)", () => {
 
   it("add-on audio+video", () => {
     const q = val(quote(plan, { weekday: 1, startMinute: 600, durationHours: 1, addonKeys: ["audioVideo"] }));
-    expect(q.addonsTotal).toBe(49990);
-    expect(q.total).toBe(59980);
+    expect(q.addonsTotal).toBe(39990);
+    expect(q.total).toBe(49980);
   });
 
   it("add-on por hora (guía 1:1) = tarifa × duración", () => {

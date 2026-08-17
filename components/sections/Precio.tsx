@@ -1,13 +1,17 @@
+import Link from "next/link";
 import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
-import { TIERS, ADDONS, formatCLP } from "@/lib/pricing";
+import { TIERS, RATES, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
+import { whatsappLink } from "@/lib/site";
 
 const VOLUME_DISPLAY = [
   { when: "2 horas", off: "−10%" },
   { when: "3 horas", off: "−15%" },
   { when: "4+ horas", off: "−20%" },
 ];
+
+const PACKS_WA = "Hola *FOTF Studios*. Quiero comprar un *Pack de horas valle*.";
 
 export default function Precio() {
   return (
@@ -62,7 +66,7 @@ export default function Precio() {
                 ))}
               </ul>
               <p className="px-6 py-4 label-sm text-bone-mute">
-                Sobre la tarifa de la franja · aplica también al 1:1
+                Sobre la tarifa de la franja
               </p>
             </div>
           </Reveal>
@@ -74,7 +78,7 @@ export default function Precio() {
               <ul>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
                   <span className="text-lg text-bone">Sesión 1:1 guiada</span>
-                  <span className="label-sm text-right text-gold">DJ que te guía · misma tarifa/h</span>
+                  <span className="label-sm text-right text-gold">DJ que te guía · {formatCLP(GUIDED_RATE)}/h</span>
                 </li>
                 <li className="flex items-baseline justify-between gap-3 border-b hairline px-6 py-5">
                   <span className="text-lg text-bone">{ADDONS.audio.name}</span>
@@ -86,11 +90,68 @@ export default function Precio() {
                 </li>
               </ul>
               <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                Próximamente: clases y membresías
+                Clases:{" "}
+                <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
+                  Curso de Iniciación DJ
+                </Link>
               </p>
             </div>
           </Reveal>
         </div>
+
+        {/* Horas por adelantado — instrumentos de compromiso, no add-ons de sesión */}
+        <Reveal delay={100} className="mt-3">
+          <div className="border hairline">
+            <div className="flex flex-wrap items-baseline justify-between gap-3 border-b hairline px-6 py-4">
+              <span className="label text-bone-mute">Horas por adelantado</span>
+              <span className="label-sm text-bone-mute">Se compran por WhatsApp</span>
+            </div>
+            <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <li className="px-6 py-5">
+                <div className="text-lg text-bone">Packs de horas valle</div>
+                <div className="mt-2 space-y-2">
+                  {PACKS.map((p) => (
+                    <div key={p.hours} className="flex items-end justify-between gap-3">
+                      <span className="label-sm text-bone-mute">
+                        {p.hours} horas · ahorras {formatCLP(p.hours * RATES.valle - p.price)}
+                      </span>
+                      <span className="text-right">
+                        <s className="block label-sm text-bone-mute">{formatCLP(p.hours * RATES.valle)}</s>
+                        <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </li>
+              <li className="px-6 py-5">
+                <div className="text-lg text-bone">Perfeccionamiento 1:1</div>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <span className="label-sm text-bone-mute">
+                    {GUIDED_BLOCK.sessions} sesiones de 1h · ahorras{" "}
+                    {formatCLP(GUIDED_BLOCK.sessions * GUIDED_RATE - GUIDED_BLOCK.price)}
+                  </span>
+                  <span className="text-right">
+                    <s className="block label-sm text-bone-mute">
+                      {formatCLP(GUIDED_BLOCK.sessions * GUIDED_RATE)}
+                    </s>
+                    <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
+                  </span>
+                </div>
+              </li>
+            </ul>
+            <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
+              Vigencia 90 días — ¿se te pasó la fecha? Escríbenos ·{" "}
+              <a
+                href={whatsappLink(PACKS_WA)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold underline decoration-gold/40 underline-offset-4 transition-colors hover:text-bone"
+              >
+                Compra por WhatsApp
+              </a>
+            </p>
+          </div>
+        </Reveal>
       </Section>
     </div>
   );

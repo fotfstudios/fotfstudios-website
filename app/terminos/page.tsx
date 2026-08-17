@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE, whatsappLink } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "6 de julio de 2026";
+const UPDATED = "17 de agosto de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -120,8 +120,10 @@ export default function TerminosPage() {
           <ul className="list-disc space-y-2 pl-5">
             <li>
               Con <strong className="text-bone">12 horas o más de anticipación</strong> puedes
-              reagendar tu sesión <strong className="text-bone">sin costo</strong>, sin límite de
-              veces, sujeto a disponibilidad.
+              reagendar tu sesión <strong className="text-bone">sin costo por el cambio</strong>,
+              todas las veces que necesites, sujeto a disponibilidad. Si el nuevo horario tiene
+              una tarifa mayor, pagas la diferencia antes de mover la reserva; si es menor, te
+              devolvemos la diferencia.
             </li>
             <li>
               Con <strong className="text-bone">menos de 12 horas</strong>, o una vez iniciada la
@@ -166,6 +168,109 @@ export default function TerminosPage() {
             . Los reembolsos que correspondan se procesan a través de Mercado Pago y se emite la nota
             de crédito respectiva.
           </p>
+        </Section>
+
+        <Section title="Puntos FOTF">
+          <p>
+            Por cada pago hecho en dinero acumulas puntos FOTF:{" "}
+            <strong className="text-bone">1 punto equivale a $1 CLP</strong>, y acumulas el{" "}
+            <strong className="text-bone">5% de lo pagado en dinero</strong>. Los pagos hechos con
+            puntos no generan nuevos puntos.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              Puedes usar tus puntos para pagar reservas y servicios adicionales a precio de
+              lista, hasta el 100% del valor de la reserva. Los puntos no sirven para comprar
+              packs de horas, bloques de Perfeccionamiento 1:1 ni el curso de iniciación DJ.
+            </li>
+            <li>
+              Las reservas pagadas con puntos (total o parcialmente) no se pueden reagendar: si
+              necesitas cambiarla, cancélala —aplican los tramos de reembolso, devuelto en
+              puntos— y crea una nueva.
+            </li>
+            <li>
+              Si te reembolsamos una reserva, se descuentan los puntos que esa reserva había
+              generado, y los puntos que usaste para pagarla se te devuelven a prorrata del monto
+              reembolsado.
+            </li>
+            <li>
+              Hoy los puntos no tienen fecha de vencimiento. Podemos modificar el programa de
+              puntos hacia adelante; estos cambios nunca afectan puntos que ya hayas ganado.
+            </li>
+          </ul>
+        </Section>
+
+        <Section title="Packs de horas">
+          <p>
+            Los packs son créditos de horas para usar en{" "}
+            <strong className="text-bone">horario valle</strong> (lunes a viernes hasta las
+            17:00). Son personales (puedes entrar con acompañantes a tu sesión, como en
+            cualquier reserva) y tienen una vigencia de{" "}
+            <strong className="text-bone">90 días</strong> desde la compra. ¿Se te pasó la
+            fecha? Escríbenos y lo vemos caso a caso.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              Si cancelas una reserva hecha con horas de pack con 12 horas o más de anticipación,
+              la hora vuelve a tu pack.
+            </li>
+            <li>
+              Las horas no usadas dentro de la vigencia son reembolsables a prorrata si nos
+              escribes para solicitarlo.
+            </li>
+            <li>
+              El Pack Egresado se rige por estas mismas reglas. Es un beneficio único por
+              egresado del curso de iniciación DJ, y debe activarse dentro de los 90 días
+              siguientes al término del curso.
+            </li>
+            <li>
+              Los bloques de Perfeccionamiento 1:1 (4 sesiones de 1h) se agendan sesión por
+              sesión bajo las reglas generales de reserva de esta página (reagendamiento con 12
+              horas o más de anticipación, tramos de reembolso), y tienen una vigencia de 90 días
+              desde la compra. ¿Se te pasó la fecha? Escríbenos y lo vemos caso a caso.
+            </li>
+          </ul>
+        </Section>
+
+        <Section title="Curso de Iniciación DJ">
+          <p>
+            El curso se paga <strong className="text-bone">100% por adelantado</strong> al
+            inscribirte.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              Si cancelas hasta 7 días antes del inicio de la primera sesión, te devolvemos el
+              100% de lo pagado.
+            </li>
+            <li>
+              Con menos de 7 días de anticipación, no hay reembolso en dinero: puedes traspasar tu
+              cupo a la siguiente generación del curso, o a un reemplazante que tú nos indiques.
+            </li>
+            <li>
+              Una vez iniciado el curso, tampoco hay reembolso en dinero. Las sesiones que te
+              falten se pueden reagendar dentro de la misma generación.
+            </li>
+            <li>
+              El valor de la sesión de prueba ($19.990) se descuenta del precio del curso si te
+              inscribes dentro de los 7 días siguientes a la sesión de prueba.
+            </li>
+          </ul>
+        </Section>
+
+        <Section title="Sesiones de grabación">
+          <p>
+            Las sesiones de grabación son de{" "}
+            <strong className="text-bone">captura directa</strong>, sin postproducción.
+            Entregamos el material en formato digital dentro de un plazo de 48 horas.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>El material grabado es tuyo.</li>
+            <li>Los derechos de la música que uses durante la sesión son tu responsabilidad.</li>
+            <li>
+              Los precios publicados de grabación corresponden a horario valle; si reservas en
+              horario punta, se suma la diferencia de tarifa correspondiente.
+            </li>
+          </ul>
         </Section>
 
         <Section title="Uso de la sala y conducta">

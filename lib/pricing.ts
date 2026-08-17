@@ -76,8 +76,39 @@ export const ADDONS = {
   audioVideo: {
     key: "audioVideo",
     name: "Grabación audio + video",
-    price: 49990,
+    price: 39990,
   },
+} as const;
+
+/**
+ * Sesión 1:1 guiada: tarifa plana por hora, excluida del descuento por volumen.
+ * Espeja addons.guided en la DB (supabase/migrations/20260701000000_guided_addon.sql).
+ */
+export const GUIDED_RATE = 14990;
+
+/** Packs prepago de horas valle (Fase 1: se venden por WhatsApp, se entregan como reserva manual del admin). */
+export const PACKS = [
+  { hours: 8, price: 67990 },
+  { hours: 12, price: 95990 },
+] as const;
+
+/** Pack egresado del curso: uno por egresado, dentro de windowDays desde que termina. */
+export const PACK_EGRESADO = { hours: 5, price: 39990, windowDays: 90 } as const;
+
+/** Bloque de 4×1h guiadas (reservas por sesión; vigencia de 90 días — ver /terminos). */
+export const GUIDED_BLOCK = { sessions: 4, price: 54990 } as const;
+
+/** Sesiones de grabación a precio cerrado (agendadas en valle por defecto; captura en bruto). */
+export const RECORDING_SESSIONS = {
+  audio: [
+    { hours: 2, price: 29990 },
+    { hours: 3, price: 35990 },
+  ],
+  audioVideo: [
+    { hours: 1, price: 49990 },
+    { hours: 2, price: 59990 },
+    { hours: 3, price: 65990 },
+  ],
 } as const;
 
 export const BOOKING = {
@@ -197,13 +228,10 @@ export function quote(input: QuoteInput): Quote {
   const coachHours = Math.min(input.coachHours ?? 0, hours);
 
   const room = sumSlots(day, start, hours);
-  const coach =
-    coachHours > 0
-      ? sumSlots(day, start, coachHours)
-      : { subtotal: 0, byTier: new Map() };
+  const coachSubtotal = coachHours * GUIDED_RATE;
 
   const pct = volumePct(hours);
-  const discountableBase = room.subtotal + coach.subtotal;
+  const discountableBase = room.subtotal; // volume discount applies to room time only
   const discount = discountableBase * pct;
 
   const audio = input.audioVideo
@@ -212,7 +240,7 @@ export function quote(input: QuoteInput): Quote {
       ? ADDONS.audio.price
       : 0;
 
-  const total = roundTo(discountableBase - discount + audio);
+  const total = roundTo(room.subtotal - discount + coachSubtotal + audio);
 
   const tierLines: TierLine[] = TIERS.filter((t) => room.byTier.has(t.key)).map(
     (t) => {
@@ -225,7 +253,7 @@ export function quote(input: QuoteInput): Quote {
   if (coachHours > 0)
     addonLines.push({
       name: `1:1 guiado · ${formatDuration(coachHours)}`,
-      amount: coach.subtotal,
+      amount: coachSubtotal,
     });
   if (input.audioVideo)
     addonLines.push({
@@ -237,7 +265,7 @@ export function quote(input: QuoteInput): Quote {
 
   return {
     roomSubtotal: room.subtotal,
-    coachSubtotal: coach.subtotal,
+    coachSubtotal,
     volumePct: pct,
     discount,
     addonsFlat: audio,
@@ -314,7 +342,9 @@ export function bookingMessage(input: QuoteInput, q: Quote): string {
     );
   }
   if (hasCoach) {
-    detalle.push(`- 1:1 guiado ${horasCortas(coachHours)}: ${money(q.coachSubtotal)}`);
+    detalle.push(
+      `- 1:1 guiado ${horasCortas(coachHours)} (${money(GUIDED_RATE)}/h): ${money(q.coachSubtotal)}`
+    );
   }
   if (q.volumePct > 0) {
     detalle.push(

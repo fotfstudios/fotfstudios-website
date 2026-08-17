@@ -2,6 +2,7 @@
  * Fuente única de datos de FOTF Studios.
  * Voz: español de Chile, preciso, directo. Modelos exactos, no generalidades.
  */
+import { RATES, formatCLP } from "./pricing";
 
 export const SITE = {
   name: "FOTF Studios",
@@ -56,7 +57,7 @@ export const SITE_URL = "https://www.fotfstudios.cl";
  * saber QUÉ versión aceptó. ISO para orden lexicográfico. **Súbela** cuando cambie
  * `/terminos` o `/privacidad` (usa la fecha más reciente de ambas).
  */
-export const TERMS_VERSION = "2026-07-06";
+export const TERMS_VERSION = "2026-08-17";
 
 /**
  * Origen para los redirect de magic-link (solo cliente). En el host canónico de
@@ -112,10 +113,9 @@ export const ROOM_TRAES = [
 ] as const;
 
 /**
- * Solo para marketing/SEO (JSON-LD, badges). La lógica de precios vive en
- * `lib/pricing.ts`. Mantener sincronizado con RATES de ese módulo.
+ * Solo para marketing/SEO (JSON-LD del home). Derivado de RATES — no puede
+ * volver a desincronizarse (auditoría 2026-08-17, hallazgo D3).
  */
 export const PRICING = {
-  from: "$14.990",
-  priceRange: "$14.990 – $24.990",
+  priceRange: `${formatCLP(RATES.valle)} – ${formatCLP(RATES.puntaFinde)}`,
 } as const;

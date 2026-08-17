@@ -56,6 +56,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/grabacion" className="text-bone transition-colors hover:text-gold">
+                  Graba tu set
+                </Link>
+              </li>
+              <li>
                 <Link href="/unete" className="text-bone transition-colors hover:text-gold">
                   Súmate al equipo
                 </Link>
