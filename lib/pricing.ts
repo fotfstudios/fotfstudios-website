@@ -81,24 +81,24 @@ export const ADDONS = {
 } as const;
 
 /**
- * 1:1 guided session: flat per-hour rate, excluded from volume discounts.
- * Mirrors DB addons.guided (supabase/migrations/20260701000000_guided_addon.sql).
+ * Sesión 1:1 guiada: tarifa plana por hora, excluida del descuento por volumen.
+ * Espeja addons.guided en la DB (supabase/migrations/20260701000000_guided_addon.sql).
  */
 export const GUIDED_RATE = 14990;
 
-/** Prepaid valle-hour packs (Phase 1: sold via WhatsApp, delivered as admin manual bookings). */
+/** Packs prepago de horas valle (Fase 1: se venden por WhatsApp, se entregan como reserva manual del admin). */
 export const PACKS = [
   { hours: 8, price: 67990 },
   { hours: 12, price: 95990 },
 ] as const;
 
-/** Course-graduate pack: one per graduate, within windowDays of finishing. */
+/** Pack egresado del curso: uno por egresado, dentro de windowDays desde que termina. */
 export const PACK_EGRESADO = { hours: 5, price: 39990, windowDays: 90 } as const;
 
-/** 4×1h guided block (per-session bookings; 90-day validity — see /terminos). */
+/** Bloque de 4×1h guiadas (reservas por sesión; vigencia de 90 días — ver /terminos). */
 export const GUIDED_BLOCK = { sessions: 4, price: 54990 } as const;
 
-/** Closed-price recording sessions (valle scheduling by default; raw capture). */
+/** Sesiones de grabación a precio cerrado (agendadas en valle por defecto; captura en bruto). */
 export const RECORDING_SESSIONS = {
   audio: [
     { hours: 2, price: 29990 },
