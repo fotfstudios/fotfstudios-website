@@ -88,23 +88,9 @@ export default function Precio() {
                   <span className="text-lg text-bone">Audio + Video</span>
                   <span className="font-display text-2xl text-gold">{formatCLP(ADDONS.audioVideo.price)}</span>
                 </li>
-                {PACKS.map((p) => (
-                  <li key={p.hours} className="flex items-baseline justify-between gap-3 border-t hairline px-6 py-5">
-                    <span className="text-lg text-bone">Pack {p.hours} horas valle</span>
-                    <span className="font-display text-2xl text-gold">{formatCLP(p.price)}</span>
-                  </li>
-                ))}
-                <li className="flex items-baseline justify-between gap-3 border-t hairline px-6 py-5">
-                  <span className="text-lg text-bone">Perfeccionamiento 1:1 · {GUIDED_BLOCK.sessions} sesiones de 1h</span>
-                  <span className="font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</span>
-                </li>
               </ul>
               <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                Packs y perfeccionamiento por{" "}
-                <a href={whatsappLink(PACKS_WA)} target="_blank" rel="noopener noreferrer" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
-                  WhatsApp
-                </a>{" "}
-                · Clases:{" "}
+                Clases:{" "}
                 <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
                   Curso de Iniciación DJ
                 </Link>
@@ -112,6 +98,41 @@ export default function Precio() {
             </div>
           </Reveal>
         </div>
+
+        {/* Horas por adelantado — instrumentos de compromiso, no add-ons de sesión */}
+        <Reveal delay={100} className="mt-3">
+          <div className="border hairline">
+            <div className="flex flex-wrap items-baseline justify-between gap-3 border-b hairline px-6 py-4">
+              <span className="label text-bone-mute">Horas por adelantado</span>
+              <span className="label-sm text-bone-mute">Se compran por WhatsApp</span>
+            </div>
+            <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {PACKS.map((p) => (
+                <li key={p.hours} className="px-6 py-5">
+                  <div className="text-lg text-bone">Pack {p.hours} horas valle</div>
+                  <div className="mt-1 font-display text-2xl text-gold">{formatCLP(p.price)}</div>
+                </li>
+              ))}
+              <li className="px-6 py-5">
+                <div className="text-lg text-bone">
+                  Perfeccionamiento 1:1 · {GUIDED_BLOCK.sessions} sesiones de 1h
+                </div>
+                <div className="mt-1 font-display text-2xl text-gold">{formatCLP(GUIDED_BLOCK.price)}</div>
+              </li>
+            </ul>
+            <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
+              Vigencia 90 días — ¿se te pasó la fecha? Escríbenos ·{" "}
+              <a
+                href={whatsappLink(PACKS_WA)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold underline decoration-gold/40 underline-offset-4 transition-colors hover:text-bone"
+              >
+                Compra por WhatsApp
+              </a>
+            </p>
+          </div>
+        </Reveal>
       </Section>
     </div>
   );
