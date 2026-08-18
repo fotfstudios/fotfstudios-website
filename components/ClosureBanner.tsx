@@ -1,4 +1,5 @@
-import { CLOSURE, whatsappLink } from "@/lib/site";
+import { CLOSURE } from "@/lib/site";
+import WhatsAppCta from "./WhatsAppCta";
 
 /**
  * Franja de cierre temporal. Vive DENTRO del `<header>` fijo del nav, así queda
@@ -16,14 +17,12 @@ export default function ClosureBanner() {
           ·
         </span>
         <span className="label-sm">{CLOSURE.body}</span>
-        <a
-          href={whatsappLink()}
-          target="_blank"
-          rel="noopener noreferrer"
+        <WhatsAppCta
+          source="aviso-cierre"
           className="label-sm underline decoration-ink/40 underline-offset-4 transition-opacity hover:opacity-70"
         >
           Escríbenos por WhatsApp
-        </a>
+        </WhatsAppCta>
       </div>
     </div>
   );

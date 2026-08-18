@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { fmtDate, fmtTimeRange } from "@/components/admin/format";
 import { formatCLP } from "@/lib/pricing";
-import { whatsappLink } from "@/lib/site";
+import WhatsAppCta from "@/components/WhatsAppCta";
 import type { CustomerBooking } from "@/src/application/ports/customers";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
@@ -49,14 +49,13 @@ export default async function CuentaReservas() {
             )}
             <p className="label-sm text-bone-mute">
               ¿Necesitas cambiar una reserva?{" "}
-              <a
-                href={whatsappLink("Hola, necesito cambiar una reserva.")}
-                target="_blank"
-                rel="noopener noreferrer"
+              <WhatsAppCta
+                source="cuenta-reservas"
+                waMessage="Hola, necesito cambiar una reserva."
                 className="text-gold transition-opacity hover:opacity-80"
               >
                 Escríbenos por WhatsApp
-              </a>
+              </WhatsAppCta>
               .
             </p>
           </section>

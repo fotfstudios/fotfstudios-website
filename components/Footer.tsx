@@ -1,8 +1,9 @@
 import Link from "next/link";
 import Logo from "./Logo";
 import { accountEnabled } from "@/lib/flags";
-import { SITE, whatsappLink } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import ConsentReopenLink from "./ConsentReopenLink";
+import WhatsAppCta from "./WhatsAppCta";
 
 export default function Footer() {
   const year = 2026;
@@ -21,14 +22,9 @@ export default function Footer() {
             <span className="label-sm text-bone-mute">Contacto</span>
             <ul className="mt-4 space-y-3">
               <li>
-                <a
-                  href={whatsappLink()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-bone transition-colors hover:text-gold"
-                >
+                <WhatsAppCta source="footer" className="text-bone transition-colors hover:text-gold">
                   WhatsApp
-                </a>
+                </WhatsAppCta>
               </li>
               <li>
                 <a

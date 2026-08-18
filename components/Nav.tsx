@@ -66,7 +66,9 @@ export default function Nav() {
             </Link>
           )}
           <Magnetic className="hidden sm:inline-flex">
-            <BookingCta className="bg-gold px-5 py-2.5 label text-ink">Reservar</BookingCta>
+            <BookingCta placement="nav" className="bg-gold px-5 py-2.5 label text-ink">
+              Reservar
+            </BookingCta>
           </Magnetic>
           <button
             type="button"
@@ -120,6 +122,7 @@ export default function Nav() {
             </Link>
           )}
           <BookingCta
+            placement="nav-movil"
             onClick={() => setOpen(false)}
             className="mt-4 mb-2 bg-gold px-5 py-3 text-center label text-ink"
           >

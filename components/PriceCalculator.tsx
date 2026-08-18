@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Magnetic from "./Magnetic";
-import { BookingCta, bookingOnline } from "./BookingCta";
+import { BookingCta } from "./BookingCta";
+import { bookingOnline } from "@/lib/flags";
 import {
   DAYS,
   quote,
@@ -243,6 +244,7 @@ export default function PriceCalculator() {
 
           <Magnetic className="mt-6 w-full">
             <BookingCta
+              placement="calculadora"
               waMessage={waMsg}
               className="group inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
             >

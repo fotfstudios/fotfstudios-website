@@ -1,28 +1,28 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { trackBookingCta } from "@/lib/analytics";
+import { bookingOnline } from "@/lib/flags";
 import { CLOSURE, whatsappLink } from "@/lib/site";
-
-/**
- * ¿Está habilitada la reserva en línea? Flag público (build-time), disponible en
- * server y client. Cuando está apagado, los CTA caen a WhatsApp (sin 404).
- */
-export function bookingOnline(): boolean {
-  return process.env.NEXT_PUBLIC_BOOKING_ENABLED === "true";
-}
 
 /**
  * CTA de reserva: lleva a `/reservar` (pagar en línea) cuando el flujo está
  * habilitado; si no, cae al WhatsApp de siempre (con mensaje opcional).
+ * Es el clic más importante del sitio: emite `booking_cta_click` con `mode`
+ * (online|whatsapp) y `placement` en ambas ramas.
  */
 export function BookingCta({
   className,
   children,
   waMessage,
+  placement,
   onClick,
 }: {
   className?: string;
   children: ReactNode;
   waMessage?: string;
+  placement: string;
   onClick?: () => void;
 }) {
   // Cierre temporal: un solo guard cubre los cuatro CTA (nav ×2, hero, cierre).
@@ -41,7 +41,14 @@ export function BookingCta({
 
   if (bookingOnline()) {
     return (
-      <Link href="/reservar" className={className} onClick={onClick}>
+      <Link
+        href="/reservar"
+        className={className}
+        onClick={() => {
+          trackBookingCta("online", placement);
+          onClick?.();
+        }}
+      >
         {children}
       </Link>
     );
@@ -52,7 +59,10 @@ export function BookingCta({
       target="_blank"
       rel="noopener noreferrer"
       className={className}
-      onClick={onClick}
+      onClick={() => {
+        trackBookingCta("whatsapp", placement);
+        onClick?.();
+      }}
     >
       {children}
     </a>
