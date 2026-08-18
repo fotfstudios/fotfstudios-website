@@ -1,14 +1,53 @@
 import MeterBars from "@/components/MeterBars";
 import MaskText from "@/components/MaskText";
 import Magnetic from "@/components/Magnetic";
+import HeroVideo from "@/components/HeroVideo";
 import { SITE } from "@/lib/site";
 import { CURSO } from "../_content";
 import WhatsAppCta from "./WhatsAppCta";
 
 export default function CursoHero() {
   return (
-    <section className="grain booth-glow relative isolate flex min-h-[88svh] flex-col justify-end overflow-hidden">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col justify-center px-5 pb-16 pt-28 md:px-10">
+    <section className="grain relative isolate flex min-h-[88svh] flex-col justify-end overflow-hidden">
+      {/* Video de sesión real a sangre completa (poster = still de respaldo) */}
+      <div className="absolute inset-0 z-0">
+        <HeroVideo
+          webm="/video/curso-hero.webm"
+          mp4="/video/curso-hero.mp4"
+          poster="/video/curso-hero-poster.jpg"
+          alt="DJ mezclando en la cabina de FOTF Studios"
+          className="img-grade object-[50%_40%]"
+        />
+        {/* Scrim direccional: oscuro a la izquierda (texto) → claro a la derecha */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to right, rgba(10,10,10,0.92) 0%, rgba(10,10,10,0.66) 32%, rgba(10,10,10,0.3) 60%, rgba(10,10,10,0.12) 100%)",
+          }}
+        />
+        {/* Scrim inferior para cuerpo de texto y la franja de datos */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(10,10,10,0.94) 0%, rgba(10,10,10,0.4) 26%, transparent 56%)",
+          }}
+        />
+        {/* Una sola fuente de luz: resplandor dorado */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-[55vh]"
+          style={{
+            background:
+              "radial-gradient(55% 55% at 30% 0%, rgba(232,201,74,0.12), transparent 66%)",
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 mx-auto flex w-full max-w-[1280px] flex-1 flex-col justify-center px-5 pb-16 pt-28 md:px-10">
         <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
           <MeterBars className="text-[15px] text-gold" />
           <span className="label text-bone-dim">

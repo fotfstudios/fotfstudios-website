@@ -13,7 +13,7 @@ export default function Prueba() {
         <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
           <div>
             <SectionHead
-              n="06"
+              n="08"
               kicker="Prueba antes de decidir"
               lines={["Una hora", "en la cabina."]}
             />

@@ -6,7 +6,7 @@ import { CURSO, PRECIOS, INCLUYE } from "../_content";
 export default function Precios() {
   return (
     <Section id="precios">
-      <SectionHead n="05" kicker="Precios" lines={["Primera", "generación."]} />
+      <SectionHead n="07" kicker="Precios" lines={["Primera", "generación."]} />
 
       {/* Scarcity line — gold, never Sirena (urgency-only per brand manual) */}
       <Reveal delay={120}>

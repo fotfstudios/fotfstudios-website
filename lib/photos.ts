@@ -16,6 +16,7 @@ import path from "node:path";
  *   equipo-vm70-*     → close-up monitores Pioneer DJ VM-50
  *   equipo-* / gear-* → close-up de equipo (genérico)
  *   grabacion-*       → sesión de grabación (/grabacion; reservadas vía PLACEMENT)
+ *   curso-*           → curso de DJ (/curso-dj; reservadas vía PLACEMENT)
  *   (cualquier otro)  → galería
  *
  * Toda foto entra además en la galería (salvo el hero).
@@ -45,6 +46,24 @@ const ALT_OVERRIDES: Record<string, string> = {
     "Manos mezclando en la XDJ-1000MK2 mientras la cámara graba la sesión",
   "grabacion-cierre-1.jpg":
     "DJ mezclando a oscuras durante una sesión de grabación en FOTF Studios",
+  "curso-equipos-1.jpg":
+    "DJ mezclando en la cabina: 2× Pioneer XDJ-1000MK2 y mixer DJM-450 en uso",
+  "curso-equipos-2.jpg":
+    "Práctica en los equipos Pioneer de la sala, con libreta de apuntes sobre la mesa",
+  "curso-cierre-1.jpg":
+    "DJ mezclando a oscuras en la cabina de FOTF Studios",
+  "curso-djs-1.jpg":
+    "DJ mezclando de frente en la cabina de FOTF Studios",
+  "curso-djs-2.jpg":
+    "DJ con las manos sobre los platos durante una sesión en la cabina",
+  "curso-djs-3.jpg":
+    "DJ trabajando una transición en las XDJ-1000MK2",
+  "curso-djs-4.jpg":
+    "DJ ajustando el mixer con su libreta de apuntes al lado",
+  "curso-clase-1.jpg":
+    "Práctica de una transición en el mixer durante una clase, con libreta de apuntes",
+  "curso-clase-2.jpg":
+    "Práctica en los equipos Pioneer durante una clase del curso de DJ",
 };
 
 function classify(file: string): Photo {
@@ -86,6 +105,14 @@ function classify(file: string): Photo {
       src,
       category: "other",
       alt: override ?? "Sesión de grabación de DJ set en la cabina de FOTF Studios",
+    };
+  }
+
+  if (name.startsWith("curso")) {
+    return {
+      src,
+      category: "other",
+      alt: override ?? "Curso de DJ en la cabina de FOTF Studios",
     };
   }
 
@@ -139,7 +166,11 @@ export const PLACEMENT = {
     "equipo-vm70-cono-2.JPG",
   ],
   /** /curso-dj landing: [0..1] → Equipos section, [2] → closing CTA. */
-  curso: ["cabina-7.JPG", "cabina-9.JPG", "cabina-8.JPG"],
+  curso: ["curso-equipos-1.jpg", "curso-equipos-2.jpg", "curso-cierre-1.jpg"],
+  /** /curso-dj landing: mosaico de DJs (sección En la cabina, orden de display). */
+  cursoDjs: ["curso-djs-1.jpg", "curso-djs-2.jpg", "curso-djs-3.jpg", "curso-djs-4.jpg"],
+  /** /curso-dj landing: sección La clase (foto · video · foto). */
+  cursoClase: ["curso-clase-1.jpg", "curso-clase-2.jpg"],
   /** /grabacion landing: ambas fotos → sección Qué incluye. */
   grabacion: ["grabacion-gear-1.jpg", "grabacion-manos-1.jpg"],
   /** /grabacion landing: sección La sesión (foto · video · foto). */
@@ -200,6 +231,20 @@ export function cursoPhotos(photos: Photo[]): Photo[] {
   return picked.length ? picked : photos.filter((p) => p.category === "sala").slice(0, 3);
 }
 
+/** Fotos reservadas para el mosaico de DJs de /curso-dj. */
+export function cursoDjsPhotos(photos: Photo[]): Photo[] {
+  return PLACEMENT.cursoDjs
+    .map((f) => bySrc(photos, f))
+    .filter((p): p is Photo => Boolean(p));
+}
+
+/** Fotos reservadas para la sección La clase de /curso-dj. */
+export function cursoClasePhotos(photos: Photo[]): Photo[] {
+  return PLACEMENT.cursoClase
+    .map((f) => bySrc(photos, f))
+    .filter((p): p is Photo => Boolean(p));
+}
+
 /** Photos reserved for the /grabacion landing (kept out of the home gallery). */
 export function grabacionPhotos(photos: Photo[]): Photo[] {
   const picked = PLACEMENT.grabacion
@@ -231,6 +276,8 @@ export function galleryPhotos(photos: Photo[]): Photo[] {
     `/photos/${PLACEMENT.grabacionCierre}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
     ...PLACEMENT.curso.map((f) => `/photos/${f}`),
+    ...PLACEMENT.cursoDjs.map((f) => `/photos/${f}`),
+    ...PLACEMENT.cursoClase.map((f) => `/photos/${f}`),
     ...PLACEMENT.grabacion.map((f) => `/photos/${f}`),
     ...PLACEMENT.grabacionSesion.map((f) => `/photos/${f}`),
     ...gearHighlights(photos).map((p) => p.src),
