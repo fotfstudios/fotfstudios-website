@@ -5,11 +5,13 @@ import Footer from "@/components/Footer";
 import MaskText from "@/components/MaskText";
 import Magnetic from "@/components/Magnetic";
 import MeterBars from "@/components/MeterBars";
+import HeroVideo from "@/components/HeroVideo";
 import { SITE, SITE_URL } from "@/lib/site";
 import { RECORDING_SESSIONS } from "@/lib/pricing";
 import WhatsAppCta from "./_components/WhatsAppCta";
 import Formatos from "./_components/Formatos";
 import QueIncluye from "./_components/QueIncluye";
+import LaSesion from "./_components/LaSesion";
 import CierreGrabacion from "./_components/CierreGrabacion";
 
 export const metadata: Metadata = {
@@ -83,8 +85,46 @@ export default function GrabacionPage() {
       </header>
 
       <main>
-        <section className="grain booth-glow relative isolate flex min-h-[70svh] flex-col justify-center overflow-hidden">
-          <div className="mx-auto w-full max-w-[1280px] px-5 pt-28 pb-16 md:px-10">
+        <section className="grain relative isolate flex min-h-[70svh] flex-col justify-center overflow-hidden">
+          {/* Video de sesión real a sangre completa (poster = still de respaldo) */}
+          <div className="absolute inset-0 z-0">
+            <HeroVideo
+              webm="/video/grabacion-hero.webm"
+              mp4="/video/grabacion-hero.mp4"
+              poster="/video/grabacion-hero-poster.jpg"
+              alt="DJ grabando su set frente a la cámara en la cabina de FOTF Studios"
+              className="img-grade object-[50%_40%]"
+            />
+            {/* Scrim direccional: oscuro a la izquierda (texto) → claro a la derecha */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to right, rgba(10,10,10,0.92) 0%, rgba(10,10,10,0.66) 32%, rgba(10,10,10,0.3) 60%, rgba(10,10,10,0.12) 100%)",
+              }}
+            />
+            {/* Scrim inferior para cuerpo de texto */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(10,10,10,0.94) 0%, rgba(10,10,10,0.4) 26%, transparent 56%)",
+              }}
+            />
+            {/* Una sola fuente de luz: resplandor dorado */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-[55vh]"
+              style={{
+                background:
+                  "radial-gradient(55% 55% at 30% 0%, rgba(232,201,74,0.12), transparent 66%)",
+              }}
+            />
+          </div>
+
+          <div className="relative z-10 mx-auto w-full max-w-[1280px] px-5 pt-28 pb-16 md:px-10">
             <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
               <MeterBars className="text-[15px] text-gold" />
               <span className="label text-bone-dim">
@@ -128,6 +168,7 @@ export default function GrabacionPage() {
 
         <Formatos />
         <QueIncluye />
+        <LaSesion />
         <CierreGrabacion />
       </main>
       <Footer />

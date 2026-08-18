@@ -12,4 +12,9 @@ coverage
 
 # Raw camera captures — commit only compressed derivatives in public/video
 *.mov
+
+# Raw session dumps (fotos/videos sin optimizar) — commit only optimized
+# derivatives in public/photos + public/video
+public/recordings/
+public/dj-course/
 .playwright-mcp/

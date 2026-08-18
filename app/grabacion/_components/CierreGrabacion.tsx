@@ -2,14 +2,41 @@ import Reveal from "@/components/Reveal";
 import MeterBars from "@/components/MeterBars";
 import MaskText from "@/components/MaskText";
 import Magnetic from "@/components/Magnetic";
+import BrandImage from "@/components/BrandImage";
+import { getPhotos, grabacionCierrePhoto } from "@/lib/photos";
 import WhatsAppCta from "./WhatsAppCta";
 
-// No background photo here on purpose: both /grabacion photos (PLACEMENT.grabacion)
-// are already spent on the "Qué incluye" section — unlike /curso-dj, which reserves
-// a third file just for this closing CTA. Grain + gold glow carry the section instead.
 export default function CierreGrabacion() {
+  const photo = grabacionCierrePhoto(getPhotos());
+
   return (
     <section className="grain relative isolate overflow-hidden border-t hairline">
+      {photo && (
+        <div className="absolute inset-0 z-0">
+          <BrandImage
+            src={photo.src}
+            alt={photo.alt}
+            sizes="100vw"
+            className="h-full w-full"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(80% 75% at 50% 45%, rgba(10,10,10,0.86) 0%, rgba(10,10,10,0.62) 55%, rgba(10,10,10,0.42) 100%)",
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(10,10,10,0.7) 0%, transparent 22%, transparent 70%, rgba(10,10,10,0.5) 100%)",
+            }}
+          />
+        </div>
+      )}
       {/* Single light source: golden glow from below */}
       <div
         aria-hidden

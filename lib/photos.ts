@@ -15,6 +15,7 @@ import path from "node:path";
  *   equipo-djm-*      → close-up Pioneer DJM-450
  *   equipo-vm70-*     → close-up monitores Pioneer DJ VM-50
  *   equipo-* / gear-* → close-up de equipo (genérico)
+ *   grabacion-*       → sesión de grabación (/grabacion; reservadas vía PLACEMENT)
  *   (cualquier otro)  → galería
  *
  * Toda foto entra además en la galería (salvo el hero).
@@ -33,7 +34,18 @@ const PHOTO_DIR = path.join(process.cwd(), "public", "photos");
 const EXT = /\.(jpe?g|png|webp|avif)$/i;
 
 /** Alt en español, preciso. Sobrescribe por nombre exacto de archivo si quieres. */
-const ALT_OVERRIDES: Record<string, string> = {};
+const ALT_OVERRIDES: Record<string, string> = {
+  "grabacion-sesion-1.jpg":
+    "DJ grabando su set frente a la cámara en la cabina de FOTF Studios",
+  "grabacion-sesion-2.jpg":
+    "Pantalla de la cámara encuadrando al DJ durante una sesión de grabación",
+  "grabacion-gear-1.jpg":
+    "Cabina lista para grabar: Pioneer XDJ-1000MK2, DJM-450 y micrófono montado",
+  "grabacion-manos-1.jpg":
+    "Manos mezclando en la XDJ-1000MK2 mientras la cámara graba la sesión",
+  "grabacion-cierre-1.jpg":
+    "DJ mezclando a oscuras durante una sesión de grabación en FOTF Studios",
+};
 
 function classify(file: string): Photo {
   const src = `/photos/${file}`;
@@ -66,6 +78,14 @@ function classify(file: string): Photo {
       category: "gear",
       gearModel,
       alt: override ?? `Close-up de ${model} en la cabina de FOTF Studios`,
+    };
+  }
+
+  if (name.startsWith("grabacion")) {
+    return {
+      src,
+      category: "other",
+      alt: override ?? "Sesión de grabación de DJ set en la cabina de FOTF Studios",
     };
   }
 
@@ -121,7 +141,11 @@ export const PLACEMENT = {
   /** /curso-dj landing: [0..1] → Equipos section, [2] → closing CTA. */
   curso: ["cabina-7.JPG", "cabina-9.JPG", "cabina-8.JPG"],
   /** /grabacion landing: ambas fotos → sección Qué incluye. */
-  grabacion: ["cabina-10.JPG", "cabina-11.JPG"],
+  grabacion: ["grabacion-gear-1.jpg", "grabacion-manos-1.jpg"],
+  /** /grabacion landing: sección La sesión (foto · video · foto). */
+  grabacionSesion: ["grabacion-sesion-1.jpg", "grabacion-sesion-2.jpg"],
+  /** /grabacion landing: fondo del cierre. */
+  grabacionCierre: "grabacion-cierre-1.jpg",
 } as const;
 
 /** Fotos visibles antes de "Ver más" en la galería. */
@@ -184,6 +208,18 @@ export function grabacionPhotos(photos: Photo[]): Photo[] {
   return picked.length ? picked : photos.filter((p) => p.category === "sala").slice(0, 2);
 }
 
+/** Fotos reservadas para la sección La sesión de /grabacion. */
+export function grabacionSesionPhotos(photos: Photo[]): Photo[] {
+  return PLACEMENT.grabacionSesion
+    .map((f) => bySrc(photos, f))
+    .filter((p): p is Photo => Boolean(p));
+}
+
+/** Foto reservada para el fondo del cierre de /grabacion. */
+export function grabacionCierrePhoto(photos: Photo[]): Photo | null {
+  return bySrc(photos, PLACEMENT.grabacionCierre) ?? null;
+}
+
 /**
  * Galería: todas las fotos MENOS las reservadas en otras secciones (hero, sala,
  * cierre, destacados de equipo, curso, grabación). Orden: destacadas primero, luego el resto.
@@ -192,9 +228,11 @@ export function galleryPhotos(photos: Photo[]): Photo[] {
   const reserved = new Set<string>([
     `/photos/${PLACEMENT.hero}`,
     `/photos/${PLACEMENT.cierre}`,
+    `/photos/${PLACEMENT.grabacionCierre}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
     ...PLACEMENT.curso.map((f) => `/photos/${f}`),
     ...PLACEMENT.grabacion.map((f) => `/photos/${f}`),
+    ...PLACEMENT.grabacionSesion.map((f) => `/photos/${f}`),
     ...gearHighlights(photos).map((p) => p.src),
   ]);
 

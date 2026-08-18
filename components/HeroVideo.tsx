@@ -17,12 +17,15 @@ export default function HeroVideo({
   poster,
   alt,
   className = "",
+  preload = "auto",
 }: {
   webm: string;
   mp4: string;
   poster: string;
   alt: string;
   className?: string;
+  /** "metadata" para loops bajo el pliegue: no descargan hasta reproducirse. */
+  preload?: "auto" | "metadata";
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
 
@@ -40,7 +43,7 @@ export default function HeroVideo({
       muted
       loop
       playsInline
-      preload="auto"
+      preload={preload}
       aria-label={alt}
       className={`absolute inset-0 h-full w-full object-cover ${className}`}
     >
