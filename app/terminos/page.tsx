@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE, whatsappLink } from "@/lib/site";
+import WhatsAppCta from "@/components/WhatsAppCta";
+import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
 const UPDATED = "17 de agosto de 2026";
@@ -153,14 +154,9 @@ export default function TerminosPage() {
           </p>
           <p>
             Para solicitar una cancelación o reagendamiento, escríbenos por{" "}
-            <a
-              href={whatsappLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gold underline-offset-4 hover:underline"
-            >
+            <WhatsAppCta source="terminos-reagendar" className="text-gold underline-offset-4 hover:underline">
               WhatsApp
-            </a>{" "}
+            </WhatsAppCta>{" "}
             o a{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-gold underline-offset-4 hover:underline">
               {CONTACT_EMAIL}
@@ -326,14 +322,9 @@ export default function TerminosPage() {
         <Section title="Contacto">
           <p>
             ¿Dudas sobre estos términos? Escríbenos por{" "}
-            <a
-              href={whatsappLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gold underline-offset-4 hover:underline"
-            >
+            <WhatsAppCta source="terminos-contacto" className="text-gold underline-offset-4 hover:underline">
               WhatsApp
-            </a>{" "}
+            </WhatsAppCta>{" "}
             o a{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-gold underline-offset-4 hover:underline">
               {CONTACT_EMAIL}

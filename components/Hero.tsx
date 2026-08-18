@@ -3,8 +3,10 @@ import MeterBars from "./MeterBars";
 import MaskText from "./MaskText";
 import Magnetic from "./Magnetic";
 import HeroVideo from "./HeroVideo";
-import { BookingCta, bookingOnline } from "./BookingCta";
-import { CLOSURE, SITE, whatsappLink } from "@/lib/site";
+import { BookingCta } from "./BookingCta";
+import WhatsAppCta from "./WhatsAppCta";
+import { bookingOnline } from "@/lib/flags";
+import { CLOSURE, SITE } from "@/lib/site";
 import { getPhotos, heroPhoto } from "@/lib/photos";
 
 export default function Hero() {
@@ -109,7 +111,10 @@ export default function Hero() {
           style={{ animationDelay: "0.34s" }}
         >
           <Magnetic>
-            <BookingCta className="group inline-flex items-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform">
+            <BookingCta
+              placement="hero"
+              className="group inline-flex items-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
+            >
               Reservar una hora
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </BookingCta>
@@ -126,14 +131,12 @@ export default function Hero() {
         {bookingOnline() && (
           <p className="rise mt-5 label-sm text-bone-mute" style={{ animationDelay: "0.4s" }}>
             ¿Dudas?{" "}
-            <a
-              href={whatsappLink()}
-              target="_blank"
-              rel="noopener noreferrer"
+            <WhatsAppCta
+              source="hero-dudas"
               className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold"
             >
               Escríbenos por WhatsApp
-            </a>
+            </WhatsAppCta>
           </p>
         )}
       </div>

@@ -61,7 +61,10 @@ export default function CierreCTA() {
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <Magnetic>
-              <BookingCta className="group inline-flex items-center gap-3 bg-gold px-8 py-4 label text-ink transition-transform">
+              <BookingCta
+                placement="cierre"
+                className="group inline-flex items-center gap-3 bg-gold px-8 py-4 label text-ink transition-transform"
+              >
                 Reservar una hora
                 <span className="transition-transform group-hover:translate-x-1">→</span>
               </BookingCta>

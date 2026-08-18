@@ -3,7 +3,7 @@ import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
 import { TIERS, RATES, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
-import { whatsappLink } from "@/lib/site";
+import WhatsAppCta from "../WhatsAppCta";
 
 const VOLUME_DISPLAY = [
   { when: "2 horas", off: "−10%" },
@@ -141,14 +141,13 @@ export default function Precio() {
             </ul>
             <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
               Vigencia 90 días — ¿se te pasó la fecha? Escríbenos ·{" "}
-              <a
-                href={whatsappLink(PACKS_WA)}
-                target="_blank"
-                rel="noopener noreferrer"
+              <WhatsAppCta
+                source="packs"
+                waMessage={PACKS_WA}
                 className="text-gold underline decoration-gold/40 underline-offset-4 transition-colors hover:text-bone"
               >
                 Compra por WhatsApp
-              </a>
+              </WhatsAppCta>
             </p>
           </div>
         </Reveal>

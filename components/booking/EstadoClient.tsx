@@ -6,8 +6,9 @@ import MaskText from "@/components/MaskText";
 import Reveal from "@/components/Reveal";
 import CalendarButtons from "@/components/booking/CalendarButtons";
 import ReceiptCard from "@/components/booking/ReceiptCard";
+import WhatsAppCta from "@/components/WhatsAppCta";
 import type { ConfirmationView } from "@/lib/confirmation";
-import { SITE, whatsappLink } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
 type OrderStatus = OrderConfirmation["orderStatus"];
@@ -157,9 +158,13 @@ function Confirmed({
       </div>
 
       <div className="mt-10 flex flex-wrap gap-3">
-        <a href={whatsappLink(waMsg)} className="inline-flex bg-gold px-6 py-3 label text-ink">
+        <WhatsAppCta
+          source="estado-confirmado"
+          waMessage={waMsg}
+          className="inline-flex bg-gold px-6 py-3 label text-ink"
+        >
           Escríbenos por WhatsApp →
-        </a>
+        </WhatsAppCta>
         {sessionUpcoming && view.startsAt && view.endsAt && (
           <CalendarButtons
             orderId={orderId}
@@ -201,12 +206,13 @@ function Failed() {
         <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
           Volver a reservar →
         </Link>
-        <a
-          href={whatsappLink("Hola FOTF Studios. Tuve un problema con el pago de mi reserva.")}
+        <WhatsAppCta
+          source="estado-fallido"
+          waMessage="Hola FOTF Studios. Tuve un problema con el pago de mi reserva."
           className="label-sm text-bone-dim transition-colors hover:text-gold"
         >
           ¿Tuviste un problema? Escríbenos por WhatsApp →
-        </a>
+        </WhatsAppCta>
       </div>
     </div>
   );
@@ -231,12 +237,13 @@ function Refunded() {
         <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
           Volver a reservar →
         </Link>
-        <a
-          href={whatsappLink("Hola FOTF Studios. Tengo una consulta sobre un pago devuelto.")}
+        <WhatsAppCta
+          source="estado-devuelto"
+          waMessage="Hola FOTF Studios. Tengo una consulta sobre un pago devuelto."
           className="label-sm text-bone-dim transition-colors hover:text-gold"
         >
           Escríbenos por WhatsApp →
-        </a>
+        </WhatsAppCta>
       </div>
     </div>
   );
