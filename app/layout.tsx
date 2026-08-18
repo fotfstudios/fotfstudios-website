@@ -32,6 +32,7 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+// GA4 (G-5K07LY6W3N) se sirve vía este contenedor GTM — no agregar gtag.js aparte (duplicaría la medición).
 const GTM_ID = "GTM-WCC3V22R";
 
 export const metadata: Metadata = {
