@@ -1,9 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CourseConflict,
+  CourseGenerationRepository,
+  CourseGenerationView,
   CourseSchedulingRepository,
   CourseSessionRow,
+  NewGeneration,
 } from "@/src/application/ports/course";
+import { type GenerationStatus, seatsLeft, seatsTaken } from "@/src/domain/course/course";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
 
@@ -22,7 +26,9 @@ export function courseSessionErrorNumber(message: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export class SupabaseCourseRepository implements CourseSchedulingRepository {
+type GenRow = Database["public"]["Tables"]["course_generations"]["Row"];
+
+export class SupabaseCourseRepository implements CourseSchedulingRepository, CourseGenerationRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
   async previewConflicts(resourceId: string, plan: readonly CourseSessionPlan[]): Promise<CourseConflict[]> {
@@ -90,5 +96,114 @@ export class SupabaseCourseRepository implements CourseSchedulingRepository {
       startsAt: r.reservations?.starts_at ?? null,
       endsAt: r.reservations?.ends_at ?? null,
     }));
+  }
+
+  // ── Generaciones ─────────────────────────────────────────────────────────
+
+  async listGenerations(): Promise<CourseGenerationView[]> {
+    const { data, error } = await this.db
+      .from("course_generations")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return this.withSeats(data ?? []);
+  }
+
+  /** La vigente: la abierta (a lo más una, por índice parcial) o la que se dicta. */
+  async currentGeneration(): Promise<CourseGenerationView | null> {
+    const { data, error } = await this.db
+      .from("course_generations")
+      .select("*")
+      .in("status", ["abierta", "en_curso"])
+      // 'abierta' antes que 'en_curso': si conviven, la que recibe inscripciones manda.
+      .order("status", { ascending: true })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    if (!data?.length) return null;
+    return (await this.withSeats(data))[0];
+  }
+
+  async getGeneration(id: string): Promise<CourseGenerationView | null> {
+    const { data, error } = await this.db.from("course_generations").select("*").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return (await this.withSeats([data]))[0];
+  }
+
+  async createGeneration(input: NewGeneration): Promise<string> {
+    const resource = await this.defaultResourceId();
+    const { data, error } = await this.db
+      .from("course_generations")
+      .insert({
+        resource_id: resource,
+        code: input.code,
+        name: input.name,
+        seats: input.seats,
+        price_duo_clp: input.prices.duo,
+        price_individual_clp: input.prices.individual,
+        price_prueba_clp: input.prices.prueba,
+        pricing_label: input.pricingLabel ?? null,
+        enroll_deadline: input.enrollDeadline ?? null,
+        starts_on: input.startsOn ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  }
+
+  async setGenerationStatus(id: string, status: GenerationStatus): Promise<void> {
+    const { error } = await this.db.from("course_generations").update({ status }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Resuelve los cupos de un lote de generaciones en UNA consulta. El conteo se
+   * hace con `seatsTaken` del dominio, no con un `.eq("status", …)` acá: así la
+   * definición de "qué estado ocupa cupo" vive en un solo lugar y no puede
+   * separarse del índice parcial de la DB.
+   */
+  private async withSeats(rows: GenRow[]): Promise<CourseGenerationView[]> {
+    if (rows.length === 0) return [];
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select("generation_id, status")
+      .in("generation_id", rows.map((r) => r.id));
+    if (error) throw new Error(error.message);
+
+    const byGen = new Map<string, { status: string }[]>();
+    for (const e of data ?? []) {
+      const list = byGen.get(e.generation_id) ?? [];
+      list.push({ status: e.status });
+      byGen.set(e.generation_id, list);
+    }
+
+    return rows.map((r) => {
+      const taken = seatsTaken(byGen.get(r.id) ?? []);
+      return {
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        status: r.status as GenerationStatus,
+        seats: r.seats,
+        seatsTaken: taken,
+        seatsLeft: seatsLeft(r.seats, taken),
+        prices: {
+          duo: r.price_duo_clp,
+          individual: r.price_individual_clp,
+          prueba: r.price_prueba_clp,
+        },
+        pricingLabel: r.pricing_label,
+        enrollDeadline: r.enroll_deadline,
+        startsOn: r.starts_on,
+        createdAt: r.created_at,
+      };
+    });
+  }
+
+  private async defaultResourceId(): Promise<string> {
+    const { data, error } = await this.db.from("resources").select("id").eq("active", true).limit(1).single();
+    if (error) throw new Error(error.message);
+    return data.id;
   }
 }

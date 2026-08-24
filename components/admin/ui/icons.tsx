@@ -24,6 +24,10 @@ const PATHS = {
   search: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM15.3 15.3 20 20",
   points: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
   user: "M12 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 20v-1.5a4.5 4.5 0 0 0-4.5-4.5h-5A4.5 4.5 0 0 0 5 18.5V20",
+  // Plato + eje + brazo. Deliberadamente distinto de `points` (dos anillos
+  // concéntricos): en la barra lateral se leen a 17px y no deben confundirse.
+  curso:
+    "M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0ZM13.25 12a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0ZM17.6 6.4 13.4 10.6",
 } as const;
 
 export type IconName = keyof typeof PATHS;
