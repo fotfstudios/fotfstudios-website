@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { MeterCell } from "@/components/admin/ui/MeterCell";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Stat } from "@/components/admin/ui/Stat";
+import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
+import { InscribirDialog } from "./_components/InscribirDialog";
 import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -22,10 +24,16 @@ export default async function CursoPage() {
 
   const repo = courseRepository();
   const generacion = await repo.currentGeneration();
-  const [sesiones, todas] = await Promise.all([
+  const [sesiones, todas, inscritos] = await Promise.all([
     generacion ? repo.listSessions(generacion.id) : Promise.resolve([]),
     repo.listGenerations(),
+    generacion ? repo.listEnrollments(generacion.id) : Promise.resolve([]),
   ]);
+  const vivos = inscritos.filter((i) => i.status === "reservada" || i.status === "pagada");
+  const porPagar = vivos.filter((i) => i.status === "reservada").length;
+  const recaudado = vivos
+    .filter((i) => i.status === "pagada")
+    .reduce((sum, i) => sum + i.priceClp, 0);
 
   const agendadas = sesiones.filter((s) => s.status === "agendada");
   const proxima = agendadas
@@ -40,7 +48,15 @@ export default async function CursoPage() {
         editorial="Una generación a la vez, seis cupos."
         action={
           <>
-            <Button href="/admin/curso/solicitudes" icon="user">
+            {generacion && (
+              <InscribirDialog
+                generationId={generacion.id}
+                generationCode={generacion.code}
+                prices={generacion.prices}
+                seatsLeft={generacion.seatsLeft}
+              />
+            )}
+            <Button href="/admin/curso/solicitudes" icon="user" variant="secondary">
               Solicitudes
             </Button>
             <Button href="/admin/curso/generaciones" icon="doc" variant="secondary">
@@ -80,8 +96,8 @@ export default async function CursoPage() {
         <>
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label="Cupos tomados" value={`${generacion.seatsTaken} / ${generacion.seats}`} accent={generacion.seatsLeft === 0} />
-            <Stat label="Precio en dúo" value={formatCLP(generacion.prices.duo)} />
-            <Stat label="Precio individual" value={formatCLP(generacion.prices.individual)} />
+            <Stat label="Por pagar" value={String(porPagar)} accent={porPagar > 0} />
+            <Stat label="Recaudado" value={formatCLP(recaudado)} />
             <Stat
               label="Próxima sesión"
               value={proxima?.startsAt ? fmtDateTime(proxima.startsAt) : "Sin agendar"}
@@ -103,6 +119,61 @@ export default async function CursoPage() {
                 {generacion.startsOn ? ` · parte el ${fmtDate(generacion.startsOn)}` : ""}
               </p>
             </Card>
+          </div>
+
+          <div className="mt-10">
+            <h2 className="label mb-3 text-bone-mute">Inscritos</h2>
+            {vivos.length === 0 ? (
+              <EmptyState
+                size="compact"
+                icon="user"
+                title="Sin inscritos todavía"
+                hint="Las solicitudes que confirmes aparecen acá y toman cupo."
+              />
+            ) : (
+              <DataTable
+                minWidthClassName="min-w-[52rem]"
+                head={
+                  <>
+                    <Th>Cupo</Th>
+                    <Th>Alumno</Th>
+                    <Th>Contacto</Th>
+                    <Th>Formato</Th>
+                    <Th right>Monto</Th>
+                    <Th>Estado</Th>
+                    <Th />
+                  </>
+                }
+              >
+                {vivos.map((i) => (
+                  <Tr key={i.id}>
+                    <Td className="font-mono text-bone-mute">{i.seatNo}</Td>
+                    <Td className="text-bone">{i.studentName}</Td>
+                    <Td>
+                      <a href={`mailto:${i.studentEmail}`} className="label-sm text-gold hover:text-bone">
+                        {i.studentEmail}
+                      </a>
+                    </Td>
+                    <Td className="text-bone-dim">{i.plan === "duo" ? "En dúo" : "Individual"}</Td>
+                    <Td right className="whitespace-nowrap font-mono text-bone">
+                      {formatCLP(i.priceClp)}
+                    </Td>
+                    <Td>
+                      <StatusPill status={i.status} />
+                    </Td>
+                    <Td right>
+                      <Link
+                        href={`/admin/curso/inscripciones/${i.id}`}
+                        aria-label={`Ver inscripción de ${i.studentName}`}
+                        className="inline-flex text-bone-mute transition-colors hover:text-gold"
+                      >
+                        <Icon name="chevron" size={18} />
+                      </Link>
+                    </Td>
+                  </Tr>
+                ))}
+              </DataTable>
+            )}
           </div>
 
           <div className="mt-10">

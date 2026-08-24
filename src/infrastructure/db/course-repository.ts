@@ -11,13 +11,25 @@ import type {
   CourseGenerationRepository,
   CourseGenerationView,
   CourseSchedulingRepository,
+  CourseEnrollmentRepository,
+  CourseEnrollmentRow,
   CourseLeadRepository,
   CourseLeadRow,
   CourseLeadsListResult,
   CourseSessionRow,
+  CourseTaxDoc,
+  NewEnrollment,
   NewGeneration,
 } from "@/src/application/ports/course";
-import { type CourseLeadStatus, type GenerationStatus, seatsLeft, seatsTaken } from "@/src/domain/course/course";
+import {
+  type CourseLeadStatus,
+  type CoursePlan,
+  type EnrollmentStatus,
+  type GenerationStatus,
+  seatsLeft,
+  seatsTaken,
+} from "@/src/domain/course/course";
+import { netFromGrossInclusive, taxFromGrossInclusive } from "@/src/domain/money/money";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
 
@@ -38,6 +50,51 @@ export function courseSessionErrorNumber(message: string): number | null {
 
 type GenRow = Database["public"]["Tables"]["course_generations"]["Row"];
 
+const ENROLLMENT_SELECT =
+  "id, generation_id, order_id, seat_no, plan, student_name, student_email, student_phone, " +
+  "status, price_clp, paid_method, paid_at, notes, created_at, orders(amount_clp, status)";
+
+type EnrollmentJoin = {
+  id: string;
+  generation_id: string;
+  order_id: string | null;
+  seat_no: number;
+  plan: string;
+  student_name: string;
+  student_email: string;
+  student_phone: string | null;
+  status: string;
+  price_clp: number;
+  paid_method: string | null;
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+  orders: { amount_clp: number; status: string } | null;
+  course_generations: { code: string } | null;
+};
+
+function toEnrollment(r: EnrollmentJoin): CourseEnrollmentRow {
+  return {
+    id: r.id,
+    generationId: r.generation_id,
+    generationCode: r.course_generations?.code ?? "",
+    orderId: r.order_id,
+    seatNo: r.seat_no,
+    plan: r.plan as CoursePlan,
+    studentName: r.student_name,
+    studentEmail: r.student_email,
+    studentPhone: r.student_phone,
+    status: r.status as EnrollmentStatus,
+    priceClp: r.price_clp,
+    paidMethod: r.paid_method,
+    paidAt: r.paid_at,
+    notes: r.notes,
+    createdAt: r.created_at,
+    orderAmountClp: r.orders?.amount_clp ?? null,
+    orderStatus: r.orders?.status ?? null,
+  };
+}
+
 type LeadRow = Database["public"]["Tables"]["course_leads"]["Row"];
 
 function toLead(r: LeadRow): CourseLeadRow {
@@ -57,7 +114,11 @@ function toLead(r: LeadRow): CourseLeadRow {
 }
 
 export class SupabaseCourseRepository
-  implements CourseSchedulingRepository, CourseGenerationRepository, CourseLeadRepository
+  implements
+    CourseSchedulingRepository,
+    CourseGenerationRepository,
+    CourseLeadRepository,
+    CourseEnrollmentRepository
 {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
@@ -317,5 +378,119 @@ export class SupabaseCourseRepository
       }),
     );
     return Object.fromEntries(entries) as Record<SolicitudTab, number>;
+  }
+
+  // ── Inscripciones ────────────────────────────────────────────────────────
+
+  async createEnrollment(input: NewEnrollment): Promise<string> {
+    const gen = await this.getGeneration(input.generationId);
+    if (!gen) throw new Error("curso_generation_missing");
+
+    // El precio sale de la GENERACIÓN, nunca del formulario: el admin elige a
+    // quién inscribir, no cuánto cobrarle.
+    const unit = input.plan === "duo" ? gen.prices.duo : gen.prices.individual;
+    const amount = unit * input.students.length;
+    const taxPct = await this.ivaPct();
+
+    const { data, error } = await this.db.rpc("create_course_enrollment", {
+      p_generation: input.generationId,
+      p_plan: input.plan,
+      p_students: input.students.map((s) => ({
+        name: s.name,
+        email: s.email,
+        phone: s.phone ?? null,
+      })),
+      p_amount: amount,
+      p_net: netFromGrossInclusive(amount, taxPct),
+      p_tax: taxFromGrossInclusive(amount, taxPct),
+      p_lead: input.leadId ?? undefined,
+      p_terms_version: input.termsVersion ?? undefined,
+      p_terms_source: input.termsSource ?? undefined,
+      p_notes: input.notes ?? undefined,
+    });
+    if (error) throw new Error(error.message);
+    return data as unknown as string;
+  }
+
+  async listEnrollments(generationId: string): Promise<CourseEnrollmentRow[]> {
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select(`${ENROLLMENT_SELECT}, course_generations(code)`)
+      .eq("generation_id", generationId)
+      .order("seat_no", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(toEnrollment);
+  }
+
+  async enrollmentById(id: string): Promise<CourseEnrollmentRow | null> {
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select(`${ENROLLMENT_SELECT}, course_generations(code)`)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toEnrollment(data) : null;
+  }
+
+  async enrollmentsByOrder(orderId: string): Promise<CourseEnrollmentRow[]> {
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select(`${ENROLLMENT_SELECT}, course_generations(code)`)
+      .eq("order_id", orderId)
+      .order("seat_no", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(toEnrollment);
+  }
+
+  async confirmCoursePayment(
+    orderId: string,
+    paymentRef: string,
+    method: string,
+  ): Promise<"confirmed" | "noop"> {
+    const { data, error } = await this.db.rpc("confirm_course_payment", {
+      p_order: orderId,
+      p_payment_id: paymentRef,
+      p_method: method,
+    });
+    if (error) throw new Error(error.message);
+    // Cualquier valor inesperado se trata como 'noop': falla cerrado, nunca
+    // reporta un cobro que no ocurrió.
+    return data === "confirmed" ? "confirmed" : "noop";
+  }
+
+  async cancelCourseOrder(orderId: string): Promise<void> {
+    const { error } = await this.db.rpc("cancel_course_order", { p_order: orderId });
+    if (error) throw new Error(error.message);
+  }
+
+  async setEnrollmentNotes(id: string, notes: string | null): Promise<void> {
+    const { error } = await this.db.from("course_enrollments").update({ notes }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  /** IVA vigente desde el catálogo; el monto del pedido es bruto IVA-incluido. */
+  private async ivaPct(): Promise<number> {
+    const { data, error } = await this.db.from("tax_rates").select("pct").eq("code", "IVA").single();
+    if (error) throw new Error(error.message);
+    return Number(data.pct);
+  }
+
+  /** Documentos tributarios del pedido (boleta + notas de crédito, si las hay). */
+  async taxDocumentsForOrder(orderId: string): Promise<CourseTaxDoc[]> {
+    const { data, error } = await this.db
+      .from("tax_documents")
+      .select("id, kind, status, folio, neto, iva, total, created_at")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((d) => ({
+      id: d.id,
+      kind: d.kind,
+      status: d.status,
+      folio: d.folio,
+      neto: d.neto,
+      iva: d.iva,
+      total: d.total,
+    }));
   }
 }

@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { type ActionResult, run } from "@/components/admin/ui/action";
 import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
 import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
-import { courseRepository, adminRepository } from "@/src/composition";
+import { adminRepository, courseRepository, notificationService } from "@/src/composition";
+import { fmtDateTime } from "@/components/admin/format";
+import { TERMS_VERSION } from "@/lib/site";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -146,5 +148,149 @@ export async function cancelSessionAction(_prev: ActionResult | null, fd: FormDa
     await courseRepository().cancelSession(str(fd, "sessionId"));
     revalidatePath("/admin/curso");
     revalidatePath("/admin/agenda");
+  });
+}
+
+/**
+ * Inscribe a una persona (o a un dúo) en la generación vigente: toma los cupos y
+ * crea el pedido en una sola transacción. El PRECIO no viaja en el formulario —
+ * sale de la generación— porque el dueño elige a quién inscribir, no cuánto
+ * cobrarle.
+ */
+export async function createEnrollmentAction(
+  _prev: ActionResult | null,
+  fd: FormData,
+): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const generationId = str(fd, "generationId");
+    const plan = str(fd, "plan");
+    if (!generationId) throw new Error("Falta la generación.");
+    if (plan !== "duo" && plan !== "individual") throw new Error("Formato inválido.");
+
+    const students = [
+      { name: required(fd, "name1", "el nombre"), email: required(fd, "email1", "el email"), phone: str(fd, "phone1") || null },
+    ];
+    if (plan === "duo") {
+      students.push({
+        name: required(fd, "name2", "el nombre de la segunda persona"),
+        email: required(fd, "email2", "el email de la segunda persona"),
+        phone: str(fd, "phone2") || null,
+      });
+    }
+
+    const repo = courseRepository();
+    try {
+      await repo.createEnrollment({
+        generationId,
+        plan,
+        students,
+        leadId: str(fd, "leadId") || null,
+        notes: str(fd, "notes") || null,
+        // El staff atestigua el consentimiento, igual que en la reserva manual.
+        termsSource: "staff",
+        termsVersion: TERMS_VERSION,
+      });
+    } catch (e) {
+      throw new Error(enrollErrorMessage(e instanceof Error ? e.message : ""));
+    }
+
+    revalidatePath("/admin/curso");
+    revalidatePath("/admin/curso/solicitudes");
+  });
+}
+
+function enrollErrorMessage(raw: string): string {
+  if (/curso_sin_cupos/.test(raw)) return "No quedan cupos suficientes en esta generación.";
+  if (/curso_generation_closed/.test(raw)) return "La generación no está recibiendo inscripciones.";
+  if (/curso_duo_necesita_dos/.test(raw)) return "Un dúo necesita las dos personas.";
+  if (/curso_individual_es_uno/.test(raw)) return "El formato individual lleva una sola persona.";
+  if (/seat_unique|seat_out_of_range/.test(raw)) return "No quedan cupos suficientes en esta generación.";
+  return "No se pudo crear la inscripción.";
+}
+
+/** Pago offline (efectivo/transferencia): cobra el total y emite la boleta pendiente. */
+export async function markCoursePaidAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.billing");
+    const enrollmentId = str(fd, "enrollmentId");
+    const method = str(fd, "method");
+    if (method !== "efectivo" && method !== "transferencia") throw new Error("Método inválido.");
+
+    const repo = courseRepository();
+    const inscripcion = await repo.enrollmentById(enrollmentId);
+    if (!inscripcion?.orderId) throw new Error("Esta inscripción no tiene pedido.");
+    if (inscripcion.status === "pagada") throw new Error("Esta inscripción ya está pagada.");
+
+    const status = await repo.confirmCoursePayment(inscripcion.orderId, `offline:${method}`, method);
+    if (status !== "confirmed") throw new Error("No se pudo registrar el pago (la inscripción pudo anularse).");
+
+    // Best-effort: el email nunca voltea un pago ya registrado.
+    await notifyPaid(inscripcion.orderId, method).catch((e) => console.error("[curso:pago:email]", e));
+
+    revalidatePath("/admin/curso");
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+  });
+}
+
+async function notifyPaid(orderId: string, method: string): Promise<void> {
+  const repo = courseRepository();
+  const inscripciones = await repo.enrollmentsByOrder(orderId);
+  if (inscripciones.length === 0) return;
+  const gen = await repo.getGeneration(inscripciones[0].generationId);
+  const sesiones = gen ? await repo.listSessions(gen.id) : [];
+  await notificationService().notifyCoursePaid({
+    students: inscripciones.map((i) => ({ name: i.studentName, email: i.studentEmail })),
+    generation: inscripciones[0].generationCode,
+    totalClp: inscripciones[0].orderAmountClp ?? 0,
+    method,
+    sessions: sesiones
+      .filter((s) => s.status === "agendada" && s.startsAt)
+      .map((s) => fmtDateTime(s.startsAt!)),
+    seatsLeft: gen?.seatsLeft ?? 0,
+  });
+}
+
+/** Anula una inscripción impaga: libera los cupos y cancela el pedido. */
+export async function cancelEnrollmentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.billing");
+    const enrollmentId = str(fd, "enrollmentId");
+    const repo = courseRepository();
+    const inscripcion = await repo.enrollmentById(enrollmentId);
+    if (!inscripcion?.orderId) throw new Error("Esta inscripción no tiene pedido.");
+
+    const compañeros = await repo.enrollmentsByOrder(inscripcion.orderId);
+    try {
+      await repo.cancelCourseOrder(inscripcion.orderId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      throw new Error(
+        /curso_enrollment_paid/.test(msg)
+          ? "Una inscripción pagada se anula desde el reembolso, no desde acá."
+          : "No se pudo anular la inscripción.",
+      );
+    }
+
+    await notificationService()
+      .notifyCourseCancelled({
+        students: compañeros.map((i) => ({ name: i.studentName, email: i.studentEmail })),
+        generation: compañeros[0]?.generationCode ?? "",
+      })
+      .catch((e) => console.error("[curso:anular:email]", e));
+
+    revalidatePath("/admin/curso");
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+  });
+}
+
+/** Notas operativas de la inscripción. */
+export async function setEnrollmentNotesAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const id = str(fd, "enrollmentId");
+    const notes = str(fd, "notes").slice(0, 500);
+    await courseRepository().setEnrollmentNotes(id, notes || null);
+    revalidatePath(`/admin/curso/inscripciones/${id}`);
   });
 }

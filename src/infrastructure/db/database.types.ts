@@ -270,6 +270,7 @@ export type Database = {
           notes: string | null
           order_id: string | null
           paid_at: string | null
+          paid_method: string | null
           plan: string
           price_clp: number
           seat_no: number
@@ -289,6 +290,7 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           paid_at?: string | null
+          paid_method?: string | null
           plan: string
           price_clp: number
           seat_no: number
@@ -308,6 +310,7 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           paid_at?: string | null
+          paid_method?: string | null
           plan?: string
           price_clp?: number
           seat_no?: number
@@ -1408,11 +1411,16 @@ export type Database = {
         Args: { p_refund_id?: string; p_reservation: string }
         Returns: undefined
       }
+      cancel_course_order: { Args: { p_order: string }; Returns: undefined }
       cancel_course_session: {
         Args: { p_created_by?: string; p_session: string }
         Returns: undefined
       }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
+      confirm_course_payment: {
+        Args: { p_method?: string; p_order: string; p_payment_id: string }
+        Returns: string
+      }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
         Returns: string
@@ -1438,6 +1446,21 @@ export type Database = {
           p_terms_source?: string
           p_terms_version?: string
           p_ttl?: string
+        }
+        Returns: string
+      }
+      create_course_enrollment: {
+        Args: {
+          p_amount: number
+          p_generation: string
+          p_lead?: string
+          p_net: number
+          p_notes?: string
+          p_plan: string
+          p_students: Json
+          p_tax: number
+          p_terms_source?: string
+          p_terms_version?: string
         }
         Returns: string
       }
@@ -1473,6 +1496,10 @@ export type Database = {
         }[]
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      expire_abandoned_course_holds: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       expire_abandoned_manual_holds: {
         Args: { p_older_than?: string }
         Returns: number

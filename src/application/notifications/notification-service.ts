@@ -17,6 +17,9 @@ import {
   ownerNotification,
   courseLeadConfirmation,
   ownerNewCourseLead,
+  courseEnrollmentCancelled,
+  courseEnrollmentPaid,
+  ownerCoursePaid,
 } from "./templates";
 
 export interface NotificationConfig {
@@ -39,6 +42,20 @@ export class NotificationService {
   async notifyOrder(orderId: string): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o || o.notifiedAt) return false;
+
+    // Ramificar por `kind` ANTES de cualquier otra cosa. Un pedido de curso no
+    // tiene reserva, así que `startsAt` viene null y la plantilla de reserva
+    // saldría con la fecha en "—". Como notifyPending() barre TODA orden pagada
+    // sin notificar, el cron nocturno le mandaría al alumno una "Reserva
+    // confirmada · —". El curso avisa por su propio camino (notifyCoursePaid).
+    //
+    // Se marca como notificado igual: si solo devolviéramos false, la orden
+    // quedaría con notified_at en null y el barrido la volvería a levantar en
+    // cada corrida, para siempre.
+    if (o.kind === "course") {
+      await this.repo.markNotified(orderId);
+      return false;
+    }
 
     const when = o.startsAt
       ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
@@ -240,6 +257,62 @@ export class NotificationService {
       to: lead.email,
       ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
     });
+  }
+
+  /**
+   * Inscripción pagada: confirmación al alumno + aviso al dueño. Recién acá viaja
+   * la dirección de la sala (la FAQ promete compartirla al confirmar la
+   * inscripción). Un solo disparo best-effort desde la acción del admin; el
+   * barrido nocturno no toca pedidos de curso (ver la rama de `kind` arriba).
+   */
+  async notifyCoursePaid(v: {
+    students: { name: string; email: string }[];
+    generation: string;
+    totalClp: number;
+    method: string;
+    sessions: string[];
+    seatsLeft: number;
+  }): Promise<void> {
+    const total = formatCLP(v.totalClp);
+    // Un dúo son dos alumnos: cada uno recibe su confirmación, aunque el pedido
+    // sea uno solo.
+    for (const student of v.students) {
+      await this.mailer.send({
+        to: student.email,
+        ...courseEnrollmentPaid(
+          { name: student.name, generation: v.generation, total, sessions: v.sessions },
+          { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
+        ),
+      });
+    }
+    if (this.config.ownerEmail) {
+      await this.mailer.send({
+        to: this.config.ownerEmail,
+        ...ownerCoursePaid({
+          name: v.students.map((s) => s.name).join(" y "),
+          generation: v.generation,
+          total,
+          method: v.method,
+          seatsLeft: v.seatsLeft,
+        }),
+      });
+    }
+  }
+
+  /** Inscripción impaga anulada: aviso al alumno. Sin dinero de por medio. */
+  async notifyCourseCancelled(v: {
+    students: { name: string; email: string }[];
+    generation: string;
+  }): Promise<void> {
+    for (const student of v.students) {
+      await this.mailer.send({
+        to: student.email,
+        ...courseEnrollmentCancelled(
+          { name: student.name, generation: v.generation },
+          { whatsappUrl: this.config.whatsappUrl },
+        ),
+      });
+    }
   }
 
   async notifyPending(): Promise<number> {

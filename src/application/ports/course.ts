@@ -1,5 +1,11 @@
 /** Puertos del Curso de DJ. Vocabulario de dominio (camelCase); el adapter traduce. */
-import type { CourseLeadStatus, CoursePrices, GenerationStatus } from "@/src/domain/course/course";
+import type {
+  CourseLeadStatus,
+  CoursePlan,
+  CoursePrices,
+  EnrollmentStatus,
+  GenerationStatus,
+} from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import type { SolicitudTab, SolicitudesListQuery } from "@/src/domain/admin/curso-solicitudes-list";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
@@ -92,4 +98,57 @@ export interface CourseLeadRepository {
   updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void>;
   /** Badge de la barra lateral. */
   nuevasCount(): Promise<number>;
+}
+
+export interface CourseEnrollmentRow {
+  id: string;
+  generationId: string;
+  generationCode: string;
+  orderId: string | null;
+  seatNo: number;
+  plan: CoursePlan;
+  studentName: string;
+  studentEmail: string;
+  studentPhone: string | null;
+  status: EnrollmentStatus;
+  priceClp: number;
+  paidMethod: string | null;
+  paidAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  /** Total del PEDIDO (un dúo son dos asientos en una sola orden). */
+  orderAmountClp: number | null;
+  orderStatus: string | null;
+}
+
+export interface NewEnrollment {
+  generationId: string;
+  plan: CoursePlan;
+  students: { name: string; email: string; phone?: string | null }[];
+  leadId?: string | null;
+  notes?: string | null;
+  termsVersion?: string;
+  termsSource?: "customer" | "staff";
+}
+
+export interface CourseEnrollmentRepository {
+  /** Toma los cupos y crea el pedido en una sola transacción. Devuelve el orderId. */
+  createEnrollment(input: NewEnrollment): Promise<string>;
+  listEnrollments(generationId: string): Promise<CourseEnrollmentRow[]>;
+  enrollmentById(id: string): Promise<CourseEnrollmentRow | null>;
+  enrollmentsByOrder(orderId: string): Promise<CourseEnrollmentRow[]>;
+  /** Pago offline o webhook: los dos convergen en el mismo RPC. */
+  confirmCoursePayment(orderId: string, paymentRef: string, method: string): Promise<"confirmed" | "noop">;
+  cancelCourseOrder(orderId: string): Promise<void>;
+  setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
+}
+
+export interface CourseTaxDoc {
+  id: string;
+  kind: string;
+  status: string;
+  folio: string | null;
+  neto: number;
+  iva: number;
+  total: number;
 }

@@ -8,7 +8,7 @@ export class SupabaseNotificationRepository implements NotificationRepository {
   async getOrderForEmail(orderId: string): Promise<OrderEmailData | null> {
     const { data: o } = await this.db
       .from("orders")
-      .select("id, customer_email, customer_name, amount_clp, currency, notified_at")
+      .select("id, kind, customer_email, customer_name, amount_clp, currency, notified_at")
       .eq("id", orderId)
       .single();
     if (!o) return null;
@@ -27,6 +27,7 @@ export class SupabaseNotificationRepository implements NotificationRepository {
 
     return {
       id: o.id,
+      kind: o.kind,
       email: o.customer_email,
       name: o.customer_name,
       amount: o.amount_clp,

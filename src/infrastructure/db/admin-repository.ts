@@ -454,7 +454,12 @@ export class SupabaseAdminRepository {
       this.bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!),
       this.upcomingBookings(40),
       this.pendingBoletas(),
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      // Mismo criterio que porHacerCount: la fila enlaza a /admin/reservas.
+      this.db
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_payment")
+        .eq("kind", "booking"),
     ]);
 
     const sessions = weekBookings.filter((b) => isSellableSession(b.kind));
@@ -482,11 +487,22 @@ export class SupabaseAdminRepository {
     };
   }
 
-  /** Conteo liviano de pendientes (boletas + pagos) para el badge del sidebar. */
+  /**
+   * Conteo liviano de pendientes (boletas + pagos) para el badge de "Hoy".
+   *
+   * Los pagos se acotan a `kind='booking'`: el badge lleva a /admin/reservas, y un
+   * cobro de curso no aparece ahí (no tiene reserva). Contarlo acá mandaría al
+   * dueño a buscar algo que esa lista nunca le va a mostrar. El curso tiene su
+   * propio contador en su sección.
+   */
   async porHacerCount(): Promise<number> {
     const [b, p] = await Promise.all([
       this.db.from("tax_documents").select("id", { count: "exact", head: true }).eq("status", "pendiente"),
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      this.db
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_payment")
+        .eq("kind", "booking"),
     ]);
     return (b.count ?? 0) + (p.count ?? 0);
   }

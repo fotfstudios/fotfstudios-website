@@ -139,3 +139,54 @@ describe("notifyApplication", () => {
     expect(mailer.send.mock.calls[0][0].to).toBe("vale@correo.cl");
   });
 });
+
+/**
+ * El pedido de curso no tiene reserva, así que `startsAt` viene null. Sin esta
+ * rama, notifyOrder arma la plantilla de RESERVA con la fecha en "—" y el cron
+ * nocturno (que barre toda orden pagada sin notificar) se la manda al alumno.
+ */
+describe("notifyOrder — un pedido de curso no usa la plantilla de reserva", () => {
+  const courseOrder = {
+    id: "o-curso",
+    kind: "course",
+    email: "alumna@correo.cl",
+    name: "Camila",
+    amount: 159980,
+    currency: "CLP",
+    startsAt: null,
+    endsAt: null,
+    notifiedAt: null,
+    lines: [{ description: "Curso de Iniciación DJ · G01 · en dúo", subtotal: 159980 }],
+  };
+
+  it("no manda la confirmación de reserva", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(courseOrder);
+
+    expect(await service.notifyOrder("o-curso")).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  // Si solo devolviera false, notified_at seguiría en null y el barrido
+  // levantaría la misma orden en cada corrida, para siempre.
+  it("la marca como notificada para que el barrido converja", async () => {
+    const { service, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(courseOrder);
+
+    await service.notifyOrder("o-curso");
+    expect(repo.markNotified).toHaveBeenCalledWith("o-curso");
+  });
+
+  it("un pedido de reserva normal sigue enviando", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      ...courseOrder,
+      kind: "booking",
+      startsAt: "2026-09-08T23:00:00Z",
+      endsAt: "2026-09-09T01:00:00Z",
+    });
+
+    expect(await service.notifyOrder("o-booking")).toBe(true);
+    expect(mailer.send).toHaveBeenCalled();
+  });
+});
