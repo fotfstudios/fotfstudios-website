@@ -8,7 +8,9 @@ import CursoHero from "./_components/CursoHero";
 import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
 import Sesiones from "./_components/Sesiones";
+import LaClase from "./_components/LaClase";
 import Equipos from "./_components/Equipos";
+import LosDjs from "./_components/LosDjs";
 import Precios from "./_components/Precios";
 import Prueba from "./_components/Prueba";
 import Faq from "./_components/Faq";
@@ -160,7 +162,9 @@ export default function CursoDjPage() {
         <Resultado />
         <ParaQuien />
         <Sesiones />
+        <LaClase />
         <Equipos />
+        <LosDjs />
         <Precios />
         <Prueba />
         {/* TESTIMONIOS: real student quotes/sets go here once generation 01

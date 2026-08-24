@@ -10,7 +10,7 @@ export default function Equipos() {
   return (
     <div className="border-y hairline bg-ink-soft/40">
       <Section id="equipos">
-        <SectionHead n="04" kicker="Los equipos" lines={["Cabina real,", "modelos exactos."]} />
+        <SectionHead n="05" kicker="Los equipos" lines={["Cabina real,", "modelos exactos."]} />
 
         <Reveal delay={120}>
           <p className="font-editorial mt-8 max-w-xl text-2xl leading-snug text-bone-dim">
