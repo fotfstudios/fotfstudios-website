@@ -3,6 +3,7 @@
  * es "use server" y solo puede exportar funciones async).
  */
 import type { DayAvailability } from "@/src/application/availability/availability-service";
+import type { ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
 
 /** Reserva/bloqueo existente del día, en minutos locales (para la cinta y la lista). */
 export interface OccupancyEntry {
@@ -28,6 +29,8 @@ export interface ManualBookingInput {
   method: string;
   customer: { name?: string; email?: string; phone?: string };
   notes: string;
+  /** Descuento del staff — intención (objetivo/modo/valor), no pesos: los calcula el servidor. */
+  discount?: ManualDiscountInput;
   /** Atestación del staff: el dueño confirma que el cliente aceptó los T&C (registra terms_source='staff'). */
   termsAccepted?: boolean;
 }

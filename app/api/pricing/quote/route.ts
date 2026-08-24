@@ -31,6 +31,7 @@ export async function GET(req: Request): Promise<Response> {
       tax: q.tax,
       discount: q.discount,
       volumePct: q.volumePct,
+      roomSubtotal: q.roomSubtotal,
       currency: r.value.currency,
       tierLines: q.tierLines,
       addonLines: q.addonLines,

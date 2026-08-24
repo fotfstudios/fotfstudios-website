@@ -17,6 +17,9 @@ const clean = (s: string | undefined) => {
 
 /** Errores del checkout → mensaje para el staff (nunca el código crudo). */
 const checkoutErrorMessage = (code: string): string => {
+  // El motor de descuentos ya devuelve una frase para el staff (es la única
+  // validación que necesita el quote del server para decidirse).
+  if (code.startsWith("discount:")) return code.slice("discount:".length);
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";
@@ -30,7 +33,7 @@ export async function createManualBookingAction(
     await requirePermission("reservations.create");
     const v = validateManualBooking(input);
     if (!v.ok) throw new Error(v.error);
-    const { date, startMinute, durationHours, method, addonKeys, notes } = v.value;
+    const { date, startMinute, durationHours, method, addonKeys, notes, discount } = v.value;
 
     const repo = adminRepository();
     const resource = await repo.defaultResource();
@@ -85,6 +88,7 @@ export async function createManualBookingAction(
       const booking = await checkoutService().createBooking(
         {
           resourceId: resource.id, date, startMinute, durationHours, addonKeys, customer,
+          ...(discount ? { manualDiscount: discount } : {}),
           ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
         },
         { enforceLeadTime: false, firmHold: true },
@@ -109,6 +113,7 @@ export async function createManualBookingAction(
         durationHours,
         addonKeys,
         customer,
+        ...(discount ? { manualDiscount: discount } : {}),
         ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
       },
       { enforceLeadTime: false },
