@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/cuenta", label: "Resumen" },
   { href: "/cuenta/reservas", label: "Reservas" },
+  // El curso va aparte de Reservas: no es una reserva, es un asiento en una
+  // generación, con su propia agenda y su propio estado de pago.
+  { href: "/cuenta/curso", label: "Curso" },
   { href: "/cuenta/perfil", label: "Perfil" },
 ] as const;
 

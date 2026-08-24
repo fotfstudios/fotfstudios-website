@@ -20,6 +20,7 @@ import type {
   CourseLeadsListResult,
   CourseSessionRow,
   CourseTaxDoc,
+  StudentCourseView,
   NewEnrollment,
   NewGeneration,
 } from "@/src/application/ports/course";
@@ -612,5 +613,51 @@ export class SupabaseCourseRepository
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? toCredit(data) : null;
+  }
+
+  /**
+   * Los cursos de un alumno, por email.
+   *
+   * El portal del cliente lista reservas con `kind='booking'`, así que el curso
+   * no aparece solo: no es una reserva, es un asiento. Se consulta por email con
+   * el mismo cuidado que bookingsForEmail — ilike para no distinguir mayúsculas
+   * y re-filtro exacto en minúsculas, porque ilike trata `_` como comodín y por
+   * ahí se podría colar la inscripción de otra persona.
+   */
+  async coursesForEmail(email: string): Promise<StudentCourseView[]> {
+    const lower = email.toLowerCase();
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      // Literal, no concatenado: el inferidor de tipos de PostgREST necesita el
+      // string literal para resolver las relaciones embebidas.
+      .select(
+        "id, generation_id, seat_no, plan, status, price_clp, paid_at, student_email, orders(amount_clp), course_generations(code, name)",
+      )
+      .ilike("student_email", email)
+      .in("status", ["reservada", "pagada"])
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []).filter((r) => r.student_email?.toLowerCase() === lower);
+    return Promise.all(
+      rows.map(async (r) => {
+        const sessions = await this.listSessions(r.generation_id);
+        return {
+          enrollmentId: r.id,
+          generationCode: r.course_generations?.code ?? "",
+          generationName: r.course_generations?.name ?? "",
+          status: r.status as StudentCourseView["status"],
+          plan: r.plan as StudentCourseView["plan"],
+          priceClp: r.price_clp,
+          orderAmountClp: r.orders?.amount_clp ?? null,
+          paidAt: r.paid_at,
+          seatNo: r.seat_no,
+          sessions: sessions
+            .filter((s) => s.status === "agendada")
+            .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, status: s.status })),
+        };
+      }),
+    );
   }
 }

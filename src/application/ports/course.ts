@@ -181,3 +181,17 @@ export interface CourseCreditRepository {
   applicableCredit(email: string): Promise<CourseCredit | null>;
   listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]>;
 }
+
+/** Lo que un alumno ve de su propio curso. */
+export interface StudentCourseView {
+  enrollmentId: string;
+  generationCode: string;
+  generationName: string;
+  status: EnrollmentStatus;
+  plan: CoursePlan;
+  priceClp: number;
+  orderAmountClp: number | null;
+  paidAt: string | null;
+  seatNo: number;
+  sessions: { n: number; title: string; startsAt: string | null; status: string }[];
+}

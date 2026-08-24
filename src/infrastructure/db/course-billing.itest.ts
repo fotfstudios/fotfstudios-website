@@ -330,3 +330,57 @@ describe("crédito de la sesión de prueba", () => {
     expect((await repo.applicableCredit("cami@correo.cl"))?.id).toBe(credit!.id);
   });
 });
+
+describe("coursesForEmail — lo que ve el alumno en /cuenta", () => {
+  it("trae su inscripción con las sesiones de la generación", async () => {
+    const gen = await generation();
+    await raw(
+      `insert into course_sessions (generation_id, n, title) values ($1, 1, 'Sonido'), ($1, 2, 'Beatmatching')`,
+      [gen],
+    );
+    await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "Cami@Correo.CL" }],
+    });
+
+    const cursos = await repo.coursesForEmail("cami@correo.cl");
+    expect(cursos).toHaveLength(1);
+    expect(cursos[0].generationCode).toBe("GB" + genSeq);
+    expect(cursos[0].status).toBe("reservada");
+    expect(cursos[0].sessions.map((s) => s.n)).toEqual([1, 2]);
+  });
+
+  it("no filtra la inscripción de otra persona", async () => {
+    const gen = await generation();
+    await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+    });
+    expect(await repo.coursesForEmail("otra@correo.cl")).toHaveLength(0);
+  });
+
+  // `ilike` trata `_` como comodín: sin el re-filtro exacto, "c_mi@correo.cl"
+  // haría match con "cami@correo.cl" y le mostraría a alguien el curso ajeno.
+  it("un comodín de ilike NO puede colar la inscripción de otro", async () => {
+    const gen = await generation();
+    await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+    });
+    expect(await repo.coursesForEmail("c_mi@correo.cl")).toHaveLength(0);
+  });
+
+  it("una inscripción anulada deja de aparecer", async () => {
+    const gen = await generation();
+    const orderId = await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+    });
+    await repo.cancelCourseOrder(orderId);
+    expect(await repo.coursesForEmail("cami@correo.cl")).toHaveLength(0);
+  });
+});
