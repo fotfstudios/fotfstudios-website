@@ -18,3 +18,8 @@ coverage
 public/recordings/
 public/dj-course/
 .playwright-mcp/
+
+# Descargas de logs de GitHub Actions ("<paso>_<job>.txt") — se bajan para
+# depurar un run y no son fuente; el repo es público, no queremos 100+ KB de
+# logs de runner en la historia.
+[0-9]_*.txt
