@@ -495,6 +495,15 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
+  async cancelPaidEnrollment(orderId: string): Promise<void> {
+    const { error } = await this.db
+      .from("course_enrollments")
+      .update({ status: "anulada", cancelled_at: new Date().toISOString() })
+      .eq("order_id", orderId)
+      .in("status", ["reservada", "pagada"]);
+    if (error) throw new Error(error.message);
+  }
+
   async setEnrollmentNotes(id: string, notes: string | null): Promise<void> {
     const { error } = await this.db.from("course_enrollments").update({ notes }).eq("id", id);
     if (error) throw new Error(error.message);

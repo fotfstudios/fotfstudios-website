@@ -10,12 +10,21 @@ import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { Textarea } from "@/components/admin/ui/Field";
 import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
+import { courseCancellationPolicy } from "@/src/domain/course/cancellation-policy";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { cancelEnrollmentAction, setEnrollmentNotesAction } from "../../actions";
+import { AnularPagada } from "./_components/AnularPagada";
 import { CobroCurso } from "./_components/CobroCurso";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Inscripción — Admin", robots: { index: false } };
+
+/** Cómo se llama cada alternativa sin dinero, en la voz del dueño. */
+const REMEDY_LABEL: Record<string, string> = {
+  transfer: "traspasar el cupo a la siguiente generación",
+  substitute: "designar un reemplazante",
+  reschedule_sessions: "reagendar las sesiones que falten",
+};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,10 +38,21 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
   const inscripcion = await repo.enrollmentById(id);
   if (!inscripcion) notFound();
 
-  const [compañeros, boletas] = await Promise.all([
+  const [compañeros, boletas, sesiones] = await Promise.all([
     inscripcion.orderId ? repo.enrollmentsByOrder(inscripcion.orderId) : Promise.resolve([inscripcion]),
     inscripcion.orderId ? repo.taxDocumentsForOrder(inscripcion.orderId) : Promise.resolve([]),
+    repo.listSessions(inscripcion.generationId),
   ]);
+
+  // Qué dicen los términos para ESTA inscripción, hoy. Se calcula en el servidor
+  // para que el dueño vea la regla ya resuelta y no tenga que contar días.
+  const primeraSesion =
+    sesiones
+      .filter((s) => s.status === "agendada" && s.startsAt)
+      .map((s) => s.startsAt!)
+      .sort()[0] ?? null;
+  const politica = courseCancellationPolicy(primeraSesion);
+  const totalPedido = inscripcion.orderAmountClp ?? inscripcion.priceClp;
   const duo = compañeros.filter((c) => c.id !== inscripcion.id);
   const waDigits = (inscripcion.studentPhone ?? "").replace(/\D/g, "");
 
@@ -124,6 +144,21 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
             paidAt={inscripcion.paidAt ? fmtDateTime(inscripcion.paidAt) : null}
             waDigits={waDigits || null}
           />
+
+          {inscripcion.status === "pagada" && (
+            <Card title="Cancelar">
+              <p className="mb-4 text-sm text-bone-dim">{politica.label}.</p>
+              <AnularPagada
+                enrollmentId={inscripcion.id}
+                totalClp={totalPedido}
+                policyLabel={politica.label}
+                policyAmount={politica.refundPct === 1 ? totalPedido : null}
+                remedies={politica.remedies
+                  .filter((r) => r !== "refund")
+                  .map((r) => REMEDY_LABEL[r] ?? r)}
+              />
+            </Card>
+          )}
 
           {inscripcion.status === "reservada" && (
             <Card title="Anular">

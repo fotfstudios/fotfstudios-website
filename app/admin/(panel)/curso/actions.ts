@@ -4,9 +4,17 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
+import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-policy";
 import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
 import { rangeFor } from "@/src/domain/scheduling/time";
-import { adminRepository, courseRepository, db, notificationService, paymentService } from "@/src/composition";
+import {
+  adminRepository,
+  courseRepository,
+  db,
+  notificationService,
+  paymentService,
+  refundService,
+} from "@/src/composition";
 import { hostFromHeaders } from "@/lib/urls";
 import { fmtDateTime } from "@/components/admin/format";
 import { TERMS_VERSION } from "@/lib/site";
@@ -386,5 +394,65 @@ export async function lookupTrialCreditAction(
     if (!email || !email.includes("@")) return null;
     const credit = await courseRepository().applicableCredit(email);
     return credit ? { id: credit.id, amountClp: credit.amountClp, expiresAt: credit.expiresAt } : null;
+  });
+}
+
+/**
+ * Cancela una inscripción PAGADA, con o sin reembolso.
+ *
+ * La política de /terminos sugiere el monto (100% si faltan ≥7 días para la
+ * sesión 1, nada si falta menos), pero el dueño manda: puede forzar total, nada o
+ * un monto a mano. El cupo lo libera `mark_refunded` cuando el reembolso es
+ * total — no acá, porque el webhook de MP también tiene que liberarlo cuando el
+ * reembolso se inicia desde el panel.
+ */
+export async function refundEnrollmentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.billing");
+    const enrollmentId = str(fd, "enrollmentId");
+    const mode = str(fd, "mode");
+    if (!["policy", "full", "none", "custom"].includes(mode)) throw new Error("Modo inválido.");
+
+    const repo = courseRepository();
+    const inscripcion = await repo.enrollmentById(enrollmentId);
+    if (!inscripcion?.orderId) throw new Error("Esta inscripción no tiene pedido.");
+    if (inscripcion.status !== "pagada") {
+      throw new Error("Solo se reembolsa una inscripción pagada. Una impaga se anula.");
+    }
+
+    const sesiones = await repo.listSessions(inscripcion.generationId);
+    const primera = sesiones
+      .filter((s) => s.status === "agendada" && s.startsAt)
+      .map((s) => s.startsAt!)
+      .sort()[0] ?? null;
+
+    const custom = Number(fd.get("customAmount"));
+    const amount = resolveCourseRefundAmount(mode as "policy" | "full" | "none" | "custom", {
+      firstSessionStartsAt: primera,
+      liveAmountClp: inscripcion.orderAmountClp ?? inscripcion.priceClp,
+      customAmount: Number.isFinite(custom) && custom > 0 ? Math.round(custom) : undefined,
+    });
+    if (mode === "custom" && amount == null) throw new Error("Indica el monto a devolver.");
+
+    const compañeros = await repo.enrollmentsByOrder(inscripcion.orderId);
+
+    if (amount == null) {
+      // Sin dinero de por medio: se anula el cupo directo. Los términos ofrecen
+      // traslado o reemplazante como alternativa, pero eso es otra acción.
+      await repo.cancelPaidEnrollment(inscripcion.orderId);
+    } else {
+      const res = await refundService().refundCourseOrder(inscripcion.orderId, { refundAmount: amount });
+      if (res.alreadyProcessed) throw new Error("Ese reembolso ya estaba registrado.");
+    }
+
+    await notificationService()
+      .notifyCourseCancelled({
+        students: compañeros.map((i) => ({ name: i.studentName, email: i.studentEmail })),
+        generation: compañeros[0]?.generationCode ?? "",
+      })
+      .catch((e) => console.error("[curso:reembolso:email]", e));
+
+    revalidatePath("/admin/curso");
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
   });
 }

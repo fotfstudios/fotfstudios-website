@@ -388,3 +388,81 @@ describe("coursesForEmail — lo que ve el alumno en /cuenta", () => {
     expect(await repo.coursesForEmail("cami@correo.cl")).toHaveLength(0);
   });
 });
+
+/**
+ * Reembolso. La liberación del cupo vive DENTRO de mark_refunded porque el
+ * webhook de MP la llama directo cuando el reembolso se inicia desde el panel:
+ * si viviera en el servicio, ese camino devolvería la plata y dejaría el asiento
+ * ocupado para siempre.
+ */
+describe("mark_refunded — el cupo vuelve al inventario", () => {
+  async function inscripcionPagada(seats = 6) {
+    const gen = await generation(seats);
+    const orderId = await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [alumno(1)],
+    });
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    return { gen, orderId };
+  }
+
+  it("un reembolso TOTAL anula la inscripción y libera el asiento", async () => {
+    const { gen, orderId } = await inscripcionPagada(1);
+    await raw("select mark_refunded($1, 'refund-1', null)", [orderId]);
+
+    const e = await raw("select status from course_enrollments where order_id = $1", [orderId]);
+    expect(e.rows[0].status).toBe("anulada");
+
+    // El asiento quedó libre de verdad: entra otra persona en una generación de 1.
+    await expect(
+      repo.createEnrollment({ generationId: gen, plan: "individual", students: [alumno(2)] }),
+    ).resolves.toBeTruthy();
+  });
+
+  // Un asiento no es divisible: un reembolso parcial de buena voluntad no debe
+  // expulsar al alumno del curso.
+  it("un reembolso PARCIAL deja al alumno dentro", async () => {
+    const { orderId } = await inscripcionPagada();
+    await raw("select mark_refunded($1, 'refund-2', 20000)", [orderId]);
+
+    const e = await raw("select status from course_enrollments where order_id = $1", [orderId]);
+    expect(e.rows[0].status).toBe("pagada");
+    const o = await raw("select status, refunded_amount_clp from orders where id = $1", [orderId]);
+    expect(o.rows[0].refunded_amount_clp).toBe(20000);
+  });
+
+  it("emite la nota de crédito por el saldo vivo", async () => {
+    const { orderId } = await inscripcionPagada();
+    await raw("select mark_refunded($1, 'refund-3', null)", [orderId]);
+
+    const t = await raw(
+      "select kind, total from tax_documents where order_id = $1 order by created_at", [orderId]);
+    expect(t.rows.map((r) => r.kind)).toEqual(["boleta", "nota_credito"]);
+    expect(t.rows[1].total).toBe(139990);
+  });
+
+  // El invariante del modelo aditivo: Σ(boletas vivas) = cobrado − reembolsado.
+  it("tras un reembolso parcial el saldo vivo cuadra", async () => {
+    const { orderId } = await inscripcionPagada();
+    await raw("select mark_refunded($1, 'refund-4', 40000)", [orderId]);
+
+    const { rows } = await raw(
+      `select coalesce(sum(total - reversed_clp), 0)::int as vivo
+         from tax_documents where order_id = $1 and kind = 'boleta' and reversed_clp < total`,
+      [orderId],
+    );
+    expect(rows[0].vivo).toBe(139990 - 40000);
+  });
+
+  // Un pedido de sala no puede verse afectado: no tiene inscripciones.
+  it("no toca pedidos de sala", async () => {
+    const { rows: o } = await raw(
+      `insert into orders (status, currency, amount_clp, net_clp, tax_clp, paid_at)
+       values ('paid','CLP',19990,16798,3192, now()) returning id`,
+    );
+    await expect(raw("select mark_refunded($1, 'refund-5', null)", [o[0].id])).resolves.toBeTruthy();
+    const e = await raw("select count(*)::int as n from course_enrollments where order_id = $1", [o[0].id]);
+    expect(e.rows[0].n).toBe(0);
+  });
+});

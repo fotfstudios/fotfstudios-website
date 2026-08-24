@@ -143,6 +143,12 @@ export interface CourseEnrollmentRepository {
   /** Pago offline o webhook: los dos convergen en el mismo RPC. */
   confirmCoursePayment(orderId: string, paymentRef: string, method: string): Promise<"confirmed" | "noop">;
   cancelCourseOrder(orderId: string): Promise<void>;
+  /**
+   * Anula los cupos de un pedido YA PAGADO sin devolver plata (el dueño decidió
+   * que no corresponde reembolso, o el alumno prefirió otra salida). El dinero
+   * queda donde está; esto solo devuelve el asiento al inventario.
+   */
+  cancelPaidEnrollment(orderId: string): Promise<void>;
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
 }
 

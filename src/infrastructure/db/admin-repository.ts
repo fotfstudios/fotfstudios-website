@@ -701,6 +701,31 @@ export class SupabaseAdminRepository {
    * estado, pago MP, montos (boleta viva = amount − refunded) y inicio de sesión
    * (para la política de cancelación).
    */
+  /** Igual que orderForReservation pero por PEDIDO: el curso no tiene reserva. */
+  async orderById(orderId: string): Promise<{
+    orderId: string;
+    status: string;
+    mpPaymentId: string | null;
+    amountClp: number;
+    refundedAmountClp: number;
+    pointsRedeemedClp: number;
+  } | null> {
+    const { data: o } = await this.db
+      .from("orders")
+      .select("status, mp_payment_id, amount_clp, refunded_amount_clp, points_redeemed_clp")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!o) return null;
+    return {
+      orderId,
+      status: o.status,
+      mpPaymentId: o.mp_payment_id,
+      amountClp: o.amount_clp,
+      refundedAmountClp: o.refunded_amount_clp,
+      pointsRedeemedClp: o.points_redeemed_clp,
+    };
+  }
+
   async orderForReservation(reservationId: string): Promise<{
     orderId: string;
     status: string;
