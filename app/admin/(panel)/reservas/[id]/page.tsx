@@ -16,6 +16,7 @@ import type { AdminBookingDetail, BookingTimelineEvent, PaymentSnapshot } from "
 import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
+import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
 import { CobroPendiente } from "./_components/CobroPendiente";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
@@ -98,7 +99,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const b = await adminRepository().getBooking(id);
   if (!b) notFound();
 
-  const isBlock = b.kind === "block";
+  const isBlock = isRoomBlock(b.kind);
   const isCourtesy = !isBlock && !b.orderId;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
 

@@ -13,6 +13,7 @@ import {
 } from "@/src/domain/admin/agenda";
 import { dayBoundsUtc, todayInTz } from "@/src/domain/scheduling/time";
 import { AgendaHeader } from "./_components/AgendaHeader";
+import { isSellableSession } from "@/src/domain/scheduling/reservation-kind";
 import { AgendaList } from "./_components/AgendaList";
 import { MonthView } from "./_components/MonthView";
 import { TimeGrid, type GridDay } from "./_components/TimeGrid";
@@ -55,8 +56,12 @@ export default async function AgendaPage({
   const hoursFor = (date: string): [number, number] | null =>
     scheduleKnown ? effectiveHours(date, tz, schedule.openingHours, schedule.exceptions) : null;
 
-  const nReservas = bookings.filter((b) => b.kind !== "block").length;
-  const nBloqueos = bookings.length - nReservas;
+  // Tres cuentas, no dos: una sesión de curso ocupa la cabina pero no es ni una
+  // reserva de cliente ni una mantención. Meterla en "bloqueos" haría que la línea
+  // le mienta al dueño sobre qué está pasando en la sala.
+  const nReservas = bookings.filter((b) => isSellableSession(b.kind)).length;
+  const nCurso = bookings.filter((b) => b.kind === "curso").length;
+  const nBloqueos = bookings.length - nReservas - nCurso;
 
   let content: React.ReactNode;
   if (q.view === "mes") {
@@ -118,8 +123,9 @@ export default async function AgendaPage({
           <p className="mb-3 label-sm text-bone-mute">{EMPTY[q.view]}</p>
         ) : (
           <p className="sr-only">
-            {nReservas} {nReservas === 1 ? "reserva" : "reservas"} y {nBloqueos}{" "}
-            {nBloqueos === 1 ? "bloqueo" : "bloqueos"} en la vista.
+            {nReservas} {nReservas === 1 ? "reserva" : "reservas"}
+            {nCurso > 0 && `, ${nCurso} ${nCurso === 1 ? "sesión de curso" : "sesiones de curso"}`} y{" "}
+            {nBloqueos} {nBloqueos === 1 ? "bloqueo" : "bloqueos"} en la vista.
           </p>
         )}
         {content}

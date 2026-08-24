@@ -6,7 +6,9 @@
 
 export const RESERVAS_PER_PAGE = 25;
 
-export const RESERVA_TABS = ["todas", "confirmadas", "espera", "canceladas", "bloqueos"] as const;
+/** "curso" separa las sesiones del Curso de DJ: ocupan sala pero no son una
+  * reserva de cliente, así que ensuciarían tanto "confirmadas" como "bloqueos". */
+export const RESERVA_TABS = ["todas", "confirmadas", "espera", "canceladas", "bloqueos", "curso"] as const;
 export type ReservaTab = (typeof RESERVA_TABS)[number];
 
 export const RESERVA_TIEMPOS = ["proximas", "pasadas", "todas"] as const;

@@ -259,6 +259,360 @@ export type Database = {
           },
         ]
       }
+      course_credits: {
+        Row: {
+          amount_clp: number
+          consumed_at: string | null
+          consumed_order_id: string | null
+          email: string
+          expires_at: string
+          id: string
+          issued_at: string
+          note: string | null
+          source_reservation_id: string | null
+        }
+        Insert: {
+          amount_clp: number
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          issued_at?: string
+          note?: string | null
+          source_reservation_id?: string | null
+        }
+        Update: {
+          amount_clp?: number
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          note?: string | null
+          source_reservation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_credits_consumed_order_id_fkey"
+            columns: ["consumed_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_credits_source_reservation_id_fkey"
+            columns: ["source_reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_enrollments: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          expires_at: string | null
+          generation_id: string
+          id: string
+          lead_id: string | null
+          notes: string | null
+          order_id: string | null
+          paid_at: string | null
+          paid_method: string | null
+          plan: string
+          practice_hours_redeemed: number
+          practice_hours_total: number
+          price_clp: number
+          seat_no: number
+          status: string
+          student_email: string
+          student_name: string
+          student_phone: string | null
+          transferred_to: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          generation_id: string
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          paid_method?: string | null
+          plan: string
+          practice_hours_redeemed?: number
+          practice_hours_total?: number
+          price_clp: number
+          seat_no: number
+          status?: string
+          student_email: string
+          student_name: string
+          student_phone?: string | null
+          transferred_to?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          generation_id?: string
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          paid_method?: string | null
+          plan?: string
+          practice_hours_redeemed?: number
+          practice_hours_total?: number
+          price_clp?: number
+          seat_no?: number
+          status?: string
+          student_email?: string
+          student_name?: string
+          student_phone?: string | null
+          transferred_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "course_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_transferred_to_fkey"
+            columns: ["transferred_to"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_generations: {
+        Row: {
+          code: string
+          created_at: string
+          currency: string
+          enroll_deadline: string | null
+          id: string
+          name: string
+          notes: string | null
+          practice_hours_per_seat: number
+          practice_valid_until: string | null
+          price_duo_clp: number
+          price_individual_clp: number
+          price_prueba_clp: number
+          pricing_label: string | null
+          resource_id: string
+          seats: number
+          starts_on: string | null
+          status: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          currency?: string
+          enroll_deadline?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          practice_hours_per_seat?: number
+          practice_valid_until?: string | null
+          price_duo_clp: number
+          price_individual_clp: number
+          price_prueba_clp: number
+          pricing_label?: string | null
+          resource_id: string
+          seats?: number
+          starts_on?: string | null
+          status?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          currency?: string
+          enroll_deadline?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          practice_hours_per_seat?: number
+          practice_valid_until?: string | null
+          price_duo_clp?: number
+          price_individual_clp?: number
+          price_prueba_clp?: number
+          pricing_label?: string | null
+          resource_id?: string
+          seats?: number
+          starts_on?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_generations_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_leads: {
+        Row: {
+          availability: string
+          created_at: string
+          email: string
+          experience: string
+          generation_id: string | null
+          id: string
+          message: string | null
+          name: string
+          phone: string
+          plan: string
+          status: string
+        }
+        Insert: {
+          availability: string
+          created_at?: string
+          email: string
+          experience: string
+          generation_id?: string | null
+          id?: string
+          message?: string | null
+          name: string
+          phone: string
+          plan: string
+          status?: string
+        }
+        Update: {
+          availability?: string
+          created_at?: string
+          email?: string
+          experience?: string
+          generation_id?: string | null
+          id?: string
+          message?: string | null
+          name?: string
+          phone?: string
+          plan?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_leads_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_practice_redemptions: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          hours: number
+          id: string
+          released_at: string | null
+          reservation_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          hours: number
+          id?: string
+          released_at?: string | null
+          reservation_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          hours?: number
+          id?: string
+          released_at?: string | null
+          reservation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_practice_redemptions_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_practice_redemptions_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: true
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_sessions: {
+        Row: {
+          created_at: string
+          generation_id: string
+          id: string
+          n: number
+          reservation_id: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          id?: string
+          n: number
+          reservation_id?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          id?: string
+          n?: number
+          reservation_id?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_sessions_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_sessions_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: true
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -456,6 +810,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           id: string
+          kind: string
           mp_payment_id: string | null
           mp_preference_id: string | null
           mp_refund_id: string | null
@@ -481,6 +836,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          kind?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           mp_refund_id?: string | null
@@ -506,6 +862,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          kind?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           mp_refund_id?: string | null
@@ -1159,7 +1516,16 @@ export type Database = {
         Args: { p_refund_id?: string; p_reservation: string }
         Returns: undefined
       }
+      cancel_course_order: { Args: { p_order: string }; Returns: undefined }
+      cancel_course_session: {
+        Args: { p_created_by?: string; p_session: string }
+        Returns: undefined
+      }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
+      confirm_course_payment: {
+        Args: { p_method?: string; p_order: string; p_payment_id: string }
+        Returns: string
+      }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
         Returns: string
@@ -1185,6 +1551,22 @@ export type Database = {
           p_terms_source?: string
           p_terms_version?: string
           p_ttl?: string
+        }
+        Returns: string
+      }
+      create_course_enrollment: {
+        Args: {
+          p_amount: number
+          p_credit?: string
+          p_generation: string
+          p_lead?: string
+          p_net: number
+          p_notes?: string
+          p_plan: string
+          p_students: Json
+          p_tax: number
+          p_terms_source?: string
+          p_terms_version?: string
         }
         Returns: string
       }
@@ -1220,6 +1602,10 @@ export type Database = {
         }[]
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      expire_abandoned_course_holds: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       expire_abandoned_manual_holds: {
         Args: { p_older_than?: string }
         Returns: number
@@ -1252,6 +1638,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_course_session: {
+        Args: {
+          p_created_by?: string
+          p_ends: string
+          p_session: string
+          p_starts: string
+        }
+        Returns: undefined
+      }
       order_backing_boletas: {
         Args: { p_order: string }
         Returns: {
@@ -1266,9 +1661,31 @@ export type Database = {
           live_amount: number
         }[]
       }
+      preview_course_conflicts: {
+        Args: { p_resource: string; p_sessions: Json }
+        Returns: {
+          conflict_amount: number
+          conflict_customer: string
+          conflict_id: string
+          conflict_kind: string
+          conflict_status: string
+          ends_at: string
+          n: number
+          starts_at: string
+        }[]
+      }
       rate_limit_hit: {
         Args: { p_key: string; p_max: number; p_window_seconds: number }
         Returns: boolean
+      }
+      redeem_practice_hours: {
+        Args: {
+          p_ends: string
+          p_enrollment: string
+          p_hours: number
+          p_starts: string
+        }
+        Returns: string
       }
       refund_points_order: {
         Args: { p_order: string; p_ref?: string; p_restore: number }
@@ -1280,6 +1697,10 @@ export type Database = {
       }
       release_order_redemption: {
         Args: { p_order: string; p_ref?: string }
+        Returns: undefined
+      }
+      release_practice_hours: {
+        Args: { p_reservation: string }
         Returns: undefined
       }
       reschedule_courtesy: {
@@ -1316,6 +1737,23 @@ export type Database = {
         Returns: string
       }
       reservation_for_order: { Args: { p_order: string }; Returns: string }
+      schedule_course_generation: {
+        Args: { p_created_by?: string; p_generation: string; p_sessions: Json }
+        Returns: number
+      }
+      substitute_student: {
+        Args: {
+          p_email: string
+          p_enrollment: string
+          p_name: string
+          p_phone?: string
+        }
+        Returns: undefined
+      }
+      transfer_enrollment: {
+        Args: { p_enrollment: string; p_target: string }
+        Returns: string
+      }
     }
     Enums: {
       order_status:

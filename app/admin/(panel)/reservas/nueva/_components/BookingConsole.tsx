@@ -26,6 +26,7 @@ import { AdminCalendar } from "./AdminCalendar";
 import { CobroCard, type DiscountState, type QuoteView } from "./CobroCard";
 import type { DiscountOption } from "./DiscountPicker";
 import { DayStrip } from "./DayStrip";
+import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 import { DurationStepper } from "./DurationStepper";
 import { SlotGrid, type SlotView } from "./SlotGrid";
 import { SuccessPanel } from "./SuccessPanel";
@@ -185,7 +186,7 @@ export default function BookingConsole({
     const full = { start: m, end: m + duration * 60 };
     const hourHits = occupancy.filter((o) => overlaps(hour, o));
     if (hourHits.length > 0) {
-      const isBlock = hourHits.some((o) => o.kind === "block");
+      const isBlock = hourHits.some((o) => isRoomBlock(o.kind));
       return { minute: m, tag: isBlock ? "bloqueo" : "ocupado", disabled: true, warn: false };
     }
     if (full.end > windowEnd || occupancy.some((o) => overlaps(full, o))) {

@@ -13,6 +13,18 @@ export interface RefundBookingRepo {
     pointsRedeemedClp: number;
     startsAt: string | null;
   } | null>;
+  /**
+   * Mismo dato, pero por PEDIDO. Existe porque una inscripción de curso no tiene
+   * reserva de la cual colgar: `orderForReservation` no la puede alcanzar.
+   */
+  orderById(orderId: string): Promise<{
+    orderId: string;
+    status: string;
+    mpPaymentId: string | null;
+    amountClp: number;
+    refundedAmountClp: number;
+    pointsRedeemedClp: number;
+  } | null>;
   /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
   backingBoletas(orderId: string): Promise<BackingBoleta[]>;
   /** Cancelación SIN reembolso (los reembolsos pasan por `mark_refunded`). */
@@ -105,6 +117,20 @@ export class RefundService {
       return { alreadyProcessed: false };
     }
 
+    return this.refundPaidOrder(target, opts.refundAmount);
+  }
+
+  /**
+   * Devuelve plata de un pedido YA PAGADO. Es la secuencia compartida por la
+   * cancelación de reserva y la del curso: se extrajo en vez de duplicarla porque
+   * el reparto por-pago y el orden inbox-antes-de-asiento son justo lo que no se
+   * puede reinventar sin volver a romper la contabilidad.
+   */
+  private async refundPaidOrder(
+    target: { orderId: string; amountClp: number; refundedAmountClp: number; pointsRedeemedClp: number },
+    refundAmount: number,
+  ): Promise<{ alreadyProcessed: boolean }> {
+    const opts = { refundAmount };
     const liveBoleta = target.amountClp - target.refundedAmountClp;
     if (opts.refundAmount < 1 || opts.refundAmount > liveBoleta) {
       throw new Error(`El monto excede el saldo reembolsable ($${liveBoleta}).`);
@@ -138,5 +164,34 @@ export class RefundService {
     // El asiento (mark_refunded) anula las boletas por-pago y acumula el reembolso.
     await this.inbox.markRefunded(target.orderId, primaryRefundId ?? "offline:manual", opts.refundAmount);
     return { alreadyProcessed: false };
+  }
+
+  /**
+   * Reembolso de una inscripción de curso, por PEDIDO. Reusa entera la secuencia
+   * de plata; lo único distinto es cómo se llega al pedido. La liberación del
+   * cupo NO ocurre acá sino dentro de `mark_refunded`: el webhook de MP la llama
+   * directo cuando el reembolso se inicia desde el panel, y ahí este servicio no
+   * corre.
+   */
+  async refundCourseOrder(
+    orderId: string,
+    opts: { refundAmount: number | null },
+  ): Promise<{ alreadyProcessed: boolean }> {
+    const target = await this.repo.orderById(orderId);
+    if (!target) throw new Error("No encontramos el pedido de esta inscripción.");
+
+    if (opts.refundAmount == null) {
+      // Sin reembolso: si aún no está pagado, anula en MP un pago no aprobado
+      // antes de que capture contra una inscripción que ya no existe.
+      if (target.status !== "paid") await this.voidPendingPayment(target.orderId);
+      return { alreadyProcessed: false };
+    }
+
+    if (target.status !== "paid") {
+      throw new Error(
+        `No se puede reembolsar: el pedido no está pagado (estado: ${target.status}). Anula sin reembolso.`,
+      );
+    }
+    return this.refundPaidOrder(target, opts.refundAmount);
   }
 }

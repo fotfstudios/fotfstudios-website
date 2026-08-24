@@ -148,3 +148,93 @@ describe("WebhookService — cobro de reagendamiento diferido", () => {
     expect(repo.confirmPaid).toHaveBeenCalled();
   });
 });
+
+/**
+ * El pedido de curso no tiene reserva: si llegara a confirmPaid, confirm_payment
+ * devolvería 'paid_no_hold', no emitiría boleta y suprimiría el email al alumno.
+ * Por eso se desvía, igual que el cobro de reagendamiento.
+ */
+describe("WebhookService — finalizador de curso", () => {
+  const courseFinalizer = (pending: boolean, outcome: "applied" | "noop" = "applied") => ({
+    pendingCourseOrder: vi.fn(async () => (pending ? { orderId: "o-curso" } : null)),
+    applyCoursePayment: vi.fn(async () => outcome),
+  });
+
+  it("un pago aprobado de una inscripción va al finalizador y NUNCA a confirmPaid", async () => {
+    const repo = makeRepo();
+    const curso = courseFinalizer(true);
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o-curso", amount: 159980 }),
+      repo,
+      undefined,
+      curso,
+    );
+
+    expect(await svc.handlePaymentNotification("pay1")).toEqual({ result: "course_paid", orderId: "o-curso" });
+    expect(curso.applyCoursePayment).toHaveBeenCalledWith("o-curso", "pay1");
+    expect(repo.confirmPaid).not.toHaveBeenCalled();
+  });
+
+  it("un pedido que no es de curso sigue por el camino normal", async () => {
+    const repo = makeRepo();
+    const curso = courseFinalizer(false);
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o1", amount: 9990 }),
+      repo,
+      undefined,
+      curso,
+    );
+
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("paid");
+    expect(repo.confirmPaid).toHaveBeenCalled();
+  });
+
+  // El cobro de reagendamiento se evalúa ANTES: es el camino ya probado y una
+  // orden de delta nunca es de curso.
+  it("el cobro de reagendamiento conserva la prioridad", async () => {
+    const repo = makeRepo();
+    const curso = courseFinalizer(true);
+    const resched = {
+      pendingChargeForOrder: vi.fn(async () => ({ deltaOrderId: "o-delta", rescheduleId: "r1" })),
+      applyCharge: vi.fn(async () => "applied" as const),
+      markChargeRefunded: vi.fn(async () => {}),
+    };
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o-delta", amount: 5000 }),
+      repo,
+      resched,
+      curso,
+    );
+
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("reschedule_applied");
+    expect(curso.applyCoursePayment).not.toHaveBeenCalled();
+  });
+
+  it("una re-entrega del mismo pago no vuelve a finalizar (inbox)", async () => {
+    const repo = makeRepo({ recordEvent: vi.fn(async () => false) });
+    const curso = courseFinalizer(true);
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o-curso", amount: 159980 }),
+      repo,
+      undefined,
+      curso,
+    );
+
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
+    expect(curso.applyCoursePayment).not.toHaveBeenCalled();
+  });
+
+  it("si la inscripción ya se anuló, el resultado es duplicate y no rompe", async () => {
+    const repo = makeRepo();
+    const curso = courseFinalizer(true, "noop");
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o-curso", amount: 159980 }),
+      repo,
+      undefined,
+      curso,
+    );
+
+    expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
+    expect(repo.confirmPaid).not.toHaveBeenCalled();
+  });
+});

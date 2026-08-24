@@ -9,6 +9,7 @@ import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
 import Sesiones from "./_components/Sesiones";
 import Equipos from "./_components/Equipos";
+import Inscripcion from "./_components/Inscripcion";
 import Precios from "./_components/Precios";
 import Prueba from "./_components/Prueba";
 import Faq from "./_components/Faq";
@@ -162,6 +163,7 @@ export default function CursoDjPage() {
         <Sesiones />
         <Equipos />
         <Precios />
+        <Inscripcion />
         <Prueba />
         {/* TESTIMONIOS: real student quotes/sets go here once generation 01
             exists — deliberately no empty social proof until then. */}

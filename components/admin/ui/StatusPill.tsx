@@ -26,10 +26,24 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   redeem_release: { label: "Devueltos", tone: "dim" },
   redeem_restore: { label: "Devueltos", tone: "dim" },
   adjust: { label: "Ajuste", tone: "mute" },
-  // Postulaciones de DJ
+  // Postulaciones de DJ (y solicitudes de curso: mismas etiquetas, mismo triage)
   nueva: { label: "Nueva", tone: "gold" },
   contactada: { label: "Contactada", tone: "dim" },
   descartada: { label: "Descartada", tone: "mute" },
+  inscrita: { label: "Inscrita", tone: "gold" },
+  // Curso — kind de reserva
+  curso: { label: "Curso", tone: "dim" },
+  // Curso — generación
+  borrador: { label: "Borrador", tone: "mute" },
+  abierta: { label: "Abierta", tone: "gold" },
+  en_curso: { label: "En curso", tone: "gold" },
+  cerrada: { label: "Cerrada", tone: "mute" },
+  // Curso — inscripción
+  reservada: { label: "Por pagar", tone: "dim" },
+  pagada: { label: "Pagada", tone: "gold" },
+  anulada: { label: "Anulada", tone: "mute" },
+  expirada: { label: "Expirada", tone: "mute" },
+  trasladada: { label: "Trasladada", tone: "mute" },
 };
 
 const TONE: Record<Tone, string> = {

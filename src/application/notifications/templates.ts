@@ -1,5 +1,7 @@
 import type { EmailContent } from "@/src/application/ports/mailer";
 import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applications/application";
+import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course";
+import type { CourseLeadInput } from "@/src/domain/course/lead";
 
 export interface BookingView {
   name: string | null;
@@ -223,6 +225,144 @@ export function applicantConfirmation(
   );
   const text = `Recibimos tu postulación al equipo, ${v.name}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1: ${ctx.whatsappUrl}`;
   return { subject: "Recibimos tu postulación — FOTF Studios", html, text };
+}
+
+/**
+ * Email al dueño: nueva solicitud del Curso de DJ. Trae todo lo que necesita para
+ * triar desde el teléfono —interés, punto de partida, disponibilidad y el wa.me
+ * listo— sin abrir el panel. Los cupos restantes van acá a propósito: es la
+ * información que decide si contesta ahora o mañana.
+ */
+export function ownerNewCourseLead(
+  v: CourseLeadInput,
+  gen: { code: string; seatsLeft: number } | null,
+): EmailContent {
+  const waDigits = v.phone.replace(/\D/g, "");
+  const plan = LEAD_PLAN_LABELS[v.plan];
+  const nivel = EXPERIENCE_LABELS[v.experience];
+  const cupos = gen
+    ? `<p style="color:#e8c94a;margin:16px 0 0">${gen.code}: quedan ${gen.seatsLeft} ${gen.seatsLeft === 1 ? "cupo" : "cupos"}.</p>`
+    : `<p style="color:#b9b5ab;margin:16px 0 0">No hay generación abierta.</p>`;
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Nueva solicitud del curso</h1>
+     <p style="margin:0 0 4px"><strong>${esc(v.name)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Email: <a href="mailto:${esc(v.email)}" style="color:#e8c94a">${esc(v.email)}</a></p>
+     <p style="color:#b9b5ab;margin:0 0 16px">WhatsApp: <a href="https://wa.me/${esc(waDigits)}" style="color:#e8c94a">${esc(v.phone)}</a></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Le interesa: <strong style="color:#f5f2ec">${esc(plan)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Parte desde: <strong style="color:#f5f2ec">${esc(nivel)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Disponibilidad: <strong style="color:#f5f2ec">${esc(v.availability)}</strong></p>
+     ${v.message ? `<p style="color:#b9b5ab;margin:16px 0 4px">Mensaje:</p><p style="border-left:2px solid #1e1d1a;padding:4px 0 4px 12px;margin:0;color:#f5f2ec;white-space:pre-wrap">${esc(v.message)}</p>` : ""}
+     ${cupos}`,
+  );
+  const cuposText = gen ? ` ${gen.code}: quedan ${gen.seatsLeft} cupos.` : " Sin generación abierta.";
+  const msgText = v.message ? `\n\n${v.message}` : "";
+  const text = `Nueva solicitud del curso: ${v.name}. Le interesa: ${plan}. Parte desde: ${nivel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}.${cuposText}${msgText}`;
+  return { subject: `Nueva solicitud del curso — ${v.name}`, html, text };
+}
+
+/**
+ * Email al alumno: acuse de recibo. NO promete cupo ni fechas — la solicitud no
+ * reserva asiento, eso pasa recién cuando el dueño la confirma.
+ */
+export function courseLeadConfirmation(
+  v: { name: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu solicitud</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Gracias, ${esc(v.name)}. Revisamos cada solicitud a mano y te escribimos por WhatsApp para cerrar tu cupo y coordinar las fechas.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Si prefieres adelantarlo, escríbenos directo y lo vemos al tiro.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Recibimos tu solicitud del Curso de Iniciación DJ, ${v.name}. Revisamos cada una a mano y te escribimos por WhatsApp para cerrar tu cupo y coordinar las fechas. Si prefieres adelantarlo: ${ctx.whatsappUrl}`;
+  return { subject: "Recibimos tu solicitud — Curso de DJ", html, text };
+}
+
+/**
+ * Email al alumno: cupo confirmado. Recién ACÁ viaja la dirección — la FAQ de la
+ * landing promete que se comparte al confirmar la inscripción, y una solicitud sin
+ * pagar no lo es. Lleva las fechas de todas las sesiones porque el curso se compra
+ * entero, no sesión por sesión.
+ */
+export function courseEnrollmentPaid(v: {
+  name: string;
+  generation: string;
+  total: string;
+  sessions: string[];
+}, ctx: { address: string; whatsappUrl: string }): EmailContent {
+  const lista = v.sessions.length
+    ? `<ul style="margin:0 0 20px;padding-left:18px;color:#f5f2ec">${v.sessions
+        .map((d) => `<li style="margin:0 0 6px">${esc(d)}</li>`)
+        .join("")}</ul>`
+    : `<p style="color:#b9b5ab;margin:0 0 20px">Te confirmamos las fechas por WhatsApp.</p>`;
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu cupo está confirmado</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Listo, ${esc(v.name)}. Quedaste en la generación ${esc(v.generation)} del Curso de Iniciación DJ.</p>
+     <p style="color:#b9b5ab;margin:0 0 8px">Tus sesiones:</p>
+     ${lista}
+     <p style="color:#b9b5ab;margin:0 0 4px">Dónde: <strong style="color:#f5f2ec">${esc(ctx.address)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Qué traer: tus audífonos y un USB con tu música.</p>
+     <p style="margin:0 0 20px"><strong>Total pagado: ${esc(v.total)}</strong></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu cupo está confirmado, ${v.name}. Generación ${v.generation} del Curso de Iniciación DJ.${v.sessions.length ? " Sesiones: " + v.sessions.join(" · ") + "." : " Te confirmamos las fechas por WhatsApp."} Dónde: ${ctx.address}. Qué traer: audífonos y un USB con tu música. Total pagado: ${v.total}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { subject: "Tu cupo está confirmado — Curso de DJ", html, text };
+}
+
+/**
+ * Email al alumno con el link de pago. La dirección NO viaja acá: la FAQ promete
+ * compartirla al confirmar la inscripción, y una inscripción sin pagar no lo es.
+ * Sí viajan los términos, porque es el punto donde el alumno acepta la compra.
+ */
+export function courseEnrollmentPending(
+  v: { name: string; generation: string; total: string; initPoint: string; expiresInHours: number },
+  ctx: { termsUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu cupo te espera</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(v.name)}: reservamos tu cupo en la generación ${esc(v.generation)} del Curso de Iniciación DJ. Queda confirmado al pagar.</p>
+     <p style="font-size:22px;margin:0 0 20px"><strong>${esc(v.total)}</strong></p>
+     <a href="${esc(v.initPoint)}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Pagar ahora</a>
+     <p style="color:#b9b5ab;margin:20px 0 0">El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos y te mandamos otro.</p>
+     <p style="color:#b9b5ab;margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:#e8c94a">términos y condiciones</a>.</p>`,
+  );
+  const text = `${v.name}: reservamos tu cupo en la generación ${v.generation} del Curso de Iniciación DJ. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: `Tu cupo en el Curso de DJ — falta el pago`, html, text };
+}
+
+/** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
+export function ownerCoursePaid(v: {
+  name: string;
+  generation: string;
+  total: string;
+  method: string;
+  seatsLeft: number;
+}): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Inscripción pagada</h1>
+     <p style="margin:0 0 4px"><strong>${esc(v.name)}</strong> · ${esc(v.generation)}</p>
+     <p style="color:#b9b5ab;margin:0 0 16px">Pagó por ${esc(v.method)}.</p>
+     <p style="font-size:20px;margin:12px 0"><strong>Total: ${esc(v.total)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Quedan ${v.seatsLeft} ${v.seatsLeft === 1 ? "cupo" : "cupos"} en la generación.</p>
+     <p style="color:#e8c94a;margin:16px 0">Recuerda emitir la boleta.</p>`,
+  );
+  const text = `Inscripción pagada: ${v.name} (${v.generation}). Pagó por ${v.method}. Total ${v.total}. Quedan ${v.seatsLeft} cupos. Recuerda emitir la boleta.`;
+  return { subject: `Inscripción pagada — ${v.name} (${v.generation})`, html, text };
+}
+
+/** Email al alumno: su inscripción quedó anulada (impaga). Sin dinero de por medio. */
+export function courseEnrollmentCancelled(
+  v: { name: string; generation: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu inscripción quedó anulada</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Hola ${esc(v.name)}: liberamos tu cupo en la generación ${esc(v.generation)}. No se hizo ningún cobro.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Si fue un error o quieres entrar a la siguiente, escríbenos y lo arreglamos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu inscripción en la generación ${v.generation} quedó anulada y liberamos tu cupo. No se hizo ningún cobro. Si fue un error o quieres entrar a la siguiente: ${ctx.whatsappUrl}`;
+  return { subject: "Tu inscripción quedó anulada — Curso de DJ", html, text };
 }
 
 /** Email al dueño: aviso de nueva reserva pagada. */

@@ -2,8 +2,6 @@ import MeterBars from "@/components/MeterBars";
 import MaskText from "@/components/MaskText";
 import Magnetic from "@/components/Magnetic";
 import { SITE } from "@/lib/site";
-import { CURSO } from "../_content";
-import WhatsAppCta from "./WhatsAppCta";
 
 export default function CursoHero() {
   return (
@@ -12,7 +10,7 @@ export default function CursoHero() {
         <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
           <MeterBars className="text-[15px] text-gold" />
           <span className="label text-bone-dim">
-            {SITE.name} · Primera generación · {CURSO.cupos} cupos
+            {SITE.name} · Primera generación · cupos limitados
           </span>
         </div>
 
@@ -45,15 +43,18 @@ export default function CursoHero() {
           práctica libre y tu set final grabado en audio y video.
         </p>
 
+        {/* Ancla, no wa.me: la acción primaria sigue siendo UNA, pero ahora deja
+            registro en vez de evaporarse en un chat. WhatsApp queda de respaldo
+            en Prueba, en el cierre y dentro del propio formulario. */}
         <div className="rise mt-10" style={{ animationDelay: "0.34s" }}>
           <Magnetic>
-            <WhatsAppCta
-              source="hero"
+            <a
+              href="#inscripcion"
               className="group inline-flex items-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
             >
-              Reserva tu cupo por WhatsApp
+              Reserva tu cupo
               <span className="transition-transform group-hover:translate-x-1">→</span>
-            </WhatsAppCta>
+            </a>
           </Magnetic>
         </div>
       </div>
@@ -64,7 +65,7 @@ export default function CursoHero() {
           {[
             ["Sesiones", "4"],
             ["Horas de estudio", "12"],
-            ["Cupos", String(CURSO.cupos)],
+            ["Cupos", "Limitados"],
             ["Set final", "Grabado"],
           ].map(([k, v]) => (
             <div key={k} className="border-t border-bone/10 py-5 md:border-t-0">

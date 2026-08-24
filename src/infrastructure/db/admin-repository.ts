@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import {
@@ -136,6 +137,13 @@ export interface PendingBoleta {
   iva: number;
   total: number;
   createdAt: string;
+  /**
+   * A DÓNDE lleva esta boleta. `orderId` no sirve de destino: la ficha de reserva
+   * resuelve por id de RESERVA, y un pedido de curso no tiene reserva en absoluto.
+   * Se resuelve acá para que la UI no tenga que adivinar la ruta.
+   */
+  reservationId: string | null;
+  enrollmentId: string | null;
 }
 
 type ResRow = {
@@ -264,7 +272,9 @@ export class SupabaseAdminRepository {
       this.analyticsReservations(last30Start.toUTC().toISO()!, todayEnd.toUTC().toISO()!),
     ]);
 
-    const sessions = agenda.filter((b) => b.kind !== "block");
+    // "Sesiones" cuenta horas VENDIDAS: ni bloqueos ni sesiones de curso son
+    // una reserva de cliente (el curso se cobra por generación, no por hora).
+    const sessions = agenda.filter((b) => isSellableSession(b.kind));
     const sesionesHoy = sessions.filter((b) => DateTime.fromISO(b.startsAt) < todayEnd).length;
     return {
       sesionesHoy,
@@ -293,13 +303,17 @@ export class SupabaseAdminRepository {
     else if (qy.tiempo === "pasadas") qb = qb.lt("ends_at", nowUtc);
     switch (tab) {
       case "confirmadas":
-        return qb.neq("kind", "block").eq("status", "confirmed");
+        // Positivo, no `neq("block")`: la lista de reservas es sobre CLIENTES,
+        // así que un kind nuevo no debe colarse acá por omisión.
+        return qb.eq("kind", "booking").eq("status", "confirmed");
       case "espera":
         return qb.eq("status", "held");
       case "canceladas":
         return qb.in("status", ["cancelled", "expired"]);
       case "bloqueos":
         return qb.eq("kind", "block");
+      case "curso":
+        return qb.eq("kind", "curso");
       default:
         return qb;
     }
@@ -346,7 +360,7 @@ export class SupabaseAdminRepository {
       .lt("starts_at", endUtc)
       .order("starts_at", { ascending: true });
     type Row = {
-      kind: "booking" | "block";
+      kind: ReservationKind;
       status: "held" | "confirmed" | "cancelled" | "expired";
       starts_at: string;
       ends_at: string;
@@ -447,16 +461,23 @@ export class SupabaseAdminRepository {
       this.bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!),
       this.upcomingBookings(40),
       this.pendingBoletas(),
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      // Mismo criterio que porHacerCount: la fila enlaza a /admin/reservas.
+      this.db
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_payment")
+        .eq("kind", "booking"),
     ]);
 
-    const sessions = weekBookings.filter((b) => b.kind !== "block");
+    const sessions = weekBookings.filter((b) => isSellableSession(b.kind));
     const isToday = (b: AdminBooking) => {
       const s = DateTime.fromISO(b.startsAt).setZone(TZ);
       return s >= todayStart && s < todayEnd;
     };
-    const nonBlock = upcoming.filter((b) => b.kind !== "block");
-    const today = nonBlock.filter(isToday);
+    // Solo reservas de cliente: una sesión de curso no tiene código de acceso
+    // que enviar ni cliente a quien mostrarle en "Agenda de hoy".
+    const vendidas = upcoming.filter((b) => isSellableSession(b.kind));
+    const today = vendidas.filter(isToday);
 
     const weekRevenue = sessions.reduce((s, b) => s + (b.orderStatus === "paid" ? (b.amount ?? 0) : 0), 0);
 
@@ -466,18 +487,29 @@ export class SupabaseAdminRepository {
       weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
       pendingBoletas: boletas.length,
       pendingPayments: pendingPay.count ?? 0,
-      accessToSend: nonBlock.filter((b) => b.status === "confirmed" && !b.accessCode).length,
+      accessToSend: vendidas.filter((b) => b.status === "confirmed" && !b.accessCode).length,
       today,
-      upcoming: nonBlock.filter((b) => !isToday(b)).slice(0, 12),
+      upcoming: vendidas.filter((b) => !isToday(b)).slice(0, 12),
       boletas,
     };
   }
 
-  /** Conteo liviano de pendientes (boletas + pagos) para el badge del sidebar. */
+  /**
+   * Conteo liviano de pendientes (boletas + pagos) para el badge de "Hoy".
+   *
+   * Los pagos se acotan a `kind='booking'`: el badge lleva a /admin/reservas, y un
+   * cobro de curso no aparece ahí (no tiene reserva). Contarlo acá mandaría al
+   * dueño a buscar algo que esa lista nunca le va a mostrar. El curso tiene su
+   * propio contador en su sección.
+   */
   async porHacerCount(): Promise<number> {
     const [b, p] = await Promise.all([
       this.db.from("tax_documents").select("id", { count: "exact", head: true }).eq("status", "pendiente"),
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      this.db
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_payment")
+        .eq("kind", "booking"),
     ]);
     return (b.count ?? 0) + (p.count ?? 0);
   }
@@ -608,7 +640,22 @@ export class SupabaseAdminRepository {
       .select("id, order_id, kind, neto, iva, total, created_at")
       .eq("status", "pendiente")
       .order("created_at", { ascending: true });
-    return (data ?? []).map((d) => ({
+    const docs = data ?? [];
+    if (docs.length === 0) return [];
+
+    // Dos lookups en lote (no uno por boleta) para saber a dónde lleva cada una:
+    // las de sala a su reserva, las de curso a su inscripción.
+    const orderIds = [...new Set(docs.map((d) => d.order_id))];
+    const [res, enr] = await Promise.all([
+      this.db.from("reservations").select("id, order_id").in("order_id", orderIds),
+      this.db.from("course_enrollments").select("id, order_id").in("order_id", orderIds),
+    ]);
+    const byOrderRes = new Map((res.data ?? []).map((r) => [r.order_id, r.id]));
+    // Un dúo son dos inscripciones sobre el mismo pedido: basta con una para
+    // llevar al dueño a la ficha (desde ahí ve a la pareja completa).
+    const byOrderEnr = new Map((enr.data ?? []).map((e) => [e.order_id, e.id]));
+
+    return docs.map((d) => ({
       id: d.id,
       orderId: d.order_id,
       kind: d.kind,
@@ -616,6 +663,8 @@ export class SupabaseAdminRepository {
       iva: d.iva,
       total: d.total,
       createdAt: d.created_at,
+      reservationId: byOrderRes.get(d.order_id) ?? null,
+      enrollmentId: byOrderEnr.get(d.order_id) ?? null,
     }));
   }
 
@@ -652,6 +701,31 @@ export class SupabaseAdminRepository {
    * estado, pago MP, montos (boleta viva = amount − refunded) y inicio de sesión
    * (para la política de cancelación).
    */
+  /** Igual que orderForReservation pero por PEDIDO: el curso no tiene reserva. */
+  async orderById(orderId: string): Promise<{
+    orderId: string;
+    status: string;
+    mpPaymentId: string | null;
+    amountClp: number;
+    refundedAmountClp: number;
+    pointsRedeemedClp: number;
+  } | null> {
+    const { data: o } = await this.db
+      .from("orders")
+      .select("status, mp_payment_id, amount_clp, refunded_amount_clp, points_redeemed_clp")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!o) return null;
+    return {
+      orderId,
+      status: o.status,
+      mpPaymentId: o.mp_payment_id,
+      amountClp: o.amount_clp,
+      refundedAmountClp: o.refunded_amount_clp,
+      pointsRedeemedClp: o.points_redeemed_clp,
+    };
+  }
+
   async orderForReservation(reservationId: string): Promise<{
     orderId: string;
     status: string;

@@ -20,6 +20,8 @@ function makeRepo(target: Target, backing?: { liveAmount: number; paymentId: str
     backing ?? (target && target.amountClp > 0 ? [{ liveAmount: target.amountClp - target.refundedAmountClp, paymentId: target.mpPaymentId }] : []);
   return {
     orderForReservation: vi.fn(async () => target),
+    // El curso llega por pedido: mismo target, otra puerta.
+    orderById: vi.fn(async () => (target ? { ...target } : null)),
     backingBoletas: vi.fn(async () => boletas),
     cancelBooking: vi.fn(async () => {}),
     refundPointsOrder: vi.fn(async () => {}),

@@ -28,13 +28,24 @@ export class PaymentService {
 
   async createPreferenceForOrder(
     orderId: string,
-    opts?: { expiresInMinutes?: number | null },
+    opts?: {
+      expiresInMinutes?: number | null;
+      /** Texto que ve el pagador en MP. Por defecto habla de una reserva. */
+      description?: string;
+      /**
+       * Ruta de retorno. Por defecto /reserva/estado, que está detrás de
+       * `bookingEnabled()` y espera una reserva: un pedido de curso necesita la
+       * suya o el comprador vuelve a un 404.
+       */
+      backPath?: string;
+    },
   ): Promise<Result<{ preferenceId: string; initPoint: string }, string>> {
     const order = await this.orders.getOrderForPayment(orderId);
     if (!order) return err("pedido no encontrado");
 
     const base = this.config.siteUrl.replace(/\/$/, "");
-    const back = `${base}/reserva/estado?b=${order.id}`;
+    const path = opts?.backPath ?? "/reserva/estado";
+    const back = `${base}${path}?b=${order.id}`;
     // El checkout vence junto con el hold (10 min). Alinearlos evita que un pago
     // llegue cuando el horario ya se liberó/revendió. El borde restante lo cubre
     // confirm_payment (estado `paid_no_hold` → revisión, sin confirmar al cliente).
@@ -51,7 +62,7 @@ export class PaymentService {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        description: `Reserva FOTF Studios #${order.id.slice(0, 8)}`,
+        description: opts?.description ?? `Reserva FOTF Studios #${order.id.slice(0, 8)}`,
         payerEmail: order.email,
         payerFirstName: firstName,
         payerLastName: lastName,
