@@ -512,3 +512,54 @@ export async function substituteStudentAction(_prev: ActionResult | null, fd: Fo
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
   });
 }
+
+/**
+ * Agenda una hora de práctica libre contra el saldo del alumno. La reserva y el
+ * descuento del saldo ocurren en la MISMA transacción: en dos pasos, un fallo
+ * entre medio deja una hora reservada sin descontar (regalada) o un saldo
+ * descontado sin reserva (robada).
+ */
+export async function redeemPracticeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const enrollmentId = str(fd, "enrollmentId");
+    const date = str(fd, "date");
+    const startMinute = num(fd, "startMinute");
+    const hours = num(fd, "hours");
+
+    if (!DATE_RE.test(date)) throw new Error("Fecha inválida.");
+    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Hora inválida.");
+    if (!Number.isInteger(hours) || hours < 1 || hours > 4) throw new Error("Horas: entre 1 y 4.");
+
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    const { startsAt, endsAt } = rangeFor(date, startMinute, hours, resource.timezone);
+
+    try {
+      await courseRepository().redeemPracticeHours(enrollmentId, { startsAt, endsAt, hours });
+    } catch (e) {
+      throw new Error(practiceErrorMessage(e instanceof Error ? e.message : ""));
+    }
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+    revalidatePath("/admin/agenda");
+  });
+}
+
+function practiceErrorMessage(raw: string): string {
+  if (/exclusion|23P01|overlap/i.test(raw)) return "Ese horario ya está tomado.";
+  if (/practica_sin_saldo/.test(raw)) return "No le quedan horas de práctica suficientes.";
+  if (/practica_no_elegible/.test(raw)) return "Solo una inscripción pagada tiene horas de práctica.";
+  if (/practica_vencida/.test(raw)) return "Ese día queda fuera del plazo de las horas de práctica.";
+  return "No se pudo agendar la práctica.";
+}
+
+/** Cancela una práctica agendada y devuelve la hora al saldo. */
+export async function releasePracticeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const enrollmentId = str(fd, "enrollmentId");
+    await courseRepository().releasePracticeHours(str(fd, "reservationId"));
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+    revalidatePath("/admin/agenda");
+  });
+}

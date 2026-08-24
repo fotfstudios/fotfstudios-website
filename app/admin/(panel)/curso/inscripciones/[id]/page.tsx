@@ -15,6 +15,7 @@ import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { cancelEnrollmentAction, setEnrollmentNotesAction } from "../../actions";
 import { AnularPagada } from "./_components/AnularPagada";
 import { CobroCurso } from "./_components/CobroCurso";
+import { Practica } from "./_components/Practica";
 import { SinDinero } from "./_components/SinDinero";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
     inscripcion.orderId ? repo.taxDocumentsForOrder(inscripcion.orderId) : Promise.resolve([]),
     repo.listSessions(inscripcion.generationId),
   ]);
+  const practicas = await repo.practiceRedemptions(inscripcion.id);
   // Destinos posibles del traslado: cualquier otra generación que reciba gente.
   const destinos = (await repo.listGenerations())
     .filter((g) => g.id !== inscripcion.generationId && g.status !== "cerrada" && g.status !== "cancelada")
@@ -149,6 +151,15 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
             paidAt={inscripcion.paidAt ? fmtDateTime(inscripcion.paidAt) : null}
             waDigits={waDigits || null}
           />
+
+          {inscripcion.status === "pagada" && (
+            <Practica
+              enrollmentId={inscripcion.id}
+              total={inscripcion.practiceHoursTotal}
+              redeemed={inscripcion.practiceHoursRedeemed}
+              redemptions={practicas}
+            />
+          )}
 
           {(inscripcion.status === "pagada" || inscripcion.status === "reservada") && (
             <SinDinero

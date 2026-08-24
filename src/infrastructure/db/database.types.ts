@@ -323,6 +323,8 @@ export type Database = {
           paid_at: string | null
           paid_method: string | null
           plan: string
+          practice_hours_redeemed: number
+          practice_hours_total: number
           price_clp: number
           seat_no: number
           status: string
@@ -343,6 +345,8 @@ export type Database = {
           paid_at?: string | null
           paid_method?: string | null
           plan: string
+          practice_hours_redeemed?: number
+          practice_hours_total?: number
           price_clp: number
           seat_no: number
           status?: string
@@ -363,6 +367,8 @@ export type Database = {
           paid_at?: string | null
           paid_method?: string | null
           plan?: string
+          practice_hours_redeemed?: number
+          practice_hours_total?: number
           price_clp?: number
           seat_no?: number
           status?: string
@@ -411,6 +417,8 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          practice_hours_per_seat: number
+          practice_valid_until: string | null
           price_duo_clp: number
           price_individual_clp: number
           price_prueba_clp: number
@@ -428,6 +436,8 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          practice_hours_per_seat?: number
+          practice_valid_until?: string | null
           price_duo_clp: number
           price_individual_clp: number
           price_prueba_clp: number
@@ -445,6 +455,8 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          practice_hours_per_seat?: number
+          practice_valid_until?: string | null
           price_duo_clp?: number
           price_individual_clp?: number
           price_prueba_clp?: number
@@ -510,6 +522,48 @@ export type Database = {
             columns: ["generation_id"]
             isOneToOne: false
             referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_practice_redemptions: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          hours: number
+          id: string
+          released_at: string | null
+          reservation_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          hours: number
+          id?: string
+          released_at?: string | null
+          reservation_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          hours?: number
+          id?: string
+          released_at?: string | null
+          reservation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_practice_redemptions_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_practice_redemptions_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: true
+            referencedRelation: "reservations"
             referencedColumns: ["id"]
           },
         ]
@@ -1624,6 +1678,15 @@ export type Database = {
         Args: { p_key: string; p_max: number; p_window_seconds: number }
         Returns: boolean
       }
+      redeem_practice_hours: {
+        Args: {
+          p_ends: string
+          p_enrollment: string
+          p_hours: number
+          p_starts: string
+        }
+        Returns: string
+      }
       refund_points_order: {
         Args: { p_order: string; p_ref?: string; p_restore: number }
         Returns: undefined
@@ -1634,6 +1697,10 @@ export type Database = {
       }
       release_order_redemption: {
         Args: { p_order: string; p_ref?: string }
+        Returns: undefined
+      }
+      release_practice_hours: {
+        Args: { p_reservation: string }
         Returns: undefined
       }
       reschedule_courtesy: {

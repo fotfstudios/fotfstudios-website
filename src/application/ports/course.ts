@@ -117,6 +117,8 @@ export interface CourseEnrollmentRow {
   paidAt: string | null;
   notes: string | null;
   createdAt: string;
+  practiceHoursTotal: number;
+  practiceHoursRedeemed: number;
   /** Total del PEDIDO (un dúo son dos asientos en una sola orden). */
   orderAmountClp: number | null;
   orderStatus: string | null;
@@ -156,6 +158,16 @@ export interface CourseEnrollmentRepository {
     enrollmentId: string,
     student: { name: string; email: string; phone?: string | null },
   ): Promise<void>;
+  /** Redime horas de práctica: crea la reserva y descuenta el saldo, atómico. */
+  redeemPracticeHours(
+    enrollmentId: string,
+    p: { startsAt: string; endsAt: string; hours: number },
+  ): Promise<string>;
+  /** Cancela una práctica y devuelve la hora al saldo. Idempotente. */
+  releasePracticeHours(reservationId: string): Promise<void>;
+  practiceRedemptions(enrollmentId: string): Promise<
+    { id: string; reservationId: string; hours: number; startsAt: string | null; releasedAt: string | null }[]
+  >;
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
 }
 

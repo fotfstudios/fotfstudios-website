@@ -8,6 +8,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { futureDate } from "@/tests/dates";
 import { SupabaseCourseRepository } from "./course-repository";
 import { createServiceClient } from "./supabase-client";
 
@@ -48,7 +49,7 @@ async function generation(seats = 6, status = "abierta"): Promise<string> {
 const alumno = (n: number) => ({ name: `Alumno ${n}`, email: `a${n}@correo.cl`, phone: "+56912345678" });
 
 beforeEach(async () => {
-  await raw("truncate course_credits, course_enrollments, course_sessions, course_leads, course_generations cascade");
+  await raw("truncate course_credits, course_practice_redemptions, course_enrollments, course_sessions, course_leads, course_generations cascade");
   await raw("truncate reservations, orders, order_lines, tax_documents cascade");
 });
 
@@ -575,5 +576,114 @@ describe("reemplazante", () => {
     await expect(
       repo.substituteStudent(e0[0].id, { name: "X", email: "x@correo.cl" }),
     ).rejects.toThrow(/curso_enrollment_not_active/);
+  });
+});
+
+/**
+ * Horas de práctica. Lo importante es que redimir sea UNA transacción: en dos
+ * pasos, un fallo entre medio deja una hora reservada sin descontar (regalada) o
+ * un saldo descontado sin reserva (robada).
+ */
+describe("horas de práctica libre", () => {
+  const day = futureDate(3);
+
+  async function pagada() {
+    const gen = await generation();
+    const orderId = await repo.createEnrollment({
+      generationId: gen, plan: "individual", students: [alumno(1)],
+    });
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    const { rows } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+    return rows[0].id as string;
+  }
+
+  it("una inscripción pagada nace con 4 horas", async () => {
+    const id = await pagada();
+    const e = await repo.enrollmentById(id);
+    expect(e?.practiceHoursTotal).toBe(4);
+    expect(e?.practiceHoursRedeemed).toBe(0);
+  });
+
+  it("redimir crea la reserva y descuenta el saldo", async () => {
+    const id = await pagada();
+    const res = await repo.redeemPracticeHours(id, {
+      startsAt: `${day}T15:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 1,
+    });
+
+    const r = await raw("select kind, status, order_id, notes from reservations where id = $1", [res]);
+    // kind='booking': es un alumno en la cabina. Sin orden → sin boleta.
+    expect(r.rows[0]).toMatchObject({ kind: "booking", status: "confirmed", order_id: null });
+    expect(r.rows[0].notes).toMatch(/Práctica libre/);
+    expect((await repo.enrollmentById(id))?.practiceHoursRedeemed).toBe(1);
+  });
+
+  it("no se puede redimir más saldo del que hay", async () => {
+    const id = await pagada();
+    await repo.redeemPracticeHours(id, {
+      startsAt: `${day}T10:00:00-04:00`, endsAt: `${day}T14:00:00-04:00`, hours: 4,
+    });
+    await expect(
+      repo.redeemPracticeHours(id, {
+        startsAt: `${day}T18:00:00-04:00`, endsAt: `${day}T19:00:00-04:00`, hours: 1,
+      }),
+    ).rejects.toThrow(/practica_sin_saldo/);
+  });
+
+  // El caso que justifica la transacción única.
+  it("si el horario está tomado, NO se descuenta saldo", async () => {
+    const id = await pagada();
+    await raw(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at)
+       values ((select id from resources where active limit 1), 'booking', 'confirmed', $1, $2)`,
+      [`${day}T20:00:00-04:00`, `${day}T22:00:00-04:00`],
+    );
+    await expect(
+      repo.redeemPracticeHours(id, {
+        startsAt: `${day}T20:00:00-04:00`, endsAt: `${day}T21:00:00-04:00`, hours: 1,
+      }),
+    ).rejects.toThrow(/exclusion|overlap/i);
+    expect((await repo.enrollmentById(id))?.practiceHoursRedeemed).toBe(0);
+  });
+
+  it("una inscripción impaga no tiene horas", async () => {
+    const gen = await generation();
+    const orderId = await repo.createEnrollment({
+      generationId: gen, plan: "individual", students: [alumno(2)],
+    });
+    const { rows } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+    await expect(
+      repo.redeemPracticeHours(rows[0].id, {
+        startsAt: `${day}T15:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 1,
+      }),
+    ).rejects.toThrow(/practica_no_elegible/);
+  });
+
+  it("cancelar devuelve la hora y libera el horario", async () => {
+    const id = await pagada();
+    const res = await repo.redeemPracticeHours(id, {
+      startsAt: `${day}T15:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 1,
+    });
+    await repo.releasePracticeHours(res);
+
+    expect((await repo.enrollmentById(id))?.practiceHoursRedeemed).toBe(0);
+    const r = await raw("select status from reservations where id = $1", [res]);
+    expect(r.rows[0].status).toBe("cancelled");
+    // Y el horario se puede volver a tomar.
+    await expect(
+      repo.redeemPracticeHours(id, {
+        startsAt: `${day}T15:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 1,
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  // Sin esto, cancelar dos veces regalaría horas.
+  it("liberar dos veces no regala horas", async () => {
+    const id = await pagada();
+    const res = await repo.redeemPracticeHours(id, {
+      startsAt: `${day}T15:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 1,
+    });
+    await repo.releasePracticeHours(res);
+    await repo.releasePracticeHours(res);
+    expect((await repo.enrollmentById(id))?.practiceHoursRedeemed).toBe(0);
   });
 });

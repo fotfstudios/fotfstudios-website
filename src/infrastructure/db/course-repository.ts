@@ -72,7 +72,8 @@ function toCredit(r: {
 
 const ENROLLMENT_SELECT =
   "id, generation_id, order_id, seat_no, plan, student_name, student_email, student_phone, " +
-  "status, price_clp, paid_method, paid_at, notes, created_at, orders(amount_clp, status)";
+  "status, price_clp, paid_method, paid_at, notes, created_at, practice_hours_total, " +
+  "practice_hours_redeemed, orders(amount_clp, status)";
 
 type EnrollmentJoin = {
   id: string;
@@ -89,6 +90,8 @@ type EnrollmentJoin = {
   paid_at: string | null;
   notes: string | null;
   created_at: string;
+  practice_hours_total: number;
+  practice_hours_redeemed: number;
   orders: { amount_clp: number; status: string } | null;
   course_generations: { code: string } | null;
 };
@@ -110,6 +113,8 @@ function toEnrollment(r: EnrollmentJoin): CourseEnrollmentRow {
     paidAt: r.paid_at,
     notes: r.notes,
     createdAt: r.created_at,
+    practiceHoursTotal: r.practice_hours_total,
+    practiceHoursRedeemed: r.practice_hours_redeemed,
     orderAmountClp: r.orders?.amount_clp ?? null,
     orderStatus: r.orders?.status ?? null,
   };
@@ -524,6 +529,41 @@ export class SupabaseCourseRepository
       p_phone: student.phone ?? undefined,
     });
     if (error) throw new Error(error.message);
+  }
+
+  async redeemPracticeHours(
+    enrollmentId: string,
+    p: { startsAt: string; endsAt: string; hours: number },
+  ): Promise<string> {
+    const { data, error } = await this.db.rpc("redeem_practice_hours", {
+      p_enrollment: enrollmentId,
+      p_starts: p.startsAt,
+      p_ends: p.endsAt,
+      p_hours: p.hours,
+    });
+    if (error) throw new Error(error.message);
+    return data as unknown as string;
+  }
+
+  async releasePracticeHours(reservationId: string): Promise<void> {
+    const { error } = await this.db.rpc("release_practice_hours", { p_reservation: reservationId });
+    if (error) throw new Error(error.message);
+  }
+
+  async practiceRedemptions(enrollmentId: string) {
+    const { data, error } = await this.db
+      .from("course_practice_redemptions")
+      .select("id, reservation_id, hours, released_at, reservations(starts_at)")
+      .eq("enrollment_id", enrollmentId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      reservationId: r.reservation_id,
+      hours: r.hours,
+      startsAt: r.reservations?.starts_at ?? null,
+      releasedAt: r.released_at,
+    }));
   }
 
   async setEnrollmentNotes(id: string, notes: string | null): Promise<void> {
