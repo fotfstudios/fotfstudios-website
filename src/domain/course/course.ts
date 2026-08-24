@@ -53,6 +53,7 @@ export type CoursePlan = (typeof COURSE_PLANS)[number];
 export const LEAD_PLANS = ["duo", "individual", "prueba", "no_se"] as const;
 export type LeadPlan = (typeof LEAD_PLANS)[number];
 
+/** Etiquetas para el ADMIN: habla *sobre* una persona ("aún no sabe"). */
 export const LEAD_PLAN_LABELS: Record<LeadPlan, string> = {
   duo: "En dúo",
   individual: "Individual",
@@ -60,13 +61,29 @@ export const LEAD_PLAN_LABELS: Record<LeadPlan, string> = {
   no_se: "Aún no sabe",
 };
 
+/** Etiquetas para el FORMULARIO: le habla *a* la persona ("aún no sé"). */
+export const LEAD_PLAN_LABELS_PUBLIC: Record<LeadPlan, string> = {
+  duo: "En dúo",
+  individual: "Individual",
+  prueba: "Primero la sesión de prueba",
+  no_se: "Aún no sé",
+};
+
 export const EXPERIENCE_LEVELS = ["cero", "controlador", "club"] as const;
 export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
 
+/** Etiquetas para el ADMIN (tercera persona). */
 export const EXPERIENCE_LABELS: Record<ExperienceLevel, string> = {
   cero: "Nunca ha tocado",
   controlador: "Practica con controlador",
   club: "Ya mezcla en equipos de club",
+};
+
+/** Etiquetas para el FORMULARIO (segunda persona, voz de marca). */
+export const EXPERIENCE_LABELS_PUBLIC: Record<ExperienceLevel, string> = {
+  cero: "Nunca he tocado",
+  controlador: "Practico con controlador",
+  club: "Ya mezclo en equipos de club",
 };
 
 /** Precios congelados por generación. CLP, IVA incluido; `duo` es POR PERSONA. */

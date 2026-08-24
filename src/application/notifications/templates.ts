@@ -1,5 +1,7 @@
 import type { EmailContent } from "@/src/application/ports/mailer";
 import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applications/application";
+import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course";
+import type { CourseLeadInput } from "@/src/domain/course/lead";
 
 export interface BookingView {
   name: string | null;
@@ -223,6 +225,57 @@ export function applicantConfirmation(
   );
   const text = `Recibimos tu postulación al equipo, ${v.name}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1: ${ctx.whatsappUrl}`;
   return { subject: "Recibimos tu postulación — FOTF Studios", html, text };
+}
+
+/**
+ * Email al dueño: nueva solicitud del Curso de DJ. Trae todo lo que necesita para
+ * triar desde el teléfono —interés, punto de partida, disponibilidad y el wa.me
+ * listo— sin abrir el panel. Los cupos restantes van acá a propósito: es la
+ * información que decide si contesta ahora o mañana.
+ */
+export function ownerNewCourseLead(
+  v: CourseLeadInput,
+  gen: { code: string; seatsLeft: number } | null,
+): EmailContent {
+  const waDigits = v.phone.replace(/\D/g, "");
+  const plan = LEAD_PLAN_LABELS[v.plan];
+  const nivel = EXPERIENCE_LABELS[v.experience];
+  const cupos = gen
+    ? `<p style="color:#e8c94a;margin:16px 0 0">${gen.code}: quedan ${gen.seatsLeft} ${gen.seatsLeft === 1 ? "cupo" : "cupos"}.</p>`
+    : `<p style="color:#b9b5ab;margin:16px 0 0">No hay generación abierta.</p>`;
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Nueva solicitud del curso</h1>
+     <p style="margin:0 0 4px"><strong>${esc(v.name)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Email: <a href="mailto:${esc(v.email)}" style="color:#e8c94a">${esc(v.email)}</a></p>
+     <p style="color:#b9b5ab;margin:0 0 16px">WhatsApp: <a href="https://wa.me/${esc(waDigits)}" style="color:#e8c94a">${esc(v.phone)}</a></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Le interesa: <strong style="color:#f5f2ec">${esc(plan)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Parte desde: <strong style="color:#f5f2ec">${esc(nivel)}</strong></p>
+     <p style="color:#b9b5ab;margin:0 0 4px">Disponibilidad: <strong style="color:#f5f2ec">${esc(v.availability)}</strong></p>
+     ${v.message ? `<p style="color:#b9b5ab;margin:16px 0 4px">Mensaje:</p><p style="border-left:2px solid #1e1d1a;padding:4px 0 4px 12px;margin:0;color:#f5f2ec;white-space:pre-wrap">${esc(v.message)}</p>` : ""}
+     ${cupos}`,
+  );
+  const cuposText = gen ? ` ${gen.code}: quedan ${gen.seatsLeft} cupos.` : " Sin generación abierta.";
+  const msgText = v.message ? `\n\n${v.message}` : "";
+  const text = `Nueva solicitud del curso: ${v.name}. Le interesa: ${plan}. Parte desde: ${nivel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}.${cuposText}${msgText}`;
+  return { subject: `Nueva solicitud del curso — ${v.name}`, html, text };
+}
+
+/**
+ * Email al alumno: acuse de recibo. NO promete cupo ni fechas — la solicitud no
+ * reserva asiento, eso pasa recién cuando el dueño la confirma.
+ */
+export function courseLeadConfirmation(
+  v: { name: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu solicitud</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Gracias, ${esc(v.name)}. Revisamos cada solicitud a mano y te escribimos por WhatsApp para cerrar tu cupo y coordinar las fechas.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Si prefieres adelantarlo, escríbenos directo y lo vemos al tiro.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Recibimos tu solicitud del Curso de Iniciación DJ, ${v.name}. Revisamos cada una a mano y te escribimos por WhatsApp para cerrar tu cupo y coordinar las fechas. Si prefieres adelantarlo: ${ctx.whatsappUrl}`;
+  return { subject: "Recibimos tu solicitud — Curso de DJ", html, text };
 }
 
 /** Email al dueño: aviso de nueva reserva pagada. */

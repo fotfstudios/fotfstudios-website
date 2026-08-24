@@ -1,5 +1,7 @@
 /** Puertos del Curso de DJ. Vocabulario de dominio (camelCase); el adapter traduce. */
-import type { CoursePrices, GenerationStatus } from "@/src/domain/course/course";
+import type { CourseLeadStatus, CoursePrices, GenerationStatus } from "@/src/domain/course/course";
+import type { CourseLeadInput } from "@/src/domain/course/lead";
+import type { SolicitudTab, SolicitudesListQuery } from "@/src/domain/admin/curso-solicitudes-list";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 
 export interface CourseSessionRow {
@@ -66,4 +68,28 @@ export interface CourseGenerationRepository {
   getGeneration(id: string): Promise<CourseGenerationView | null>;
   createGeneration(input: NewGeneration): Promise<string>;
   setGenerationStatus(id: string, status: GenerationStatus): Promise<void>;
+}
+
+export interface CourseLeadRow extends CourseLeadInput {
+  id: string;
+  status: CourseLeadStatus;
+  generationId: string | null;
+  createdAt: string;
+}
+
+export interface CourseLeadsListResult {
+  rows: CourseLeadRow[];
+  total: number;
+  tabCounts: Record<SolicitudTab, number>;
+  grandTotal: number;
+}
+
+export interface CourseLeadRepository {
+  /** Alta pública. `generationId` estampa la generación vigente al enviar. */
+  createLead(input: CourseLeadInput, generationId: string | null): Promise<string>;
+  listLeads(q: SolicitudesListQuery): Promise<CourseLeadsListResult>;
+  getLead(id: string): Promise<CourseLeadRow | null>;
+  updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void>;
+  /** Badge de la barra lateral. */
+  nuevasCount(): Promise<number>;
 }

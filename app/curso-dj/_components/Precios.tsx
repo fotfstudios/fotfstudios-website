@@ -11,7 +11,7 @@ export default function Precios() {
       {/* Scarcity line — gold, never Sirena (urgency-only per brand manual) */}
       <Reveal delay={120}>
         <p className="mt-8 label text-gold">
-          {CURSO.generacion} · {CURSO.cupos} cupos · {CURSO.deadline}
+          {CURSO.generacion} · cupos limitados · {CURSO.deadline}
         </p>
       </Reveal>
 

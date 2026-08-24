@@ -6,7 +6,7 @@ import FaqList from "./FaqList";
 export default function Faq() {
   return (
     <Section id="faq">
-      <SectionHead n="07" kicker="Preguntas frecuentes" lines={["Antes de", "escribir."]} />
+      <SectionHead n="08" kicker="Preguntas frecuentes" lines={["Antes de", "escribir."]} />
 
       <Reveal delay={80} className="mt-12">
         <FaqList />

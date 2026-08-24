@@ -39,9 +39,14 @@ export default async function CursoPage() {
         title="Curso"
         editorial="Una generación a la vez, seis cupos."
         action={
-          <Button href="/admin/curso/generaciones" icon="doc" variant="secondary">
-            Generaciones
-          </Button>
+          <>
+            <Button href="/admin/curso/solicitudes" icon="user">
+              Solicitudes
+            </Button>
+            <Button href="/admin/curso/generaciones" icon="doc" variant="secondary">
+              Generaciones
+            </Button>
+          </>
         }
       />
 

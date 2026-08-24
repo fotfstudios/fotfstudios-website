@@ -13,6 +13,7 @@ type Group = { title: string; items: Item[] };
 function groups(
   show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean },
   porHacer: number,
+  solicitudes: number,
 ): Group[] {
   const analysis: Item[] = show.analytics
     ? [{ href: "/admin/analitica", label: "Analíticas", icon: "chart" }]
@@ -29,7 +30,7 @@ function groups(
   ];
   // Curso antes que Postulaciones: el curso es dinero de clientes, postulaciones
   // es contratación. Operación está ordenada por cercanía al ingreso.
-  if (show.course) operacion.push({ href: "/admin/curso", label: "Curso", icon: "curso" });
+  if (show.course) operacion.push({ href: "/admin/curso", label: "Curso", icon: "curso", badge: solicitudes });
   if (show.applications) {
     operacion.push({ href: "/admin/postulaciones", label: "Postulaciones", icon: "user" });
   }
@@ -95,10 +96,18 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
   );
 }
 
-export function Sidebar({ show, porHacer = 0 }: { show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean }; porHacer?: number }) {
+export function Sidebar({
+  show,
+  porHacer = 0,
+  solicitudes = 0,
+}: {
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean };
+  porHacer?: number;
+  solicitudes?: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const data = groups(show, porHacer);
+  const data = groups(show, porHacer, solicitudes);
   const active = activeHref(pathname, data.flatMap((g) => g.items));
 
   const Brand = (

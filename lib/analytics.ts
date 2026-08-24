@@ -41,3 +41,13 @@ export function trackBookingCta(mode: "online" | "whatsapp", placement: string):
     page: pageFromPathname(window.location.pathname),
   });
 }
+
+/**
+ * Formulario de inscripción del curso. `start` al tocar el primer campo, `submit`
+ * SOLO cuando el servidor respondió 200 — un submit que falló no es una conversión.
+ * Recordar: cada evento nuevo necesita su trigger + etiqueta en GTM.
+ */
+export function trackCourseLead(step: "start" | "submit", plan?: string): void {
+  if (typeof window === "undefined") return;
+  pushEvent(`course_lead_${step}`, { page: "curso-dj", ...(plan ? { plan } : {}) });
+}

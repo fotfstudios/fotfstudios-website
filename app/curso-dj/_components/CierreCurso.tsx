@@ -64,7 +64,7 @@ export default function CierreCurso() {
             className="font-display mx-auto mt-8 max-w-5xl text-bone text-[clamp(3rem,10vw,8rem)]"
           />
           <p className="font-editorial mx-auto mt-6 max-w-xl text-2xl text-bone-dim">
-            Seis cupos, una cabina.
+            Cupos limitados, una cabina.
           </p>
           <div className="mt-12 flex justify-center">
             <Magnetic>

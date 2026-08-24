@@ -1,13 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  SOLICITUD_TABS,
+  TAB_TO_LEAD_STATUS,
+  type SolicitudTab,
+  type SolicitudesListQuery,
+} from "@/src/domain/admin/curso-solicitudes-list";
+import type { CourseLeadInput } from "@/src/domain/course/lead";
 import type {
   CourseConflict,
   CourseGenerationRepository,
   CourseGenerationView,
   CourseSchedulingRepository,
+  CourseLeadRepository,
+  CourseLeadRow,
+  CourseLeadsListResult,
   CourseSessionRow,
   NewGeneration,
 } from "@/src/application/ports/course";
-import { type GenerationStatus, seatsLeft, seatsTaken } from "@/src/domain/course/course";
+import { type CourseLeadStatus, type GenerationStatus, seatsLeft, seatsTaken } from "@/src/domain/course/course";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
 
@@ -28,7 +38,27 @@ export function courseSessionErrorNumber(message: string): number | null {
 
 type GenRow = Database["public"]["Tables"]["course_generations"]["Row"];
 
-export class SupabaseCourseRepository implements CourseSchedulingRepository, CourseGenerationRepository {
+type LeadRow = Database["public"]["Tables"]["course_leads"]["Row"];
+
+function toLead(r: LeadRow): CourseLeadRow {
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    plan: r.plan as CourseLeadRow["plan"],
+    experience: r.experience as CourseLeadRow["experience"],
+    availability: r.availability,
+    message: r.message,
+    status: r.status as CourseLeadStatus,
+    generationId: r.generation_id,
+    createdAt: r.created_at,
+  };
+}
+
+export class SupabaseCourseRepository
+  implements CourseSchedulingRepository, CourseGenerationRepository, CourseLeadRepository
+{
   constructor(private readonly db: SupabaseClient<Database>) {}
 
   async previewConflicts(resourceId: string, plan: readonly CourseSessionPlan[]): Promise<CourseConflict[]> {
@@ -205,5 +235,87 @@ export class SupabaseCourseRepository implements CourseSchedulingRepository, Cou
     const { data, error } = await this.db.from("resources").select("id").eq("active", true).limit(1).single();
     if (error) throw new Error(error.message);
     return data.id;
+  }
+
+  // ── Solicitudes (bandeja pública) ────────────────────────────────────────
+
+  async createLead(input: CourseLeadInput, generationId: string | null): Promise<string> {
+    const { data, error } = await this.db
+      .from("course_leads")
+      .insert({
+        generation_id: generationId,
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        plan: input.plan,
+        experience: input.experience,
+        availability: input.availability,
+        message: input.message,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  }
+
+  async listLeads(q: SolicitudesListQuery): Promise<CourseLeadsListResult> {
+    const from = (q.page - 1) * q.perPage;
+    const status = TAB_TO_LEAD_STATUS[q.estado];
+
+    let query = this.db
+      .from("course_leads")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + q.perPage - 1);
+    if (status) query = query.eq("status", status);
+
+    // grandTotal distingue "todavía no llega ninguna" de "este tab está vacío":
+    // son dos estados vacíos con copy distinto.
+    const [{ data, error }, tabCounts, grand] = await Promise.all([
+      query,
+      this.leadTabCounts(),
+      this.db.from("course_leads").select("id", { count: "exact", head: true }),
+    ]);
+    if (error) throw new Error(error.message);
+
+    return {
+      rows: (data ?? []).map(toLead),
+      total: tabCounts[q.estado],
+      tabCounts,
+      grandTotal: grand.count ?? 0,
+    };
+  }
+
+  async getLead(id: string): Promise<CourseLeadRow | null> {
+    const { data, error } = await this.db.from("course_leads").select("*").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toLead(data) : null;
+  }
+
+  async updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void> {
+    const { error } = await this.db.from("course_leads").update({ status }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async nuevasCount(): Promise<number> {
+    const { count } = await this.db
+      .from("course_leads")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "nueva");
+    return count ?? 0;
+  }
+
+  /** Conteo por tab (head:true → sin traer filas). "todas" suma el total. */
+  private async leadTabCounts(): Promise<Record<SolicitudTab, number>> {
+    const entries = await Promise.all(
+      SOLICITUD_TABS.map(async (tab) => {
+        const status = TAB_TO_LEAD_STATUS[tab];
+        let qb = this.db.from("course_leads").select("id", { count: "exact", head: true });
+        if (status) qb = qb.eq("status", status);
+        const { count } = await qb;
+        return [tab, count ?? 0] as const;
+      }),
+    );
+    return Object.fromEntries(entries) as Record<SolicitudTab, number>;
   }
 }

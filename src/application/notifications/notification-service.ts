@@ -3,6 +3,7 @@ import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
 import type { ApplicationInput } from "@/src/domain/applications/application";
+import type { CourseLeadInput } from "@/src/domain/course/lead";
 import {
   applicantConfirmation,
   customerAccessCode,
@@ -14,6 +15,8 @@ import {
   ownerNeedsReview,
   ownerNewApplication,
   ownerNotification,
+  courseLeadConfirmation,
+  ownerNewCourseLead,
 } from "./templates";
 
 export interface NotificationConfig {
@@ -218,6 +221,24 @@ export class NotificationService {
     await this.mailer.send({
       to: app.email,
       ...applicantConfirmation({ name: app.name }, { whatsappUrl: this.config.whatsappUrl }),
+    });
+  }
+
+  /**
+   * Solicitud del curso: aviso al dueño + acuse al alumno. Mismo orden y mismas
+   * razones que notifyApplication — el email del alumno es input no verificado y no
+   * debe suprimir el aviso que dispara el triage. Un solo disparo best-effort.
+   */
+  async notifyCourseLead(
+    lead: CourseLeadInput,
+    gen: { code: string; seatsLeft: number } | null,
+  ): Promise<void> {
+    if (this.config.ownerEmail) {
+      await this.mailer.send({ to: this.config.ownerEmail, ...ownerNewCourseLead(lead, gen) });
+    }
+    await this.mailer.send({
+      to: lead.email,
+      ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
     });
   }
 
