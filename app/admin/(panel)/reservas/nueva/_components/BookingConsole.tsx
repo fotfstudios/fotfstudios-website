@@ -11,6 +11,11 @@ import { hhmm } from "@/components/booking/format";
 import type { ManualPaymentMethod } from "@/lib/manual-booking";
 import { manualBookingWhatsAppMessage, waLink } from "@/lib/whatsapp";
 import { formatCLP } from "@/src/domain/money/money";
+import {
+  applyManualDiscount,
+  type DiscountMode,
+  type ManualDiscountInput,
+} from "@/src/domain/pricing/manual-discount";
 import { overlaps } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { nowMinuteInTz } from "@/src/domain/scheduling/time";
@@ -18,7 +23,8 @@ import { createManualBookingAction, getDayConsoleAction } from "../actions";
 import type { DayConsoleData, ManualBookingResult } from "../types";
 import { AddonPicker, type CatalogAddon } from "./AddonPicker";
 import { AdminCalendar } from "./AdminCalendar";
-import { CobroCard, type QuoteView } from "./CobroCard";
+import { CobroCard, type DiscountState, type QuoteView } from "./CobroCard";
+import type { DiscountOption } from "./DiscountPicker";
 import { DayStrip } from "./DayStrip";
 import { DurationStepper } from "./DurationStepper";
 import { SlotGrid, type SlotView } from "./SlotGrid";
@@ -96,6 +102,14 @@ export default function BookingConsole({
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [termsAttested, setTermsAttested] = useState(false);
+
+  // Descuento manual: se guarda la intención ("sobre qué", %, o pesos). El monto
+  // definitivo lo recalcula el servidor con su propio quote al crear la reserva.
+  const [discountOn, setDiscountOn] = useState(false);
+  const [discountTarget, setDiscountTarget] = useState("room");
+  const [discountMode, setDiscountMode] = useState<DiscountMode>("pct");
+  const [discountValue, setDiscountValue] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
 
   /** Última cotización recibida, con la clave de sus parámetros: si la clave ya
    *  no calza con la selección actual, simplemente no se muestra (sin limpiar). */
@@ -254,8 +268,63 @@ export default function BookingConsole({
   const quoteError = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.error : false;
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
 
+  // ── descuento manual (oculto en cortesía: no crea pedido, no hay qué descontar)
+  const discountOptions: DiscountOption[] = quote
+    ? [
+        { key: "room", label: "Sala", amount: quote.roomSubtotal },
+        ...quote.addonLines.map((a) => ({ key: `addon:${a.key}`, label: a.name, amount: a.amount })),
+        { key: "total", label: "Total", amount: quote.total },
+      ]
+    : [];
+  // Si el add-on elegido se quitó de la reserva, el objetivo cae de vuelta a la sala.
+  const targetKey = discountOptions.some((o) => o.key === discountTarget) ? discountTarget : "room";
+  const parsedTarget: ManualDiscountInput["target"] = targetKey.startsWith("addon:")
+    ? { kind: "addon", key: targetKey.slice("addon:".length) }
+    : { kind: targetKey === "total" ? "total" : "room" };
+
+  const discountValueNum = Number(discountValue);
+  const discountInput: ManualDiscountInput | null =
+    discountOn && discountValue !== "" && Number.isInteger(discountValueNum) && discountValueNum > 0
+      ? { target: parsedTarget, mode: discountMode, value: discountValueNum, reason: discountReason }
+      : null;
+  // Misma función pura que corre el servidor → lo que se ve es lo que se cobra.
+  const discountPreview = discountInput && quote ? applyManualDiscount(quote, discountInput) : null;
+  const appliedDiscount = discountInput && !isCortesia ? discountInput : null;
+
+  const discountState: DiscountState | null = isCortesia
+    ? null
+    : {
+        on: discountOn,
+        options: discountOptions,
+        target: targetKey,
+        mode: discountMode,
+        value: discountValue,
+        reason: discountReason,
+        amount: discountPreview?.ok ? discountPreview.value.amount : null,
+        description: discountPreview?.ok ? discountPreview.value.description : null,
+        cashTotal: discountPreview?.ok ? discountPreview.value.cashTotal : null,
+        error: discountPreview && !discountPreview.ok ? discountPreview.error : null,
+        onToggle: setDiscountOn,
+        onTarget: setDiscountTarget,
+        // El número significa cosas distintas en cada modo (20 → 20% vs $20):
+        // arrastrarlo al cambiar de modo convierte un descuento en otro sin aviso.
+        onMode: (m: DiscountMode) => {
+          setDiscountMode(m);
+          setDiscountValue("");
+        },
+        onValue: setDiscountValue,
+        onReason: setDiscountReason,
+      };
+
+  const discountBroken = discountState?.error != null;
+  const displayTotal = discountState?.cashTotal ?? quote?.total ?? null;
+
   const canSubmit =
-    selectedStart !== null && !pending && !loadingDay && (isCortesia ? true : quote !== null);
+    selectedStart !== null &&
+    !pending &&
+    !loadingDay &&
+    !discountBroken &&
+    (isCortesia ? true : quote !== null);
 
   const submit = () => {
     if (selectedStart === null) return;
@@ -269,6 +338,7 @@ export default function BookingConsole({
       method,
       customer: { name: name.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined },
       notes,
+      ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
     };
     startTransition(async () => {
@@ -305,6 +375,10 @@ export default function BookingConsole({
     setPhone("");
     setNotes("");
     setTermsAttested(false);
+    setDiscountOn(false);
+    setDiscountTarget("room");
+    setDiscountValue("");
+    setDiscountReason("");
     setSubmitError(null);
   };
 
@@ -492,6 +566,7 @@ export default function BookingConsole({
       <CobroCard
         isCortesia={isCortesia}
         quote={quote}
+        discount={discountState}
         quoting={quoting}
         quoteError={quoteError}
         hasSelection={selectedStart !== null}
@@ -513,7 +588,7 @@ export default function BookingConsole({
           <div>
             <div className="label-sm text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</div>
             <div className="font-display text-xl text-bone">
-              {quote ? formatCLP(quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
+              {displayTotal !== null ? formatCLP(displayTotal) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
             </div>
           </div>
           <button type="button" onClick={submit} disabled={!canSubmit} className={btn("primary")}>

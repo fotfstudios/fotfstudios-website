@@ -1,6 +1,7 @@
 import type { CheckoutLine, CheckoutRepository, Customer } from "@/src/application/ports/checkout";
 import type { BookingQuoteInput, PricingService } from "@/src/application/pricing/pricing-service";
 import { applyRedemption } from "@/src/domain/points/points";
+import { applyManualDiscount, type ManualDiscount, type ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
@@ -10,6 +11,12 @@ export interface CreateBookingInput extends BookingQuoteInput {
   /** Cuenta autenticada (requerida para canjear; el saldo lo valida la DB con row lock). */
   customerId?: string;
   pointsToRedeem?: number;
+  /**
+   * Descuento digitado por el staff (reserva manual). Viaja como intención
+   * (target/modo/valor), NUNCA como pesos: la base se resuelve contra el quote
+   * del servidor. El checkout público jamás lo envía.
+   */
+  manualDiscount?: ManualDiscountInput;
   /** Consentimiento T&C — lo asigna el borde: 'customer' (route /reservar) | 'staff' (admin). */
   termsSource?: "customer" | "staff";
   termsVersion?: string;
@@ -37,10 +44,23 @@ export class CheckoutService {
     if (!res.ok) return err(res.error);
     const { quote, currency, startsAt, endsAt } = res.value;
 
+    // Descuento manual del admin: baja el total ANTES del canje, así los puntos
+    // se gastan contra lo que realmente se cobra (y no se "pierden" sobre un
+    // total que el descuento ya iba a bajar).
+    let discount: ManualDiscount | null = null;
+    if (input.manualDiscount) {
+      const d = applyManualDiscount(quote, input.manualDiscount);
+      if (!d.ok) return err(`discount:${d.error}`);
+      discount = d.value;
+    }
+    const afterDiscount = discount
+      ? { total: discount.cashTotal, net: discount.cashNet }
+      : { total: quote.total, net: quote.net };
+
     // Canje: sin sesión de cliente no hay puntos que gastar (el route ya lo
     // exige; esto es defensa en profundidad).
     if ((input.pointsToRedeem ?? 0) > 0 && !input.customerId) return err("points_session");
-    const redemption = applyRedemption(quote, input.pointsToRedeem ?? 0);
+    const redemption = applyRedemption(afterDiscount, input.pointsToRedeem ?? 0);
 
     // Anticipación mínima: rechaza un horario ya pasado o demasiado próximo. El admin puede
     // eximir la ventana (enforceLeadTime:false) para walk-ins, pero el pasado sigue vetado.
@@ -50,6 +70,15 @@ export class CheckoutService {
     // Líneas de sala + add-ons + ajuste (volumen/redondeo). Extraído a dominio
     // para reutilizarlo desde el reagendamiento (misma forma de líneas).
     const lines: CheckoutLine[] = orderLinesFromQuote(quote);
+    if (discount) {
+      lines.push({
+        line_type: "discount",
+        description: discount.description,
+        quantity: 1,
+        unit_price_clp: -discount.amount,
+        subtotal_clp: -discount.amount,
+      });
+    }
 
     // Canje de puntos: descuento adicional para que las líneas sigan sumando el
     // EFECTIVO cobrado (amount_clp queda como "lo que cobra MP / cubre la boleta").

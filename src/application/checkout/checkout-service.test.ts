@@ -245,3 +245,115 @@ describe("CheckoutService.createBooking — hold firme (opt firmHold)", () => {
     expect(params.holdTtlMinutes).toBeUndefined();
   });
 });
+
+// Quote con sala identificable: los targets del descuento manual se resuelven
+// contra el quote del SERVIDOR, así que necesita roomSubtotal/addonLines reales.
+const DISCOUNTABLE_QUOTE = {
+  tierLines: [{ key: "valle", hours: 2, rate: 10000, subtotal: 20000 }],
+  addonLines: [{ key: "audio", name: "Grabación de audio", amount: 10000 }],
+  roomSubtotal: 20000,
+  addonsTotal: 10000,
+  total: 30000,
+  net: 25210,
+  tax: 4790,
+  volumePct: 0,
+} as unknown as Quote;
+
+function discountablePricing(): PricingService {
+  const value: BookingQuote = {
+    quote: DISCOUNTABLE_QUOTE,
+    currency: "CLP",
+    startsAt: "2999-01-01T12:00:00.000Z",
+    endsAt: "2999-01-01T14:00:00.000Z",
+  };
+  return { quoteBooking: vi.fn().mockResolvedValue(ok(value)) } as unknown as PricingService;
+}
+
+const DISCOUNT_20_SALA = {
+  target: { kind: "room" as const },
+  mode: "pct" as const,
+  value: 20,
+  reason: "primera reserva",
+};
+
+describe("CheckoutService.createBooking — descuento manual del admin", () => {
+  it("agrega una línea negativa y rebaja monto/neto/IVA", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking({ ...input, manualDiscount: DISCOUNT_20_SALA });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(26000); // 30.000 − 20% de la sala (4.000)
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.amount).toBe(26000);
+    expect(params.net + params.tax).toBe(26000);
+    expect(params.lines).toContainEqual(
+      expect.objectContaining({
+        line_type: "discount",
+        description: "Descuento 20% sala · primera reserva",
+        subtotal_clp: -4000,
+      }),
+    );
+    // Invariante del esquema: las líneas suman exactamente el efectivo cobrado.
+    expect(params.lines.reduce((s, l) => s + l.subtotal_clp, 0)).toBe(26000);
+  });
+
+  it("el descuento se aplica ANTES del canje: los puntos se descuentan del total ya rebajado", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking({
+      ...input,
+      customerId: "cust-1",
+      pointsToRedeem: 5000,
+      manualDiscount: DISCOUNT_20_SALA,
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.pointsApplied).toBe(5000);
+      expect(r.value.amount).toBe(21000); // 30.000 − 4.000 descuento − 5.000 puntos
+    }
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.lines.reduce((s, l) => s + l.subtotal_clp, 0)).toBe(21000);
+  });
+
+  it("regalar un add-on descuenta justo ese add-on", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking({
+      ...input,
+      manualDiscount: { target: { kind: "addon", key: "audio" }, mode: "pct", value: 100, reason: "cortesía" },
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(20000);
+  });
+
+  it("descuento inválido → error prefijado 'discount:' y sin tocar la DB", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn() };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking({
+      ...input,
+      manualDiscount: { target: { kind: "total" }, mode: "pct", value: 100, reason: "gratis" },
+    });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/^discount:/);
+    expect(repo.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("sin descuento: ninguna línea de descuento manual", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    await svc.createBooking(input);
+
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.lines.some((l) => l.line_type === "discount")).toBe(false);
+    expect(params.amount).toBe(30000);
+  });
+});

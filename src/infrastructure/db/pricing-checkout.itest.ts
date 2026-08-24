@@ -133,3 +133,117 @@ describe("CheckoutService.createBooking", () => {
     if (!second.ok) expect(second.error).toBe("slot_taken");
   });
 });
+
+/**
+ * Descuento manual del admin contra el price book real. El caso es el que motivó
+ * la feature: Vie 19:00, 2h punta finde + grabación audio+video, con un descuento
+ * pactado por WhatsApp. Lo que se verifica acá y no en los unit tests es que la
+ * BOLETA salga bien sola: `create_boleta_amount` deriva el neto de la razón
+ * net_clp/amount_clp del pedido, así que basta con que el pedido nazca cuadrado.
+ */
+describe("CheckoutService.createBooking — descuento manual", () => {
+  const VIE = futureDate(5);
+  const base = {
+    date: VIE,
+    startMinute: 1140, // 19:00
+    durationHours: 2,
+    addonKeys: ["audioVideo"],
+    customer: { name: "Test", email: "t@e.cl" },
+  };
+
+  it("sin descuento, el caso base cotiza $75.970", async () => {
+    const r = await checkout.createBooking({ resourceId, ...base });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(75970);
+  });
+
+  it("modo monto: cobra EXACTAMENTE el total prometido y cuadra líneas, neto e IVA", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "total" }, mode: "amount", value: 7994, reason: "primera reserva" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.amount).toBe(67976);
+
+    const order = await pg.query<{ amount_clp: number; net_clp: number; tax_clp: number }>(
+      "select amount_clp, net_clp, tax_clp from orders where id=$1",
+      [r.value.orderId],
+    );
+    const { amount_clp, net_clp, tax_clp } = order.rows[0];
+    expect(amount_clp).toBe(67976);
+    expect(net_clp + tax_clp).toBe(67976);
+
+    const lines = await pg.query<{ s: string }>(
+      "select coalesce(sum(subtotal_clp),0)::text s from order_lines where order_id=$1",
+      [r.value.orderId],
+    );
+    expect(Number(lines.rows[0].s)).toBe(67976);
+
+    const disc = await pg.query<{ description: string; subtotal_clp: number }>(
+      "select description, subtotal_clp from order_lines where order_id=$1 and line_type='discount' and subtotal_clp=-7994",
+      [r.value.orderId],
+    );
+    expect(disc.rows[0].description).toBe("Descuento · primera reserva");
+  });
+
+  it("modo porcentaje: 20% de la sala se suma al 10% de volumen (no se compone)", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "primera reserva" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // sala 39.980 × 20% = 7.996 → $8.000; total 75.970 − 8.000
+    expect(r.value.amount).toBe(67970);
+
+    const disc = await pg.query<{ description: string }>(
+      "select description from order_lines where order_id=$1 and line_type='discount' and subtotal_clp=-8000",
+      [r.value.orderId],
+    );
+    expect(disc.rows[0].description).toBe("Descuento 20% sala · primera reserva");
+  });
+
+  it("regalar la grabación descuenta justo ese add-on", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "addon", key: "audioVideo" }, mode: "pct", value: 100, reason: "" },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(35980); // 75.970 − 39.990
+  });
+
+  it("la boleta se emite por el total ya descontado y cuadra neto + IVA", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "total" }, mode: "amount", value: 7994, reason: "primera reserva" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    await pg.query("select confirm_payment($1,$2)", [r.value.orderId, "pay-descuento"]);
+
+    const bol = await pg.query<{ neto: number; iva: number; total: number; status: string }>(
+      "select neto, iva, total, status from tax_documents where order_id=$1 and kind='boleta'",
+      [r.value.orderId],
+    );
+    expect(bol.rows).toHaveLength(1);
+    const { neto, iva, total } = bol.rows[0];
+    expect(total).toBe(67976);
+    expect(neto + iva).toBe(67976);
+  });
+
+  it("un descuento que se come el total se rechaza sin crear nada", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "total" }, mode: "pct", value: 100, reason: "gratis" },
+    });
+    expect(r.ok).toBe(false);
+    const orders = await pg.query<{ n: string }>("select count(*)::text n from orders");
+    expect(orders.rows[0].n).toBe("0");
+  });
+});

@@ -5,13 +5,39 @@ import { btn } from "@/components/admin/ui/styles";
 import { tierLabel } from "@/components/booking/format";
 import { formatCLP } from "@/src/domain/money/money";
 import type { ManualPaymentMethod } from "@/lib/manual-booking";
+import type { DiscountMode } from "@/src/domain/pricing/manual-discount";
+import { DiscountPicker, type DiscountOption } from "./DiscountPicker";
 
+/** Cotización del servidor. Incluye `net`/`roomSubtotal` porque el descuento
+ *  manual se previsualiza en el cliente con la misma función pura del dominio. */
 export interface QuoteView {
   total: number;
+  net: number;
+  roomSubtotal: number;
   tierLines: { key: string; hours: number; rate: number; subtotal: number }[];
   addonLines: { key: string; name: string; amount: number }[];
   discount: number;
   volumePct: number;
+}
+
+/** Estado del descuento manual + handlers. null = oculto (cortesía). */
+export interface DiscountState {
+  on: boolean;
+  options: DiscountOption[];
+  target: string;
+  mode: DiscountMode;
+  value: string;
+  reason: string;
+  /** Previsualización ya calculada por el dominio (null si aún no hay valor válido). */
+  amount: number | null;
+  description: string | null;
+  cashTotal: number | null;
+  error: string | null;
+  onToggle: (on: boolean) => void;
+  onTarget: (key: string) => void;
+  onMode: (m: DiscountMode) => void;
+  onValue: (v: string) => void;
+  onReason: (v: string) => void;
 }
 
 const METHODS: { key: ManualPaymentMethod; label: string }[] = [
@@ -28,6 +54,7 @@ const METHODS: { key: ManualPaymentMethod; label: string }[] = [
 export function CobroCard({
   isCortesia,
   quote,
+  discount,
   quoting,
   quoteError,
   hasSelection,
@@ -44,6 +71,7 @@ export function CobroCard({
 }: {
   isCortesia: boolean;
   quote: QuoteView | null;
+  discount: DiscountState | null;
   quoting: boolean;
   quoteError: boolean;
   hasSelection: boolean;
@@ -59,12 +87,14 @@ export function CobroCard({
   onSubmit: () => void;
 }) {
   const isPendiente = method === "pendiente";
+  // El descuento manda sobre el total del quote en cuanto es válido.
+  const total = discount?.cashTotal ?? quote?.total ?? null;
   return (
     <Card title="Cobro" className="lg:sticky lg:top-8">
       <span className="label text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</span>
-      {quote ? (
+      {quote && total !== null ? (
         <div className={`mt-2 font-display text-5xl ${isCortesia ? "text-bone-dim" : "text-bone"}`}>
-          {formatCLP(quote.total)}
+          {formatCLP(total)}
         </div>
       ) : quoting ? (
         <Skeleton className="mt-3 h-12 w-40" />
@@ -116,7 +146,31 @@ export function CobroCard({
               <span className="font-mono">−{formatCLP(quote.discount)}</span>
             </li>
           )}
+          {discount?.amount != null && discount.description && (
+            <li className="flex justify-between gap-3 text-gold">
+              <span>{discount.description}</span>
+              <span className="font-mono">−{formatCLP(discount.amount)}</span>
+            </li>
+          )}
         </ul>
+      )}
+
+      {discount && (
+        <DiscountPicker
+          on={discount.on}
+          onToggle={discount.onToggle}
+          options={discount.options}
+          target={discount.target}
+          onTarget={discount.onTarget}
+          mode={discount.mode}
+          onMode={discount.onMode}
+          value={discount.value}
+          onValue={discount.onValue}
+          reason={discount.reason}
+          onReason={discount.onReason}
+          amount={discount.amount}
+          error={discount.error}
+        />
       )}
 
       <div className="mt-6 border-t hairline pt-5">
