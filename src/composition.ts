@@ -95,12 +95,16 @@ export async function reconcileOrder(
   const gateway = new MercadoPagoGateway(requireEnv("MP_ACCESS_TOKEN"));
   const payment = await gateway.findPaymentByOrder(orderId);
   if (!payment) return null;
-  // Con finalizer: los pagos de órdenes de delta de reagendamiento se finalizan
-  // (apply_reschedule_charge) en vez de ir por el confirm normal.
+  // Con los dos finalizadores: los pedidos SIN reserva —delta de reagendamiento e
+  // inscripción de curso— se finalizan por su propio camino en vez del confirm
+  // normal. Va acá y no solo en la ruta del webhook a propósito: si el webhook se
+  // pierde, este barrido es el que reconcilia, y sin el finalizador mandaría al
+  // dueño una alerta falsa de "pagó sin reserva".
   const service = new WebhookService(
     gateway,
     new SupabaseWebhookRepository(client),
     new SupabaseRescheduleRepository(client),
+    new SupabaseCourseRepository(client),
   );
   return service.handlePaymentNotification(payment.id);
 }
@@ -219,6 +223,12 @@ export async function expireAbandonedReschedules(client: SupabaseClient<Database
 /** Barre reservas manuales pendientes abandonadas (hold firme, >72 h sin pagar). */
 export async function expireAbandonedManualHolds(client: SupabaseClient<Database> = db()): Promise<number> {
   const { data } = await client.rpc("expire_abandoned_manual_holds");
+  return data ?? 0;
+}
+
+/** Barre inscripciones de curso abandonadas (>72 h sin pagar) y libera sus cupos. */
+export async function expireAbandonedCourseHolds(client: SupabaseClient<Database> = db()): Promise<number> {
+  const { data } = await client.rpc("expire_abandoned_course_holds");
   return data ?? 0;
 }
 

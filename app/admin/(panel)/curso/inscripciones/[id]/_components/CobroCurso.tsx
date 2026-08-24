@@ -4,6 +4,7 @@ import { Field, Select } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { formatCLP } from "@/src/domain/money/money";
 import { markCoursePaidAction } from "../../../actions";
+import { LinkDePago } from "./LinkDePago";
 
 const METHOD_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -12,9 +13,9 @@ const METHOD_LABEL: Record<string, string> = {
 };
 
 /**
- * Cobro de la inscripción. Por ahora solo offline (efectivo/transferencia): el
- * link de Mercado Pago llega en el PR siguiente y converge en el MISMO RPC, así
- * que registrar un pago acá después de mandar un link no puede duplicar boleta.
+ * Cobro de la inscripción: offline (efectivo/transferencia) o link de Mercado
+ * Pago. Los dos caminos convergen en el MISMO RPC, así que registrar un pago a
+ * mano después de haber mandado un link no puede duplicar la boleta.
  */
 export function CobroCurso({
   enrollmentId,
@@ -22,12 +23,14 @@ export function CobroCurso({
   totalClp,
   paidMethod,
   paidAt,
+  waDigits,
 }: {
   enrollmentId: string;
   status: string;
   totalClp: number;
   paidMethod: string | null;
   paidAt: string | null;
+  waDigits: string | null;
 }) {
   if (status === "pagada") {
     return (
@@ -67,6 +70,11 @@ export function CobroCurso({
           </SubmitButton>
         </div>
       </ActionForm>
+
+      <div className="mt-5 border-t hairline pt-5">
+        <p className="label-sm mb-3 text-bone-mute">O que pague online</p>
+        <LinkDePago enrollmentId={enrollmentId} waDigits={waDigits} />
+      </div>
     </Card>
   );
 }

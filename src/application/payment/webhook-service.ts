@@ -1,4 +1,5 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
+import type { CourseFinalizer } from "@/src/application/ports/course";
 import type { RescheduleFinalizer } from "@/src/application/ports/reschedule";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
 
@@ -11,7 +12,8 @@ export type WebhookOutcome =
   | "duplicate"
   | "ignored"
   | "reschedule_applied"
-  | "reschedule_slot_taken";
+  | "reschedule_slot_taken"
+  | "course_paid";
 
 export interface WebhookResult {
   result: WebhookOutcome;
@@ -36,6 +38,8 @@ export class WebhookService {
     private readonly repo: PaymentNotificationRepository,
     /** Opcional: finaliza cobros de reagendamiento diferidos (Phase 3b). */
     private readonly finalizer?: RescheduleFinalizer,
+    /** Opcional: finaliza inscripciones de curso pagadas por MP. */
+    private readonly courseFinalizer?: CourseFinalizer,
   ) {}
 
   async handlePaymentNotification(paymentId: string): Promise<WebhookResult> {
@@ -83,6 +87,20 @@ export class WebhookService {
             return { result: "reschedule_slot_taken", orderId };
           }
           return { result: outcome === "applied" ? "reschedule_applied" : "duplicate", orderId };
+        }
+      }
+
+      // Inscripción de curso: su pedido tampoco tiene reserva, así que NO va por
+      // confirm_payment (daría paid_no_hold: sin boleta y con el alumno en
+      // silencio). Se desvía por la misma costura que el cobro de reagendamiento,
+      // DESPUÉS de él: una orden de delta nunca es de curso, y así el camino ya
+      // probado conserva la prioridad. El inbox de arriba ya dedupeó por
+      // `{paymentId}:approved`, o sea que esto corre una sola vez.
+      if (this.courseFinalizer) {
+        const curso = await this.courseFinalizer.pendingCourseOrder(orderId);
+        if (curso) {
+          const outcome = await this.courseFinalizer.applyCoursePayment(orderId, paymentId);
+          return { result: outcome === "applied" ? "course_paid" : "duplicate", orderId };
         }
       }
 

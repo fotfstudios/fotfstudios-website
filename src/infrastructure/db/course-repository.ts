@@ -13,6 +13,7 @@ import type {
   CourseSchedulingRepository,
   CourseEnrollmentRepository,
   CourseEnrollmentRow,
+  CourseFinalizer,
   CourseLeadRepository,
   CourseLeadRow,
   CourseLeadsListResult,
@@ -118,7 +119,8 @@ export class SupabaseCourseRepository
     CourseSchedulingRepository,
     CourseGenerationRepository,
     CourseLeadRepository,
-    CourseEnrollmentRepository
+    CourseEnrollmentRepository,
+    CourseFinalizer
 {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
@@ -492,5 +494,29 @@ export class SupabaseCourseRepository
       iva: d.iva,
       total: d.total,
     }));
+  }
+
+  // ── Finalizador del webhook ──────────────────────────────────────────────
+
+  /**
+   * ¿El pedido es una inscripción de curso todavía sin pagar? Devuelve null para
+   * cualquier otra cosa, así el webhook sigue de largo hacia el camino normal.
+   */
+  async pendingCourseOrder(orderId: string): Promise<{ orderId: string } | null> {
+    const { data, error } = await this.db
+      .from("orders")
+      .select("id, kind, status")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data || data.kind !== "course") return null;
+    // Un pedido de curso ya pagado igual se desvía: reprocesar por el camino de
+    // reservas lo mandaría a 'paid_no_hold' y dispararía una alerta falsa.
+    return { orderId: data.id };
+  }
+
+  async applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop"> {
+    const status = await this.confirmCoursePayment(orderId, paymentId, "mercadopago");
+    return status === "confirmed" ? "applied" : "noop";
   }
 }

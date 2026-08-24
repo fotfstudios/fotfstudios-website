@@ -122,6 +122,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
             totalClp={inscripcion.orderAmountClp ?? inscripcion.priceClp}
             paidMethod={inscripcion.paidMethod}
             paidAt={inscripcion.paidAt ? fmtDateTime(inscripcion.paidAt) : null}
+            waDigits={waDigits || null}
           />
 
           {inscripcion.status === "reservada" && (

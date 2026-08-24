@@ -152,3 +152,15 @@ export interface CourseTaxDoc {
   iva: number;
   total: number;
 }
+
+/**
+ * Finaliza el pago de un curso desde el webhook. Espejo de RescheduleFinalizer:
+ * ambos existen porque su pedido NO tiene reserva y confirm_payment los mandaría
+ * a 'paid_no_hold' (sin boleta y con el cliente en silencio).
+ */
+export interface CourseFinalizer {
+  /** ¿Este pedido es una inscripción de curso pendiente? Desvía del confirm normal. */
+  pendingCourseOrder(orderId: string): Promise<{ orderId: string } | null>;
+  /** Confirma cupos + boleta. 'noop' si la inscripción ya se anuló o ya estaba pagada. */
+  applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop">;
+}

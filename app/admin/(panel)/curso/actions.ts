@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { type ActionResult, run } from "@/components/admin/ui/action";
+import { headers } from "next/headers";
+import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
 import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
-import { adminRepository, courseRepository, notificationService } from "@/src/composition";
+import { adminRepository, courseRepository, db, notificationService, paymentService } from "@/src/composition";
+import { hostFromHeaders } from "@/lib/urls";
 import { fmtDateTime } from "@/components/admin/format";
 import { TERMS_VERSION } from "@/lib/site";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -292,5 +294,48 @@ export async function setEnrollmentNotesAction(_prev: ActionResult | null, fd: F
     const notes = str(fd, "notes").slice(0, 500);
     await courseRepository().setEnrollmentNotes(id, notes || null);
     revalidatePath(`/admin/curso/inscripciones/${id}`);
+  });
+}
+
+/** Ventana del link de pago del curso: el alumno paga cuando puede, sin hold que vencer. */
+const COURSE_LINK_HOURS = 72;
+
+/**
+ * Genera un link de pago de Mercado Pago para una inscripción pendiente y se lo
+ * manda al alumno. El webhook confirma: acá NO se toca el estado del pago.
+ */
+export async function shareCoursePaymentLinkAction(
+  enrollmentId: string,
+): Promise<ActionDataResult<{ initPoint: string; amount: number }>> {
+  return runData(async () => {
+    await requirePermission("course.billing");
+    const repo = courseRepository();
+    const inscripcion = await repo.enrollmentById(enrollmentId);
+    if (!inscripcion?.orderId) throw new Error("Esta inscripción no tiene pedido.");
+    if (inscripcion.status !== "reservada") throw new Error("Esta inscripción no está pendiente de pago.");
+
+    const host = hostFromHeaders(await headers());
+    const pref = await paymentService(db(), host).createPreferenceForOrder(inscripcion.orderId, {
+      // Sin hold que vencer: la ventana la define la paciencia del dueño, no la sala.
+      expiresInMinutes: COURSE_LINK_HOURS * 60,
+      description: `Curso de DJ FOTF · ${inscripcion.generationCode}`,
+      // /reserva/estado espera una reserva y está detrás de bookingEnabled().
+      backPath: "/curso-dj/pago",
+    });
+    if (!pref.ok) throw new Error(pref.error);
+
+    await notificationService()
+      .notifyCoursePaymentLink({
+        name: inscripcion.studentName,
+        email: inscripcion.studentEmail,
+        generation: inscripcion.generationCode,
+        totalClp: inscripcion.orderAmountClp ?? inscripcion.priceClp,
+        initPoint: pref.value.initPoint,
+        expiresInHours: COURSE_LINK_HOURS,
+      })
+      .catch((e) => console.error("[curso:link:email]", e));
+
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+    return { initPoint: pref.value.initPoint, amount: inscripcion.orderAmountClp ?? inscripcion.priceClp };
   });
 }

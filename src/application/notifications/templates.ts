@@ -309,6 +309,27 @@ export function courseEnrollmentPaid(v: {
   return { subject: "Tu cupo está confirmado — Curso de DJ", html, text };
 }
 
+/**
+ * Email al alumno con el link de pago. La dirección NO viaja acá: la FAQ promete
+ * compartirla al confirmar la inscripción, y una inscripción sin pagar no lo es.
+ * Sí viajan los términos, porque es el punto donde el alumno acepta la compra.
+ */
+export function courseEnrollmentPending(
+  v: { name: string; generation: string; total: string; initPoint: string; expiresInHours: number },
+  ctx: { termsUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu cupo te espera</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(v.name)}: reservamos tu cupo en la generación ${esc(v.generation)} del Curso de Iniciación DJ. Queda confirmado al pagar.</p>
+     <p style="font-size:22px;margin:0 0 20px"><strong>${esc(v.total)}</strong></p>
+     <a href="${esc(v.initPoint)}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Pagar ahora</a>
+     <p style="color:#b9b5ab;margin:20px 0 0">El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos y te mandamos otro.</p>
+     <p style="color:#b9b5ab;margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:#e8c94a">términos y condiciones</a>.</p>`,
+  );
+  const text = `${v.name}: reservamos tu cupo en la generación ${v.generation} del Curso de Iniciación DJ. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: `Tu cupo en el Curso de DJ — falta el pago`, html, text };
+}
+
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
 export function ownerCoursePaid(v: {
   name: string;

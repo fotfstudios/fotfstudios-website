@@ -1,6 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { DateTime } from "luxon";
 import { notificationService, rescheduleNotifyInfo } from "@/src/composition";
 import { WebhookService } from "@/src/application/payment/webhook-service";
+import type { Database } from "@/src/infrastructure/db/database.types";
 import { createServiceClient } from "@/src/infrastructure/db/supabase-client";
+import { SupabaseCourseRepository } from "@/src/infrastructure/db/course-repository";
 import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
@@ -71,12 +75,14 @@ export async function POST(req: Request): Promise<Response> {
   if (!type.includes("payment") || !resourceId) return new Response("ok", { status: 200 });
 
   const client = createServiceClient(url, key);
-  // Con finalizer: los pagos de órdenes de delta de reagendamiento se finalizan
-  // (mover la reserva / reembolsar si el slot fue tomado) en vez del confirm normal.
+  // Con los dos finalizadores: los pedidos SIN reserva —delta de reagendamiento e
+  // inscripción de curso— se finalizan por su propio camino en vez del confirm
+  // normal, que los mandaría a 'paid_no_hold' (sin boleta, cliente en silencio).
   const service = new WebhookService(
     new MercadoPagoGateway(token),
     new SupabaseWebhookRepository(client),
     new SupabaseRescheduleRepository(client),
+    new SupabaseCourseRepository(client),
   );
   try {
     const { result, orderId, refundedAmount } = await service.handlePaymentNotification(resourceId);
@@ -89,6 +95,13 @@ export async function POST(req: Request): Promise<Response> {
       await notificationService(client)
         .notifyPaymentNeedsReview(orderId, resourceId)
         .catch((e) => console.error("[mp-webhook:review]", e));
+    } else if (result === "course_paid" && orderId) {
+      // Inscripción de curso pagada por MP: cupos confirmados y boleta emitida por
+      // el finalizador. El email va por el camino del curso (notifyOrder ignora
+      // los pedidos de curso a propósito).
+      await notifyCoursePaidFromWebhook(orderId, client).catch((e) =>
+        console.error("[mp-webhook:curso-email]", e),
+      );
     } else if (result === "refunded" && orderId) {
       // Reembolso hecho FUERA del admin (panel de MP): avisar al cliente. Los
       // reembolsos admin no llegan aquí (inbox dedupe) — su email lo manda la acción.
@@ -116,4 +129,33 @@ export async function POST(req: Request): Promise<Response> {
     console.error("[mp-webhook]", e);
   }
   return new Response("ok", { status: 200 });
+}
+
+/**
+ * Aviso de inscripción pagada tras el webhook. Reúne los datos que el email
+ * necesita (alumnos del pedido, generación, sesiones agendadas) y delega en
+ * NotificationService.
+ */
+async function notifyCoursePaidFromWebhook(
+  orderId: string,
+  client: SupabaseClient<Database>,
+): Promise<void> {
+  const repo = new SupabaseCourseRepository(client);
+  const inscripciones = await repo.enrollmentsByOrder(orderId);
+  if (inscripciones.length === 0) return;
+  const gen = await repo.getGeneration(inscripciones[0].generationId);
+  const sesiones = gen ? await repo.listSessions(gen.id) : [];
+  await notificationService(client).notifyCoursePaid({
+    students: inscripciones.map((i) => ({ name: i.studentName, email: i.studentEmail })),
+    generation: inscripciones[0].generationCode,
+    totalClp: inscripciones[0].orderAmountClp ?? 0,
+    method: "Mercado Pago",
+    sessions: sesiones
+      .filter((s) => s.status === "agendada" && s.startsAt)
+      .map((s) =>
+        DateTime.fromISO(s.startsAt!).setZone("America/Santiago").setLocale("es")
+          .toFormat("cccc d 'de' LLLL, HH:mm 'h'"),
+      ),
+    seatsLeft: gen?.seatsLeft ?? 0,
+  });
 }

@@ -1,4 +1,4 @@
-import { reconcilePending, releaseAbandonedRedemptions } from "@/src/composition";
+import { expireAbandonedCourseHolds, reconcilePending, releaseAbandonedRedemptions } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
  * de estado. Idempotente (inbox del webhook). Protegido por CRON_SECRET (Vercel lo
  * manda como Authorization: Bearer). Corre 1 vez al día → compatible con Vercel Hobby.
  * Después de reconciliar, libera los puntos canjeados en checkouts abandonados
- * (>72 h) — el reconcile va primero porque aún puede confirmar alguno.
+ * (>72 h) y los cupos de curso retenidos por inscripciones que nunca se pagaron —
+ * el reconcile va primero porque aún puede confirmar alguna.
  */
 export async function GET(req: Request): Promise<Response> {
   // Fail-closed: sin CRON_SECRET configurado, el endpoint queda cerrado.
@@ -22,7 +23,13 @@ export async function GET(req: Request): Promise<Response> {
       console.error("[cron-reconcile:points]", e);
       return 0;
     });
-    return Response.json({ ...summary, releasedPoints });
+    // Un cupo de curso retenido por un pedido muerto es inventario perdido: sale
+    // del mismo barrido, después de que reconcile tuvo su oportunidad.
+    const releasedSeats = await expireAbandonedCourseHolds().catch((e) => {
+      console.error("[cron-reconcile:curso]", e);
+      return 0;
+    });
+    return Response.json({ ...summary, releasedPoints, releasedSeats });
   } catch (e) {
     console.error("[cron-reconcile]", e);
     return Response.json({ error: "server" }, { status: 503 });

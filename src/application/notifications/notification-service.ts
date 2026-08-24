@@ -20,6 +20,7 @@ import {
   courseEnrollmentCancelled,
   courseEnrollmentPaid,
   ownerCoursePaid,
+  courseEnrollmentPending,
 } from "./templates";
 
 export interface NotificationConfig {
@@ -297,6 +298,30 @@ export class NotificationService {
         }),
       });
     }
+  }
+
+  /** Link de pago al alumno. Solo al primero: el dúo lo paga quien inscribe. */
+  async notifyCoursePaymentLink(v: {
+    name: string;
+    email: string;
+    generation: string;
+    totalClp: number;
+    initPoint: string;
+    expiresInHours: number;
+  }): Promise<void> {
+    await this.mailer.send({
+      to: v.email,
+      ...courseEnrollmentPending(
+        {
+          name: v.name,
+          generation: v.generation,
+          total: formatCLP(v.totalClp),
+          initPoint: v.initPoint,
+          expiresInHours: v.expiresInHours,
+        },
+        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
   }
 
   /** Inscripción impaga anulada: aviso al alumno. Sin dinero de por medio. */
