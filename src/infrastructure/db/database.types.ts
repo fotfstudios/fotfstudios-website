@@ -1408,6 +1408,10 @@ export type Database = {
         Args: { p_refund_id?: string; p_reservation: string }
         Returns: undefined
       }
+      cancel_course_session: {
+        Args: { p_created_by?: string; p_session: string }
+        Returns: undefined
+      }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
       confirm_payment: {
         Args: { p_order: string; p_payment_id: string }
@@ -1501,6 +1505,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_course_session: {
+        Args: {
+          p_created_by?: string
+          p_ends: string
+          p_session: string
+          p_starts: string
+        }
+        Returns: undefined
+      }
       order_backing_boletas: {
         Args: { p_order: string }
         Returns: {
@@ -1513,6 +1526,19 @@ export type Database = {
         Returns: {
           id: string
           live_amount: number
+        }[]
+      }
+      preview_course_conflicts: {
+        Args: { p_resource: string; p_sessions: Json }
+        Returns: {
+          conflict_amount: number
+          conflict_customer: string
+          conflict_id: string
+          conflict_kind: string
+          conflict_status: string
+          ends_at: string
+          n: number
+          starts_at: string
         }[]
       }
       rate_limit_hit: {
@@ -1565,6 +1591,10 @@ export type Database = {
         Returns: string
       }
       reservation_for_order: { Args: { p_order: string }; Returns: string }
+      schedule_course_generation: {
+        Args: { p_created_by?: string; p_generation: string; p_sessions: Json }
+        Returns: number
+      }
     }
     Enums: {
       order_status:

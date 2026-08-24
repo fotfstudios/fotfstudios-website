@@ -13,6 +13,7 @@ import {
 } from "@/src/domain/admin/agenda";
 import { dayBoundsUtc, todayInTz } from "@/src/domain/scheduling/time";
 import { AgendaHeader } from "./_components/AgendaHeader";
+import { isSellableSession } from "@/src/domain/scheduling/reservation-kind";
 import { AgendaList } from "./_components/AgendaList";
 import { MonthView } from "./_components/MonthView";
 import { TimeGrid, type GridDay } from "./_components/TimeGrid";
@@ -55,7 +56,7 @@ export default async function AgendaPage({
   const hoursFor = (date: string): [number, number] | null =>
     scheduleKnown ? effectiveHours(date, tz, schedule.openingHours, schedule.exceptions) : null;
 
-  const nReservas = bookings.filter((b) => b.kind !== "block").length;
+  const nReservas = bookings.filter((b) => isSellableSession(b.kind)).length;
   const nBloqueos = bookings.length - nReservas;
 
   let content: React.ReactNode;

@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import {
@@ -264,7 +265,9 @@ export class SupabaseAdminRepository {
       this.analyticsReservations(last30Start.toUTC().toISO()!, todayEnd.toUTC().toISO()!),
     ]);
 
-    const sessions = agenda.filter((b) => b.kind !== "block");
+    // "Sesiones" cuenta horas VENDIDAS: ni bloqueos ni sesiones de curso son
+    // una reserva de cliente (el curso se cobra por generación, no por hora).
+    const sessions = agenda.filter((b) => isSellableSession(b.kind));
     const sesionesHoy = sessions.filter((b) => DateTime.fromISO(b.startsAt) < todayEnd).length;
     return {
       sesionesHoy,
@@ -293,13 +296,17 @@ export class SupabaseAdminRepository {
     else if (qy.tiempo === "pasadas") qb = qb.lt("ends_at", nowUtc);
     switch (tab) {
       case "confirmadas":
-        return qb.neq("kind", "block").eq("status", "confirmed");
+        // Positivo, no `neq("block")`: la lista de reservas es sobre CLIENTES,
+        // así que un kind nuevo no debe colarse acá por omisión.
+        return qb.eq("kind", "booking").eq("status", "confirmed");
       case "espera":
         return qb.eq("status", "held");
       case "canceladas":
         return qb.in("status", ["cancelled", "expired"]);
       case "bloqueos":
         return qb.eq("kind", "block");
+      case "curso":
+        return qb.eq("kind", "curso");
       default:
         return qb;
     }
@@ -346,7 +353,7 @@ export class SupabaseAdminRepository {
       .lt("starts_at", endUtc)
       .order("starts_at", { ascending: true });
     type Row = {
-      kind: "booking" | "block";
+      kind: ReservationKind;
       status: "held" | "confirmed" | "cancelled" | "expired";
       starts_at: string;
       ends_at: string;
@@ -450,13 +457,15 @@ export class SupabaseAdminRepository {
       this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
     ]);
 
-    const sessions = weekBookings.filter((b) => b.kind !== "block");
+    const sessions = weekBookings.filter((b) => isSellableSession(b.kind));
     const isToday = (b: AdminBooking) => {
       const s = DateTime.fromISO(b.startsAt).setZone(TZ);
       return s >= todayStart && s < todayEnd;
     };
-    const nonBlock = upcoming.filter((b) => b.kind !== "block");
-    const today = nonBlock.filter(isToday);
+    // Solo reservas de cliente: una sesión de curso no tiene código de acceso
+    // que enviar ni cliente a quien mostrarle en "Agenda de hoy".
+    const vendidas = upcoming.filter((b) => isSellableSession(b.kind));
+    const today = vendidas.filter(isToday);
 
     const weekRevenue = sessions.reduce((s, b) => s + (b.orderStatus === "paid" ? (b.amount ?? 0) : 0), 0);
 
@@ -466,9 +475,9 @@ export class SupabaseAdminRepository {
       weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
       pendingBoletas: boletas.length,
       pendingPayments: pendingPay.count ?? 0,
-      accessToSend: nonBlock.filter((b) => b.status === "confirmed" && !b.accessCode).length,
+      accessToSend: vendidas.filter((b) => b.status === "confirmed" && !b.accessCode).length,
       today,
-      upcoming: nonBlock.filter((b) => !isToday(b)).slice(0, 12),
+      upcoming: vendidas.filter((b) => !isToday(b)).slice(0, 12),
       boletas,
     };
   }

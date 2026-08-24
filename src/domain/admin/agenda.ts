@@ -5,6 +5,7 @@
  * RELOJ (no transcurridos — ver `wallMinutes`), eje horario, carriles y chips.
  */
 import { DateTime } from "luxon";
+import { isSellableSession } from "@/src/domain/scheduling/reservation-kind";
 import type { ExceptionRow, OpeningHourRow } from "@/src/domain/analytics/metrics";
 import { monthGrid, type DayCell } from "@/src/domain/scheduling/month-availability";
 import { weekdayFor } from "@/src/domain/scheduling/time";
@@ -206,7 +207,7 @@ export function wallMinutesEnd(iso: string, date: string, tz: string): number {
 export function gridOrder<T extends { kind: string; startsAt: string; id: string }>(events: T[]): T[] {
   return [...events].sort(
     (a, b) =>
-      Number(a.kind !== "block") - Number(b.kind !== "block") ||
+      Number(isSellableSession(a.kind)) - Number(isSellableSession(b.kind)) ||
       a.startsAt.localeCompare(b.startsAt) ||
       a.id.localeCompare(b.id),
   );

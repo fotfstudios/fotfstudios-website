@@ -99,15 +99,25 @@ describe("listBookings", () => {
     const blockRange = rangeFor(TUE, 600, 1, tz);
     await repo.createBlock(resourceId, blockRange.startsAt, blockRange.endsAt);
     await courtesy("2099-06-01", { name: "Amiga" });
+    // Una sesión de curso: ocupa la sala, pero NO es una reserva de cliente.
+    const cursoRange = rangeFor("2099-07-01", 1200, 2, tz);
+    await pg.query(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at, notes)
+       values ($1, 'curso', 'confirmed', $2, $3, 'Curso G01 · Sesión 1')`,
+      [resourceId, cursoRange.startsAt, cursoRange.endsAt],
+    );
 
     const todas = await repo.listBookings(q());
-    expect(todas.rows).toHaveLength(6);
-    expect(todas.grandTotal).toBe(6);
-    expect(todas.tabCounts).toEqual({ todas: 6, confirmadas: 2, espera: 1, canceladas: 2, bloqueos: 1 });
+    expect(todas.rows).toHaveLength(7);
+    expect(todas.grandTotal).toBe(7);
+    expect(todas.tabCounts).toEqual({ todas: 7, confirmadas: 2, espera: 1, canceladas: 2, bloqueos: 1, curso: 1 });
 
     const confirmadas = await repo.listBookings(q({ estado: "confirmadas" }));
     expect(confirmadas.total).toBe(2);
-    expect(confirmadas.rows.every((b) => b.status === "confirmed" && b.kind !== "block")).toBe(true);
+    // El tab de reservas es sobre CLIENTES: ni bloqueos ni sesiones de curso.
+    // El predicado es positivo a propósito — con `!== "block"` la sesión de curso
+    // se habría colado acá sin que nadie lo notara.
+    expect(confirmadas.rows.every((b) => b.status === "confirmed" && b.kind === "booking")).toBe(true);
     const cortesia = confirmadas.rows.find((b) => !b.orderId);
     expect(cortesia?.amount).toBeNull();
 
@@ -119,6 +129,9 @@ describe("listBookings", () => {
 
     const bloqueos = await repo.listBookings(q({ estado: "bloqueos" }));
     expect(bloqueos.rows.map((b) => b.kind)).toEqual(["block"]);
+
+    const curso = await repo.listBookings(q({ estado: "curso" }));
+    expect(curso.rows.map((b) => b.kind)).toEqual(["curso"]);
   });
 
   it("búsqueda por nombre (case-insensitive), email y teléfono; los conteos respetan la aguja", async () => {
@@ -130,7 +143,7 @@ describe("listBookings", () => {
     const porNombre = await repo.listBookings(q({ q: "valentina" }));
     expect(porNombre.rows.map((b) => b.customerName)).toEqual(["Valentina Rojas"]);
     expect(porNombre.total).toBe(1);
-    expect(porNombre.tabCounts).toEqual({ todas: 1, confirmadas: 1, espera: 0, canceladas: 0, bloqueos: 0 });
+    expect(porNombre.tabCounts).toEqual({ todas: 1, confirmadas: 1, espera: 0, canceladas: 0, bloqueos: 0, curso: 0 });
     expect(porNombre.grandTotal).toBe(3); // el total global ignora la búsqueda
 
     const porEmail = await repo.listBookings(q({ q: "pedro@" }));

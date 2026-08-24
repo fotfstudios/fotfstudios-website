@@ -14,6 +14,7 @@ const TABS: { key: ReservaTab; label: string }[] = [
   { key: "espera", label: "En espera" },
   { key: "canceladas", label: "Canceladas" },
   { key: "bloqueos", label: "Bloqueos" },
+  { key: "curso", label: "Curso" },
 ];
 
 const TIEMPOS: { key: ReservaTiempo; label: string }[] = [

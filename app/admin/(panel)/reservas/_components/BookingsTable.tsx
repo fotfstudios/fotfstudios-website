@@ -5,6 +5,7 @@ import { fmtDate, fmtDateTime, fmtTimeRange } from "@/components/admin/format";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
+import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 import type { ReservaOrden } from "@/src/domain/admin/reservas-list";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
@@ -92,7 +93,7 @@ export function BookingsTable({
 }
 
 function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
-  const isBlock = b.kind === "block";
+  const isBlock = isRoomBlock(b.kind);
   const isCourtesy = !isBlock && !b.orderId;
   const isRefunded = b.orderStatus === "refunded";
   const overdue =

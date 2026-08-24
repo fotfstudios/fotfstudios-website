@@ -42,7 +42,7 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
                       <span className="block font-mono text-xs text-bone">{time}</span>
                       <span className="mt-0.5 block truncate text-xs text-bone-dim">{eventTitle(e)}</span>
                     </span>
-                    <StatusPill status={e.kind === "block" ? "block" : e.status} />
+                    <StatusPill status={e.kind !== "booking" ? e.kind : e.status} />
                   </Link>
                 );
               })}

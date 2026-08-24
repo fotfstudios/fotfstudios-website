@@ -90,7 +90,7 @@ export function EventBlock({
             {b.amount != null && (
               <span className="hidden font-mono text-xs text-bone-dim sm:inline">{formatCLP(b.amount)}</span>
             )}
-            <StatusPill status={b.kind === "block" ? "block" : b.status} />
+            <StatusPill status={b.kind !== "booking" ? b.kind : b.status} />
           </span>
         </>
       )}

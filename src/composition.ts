@@ -9,6 +9,7 @@ import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
 import { SupabaseApplicationRepository } from "@/src/infrastructure/db/application-repository";
+import { SupabaseCourseRepository } from "@/src/infrastructure/db/course-repository";
 import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-repository";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
@@ -165,6 +166,13 @@ export function applicationRepository(
   client: SupabaseClient<Database> = db(),
 ): SupabaseApplicationRepository {
   return new SupabaseApplicationRepository(client);
+}
+
+/** Curso de DJ: agenda de sesiones de una generación (bloques de sala). */
+export function courseRepository(
+  client: SupabaseClient<Database> = db(),
+): SupabaseCourseRepository {
+  return new SupabaseCourseRepository(client);
 }
 
 /** Rate limiter por clave (Postgres, ventana fija). Antiabuso de endpoints públicos. */

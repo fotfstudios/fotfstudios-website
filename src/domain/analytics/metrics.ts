@@ -7,12 +7,15 @@
  * Definiciones clave:
  * - Ingresos = amount − refunded de órdenes paid/refunded, atribuidos por
  *   fecha de SESIÓN (starts_at) en tz local.
- * - Ocupación = minutos reservados (booking confirmed, recortados al horario)
- *   ÷ minutos abiertos (opening_hours ajustado por schedule_exceptions).
+ * - Ocupación = minutos de cabina trabajando (booking o curso, confirmed,
+ *   recortados al horario) ÷ minutos abiertos (opening_hours ajustado por
+ *   schedule_exceptions). El bloqueo de mantención NO ocupa: la sala está cerrada.
  * - Recurrente = email con orden pagada ANTERIOR al rango (set precomputado).
  */
 import { DateTime } from "luxon";
 import { toLocalMinutesInterval, weekdayFor } from "@/src/domain/scheduling/time";
+
+import { occupiesCabin, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 
 export interface AnalyticsOrderRow {
   id: string;
@@ -27,7 +30,7 @@ export interface AnalyticsOrderRow {
 }
 
 export interface AnalyticsReservationRow {
-  kind: "booking" | "block";
+  kind: ReservationKind;
   status: "held" | "confirmed" | "cancelled" | "expired";
   startsAt: string;
   endsAt: string;
@@ -172,7 +175,10 @@ function occupancyFor(
     const win = openWindowFor(date, input);
     if (!win) continue;
     for (const r of rows) {
-      if (r.kind !== "booking" || r.status !== "confirmed") continue;
+      // Ocupación mide SALA TRABAJANDO, no venta: una sesión de curso ocupa la
+      // cabina igual que una reserva vendida. El bloqueo de mantención no (ahí
+      // la sala está cerrada, no ocupada).
+      if (!occupiesCabin(r.kind) || r.status !== "confirmed") continue;
       const { start, end } = toLocalMinutesInterval(date, input.tz, r.startsAt, r.endsAt);
       booked += Math.max(0, Math.min(end, win.close) - Math.max(start, win.open));
     }

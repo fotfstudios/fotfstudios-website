@@ -18,6 +18,7 @@ import { waLink } from "@/lib/whatsapp";
 import { AdminCalendar } from "../../nueva/_components/AdminCalendar";
 import { DayStrip } from "../../nueva/_components/DayStrip";
 import { DurationStepper } from "../../nueva/_components/DurationStepper";
+import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 import { SlotGrid, type SlotView } from "../../nueva/_components/SlotGrid";
 import type { DayConsoleData } from "../../nueva/types";
 import { getRescheduleDayAction, rescheduleAction } from "../actions";
@@ -187,7 +188,7 @@ function ReschedulePicker({
     const full = { start: m, end: m + duration * 60 };
     const hits = occupancy.filter((o) => overlaps(hour, o));
     if (hits.length > 0) {
-      const isBlock = hits.some((o) => o.kind === "block");
+      const isBlock = hits.some((o) => isRoomBlock(o.kind));
       return { minute: m, tag: isBlock ? "bloqueo" : "ocupado", disabled: true, warn: false };
     }
     if (full.end > windowEnd || occupancy.some((o) => overlaps(full, o))) {
