@@ -137,6 +137,13 @@ export interface PendingBoleta {
   iva: number;
   total: number;
   createdAt: string;
+  /**
+   * A DÓNDE lleva esta boleta. `orderId` no sirve de destino: la ficha de reserva
+   * resuelve por id de RESERVA, y un pedido de curso no tiene reserva en absoluto.
+   * Se resuelve acá para que la UI no tenga que adivinar la ruta.
+   */
+  reservationId: string | null;
+  enrollmentId: string | null;
 }
 
 type ResRow = {
@@ -633,7 +640,22 @@ export class SupabaseAdminRepository {
       .select("id, order_id, kind, neto, iva, total, created_at")
       .eq("status", "pendiente")
       .order("created_at", { ascending: true });
-    return (data ?? []).map((d) => ({
+    const docs = data ?? [];
+    if (docs.length === 0) return [];
+
+    // Dos lookups en lote (no uno por boleta) para saber a dónde lleva cada una:
+    // las de sala a su reserva, las de curso a su inscripción.
+    const orderIds = [...new Set(docs.map((d) => d.order_id))];
+    const [res, enr] = await Promise.all([
+      this.db.from("reservations").select("id, order_id").in("order_id", orderIds),
+      this.db.from("course_enrollments").select("id, order_id").in("order_id", orderIds),
+    ]);
+    const byOrderRes = new Map((res.data ?? []).map((r) => [r.order_id, r.id]));
+    // Un dúo son dos inscripciones sobre el mismo pedido: basta con una para
+    // llevar al dueño a la ficha (desde ahí ve a la pareja completa).
+    const byOrderEnr = new Map((enr.data ?? []).map((e) => [e.order_id, e.id]));
+
+    return docs.map((d) => ({
       id: d.id,
       orderId: d.order_id,
       kind: d.kind,
@@ -641,6 +663,8 @@ export class SupabaseAdminRepository {
       iva: d.iva,
       total: d.total,
       createdAt: d.created_at,
+      reservationId: byOrderRes.get(d.order_id) ?? null,
+      enrollmentId: byOrderEnr.get(d.order_id) ?? null,
     }));
   }
 

@@ -99,17 +99,29 @@ export default async function AdminHome() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-display text-xl text-bone">{formatCLP(doc.total)}</span>
-                    <Link
-                      href={`/admin/reservas/${doc.orderId}`}
-                      className="label-sm text-gold transition-colors hover:text-bone"
-                    >
-                      Ir al pedido
-                    </Link>
+                    {/* `orderId` no es destino: la ficha de reserva resuelve por id de
+                        RESERVA y un pedido de curso no tiene reserva. Si no hay a dónde
+                        ir, no se pinta un enlace muerto. */}
+                    {doc.enrollmentId ? (
+                      <Link
+                        href={`/admin/curso/inscripciones/${doc.enrollmentId}`}
+                        className="label-sm text-gold transition-colors hover:text-bone"
+                      >
+                        Ir a la inscripción
+                      </Link>
+                    ) : doc.reservationId ? (
+                      <Link
+                        href={`/admin/reservas/${doc.reservationId}`}
+                        className="label-sm text-gold transition-colors hover:text-bone"
+                      >
+                        Ir a la reserva
+                      </Link>
+                    ) : null}
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="mt-4 text-xs text-bone-mute">Emítelas en el portal del SII y registra el folio en cada reserva.</p>
+            <p className="mt-4 text-xs text-bone-mute">Emítelas en el portal del SII y registra el folio en cada ficha.</p>
           </Card>
         </div>
       )}
