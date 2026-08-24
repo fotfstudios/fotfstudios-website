@@ -259,6 +259,252 @@ export type Database = {
           },
         ]
       }
+      course_enrollments: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          expires_at: string | null
+          generation_id: string
+          id: string
+          lead_id: string | null
+          notes: string | null
+          order_id: string | null
+          paid_at: string | null
+          plan: string
+          price_clp: number
+          seat_no: number
+          status: string
+          student_email: string
+          student_name: string
+          student_phone: string | null
+          transferred_to: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          generation_id: string
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          plan: string
+          price_clp: number
+          seat_no: number
+          status?: string
+          student_email: string
+          student_name: string
+          student_phone?: string | null
+          transferred_to?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          generation_id?: string
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          plan?: string
+          price_clp?: number
+          seat_no?: number
+          status?: string
+          student_email?: string
+          student_name?: string
+          student_phone?: string | null
+          transferred_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "course_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_transferred_to_fkey"
+            columns: ["transferred_to"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_generations: {
+        Row: {
+          code: string
+          created_at: string
+          currency: string
+          enroll_deadline: string | null
+          id: string
+          name: string
+          notes: string | null
+          price_duo_clp: number
+          price_individual_clp: number
+          price_prueba_clp: number
+          pricing_label: string | null
+          resource_id: string
+          seats: number
+          starts_on: string | null
+          status: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          currency?: string
+          enroll_deadline?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          price_duo_clp: number
+          price_individual_clp: number
+          price_prueba_clp: number
+          pricing_label?: string | null
+          resource_id: string
+          seats?: number
+          starts_on?: string | null
+          status?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          currency?: string
+          enroll_deadline?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          price_duo_clp?: number
+          price_individual_clp?: number
+          price_prueba_clp?: number
+          pricing_label?: string | null
+          resource_id?: string
+          seats?: number
+          starts_on?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_generations_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_leads: {
+        Row: {
+          availability: string
+          created_at: string
+          email: string
+          experience: string
+          generation_id: string | null
+          id: string
+          message: string | null
+          name: string
+          phone: string
+          plan: string
+          status: string
+        }
+        Insert: {
+          availability: string
+          created_at?: string
+          email: string
+          experience: string
+          generation_id?: string | null
+          id?: string
+          message?: string | null
+          name: string
+          phone: string
+          plan: string
+          status?: string
+        }
+        Update: {
+          availability?: string
+          created_at?: string
+          email?: string
+          experience?: string
+          generation_id?: string | null
+          id?: string
+          message?: string | null
+          name?: string
+          phone?: string
+          plan?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_leads_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_sessions: {
+        Row: {
+          created_at: string
+          generation_id: string
+          id: string
+          n: number
+          reservation_id: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          id?: string
+          n: number
+          reservation_id?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          id?: string
+          n?: number
+          reservation_id?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_sessions_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "course_generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_sessions_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: true
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string
@@ -456,6 +702,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           id: string
+          kind: string
           mp_payment_id: string | null
           mp_preference_id: string | null
           mp_refund_id: string | null
@@ -481,6 +728,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          kind?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           mp_refund_id?: string | null
@@ -506,6 +754,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          kind?: string
           mp_payment_id?: string | null
           mp_preference_id?: string | null
           mp_refund_id?: string | null
