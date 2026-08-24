@@ -1674,6 +1674,19 @@ export type Database = {
         Args: { p_created_by?: string; p_generation: string; p_sessions: Json }
         Returns: number
       }
+      substitute_student: {
+        Args: {
+          p_email: string
+          p_enrollment: string
+          p_name: string
+          p_phone?: string
+        }
+        Returns: undefined
+      }
+      transfer_enrollment: {
+        Args: { p_enrollment: string; p_target: string }
+        Returns: string
+      }
     }
     Enums: {
       order_status:

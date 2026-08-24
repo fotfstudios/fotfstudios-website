@@ -456,3 +456,59 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
   });
 }
+
+/**
+ * Traspasa el cupo a otra generación. NO mueve plata: el pedido, su boleta y su
+ * receptor quedan intactos, y el alumno no paga la diferencia si la generación
+ * nueva subió de precio. Traspasar no es recomprar.
+ */
+export async function transferEnrollmentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const enrollmentId = str(fd, "enrollmentId");
+    const target = str(fd, "targetGenerationId");
+    if (!target) throw new Error("Elige la generación de destino.");
+
+    try {
+      await courseRepository().transferEnrollment(enrollmentId, target);
+    } catch (e) {
+      throw new Error(transferErrorMessage(e instanceof Error ? e.message : ""));
+    }
+    revalidatePath("/admin/curso");
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+  });
+}
+
+function transferErrorMessage(raw: string): string {
+  if (/curso_sin_cupos/.test(raw)) return "La generación de destino no tiene cupos libres.";
+  if (/curso_misma_generacion/.test(raw)) return "Esa es la generación en la que ya está.";
+  if (/curso_generation_closed/.test(raw)) return "Esa generación está cerrada.";
+  if (/curso_enrollment_not_active/.test(raw)) return "Esta inscripción ya no está activa.";
+  return "No se pudo traspasar el cupo.";
+}
+
+/** Designa un reemplazante: cambia quién asiste, no quién pagó. */
+export async function substituteStudentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const enrollmentId = str(fd, "enrollmentId");
+    const name = required(fd, "name", "el nombre del reemplazante");
+    const email = required(fd, "email", "el email del reemplazante");
+    if (!email.includes("@")) throw new Error("Email inválido.");
+
+    try {
+      await courseRepository().substituteStudent(enrollmentId, {
+        name,
+        email,
+        phone: str(fd, "phone") || null,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      throw new Error(
+        /not_active/.test(msg) ? "Esta inscripción ya no está activa." : "No se pudo designar el reemplazante.",
+      );
+    }
+    revalidatePath("/admin/curso");
+    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
+  });
+}

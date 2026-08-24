@@ -504,6 +504,28 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
+  async transferEnrollment(enrollmentId: string, targetGenerationId: string): Promise<string> {
+    const { data, error } = await this.db.rpc("transfer_enrollment", {
+      p_enrollment: enrollmentId,
+      p_target: targetGenerationId,
+    });
+    if (error) throw new Error(error.message);
+    return data as unknown as string;
+  }
+
+  async substituteStudent(
+    enrollmentId: string,
+    student: { name: string; email: string; phone?: string | null },
+  ): Promise<void> {
+    const { error } = await this.db.rpc("substitute_student", {
+      p_enrollment: enrollmentId,
+      p_name: student.name,
+      p_email: student.email,
+      p_phone: student.phone ?? undefined,
+    });
+    if (error) throw new Error(error.message);
+  }
+
   async setEnrollmentNotes(id: string, notes: string | null): Promise<void> {
     const { error } = await this.db.from("course_enrollments").update({ notes }).eq("id", id);
     if (error) throw new Error(error.message);

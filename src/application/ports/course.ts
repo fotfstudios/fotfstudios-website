@@ -149,6 +149,13 @@ export interface CourseEnrollmentRepository {
    * queda donde está; esto solo devuelve el asiento al inventario.
    */
   cancelPaidEnrollment(orderId: string): Promise<void>;
+  /** Traspasa el cupo a otra generación. Devuelve el id de la inscripción nueva. */
+  transferEnrollment(enrollmentId: string, targetGenerationId: string): Promise<string>;
+  /** Cambia quién asiste, no quién pagó: la boleta no se toca. */
+  substituteStudent(
+    enrollmentId: string,
+    student: { name: string; email: string; phone?: string | null },
+  ): Promise<void>;
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
 }
 

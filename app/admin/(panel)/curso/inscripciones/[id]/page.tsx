@@ -15,6 +15,7 @@ import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { cancelEnrollmentAction, setEnrollmentNotesAction } from "../../actions";
 import { AnularPagada } from "./_components/AnularPagada";
 import { CobroCurso } from "./_components/CobroCurso";
+import { SinDinero } from "./_components/SinDinero";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Inscripción — Admin", robots: { index: false } };
@@ -43,6 +44,10 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
     inscripcion.orderId ? repo.taxDocumentsForOrder(inscripcion.orderId) : Promise.resolve([]),
     repo.listSessions(inscripcion.generationId),
   ]);
+  // Destinos posibles del traslado: cualquier otra generación que reciba gente.
+  const destinos = (await repo.listGenerations())
+    .filter((g) => g.id !== inscripcion.generationId && g.status !== "cerrada" && g.status !== "cancelada")
+    .map((g) => ({ id: g.id, code: g.code, name: g.name, seatsLeft: g.seatsLeft }));
 
   // Qué dicen los términos para ESTA inscripción, hoy. Se calcula en el servidor
   // para que el dueño vea la regla ya resuelta y no tenga que contar días.
@@ -144,6 +149,14 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
             paidAt={inscripcion.paidAt ? fmtDateTime(inscripcion.paidAt) : null}
             waDigits={waDigits || null}
           />
+
+          {(inscripcion.status === "pagada" || inscripcion.status === "reservada") && (
+            <SinDinero
+              enrollmentId={inscripcion.id}
+              studentName={inscripcion.studentName}
+              destinos={destinos}
+            />
+          )}
 
           {inscripcion.status === "pagada" && (
             <Card title="Cancelar">

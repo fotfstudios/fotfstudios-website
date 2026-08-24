@@ -29,13 +29,18 @@ async function raw(sql: string, params: unknown[] = []) {
 }
 
 let genSeq = 0;
-async function generation(seats = 6): Promise<string> {
+/**
+ * `status` es parámetro porque el índice course_generations_one_open solo admite
+ * UNA generación abierta: un test de traslado necesita dos, y el destino sirve
+ * igual en borrador (es justo donde se mueve a alguien cuya cohorte se canceló).
+ */
+async function generation(seats = 6, status = "abierta"): Promise<string> {
   const { rows } = await raw(
     `insert into course_generations
        (resource_id, code, name, status, seats, price_duo_clp, price_individual_clp, price_prueba_clp)
-     values ((select id from resources where active limit 1), $1, 'Test', 'abierta', $2, 79990, 139990, 19990)
+     values ((select id from resources where active limit 1), $1, 'Test', $2, $3, 79990, 139990, 19990)
      returning id`,
-    [`GB${++genSeq}`, seats],
+    [`GB${++genSeq}`, status, seats],
   );
   return rows[0].id;
 }
@@ -464,5 +469,111 @@ describe("mark_refunded — el cupo vuelve al inventario", () => {
     await expect(raw("select mark_refunded($1, 'refund-5', null)", [o[0].id])).resolves.toBeTruthy();
     const e = await raw("select count(*)::int as n from course_enrollments where order_id = $1", [o[0].id]);
     expect(e.rows[0].n).toBe(0);
+  });
+});
+
+/**
+ * Traslado y reemplazante: las dos salidas SIN dinero de los términos. Lo que
+ * las define es lo que NO pasa — ni nota de crédito, ni boleta nueva, ni cambio
+ * en el pedido.
+ */
+describe("traslado de cupo", () => {
+  it("mueve al alumno y libera el asiento viejo", async () => {
+    const origen = await generation(2);
+    const destino = await generation(2, "borrador");
+    const orderId = await repo.createEnrollment({
+      generationId: origen,
+      plan: "individual",
+      students: [alumno(1)],
+    });
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    const { rows: e0 } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+
+    const nueva = await repo.transferEnrollment(e0[0].id, destino);
+
+    const vieja = await raw("select status, transferred_to from course_enrollments where id = $1", [e0[0].id]);
+    expect(vieja.rows[0].status).toBe("trasladada");
+    expect(vieja.rows[0].transferred_to).toBe(nueva);
+
+    // Conserva pago y precio: traspasar no es recomprar.
+    const n = await raw("select generation_id, status, price_clp, order_id from course_enrollments where id = $1", [nueva]);
+    expect(n.rows[0]).toMatchObject({ generation_id: destino, status: "pagada", price_clp: 139990, order_id: orderId });
+
+    // El asiento del origen quedó libre.
+    await expect(
+      repo.createEnrollment({ generationId: origen, plan: "individual", students: [alumno(2)] }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("no mueve plata: sin nota de crédito ni boleta nueva", async () => {
+    const origen = await generation();
+    const destino = await generation(6, "borrador");
+    const orderId = await repo.createEnrollment({
+      generationId: origen, plan: "individual", students: [alumno(1)],
+    });
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    const { rows: e0 } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+
+    await repo.transferEnrollment(e0[0].id, destino);
+
+    const t = await raw("select kind from tax_documents where order_id = $1", [orderId]);
+    expect(t.rows.map((r) => r.kind)).toEqual(["boleta"]); // la original, sola
+    const o = await raw("select status, refunded_amount_clp from orders where id = $1", [orderId]);
+    expect(o.rows[0]).toMatchObject({ status: "paid", refunded_amount_clp: 0 });
+  });
+
+  it("una generación sin cupos no recibe el traslado", async () => {
+    const origen = await generation();
+    // 'en_curso' porque hay que LLENARLA (createEnrollment exige abierta o en
+    // curso) y el índice one_open solo restringe 'abierta'.
+    const lleno = await generation(1, "en_curso");
+    await repo.createEnrollment({ generationId: lleno, plan: "individual", students: [alumno(9)] });
+    const orderId = await repo.createEnrollment({
+      generationId: origen, plan: "individual", students: [alumno(1)],
+    });
+    const { rows: e0 } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+
+    await expect(repo.transferEnrollment(e0[0].id, lleno)).rejects.toThrow(/curso_sin_cupos/);
+    // Y el original sigue intacto.
+    const v = await raw("select status from course_enrollments where id = $1", [e0[0].id]);
+    expect(v.rows[0].status).toBe("reservada");
+  });
+});
+
+describe("reemplazante", () => {
+  it("cambia quién asiste sin tocar el pedido ni la boleta", async () => {
+    const gen = await generation();
+    const orderId = await repo.createEnrollment({
+      generationId: gen, plan: "individual", students: [alumno(1)],
+    });
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    const { rows: e0 } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+
+    await repo.substituteStudent(e0[0].id, { name: "Fran Soto", email: "FRAN@correo.cl" });
+
+    const e = await raw("select student_name, student_email, notes, status from course_enrollments where id = $1", [e0[0].id]);
+    expect(e.rows[0].student_name).toBe("Fran Soto");
+    expect(e.rows[0].student_email).toBe("fran@correo.cl"); // normalizado
+    expect(e.rows[0].status).toBe("pagada");
+    // Queda el rastro de a quién reemplaza.
+    expect(e.rows[0].notes).toMatch(/Reemplaza a Alumno 1/);
+
+    // La boleta va al PAGADOR: la plata no se movió, no hay hecho tributario nuevo.
+    const o = await raw("select customer_email from orders where id = $1", [orderId]);
+    expect(o.rows[0].customer_email).toBe("a1@correo.cl");
+    const t = await raw("select count(*)::int as n from tax_documents where order_id = $1", [orderId]);
+    expect(t.rows[0].n).toBe(1);
+  });
+
+  it("una inscripción anulada no acepta reemplazante", async () => {
+    const gen = await generation();
+    const orderId = await repo.createEnrollment({
+      generationId: gen, plan: "individual", students: [alumno(1)],
+    });
+    await repo.cancelCourseOrder(orderId);
+    const { rows: e0 } = await raw("select id from course_enrollments where order_id = $1", [orderId]);
+    await expect(
+      repo.substituteStudent(e0[0].id, { name: "X", email: "x@correo.cl" }),
+    ).rejects.toThrow(/curso_enrollment_not_active/);
   });
 });
