@@ -121,3 +121,27 @@ export function isFull(seats: number, taken: number): boolean {
 export function fitsInGeneration(seats: number, taken: number, plan: CoursePlan): boolean {
   return seatsLeft(seats, taken) >= seatsNeeded(plan);
 }
+
+/**
+ * El Curso de Iniciación DJ es un servicio educacional EXENTO de IVA.
+ *
+ * Esto NO aplica a la sala ni a la sesión de prueba: esas son horas de cabina
+ * (afectas, IVA incluido, con su tax_mode en el price book). La exención es del
+ * curso como servicio de enseñanza, y por eso vive acá y no en el motor de
+ * precios de la sala.
+ *
+ * Consecuencia en la boleta: el neto es el total y el IVA es cero. Si esto
+ * cambiara, cambia acá y en un solo lugar.
+ */
+export const COURSE_IVA_EXEMPT = true;
+
+/**
+ * Montos con los que se crea el pedido del curso. Devuelve el desglose que va a
+ * `orders` y, de ahí, a la boleta del SII.
+ */
+export function courseOrderAmounts(grossClp: number): { amount: number; net: number; tax: number } {
+  if (COURSE_IVA_EXEMPT) return { amount: grossClp, net: grossClp, tax: 0 };
+  // Rama inalcanzable hoy; queda escrita para que reactivar el IVA sea un cambio
+  // de una constante y no una arqueología por el repositorio.
+  throw new Error("curso_iva_afecto_no_implementado");
+}

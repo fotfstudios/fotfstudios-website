@@ -71,9 +71,14 @@ describe("createEnrollment — cupos y pedido en una sola transacción", () => {
     });
 
     const o = await raw("select kind, status, amount_clp, net_clp, tax_clp from orders where id = $1", [orderId]);
-    expect(o.rows[0]).toMatchObject({ kind: "course", status: "pending_payment", amount_clp: 139990 });
-    // Neto + IVA cuadran con el bruto: la boleta no puede descuadrar.
-    expect(o.rows[0].net_clp + o.rows[0].tax_clp).toBe(139990);
+    // EXENTO de IVA: el neto ES el total y el impuesto es cero.
+    expect(o.rows[0]).toMatchObject({
+      kind: "course",
+      status: "pending_payment",
+      amount_clp: 139990,
+      net_clp: 139990,
+      tax_clp: 0,
+    });
 
     const e = await raw("select seat_no, status, price_clp from course_enrollments where order_id = $1", [orderId]);
     expect(e.rows).toHaveLength(1);
@@ -150,9 +155,16 @@ describe("confirm_course_payment — pago y boleta", () => {
     const e = await raw("select status, paid_method from course_enrollments where order_id = $1", [orderId]);
     expect(e.rows.every((r) => r.status === "pagada" && r.paid_method === "transferencia")).toBe(true);
 
-    const t = await raw("select kind, status, total from tax_documents where order_id = $1", [orderId]);
+    const t = await raw("select kind, status, neto, iva, total from tax_documents where order_id = $1", [orderId]);
     expect(t.rows).toHaveLength(1);
-    expect(t.rows[0]).toMatchObject({ kind: "boleta", status: "pendiente", total: 79990 * 2 });
+    // La boleta del SII sale exenta: todo neto, cero IVA.
+    expect(t.rows[0]).toMatchObject({
+      kind: "boleta",
+      status: "pendiente",
+      neto: 79990 * 2,
+      iva: 0,
+      total: 79990 * 2,
+    });
   });
 
   // Idempotencia: el webhook de MP puede re-entregar el mismo pago.
@@ -286,8 +298,7 @@ describe("crédito de la sesión de prueba", () => {
     });
 
     const o = await raw("select amount_clp, net_clp, tax_clp from orders where id = $1", [orderId]);
-    expect(o.rows[0].amount_clp).toBe(139990 - 19990);
-    expect(o.rows[0].net_clp + o.rows[0].tax_clp).toBe(120000);
+    expect(o.rows[0]).toMatchObject({ amount_clp: 120000, net_clp: 120000, tax_clp: 0 });
 
     const l = await raw(
       "select line_type, subtotal_clp from order_lines where order_id = $1 order by line_type", [orderId]);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COURSE_PLANS,
   ENROLLMENT_STATUSES,
+  courseOrderAmounts,
   SEAT_HOLDING_STATUSES,
   fitsInGeneration,
   holdsSeat,
@@ -100,5 +101,34 @@ describe("fitsInGeneration — un dúo no entra en un solo cupo", () => {
   it("llena no entra nadie", () => {
     expect(fitsInGeneration(6, 6, "individual")).toBe(false);
     expect(fitsInGeneration(6, 6, "duo")).toBe(false);
+  });
+});
+
+/**
+ * El curso es un servicio educacional EXENTO de IVA. La boleta lleva el total
+ * como neto y cero de impuesto. Confirmado con el dueño antes de vender.
+ */
+describe("courseOrderAmounts — el curso no lleva IVA", () => {
+  it("neto es el total y el IVA es cero", () => {
+    expect(courseOrderAmounts(139990)).toEqual({ amount: 139990, net: 139990, tax: 0 });
+  });
+
+  it("un dúo tampoco lleva IVA", () => {
+    expect(courseOrderAmounts(79990 * 2)).toEqual({ amount: 159980, net: 159980, tax: 0 });
+  });
+
+  // Con crédito de prueba aplicado el total baja, y sigue sin IVA.
+  it("con descuento aplicado el neto sigue igual al total cobrado", () => {
+    const { amount, net, tax } = courseOrderAmounts(139990 - 19990);
+    expect(amount).toBe(120000);
+    expect(net).toBe(120000);
+    expect(tax).toBe(0);
+  });
+
+  it("neto + IVA siempre cuadra con el total (la boleta no puede descuadrar)", () => {
+    for (const bruto of [19990, 79990, 120000, 139990, 159980]) {
+      const { amount, net, tax } = courseOrderAmounts(bruto);
+      expect(net + tax).toBe(amount);
+    }
   });
 });

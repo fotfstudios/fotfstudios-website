@@ -29,10 +29,10 @@ import {
   type CoursePlan,
   type EnrollmentStatus,
   type GenerationStatus,
+  courseOrderAmounts,
   seatsLeft,
   seatsTaken,
 } from "@/src/domain/course/course";
-import { netFromGrossInclusive, taxFromGrossInclusive } from "@/src/domain/money/money";
 import { type CourseCredit, creditDiscount, creditExpiryFrom, isCreditApplicable } from "@/src/domain/course/credit";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
@@ -420,13 +420,15 @@ export class SupabaseCourseRepository
 
     // El crédito baja el EFECTIVO: el pedido cobra menos, y la boleta cubre
     // exactamente lo cobrado. El precio de lista queda en la línea del curso.
-    let amount = bruto;
+    let cobrado = bruto;
     if (input.creditId) {
       const credit = await this.creditById(input.creditId);
       if (!credit) throw new Error("curso_credito_no_disponible");
-      amount = bruto - creditDiscount(credit, bruto);
+      cobrado = bruto - creditDiscount(credit, bruto);
     }
-    const taxPct = await this.ivaPct();
+    // El curso es EXENTO de IVA: neto = total, IVA = 0. No se usa la tasa del
+    // price book de la sala, que cotiza horas de cabina (afectas).
+    const { amount, net, tax } = courseOrderAmounts(cobrado);
 
     const { data, error } = await this.db.rpc("create_course_enrollment", {
       p_generation: input.generationId,
@@ -437,8 +439,8 @@ export class SupabaseCourseRepository
         phone: s.phone ?? null,
       })),
       p_amount: amount,
-      p_net: netFromGrossInclusive(amount, taxPct),
-      p_tax: taxFromGrossInclusive(amount, taxPct),
+      p_net: net,
+      p_tax: tax,
       p_lead: input.leadId ?? undefined,
       p_terms_version: input.termsVersion ?? undefined,
       p_terms_source: input.termsSource ?? undefined,
@@ -571,12 +573,6 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
-  /** IVA vigente desde el catálogo; el monto del pedido es bruto IVA-incluido. */
-  private async ivaPct(): Promise<number> {
-    const { data, error } = await this.db.from("tax_rates").select("pct").eq("code", "IVA").single();
-    if (error) throw new Error(error.message);
-    return Number(data.pct);
-  }
 
   /** Documentos tributarios del pedido (boleta + notas de crédito, si las hay). */
   async taxDocumentsForOrder(orderId: string): Promise<CourseTaxDoc[]> {
