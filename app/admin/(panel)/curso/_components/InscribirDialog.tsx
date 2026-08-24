@@ -8,7 +8,7 @@ import { Field, Input, Select, Textarea } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { formatCLP } from "@/src/domain/money/money";
 import type { CoursePlan } from "@/src/domain/course/course";
-import { createEnrollmentAction } from "../actions";
+import { createEnrollmentAction, lookupTrialCreditAction } from "../actions";
 
 /**
  * Inscribir TOMA CUPO, así que vive detrás de un diálogo y no de un botón suelto
@@ -32,10 +32,21 @@ export function InscribirDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState<CoursePlan>(lead?.plan === "individual" ? "individual" : "duo");
+  const [credit, setCredit] = useState<{ id: string; amountClp: number } | null>(null);
 
   const needed = plan === "duo" ? 2 : 1;
   const noCabe = seatsLeft < needed;
-  const total = (plan === "duo" ? prices.duo : prices.individual) * needed;
+  const bruto = (plan === "duo" ? prices.duo : prices.individual) * needed;
+  const descuento = credit ? Math.min(credit.amountClp, bruto) : 0;
+  const total = bruto - descuento;
+
+  // El crédito se busca al salir del campo de email: es una consulta por persona,
+  // no algo que deba correr en cada tecla.
+  async function buscarCredito(email: string) {
+    if (!email.includes("@")) return setCredit(null);
+    const r = await lookupTrialCreditAction(email);
+    setCredit(r.ok && r.data ? { id: r.data.id, amountClp: r.data.amountClp } : null);
+  }
 
   return (
     <>
@@ -71,7 +82,14 @@ export function InscribirDialog({
                 <Input name="name1" required maxLength={80} defaultValue={lead?.name ?? ""} />
               </Field>
               <Field label="Email">
-                <Input name="email1" type="email" required maxLength={120} defaultValue={lead?.email ?? ""} />
+                <Input
+                  name="email1"
+                  type="email"
+                  required
+                  maxLength={120}
+                  defaultValue={lead?.email ?? ""}
+                  onBlur={(e) => buscarCredito(e.target.value)}
+                />
               </Field>
             </div>
             <Field label="WhatsApp" hint="Opcional.">
@@ -99,8 +117,18 @@ export function InscribirDialog({
               <Textarea name="notes" maxLength={500} rows={2} />
             </Field>
 
+            {credit && (
+              <>
+                <input type="hidden" name="creditId" value={credit.id} />
+                <p className="label-sm text-gold">
+                  Tiene crédito de sesión de prueba: −{formatCLP(descuento)}
+                </p>
+              </>
+            )}
             <p className="label-sm text-bone-mute">
-              Total del pedido: <span className="text-gold">{formatCLP(total)}</span> · queda pendiente de pago.
+              Total del pedido: <span className="text-gold">{formatCLP(total)}</span>
+              {descuento > 0 && <span className="ml-2 text-bone-mute/70">(de {formatCLP(bruto)})</span>} · queda
+              pendiente de pago.
             </p>
 
             {noCabe ? (

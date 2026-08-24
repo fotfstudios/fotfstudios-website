@@ -13,6 +13,7 @@ import type {
   CourseSchedulingRepository,
   CourseEnrollmentRepository,
   CourseEnrollmentRow,
+  CourseCreditRepository,
   CourseFinalizer,
   CourseLeadRepository,
   CourseLeadRow,
@@ -31,6 +32,7 @@ import {
   seatsTaken,
 } from "@/src/domain/course/course";
 import { netFromGrossInclusive, taxFromGrossInclusive } from "@/src/domain/money/money";
+import { type CourseCredit, creditDiscount, creditExpiryFrom, isCreditApplicable } from "@/src/domain/course/credit";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
 
@@ -50,6 +52,22 @@ export function courseSessionErrorNumber(message: string): number | null {
 }
 
 type GenRow = Database["public"]["Tables"]["course_generations"]["Row"];
+
+function toCredit(r: {
+  id: string;
+  email: string;
+  amount_clp: number;
+  expires_at: string;
+  consumed_order_id: string | null;
+}): CourseCredit {
+  return {
+    id: r.id,
+    email: r.email,
+    amountClp: r.amount_clp,
+    expiresAt: r.expires_at,
+    consumedOrderId: r.consumed_order_id,
+  };
+}
 
 const ENROLLMENT_SELECT =
   "id, generation_id, order_id, seat_no, plan, student_name, student_email, student_phone, " +
@@ -120,6 +138,7 @@ export class SupabaseCourseRepository
     CourseGenerationRepository,
     CourseLeadRepository,
     CourseEnrollmentRepository,
+    CourseCreditRepository,
     CourseFinalizer
 {
   constructor(private readonly db: SupabaseClient<Database>) {}
@@ -391,7 +410,16 @@ export class SupabaseCourseRepository
     // El precio sale de la GENERACIÓN, nunca del formulario: el admin elige a
     // quién inscribir, no cuánto cobrarle.
     const unit = input.plan === "duo" ? gen.prices.duo : gen.prices.individual;
-    const amount = unit * input.students.length;
+    const bruto = unit * input.students.length;
+
+    // El crédito baja el EFECTIVO: el pedido cobra menos, y la boleta cubre
+    // exactamente lo cobrado. El precio de lista queda en la línea del curso.
+    let amount = bruto;
+    if (input.creditId) {
+      const credit = await this.creditById(input.creditId);
+      if (!credit) throw new Error("curso_credito_no_disponible");
+      amount = bruto - creditDiscount(credit, bruto);
+    }
     const taxPct = await this.ivaPct();
 
     const { data, error } = await this.db.rpc("create_course_enrollment", {
@@ -409,6 +437,7 @@ export class SupabaseCourseRepository
       p_terms_version: input.termsVersion ?? undefined,
       p_terms_source: input.termsSource ?? undefined,
       p_notes: input.notes ?? undefined,
+      p_credit: input.creditId ?? undefined,
     });
     if (error) throw new Error(error.message);
     return data as unknown as string;
@@ -518,5 +547,70 @@ export class SupabaseCourseRepository
   async applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop"> {
     const status = await this.confirmCoursePayment(orderId, paymentId, "mercadopago");
     return status === "confirmed" ? "applied" : "noop";
+  }
+
+  // ── Crédito de la sesión de prueba ───────────────────────────────────────
+
+  async issueTrialCredit(input: {
+    email: string;
+    amountClp: number;
+    sessionStartsAt: string;
+    sourceReservationId?: string | null;
+    note?: string | null;
+  }): Promise<string> {
+    const { data, error } = await this.db
+      .from("course_credits")
+      .insert({
+        email: input.email.toLowerCase(),
+        amount_clp: input.amountClp,
+        expires_at: creditExpiryFrom(input.sessionStartsAt),
+        source_reservation_id: input.sourceReservationId ?? null,
+        note: input.note ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  }
+
+  /**
+   * El crédito vigente de este email. Se filtra en la DB por lo barato (sin
+   * consumir, no vencido) y se confirma con la regla del dominio, que es la
+   * única fuente de "aplicable".
+   */
+  async applicableCredit(email: string): Promise<CourseCredit | null> {
+    const { data, error } = await this.db
+      .from("course_credits")
+      .select("id, email, amount_clp, expires_at, consumed_order_id")
+      .eq("email", email.toLowerCase())
+      .is("consumed_order_id", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const credit = toCredit(data);
+    return isCreditApplicable(credit, email) ? credit : null;
+  }
+
+  async listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]> {
+    const { data, error } = await this.db
+      .from("course_credits")
+      .select("id, email, amount_clp, expires_at, consumed_order_id, issued_at, note")
+      .order("issued_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ ...toCredit(r), issuedAt: r.issued_at, note: r.note }));
+  }
+
+  private async creditById(id: string): Promise<CourseCredit | null> {
+    const { data, error } = await this.db
+      .from("course_credits")
+      .select("id, email, amount_clp, expires_at, consumed_order_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toCredit(data) : null;
   }
 }

@@ -8,6 +8,7 @@ import type {
 } from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import type { SolicitudTab, SolicitudesListQuery } from "@/src/domain/admin/curso-solicitudes-list";
+import type { CourseCredit } from "@/src/domain/course/credit";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 
 export interface CourseSessionRow {
@@ -127,6 +128,8 @@ export interface NewEnrollment {
   students: { name: string; email: string; phone?: string | null }[];
   leadId?: string | null;
   notes?: string | null;
+  /** Crédito de sesión de prueba a consumir, si aplica. */
+  creditId?: string | null;
   termsVersion?: string;
   termsSource?: "customer" | "staff";
 }
@@ -163,4 +166,18 @@ export interface CourseFinalizer {
   pendingCourseOrder(orderId: string): Promise<{ orderId: string } | null>;
   /** Confirma cupos + boleta. 'noop' si la inscripción ya se anuló o ya estaba pagada. */
   applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop">;
+}
+
+export interface CourseCreditRepository {
+  /** Emite el crédito de una sesión de prueba. Idempotente por reserva de origen. */
+  issueTrialCredit(input: {
+    email: string;
+    amountClp: number;
+    sessionStartsAt: string;
+    sourceReservationId?: string | null;
+    note?: string | null;
+  }): Promise<string>;
+  /** Crédito vigente y sin usar de este email, si lo hay. */
+  applicableCredit(email: string): Promise<CourseCredit | null>;
+  listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]>;
 }

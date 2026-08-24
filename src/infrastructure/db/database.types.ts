@@ -259,6 +259,57 @@ export type Database = {
           },
         ]
       }
+      course_credits: {
+        Row: {
+          amount_clp: number
+          consumed_at: string | null
+          consumed_order_id: string | null
+          email: string
+          expires_at: string
+          id: string
+          issued_at: string
+          note: string | null
+          source_reservation_id: string | null
+        }
+        Insert: {
+          amount_clp: number
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          issued_at?: string
+          note?: string | null
+          source_reservation_id?: string | null
+        }
+        Update: {
+          amount_clp?: number
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          note?: string | null
+          source_reservation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_credits_consumed_order_id_fkey"
+            columns: ["consumed_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_credits_source_reservation_id_fkey"
+            columns: ["source_reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_enrollments: {
         Row: {
           cancelled_at: string | null
@@ -1452,6 +1503,7 @@ export type Database = {
       create_course_enrollment: {
         Args: {
           p_amount: number
+          p_credit?: string
           p_generation: string
           p_lead?: string
           p_net: number

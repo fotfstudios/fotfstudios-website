@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
 import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
+import { rangeFor } from "@/src/domain/scheduling/time";
 import { adminRepository, courseRepository, db, notificationService, paymentService } from "@/src/composition";
 import { hostFromHeaders } from "@/lib/urls";
 import { fmtDateTime } from "@/components/admin/format";
@@ -189,6 +190,7 @@ export async function createEnrollmentAction(
         students,
         leadId: str(fd, "leadId") || null,
         notes: str(fd, "notes") || null,
+        creditId: str(fd, "creditId") || null,
         // El staff atestigua el consentimiento, igual que en la reserva manual.
         termsSource: "staff",
         termsVersion: TERMS_VERSION,
@@ -337,5 +339,52 @@ export async function shareCoursePaymentLinkAction(
 
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
     return { initPoint: pref.value.initPoint, amount: inscripcion.orderAmountClp ?? inscripcion.priceClp };
+  });
+}
+
+/**
+ * Registra una sesión de prueba ya realizada y emite su crédito.
+ *
+ * La prueba se vende y agenda por los caminos que ya existen (WhatsApp → reserva
+ * manual); acá solo queda el token que la acredita contra el curso. Se separó a
+ * propósito de create_checkout: tocar el camino del dinero de la sala para ganar
+ * un flag no vale el riesgo.
+ */
+export async function issueTrialCreditAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.billing");
+    const email = str(fd, "email").toLowerCase();
+    const date = str(fd, "sessionDate");
+    if (!email || !email.includes("@")) throw new Error("Email inválido.");
+    if (!DATE_RE.test(date)) throw new Error("Fecha de la sesión inválida.");
+
+    const repo = courseRepository();
+    const generacion = await repo.currentGeneration();
+    // El monto sale de la generación vigente, no del formulario.
+    const amount = generacion?.prices.prueba;
+    if (!amount) throw new Error("No hay generación vigente que fije el precio de la prueba.");
+
+    const resource = await adminRepository().defaultResource();
+    const { startsAt } = rangeFor(date, 12 * 60, 1, resource?.timezone ?? "America/Santiago");
+
+    await repo.issueTrialCredit({
+      email,
+      amountClp: amount,
+      sessionStartsAt: startsAt,
+      note: str(fd, "note") || null,
+    });
+    revalidatePath("/admin/curso");
+  });
+}
+
+/** Busca el crédito de prueba vigente de un email, para mostrarlo antes de inscribir. */
+export async function lookupTrialCreditAction(
+  email: string,
+): Promise<ActionDataResult<{ id: string; amountClp: number; expiresAt: string } | null>> {
+  return runData(async () => {
+    await requirePermission("course.manage");
+    if (!email || !email.includes("@")) return null;
+    const credit = await courseRepository().applicableCredit(email);
+    return credit ? { id: credit.id, amountClp: credit.amountClp, expiresAt: credit.expiresAt } : null;
   });
 }

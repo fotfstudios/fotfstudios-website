@@ -43,7 +43,7 @@ async function generation(seats = 6): Promise<string> {
 const alumno = (n: number) => ({ name: `Alumno ${n}`, email: `a${n}@correo.cl`, phone: "+56912345678" });
 
 beforeEach(async () => {
-  await raw("truncate course_enrollments, course_sessions, course_leads, course_generations cascade");
+  await raw("truncate course_credits, course_enrollments, course_sessions, course_leads, course_generations cascade");
   await raw("truncate reservations, orders, order_lines, tax_documents cascade");
 });
 
@@ -238,5 +238,95 @@ describe("por qué el curso no usa confirm_payment", () => {
     expect(t.rows[0].n).toBe(1);
     const o = await raw("select notified_at from orders where id = $1", [orderId]);
     expect(o.rows[0].notified_at).toBeNull(); // el email del curso todavía puede salir
+  });
+});
+
+describe("crédito de la sesión de prueba", () => {
+  const cred = (over: Record<string, unknown> = {}) => ({
+    email: "cami@correo.cl",
+    amountClp: 19990,
+    sessionStartsAt: new Date().toISOString(),
+    ...over,
+  });
+
+  it("se emite y se encuentra por email", async () => {
+    await repo.issueTrialCredit(cred());
+    const c = await repo.applicableCredit("CAMI@CORREO.CL"); // sin distinguir mayúsculas
+    expect(c?.amountClp).toBe(19990);
+  });
+
+  it("un crédito vencido no aparece", async () => {
+    const hace10dias = new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString();
+    await repo.issueTrialCredit(cred({ sessionStartsAt: hace10dias }));
+    expect(await repo.applicableCredit("cami@correo.cl")).toBeNull();
+  });
+
+  // Lo que dicen los términos: el descuento sale del EFECTIVO cobrado, y la
+  // boleta cubre exactamente eso.
+  it("descuenta del pedido y deja una línea de descuento", async () => {
+    const gen = await generation();
+    await repo.issueTrialCredit(cred());
+    const credit = await repo.applicableCredit("cami@correo.cl");
+
+    const orderId = await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+      creditId: credit!.id,
+    });
+
+    const o = await raw("select amount_clp, net_clp, tax_clp from orders where id = $1", [orderId]);
+    expect(o.rows[0].amount_clp).toBe(139990 - 19990);
+    expect(o.rows[0].net_clp + o.rows[0].tax_clp).toBe(120000);
+
+    const l = await raw(
+      "select line_type, subtotal_clp from order_lines where order_id = $1 order by line_type", [orderId]);
+    expect(l.rows).toEqual([
+      { line_type: "discount", subtotal_clp: -19990 },
+      { line_type: "flat_service", subtotal_clp: 139990 },
+    ]);
+
+    // La boleta cubre el efectivo, no el precio de lista.
+    await repo.confirmCoursePayment(orderId, "offline:efectivo", "efectivo");
+    const t = await raw("select total from tax_documents where order_id = $1", [orderId]);
+    expect(t.rows[0].total).toBe(120000);
+  });
+
+  it("un crédito solo se puede usar una vez", async () => {
+    const gen = await generation();
+    await repo.issueTrialCredit(cred());
+    const credit = await repo.applicableCredit("cami@correo.cl");
+
+    await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+      creditId: credit!.id,
+    });
+    // Ya consumido: no vuelve a aparecer ni se puede volver a aplicar.
+    expect(await repo.applicableCredit("cami@correo.cl")).toBeNull();
+    await expect(
+      repo.createEnrollment({
+        generationId: gen,
+        plan: "individual",
+        students: [{ name: "Camila", email: "cami@correo.cl" }],
+        creditId: credit!.id,
+      }),
+    ).rejects.toThrow(/curso_credito_no_disponible/);
+  });
+
+  it("anular la inscripción devuelve el crédito", async () => {
+    const gen = await generation();
+    await repo.issueTrialCredit(cred());
+    const credit = await repo.applicableCredit("cami@correo.cl");
+    const orderId = await repo.createEnrollment({
+      generationId: gen,
+      plan: "individual",
+      students: [{ name: "Camila", email: "cami@correo.cl" }],
+      creditId: credit!.id,
+    });
+
+    await repo.cancelCourseOrder(orderId);
+    expect((await repo.applicableCredit("cami@correo.cl"))?.id).toBe(credit!.id);
   });
 });

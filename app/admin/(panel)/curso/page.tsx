@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { ActionForm } from "@/components/admin/ui/ActionForm";
+import { Field, Input } from "@/components/admin/ui/Field";
+import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
@@ -14,7 +17,7 @@ import { InscribirDialog } from "./_components/InscribirDialog";
 import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { cancelSessionAction } from "./actions";
+import { cancelSessionAction, issueTrialCreditAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Curso — Admin", robots: { index: false } };
@@ -29,6 +32,7 @@ export default async function CursoPage() {
     repo.listGenerations(),
     generacion ? repo.listEnrollments(generacion.id) : Promise.resolve([]),
   ]);
+  const creditos = generacion ? await repo.listCredits().catch(() => []) : [];
   const vivos = inscritos.filter((i) => i.status === "reservada" || i.status === "pagada");
   const porPagar = vivos.filter((i) => i.status === "reservada").length;
   const recaudado = vivos
@@ -118,6 +122,50 @@ export default async function CursoPage() {
                 {generacion.enrollDeadline ? `Cierra el ${fmtDate(generacion.enrollDeadline)}` : "Sin plazo de cierre"}
                 {generacion.startsOn ? ` · parte el ${fmtDate(generacion.startsOn)}` : ""}
               </p>
+            </Card>
+          </div>
+
+          <div className="mt-8">
+            <Card title="Sesiones de prueba">
+              <p className="mb-4 text-sm text-bone-dim">
+                Registra una prueba ya hecha y queda el crédito de{" "}
+                {formatCLP(generacion.prices.prueba)}, válido 7 días desde la sesión. Se aplica solo al
+                inscribir a esa misma persona.
+              </p>
+              <ActionForm
+                action={issueTrialCreditAction}
+                success="Crédito emitido."
+                resetOnSuccess
+                className="grid gap-4 sm:grid-cols-[1fr_11rem_auto] sm:items-end"
+              >
+                <Field label="Email del alumno">
+                  <Input name="email" type="email" required maxLength={120} />
+                </Field>
+                <Field label="Día de la prueba">
+                  <Input name="sessionDate" type="date" required />
+                </Field>
+                <div className="pb-1">
+                  <SubmitButton size="sm" variant="secondary" pendingLabel="Emitiendo…">
+                    Emitir crédito
+                  </SubmitButton>
+                </div>
+              </ActionForm>
+              {creditos.length > 0 && (
+                <ul className="mt-5 flex flex-col gap-2 border-t hairline pt-4">
+                  {creditos.slice(0, 5).map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-sm text-bone-dim">{c.email}</span>
+                      <span className="label-sm text-bone-mute">
+                        {c.consumedOrderId
+                          ? "Usado"
+                          : new Date(c.expiresAt) < new Date()
+                            ? "Vencido"
+                            : `Vence ${fmtDate(c.expiresAt)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
           </div>
 
