@@ -72,3 +72,67 @@ describe("validateManualBooking", () => {
     expect(r.ok && r.value.notes).toBe("");
   });
 });
+
+describe("validateManualBooking — descuento manual", () => {
+  const withDiscount = (discount: unknown) => validateManualBooking({ ...base, discount });
+
+  it("sin descuento → queda undefined", () => {
+    const r = validateManualBooking(base);
+    expect(r.ok && r.value.discount).toBeUndefined();
+  });
+
+  it("acepta un porcentaje sobre la sala y normaliza el motivo", () => {
+    const r = withDiscount({ target: { kind: "room" }, mode: "pct", value: 20, reason: "  primera reserva  " });
+    expect(r.ok && r.value.discount).toEqual({
+      target: { kind: "room" },
+      mode: "pct",
+      value: 20,
+      reason: "primera reserva",
+    });
+  });
+
+  it("acepta un monto sobre el total", () => {
+    const r = withDiscount({ target: { kind: "total" }, mode: "amount", value: 7994, reason: "" });
+    expect(r.ok && r.value.discount?.value).toBe(7994);
+  });
+
+  it("acepta un add-on como objetivo", () => {
+    const r = withDiscount({ target: { kind: "addon", key: "audioVideo" }, mode: "pct", value: 100, reason: "" });
+    expect(r.ok && r.value.discount?.target).toEqual({ kind: "addon", key: "audioVideo" });
+  });
+
+  it.each([0, 101, 20.5, -5, "20"])("rechaza porcentajes inválidos: %j", (value) => {
+    expect(withDiscount({ target: { kind: "room" }, mode: "pct", value, reason: "" }).ok).toBe(false);
+  });
+
+  it.each([0, -1, 1.5, "1000"])("rechaza montos inválidos: %j", (value) => {
+    expect(withDiscount({ target: { kind: "total" }, mode: "amount", value, reason: "" }).ok).toBe(false);
+  });
+
+  it("rechaza un objetivo desconocido", () => {
+    const r = withDiscount({ target: { kind: "propina" }, mode: "pct", value: 10, reason: "" });
+    expect(r).toEqual({ ok: false, error: "Objetivo del descuento inválido." });
+  });
+
+  it("rechaza un add-on sin key válida", () => {
+    expect(withDiscount({ target: { kind: "addon", key: "no válido!" }, mode: "pct", value: 10, reason: "" }).ok).toBe(false);
+  });
+
+  it("rechaza un modo desconocido", () => {
+    expect(withDiscount({ target: { kind: "room" }, mode: "gratis", value: 10, reason: "" }).ok).toBe(false);
+  });
+
+  it("rechaza un motivo de más de 60 caracteres", () => {
+    const r = withDiscount({ target: { kind: "room" }, mode: "pct", value: 10, reason: "x".repeat(61) });
+    expect(r).toEqual({ ok: false, error: "Motivo del descuento demasiado largo (máx. 60 caracteres)." });
+  });
+
+  it("rechaza un descuento en una cortesía (no hay nada que cobrar)", () => {
+    const r = validateManualBooking({
+      ...base,
+      method: "cortesia",
+      discount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "" },
+    });
+    expect(r.ok).toBe(false);
+  });
+});
