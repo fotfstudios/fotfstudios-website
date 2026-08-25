@@ -16,8 +16,7 @@ import {
   type ExperienceLevel,
   type LeadPlan,
 } from "@/src/domain/course/course";
-import { whatsappLink } from "@/lib/site";
-import { CURSO } from "../_content";
+import WhatsAppCta from "./WhatsAppCta";
 
 const inputCls =
   "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
@@ -129,14 +128,15 @@ export default function InscripcionForm() {
           Te mandamos un correo a <span className="text-bone">{form.email}</span>. Revisamos cada
           solicitud a mano y te contactamos por WhatsApp para cerrar tu cupo y coordinar las fechas.
         </p>
-        <a
-          href={whatsappLink(CURSO.waMessage)}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* Quien acaba de enviar bien y AUN ASÍ se va a WhatsApp está diciendo que
+            no le creyó a este panel: si `inscripcion-ok` no es cero, el copy de
+            confirmación no tranquiliza lo suficiente. */}
+        <WhatsAppCta
+          source="inscripcion-ok"
           className="label mt-8 inline-block border border-gold px-6 py-3 text-gold transition-colors hover:bg-gold hover:text-ink"
         >
           Escríbenos por WhatsApp →
-        </a>
+        </WhatsAppCta>
       </div>
     );
   }
@@ -252,14 +252,15 @@ export default function InscripcionForm() {
         >
           {submitting ? "Enviando…" : "Quiero mi cupo →"}
         </button>
-        <a
-          href={whatsappLink(CURSO.waMessage)}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* Puerta de salida hacia el chat, deliberadamente secundaria frente al
+            botón. Medirla contra `course_lead_start` dice si el formulario pide
+            demasiado o si este link está demasiado a mano. */}
+        <WhatsAppCta
+          source="inscripcion-alternativa"
           className="label-sm text-bone-mute underline decoration-bone-mute/40 underline-offset-4 transition-colors hover:text-gold"
         >
           o escríbenos por WhatsApp
-        </a>
+        </WhatsAppCta>
       </div>
       <p className="label-sm text-bone-mute">Te respondemos por WhatsApp · sin spam, sin listas.</p>
     </form>
