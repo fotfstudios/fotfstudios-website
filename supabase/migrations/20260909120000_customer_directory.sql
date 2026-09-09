@@ -210,3 +210,67 @@ begin
   return v_id;
 end;
 $$;
+
+-- ── 9. backfill_customers_from_bookings: idempotente y re-ejecutable (PR3 lo corre) ──
+-- MISMA clave que las joins de puntos: lower(email) SIN trim; la forma se valida con la misma
+-- puerta que upsert_guest_customer. Nombre y teléfono se eligen por independiente: primero filas
+-- pagadas/cumplidas/reembolsadas/confirmadas (los holds abandonados traen nombres basura), luego
+-- la más reciente. Fichas existentes solo reciben NULLs rellenados. Devuelve las INSERTADAS
+-- (xmax = 0 en RETURNING): row_count contaría también las actualizadas.
+create function backfill_customers_from_bookings()
+returns int language plpgsql set search_path = public, pg_temp as $$
+declare v_inserted int;
+begin
+  with seen as (
+    select lower(customer_email) as email,
+           nullif(left(trim(customer_name), 80), '') as name,
+           case when char_length(trim(customer_phone)) between 6 and 40 then trim(customer_phone) end as phone,
+           case when status in ('paid', 'fulfilled', 'refunded') then 0 else 1 end as rk,
+           created_at
+      from orders where customer_email is not null
+    union all
+    select lower(customer_email),
+           nullif(left(trim(customer_name), 80), ''),
+           case when char_length(trim(customer_phone)) between 6 and 40 then trim(customer_phone) end,
+           case when status = 'confirmed' then 0 else 1 end,
+           created_at
+      from reservations where kind = 'booking' and customer_email is not null
+  ),
+  valid as (
+    select * from seen
+      where email ~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$' and char_length(email) <= 120
+  ),
+  best_name as (
+    select distinct on (email) email, name from valid where name is not null
+      order by email, rk, created_at desc
+  ),
+  best_phone as (
+    select distinct on (email) email, phone from valid where phone is not null
+      order by email, rk, created_at desc
+  ),
+  people as (select distinct email from valid),
+  ins as (
+    insert into customers (email, name, phone)
+      select p.email, n.name, ph.phone
+        from people p
+        left join best_name  n  using (email)
+        left join best_phone ph using (email)
+      on conflict (email) do update set
+        name       = coalesce(customers.name,  excluded.name),
+        phone      = coalesce(customers.phone, excluded.phone),
+        updated_at = now()
+      returning (xmax = 0) as inserted
+  )
+  select count(*) filter (where inserted) into v_inserted from ins;
+
+  -- Vínculos (INVARIANTE: el snapshot ya coincide con la ficha porque la clave ES el email).
+  update orders o set customer_id = c.id from customers c
+    where o.customer_id is null and o.customer_email is not null and c.email = lower(o.customer_email);
+  update reservations r set customer_id = c.id from customers c
+    where r.customer_id is null and r.customer_email is not null and c.email = lower(r.customer_email);
+  update reservations r set customer_id = o.customer_id from orders o
+    where r.order_id = o.id and r.customer_id is null and o.customer_id is not null;
+
+  return v_inserted;
+end;
+$$;

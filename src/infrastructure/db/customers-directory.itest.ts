@@ -345,3 +345,70 @@ describe("ensure_customer_for_user (login → ficha)", () => {
     await expectBalanceConsistent(c);
   });
 });
+
+describe("backfill_customers_from_bookings (definido en PR1, se ejecuta en PR3)", () => {
+  const backfill = async () => (await pg.query<{ n: number }>("select backfill_customers_from_bookings() n")).rows[0].n;
+
+  it("una ficha por email en minúsculas; nombre/teléfono por independiente (pagada > abandonada, luego más reciente); sucias sin vincular; re-corrida → 0", async () => {
+    // Mismo email con mayúsculas en dos pedidos: el pagado (viejo, nombre bueno) gana al abandonado (nuevo, nombre basura),
+    // pero el abandonado aporta el teléfono porque el pagado no tiene.
+    const paid = await booking({ name: "Matías Rojas", email: "MiXeD@Case.cl", phone: null });
+    await pay(paid.orderId, "bf1");
+    await pg.query("update orders set created_at = now() - interval '10 days' where id=$1", [paid.orderId]);
+    await pg.query("update reservations set created_at = now() - interval '10 days' where id=$1", [paid.reservationId]);
+    const abandoned = await booking({ name: "asdf", email: "mixed@case.cl", phone: "+56 9 1111 2222" });
+    const padded = await booking({ name: "Padded", email: " padded@case.cl ", phone: null });
+    const junk = await booking({ name: "Junk", email: "a@b", phone: null });
+    const clamped = await booking({ name: "N".repeat(120), email: "largo@case.cl", phone: "123" }); // teléfono corto → null
+    const inherit = await booking({ name: "Hereda", email: "hereda@case.cl", phone: null });
+    await pg.query("update reservations set customer_email = null where id=$1", [inherit.reservationId]); // solo el pedido tiene email
+
+    expect(await backfill()).toBe(3); // mixed@case.cl, largo@case.cl, hereda@case.cl
+
+    const mixed = (await pg.query<{ id: string; name: string; phone: string }>("select id, name, phone from customers where email='mixed@case.cl'")).rows[0];
+    expect(mixed).toMatchObject({ name: "Matías Rojas", phone: "+56 9 1111 2222" });
+    expect((await pg.query("select name, phone from customers where email='largo@case.cl'")).rows[0]).toEqual({
+      name: "N".repeat(80),
+      phone: null,
+    });
+
+    // Vínculos: por email (pedido + reserva) y por herencia del pedido; las sucias quedan sin vincular y sin ficha.
+    expect((await snapshot("orders", paid.orderId)).customer_id).toBe(mixed.id);
+    expect((await snapshot("orders", abandoned.orderId)).customer_id).toBe(mixed.id);
+    expect((await snapshot("reservations", paid.reservationId)).customer_id).toBe(mixed.id);
+    expect((await snapshot("reservations", abandoned.reservationId)).customer_id).toBe(mixed.id);
+    const hereda = (await pg.query<{ id: string }>("select id from customers where email='hereda@case.cl'")).rows[0].id;
+    expect((await snapshot("reservations", inherit.reservationId)).customer_id).toBe(hereda);
+    expect((await snapshot("orders", padded.orderId)).customer_id).toBeNull();
+    expect((await snapshot("orders", junk.orderId)).customer_id).toBeNull();
+    expect((await snapshot("orders", clamped.orderId)).customer_id).not.toBeNull();
+    expect(await count("customers where email in (' padded@case.cl ', 'padded@case.cl', 'a@b')")).toBe(0);
+    expect(await count("customers")).toBe(3);
+
+    expect(await backfill()).toBe(0); // idempotente: nada nuevo que insertar ni vincular
+    expect(await count("customers")).toBe(3);
+  });
+
+  it("una ficha existente (login) solo recibe los NULL rellenados; su nombre no se pisa", async () => {
+    const existing = await customer({ name: "Ya Existe", email: "existe@case.cl", phone: null });
+    const b = await booking({ name: "Otro Nombre", email: "EXISTE@case.cl", phone: "+56 9 3333 4444" });
+    expect(await backfill()).toBe(0);
+    expect((await pg.query("select name, phone from customers where id=$1", [existing])).rows[0]).toEqual({
+      name: "Ya Existe",
+      phone: "+56 9 3333 4444",
+    });
+    expect((await snapshot("orders", b.orderId)).customer_id).toBe(existing);
+  });
+
+  it("un pedido vinculado por el backfill se reembolsa con claw-back (retro → mark_refunded → 0)", async () => {
+    const b = await booking({ name: "Retro", email: "retro@case.cl" });
+    await pay(b.orderId, "bfr1"); // sin ficha → no gana en vivo
+    expect(await count("points_ledger")).toBe(0);
+    await backfill();
+    const c = (await pg.query<{ id: string }>("select id from customers where email='retro@case.cl'")).rows[0].id;
+    expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [c])).rows[0].n).toBe(499); // lo que hará PR3
+    await pg.query("select mark_refunded($1, 'bfr1-rf', null)", [b.orderId]);
+    expect(await balance(c)).toBe(0);
+    await expectBalanceConsistent(c);
+  });
+});
