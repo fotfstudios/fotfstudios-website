@@ -70,7 +70,7 @@ const lines1h = JSON.stringify([{ line_type: "room_time", description: "Sala · 
 const linesUp = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 }]);
 const linesDown = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 7990, subtotal_clp: 7990 }]);
 
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, booking_events cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, booking_events, customers cascade";
 
 /** Eventos de una reserva, en el orden del timeline (más reciente primero). */
 async function events(reservationId: string) {
@@ -162,5 +162,19 @@ describe("booking_events — orden del timeline", () => {
     const idxMoved = e.findIndex((r) => r.type === "reschedule_moved");
     const idxPaid = e.findIndex((r) => r.type === "payment_confirmed");
     expect(idxMoved).toBeLessThan(idxPaid); // más reciente aparece antes
+  });
+});
+
+describe("booking_events — cliente", () => {
+  it("customer_changed pasa el CHECK de tipo y cae en Reservas", async () => {
+    const cat = await pg.query<{ c: string | null }>("select booking_event_category('customer_changed') c");
+    expect(cat.rows[0].c).toBe("Reservas");
+    const { reservationId } = await paidBooking(600, "bcc1");
+    await pg.query("select log_booking_event($1, 'customer_changed', p_detail => $2::jsonb)", [
+      reservationId,
+      JSON.stringify({ from_name: "A", to_name: "B", points_moved: 0 }),
+    ]);
+    const e = await events(reservationId);
+    expect(e.find((r) => r.type === "customer_changed")?.category).toBe("Reservas");
   });
 });

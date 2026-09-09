@@ -28,7 +28,7 @@ const checkout = new CheckoutService(
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 let tz: string;
-const cleanup = "truncate reservations, orders, order_lines, tax_documents, payment_intents cascade";
+const cleanup = "truncate reservations, orders, order_lines, tax_documents, payment_intents, customers cascade";
 
 const MON = futureDate(1);
 const TUE = futureDate(2);

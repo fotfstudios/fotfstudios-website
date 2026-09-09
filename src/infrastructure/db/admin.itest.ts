@@ -34,7 +34,7 @@ let tz: string;
 // archivo choca con el índice course_generations_one_open).
 const cleanup =
   "truncate course_credits, course_enrollments, course_sessions, course_generations, " +
-  "reservations, orders, order_lines, tax_documents, payment_intents cascade";
+  "reservations, orders, order_lines, tax_documents, payment_intents, customers cascade";
 
 const MON = futureDate(1); // lunes futuro
 const TUE = futureDate(2); // martes futuro

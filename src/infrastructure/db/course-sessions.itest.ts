@@ -61,14 +61,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await pg.query("truncate course_enrollments, course_sessions, course_leads, course_generations cascade");
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
   await pg.end();
 });
 
 beforeEach(async () => {
   // course_sessions apunta a reservations con ON DELETE RESTRICT: se va primero.
   await pg.query("truncate course_enrollments, course_sessions, course_leads, course_generations cascade");
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
 });
 
 describe("schedule_course_generation — todo o nada", () => {

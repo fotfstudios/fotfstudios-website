@@ -79,7 +79,7 @@ const linesDown = JSON.stringify([
   { line_type: "room_time", description: "Sala · 1h (valle)", quantity: 1, unit_price_clp: 7990, subtotal_clp: 7990 },
 ]);
 
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, customers cascade";
 
 /** Cliente con usuario auth real (customers.id → auth.users.id), como en points.itest.ts. */
 const insertAuthUser = (id: string, email: string) =>

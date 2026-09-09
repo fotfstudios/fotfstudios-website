@@ -615,29 +615,35 @@ export type Database = {
       }
       customers: {
         Row: {
+          auth_user_id: string | null
           created_at: string
-          email: string
+          email: string | null
           id: string
           name: string | null
           phone: string | null
+          phone_digits: string | null
           points_balance: number
           updated_at: string
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string
-          email: string
-          id: string
+          email?: string | null
+          id?: string
           name?: string | null
           phone?: string | null
+          phone_digits?: string | null
           points_balance?: number
           updated_at?: string
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           id?: string
           name?: string | null
           phone?: string | null
+          phone_digits?: string | null
           points_balance?: number
           updated_at?: string
         }
@@ -807,6 +813,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_email: string | null
+          customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           id: string
@@ -833,6 +840,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
@@ -859,6 +867,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
@@ -880,7 +889,15 @@ export type Database = {
           terms_source?: string | null
           terms_version?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_intents: {
         Row: {
@@ -1197,6 +1214,7 @@ export type Database = {
           cancelled_at: string | null
           created_at: string
           customer_email: string | null
+          customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           ends_at: string
@@ -1215,6 +1233,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           ends_at: string
@@ -1233,6 +1252,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           ends_at?: string
@@ -1246,6 +1266,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["reservation_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "reservations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reservations_order_id_fkey"
             columns: ["order_id"]
@@ -1510,7 +1537,16 @@ export type Database = {
         Args: { p_delta_order: string; p_payment_id: string }
         Returns: string
       }
+      assign_booking_customer: {
+        Args: {
+          p_created_by?: string
+          p_customer: string
+          p_reservation: string
+        }
+        Returns: undefined
+      }
       award_retro_points: { Args: { p_customer: string }; Returns: number }
+      backfill_customers_from_bookings: { Args: never; Returns: number }
       booking_event_category: { Args: { p_type: string }; Returns: string }
       cancel_booking: {
         Args: { p_refund_id?: string; p_reservation: string }
@@ -1602,6 +1638,14 @@ export type Database = {
         }[]
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      customer_sync_snapshots: {
+        Args: { p_customer: string; p_old_email: string }
+        Returns: undefined
+      }
+      ensure_customer_for_user: {
+        Args: { p_email: string; p_user: string }
+        Returns: string
+      }
       expire_abandoned_course_holds: {
         Args: { p_older_than?: string }
         Returns: number
@@ -1752,6 +1796,19 @@ export type Database = {
       }
       transfer_enrollment: {
         Args: { p_enrollment: string; p_target: string }
+        Returns: string
+      }
+      update_customer_contact: {
+        Args: {
+          p_customer: string
+          p_email: string
+          p_name: string
+          p_phone: string
+        }
+        Returns: undefined
+      }
+      upsert_guest_customer: {
+        Args: { p_email: string; p_name: string; p_phone: string }
         Returns: string
       }
     }

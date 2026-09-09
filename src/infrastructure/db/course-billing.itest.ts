@@ -50,14 +50,14 @@ const alumno = (n: number) => ({ name: `Alumno ${n}`, email: `a${n}@correo.cl`, 
 
 beforeEach(async () => {
   await raw("truncate course_credits, course_practice_redemptions, course_enrollments, course_sessions, course_leads, course_generations cascade");
-  await raw("truncate reservations, orders, order_lines, tax_documents cascade");
+  await raw("truncate reservations, orders, order_lines, tax_documents, customers cascade");
 });
 
 afterAll(async () => {
   // Dejar la DB como la encontramos: una generación "abierta" que sobreviva
   // choca con course_generations_one_open en el siguiente archivo que inserte una.
   await raw("truncate course_credits, course_enrollments, course_sessions, course_leads, course_generations cascade");
-  await raw("truncate reservations, orders, order_lines, tax_documents cascade");
+  await raw("truncate reservations, orders, order_lines, tax_documents, customers cascade");
   if (connected) await pg.end();
 });
 

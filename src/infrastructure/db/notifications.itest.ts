@@ -29,7 +29,7 @@ const checkout = new CheckoutService(
 );
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
-const cleanup = "truncate reservations, orders, order_lines cascade";
+const cleanup = "truncate reservations, orders, order_lines, customers cascade";
 const MON = futureDate(1); // lunes futuro
 
 beforeAll(async () => {
