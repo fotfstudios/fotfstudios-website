@@ -164,3 +164,17 @@ describe("booking_events — orden del timeline", () => {
     expect(idxMoved).toBeLessThan(idxPaid); // más reciente aparece antes
   });
 });
+
+describe("booking_events — cliente", () => {
+  it("customer_changed pasa el CHECK de tipo y cae en Reservas", async () => {
+    const cat = await pg.query<{ c: string | null }>("select booking_event_category('customer_changed') c");
+    expect(cat.rows[0].c).toBe("Reservas");
+    const { reservationId } = await paidBooking(600, "bcc1");
+    await pg.query("select log_booking_event($1, 'customer_changed', p_detail => $2::jsonb)", [
+      reservationId,
+      JSON.stringify({ from_name: "A", to_name: "B", points_moved: 0 }),
+    ]);
+    const e = await events(reservationId);
+    expect(e.find((r) => r.type === "customer_changed")?.category).toBe("Reservas");
+  });
+});

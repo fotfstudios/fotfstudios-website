@@ -1,0 +1,216 @@
+/**
+ * Directorio de clientes (migración customer_directory): identidad propia de customers,
+ * customer_id en reservas/pedidos y las RPC del directorio. Solo `pg` (sin supabase-js):
+ * las RPC se ejercen directo y las fixtures se insertan como en el seed. Invariante en
+ * cada escenario con puntos: customers.points_balance === sum(points_ledger).
+ * Requiere Supabase local.
+ */
+import { Client } from "pg";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
+const pg = new Client({ connectionString: DB_URL });
+const pg2 = new Client({ connectionString: DB_URL }); // segunda conexión: carreras
+let resourceId: string;
+
+// Usuarios auth de prueba (persisten entre archivos; ids distintos a points/reschedule.itest).
+const U1 = "e0000000-0000-4000-a000-000000000101";
+const U2 = "e0000000-0000-4000-a000-000000000102";
+const U_HOLDER = "e0000000-0000-4000-a000-000000000103";
+const ACTOR = "e0000000-0000-4000-a000-0000000000aa"; // created_by del evento (columna sin FK)
+
+const cleanup =
+  "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, " +
+  "reschedules, booking_events, points_ledger, customers cascade";
+
+const insertAuthUser = (id: string, email: string) =>
+  pg.query(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+       confirmation_token, recovery_token, email_change_token_new, email_change
+     ) values (
+       '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated',
+       $2, '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', ''
+     ) on conflict (id) do nothing`,
+    [id, email],
+  );
+
+type Snapshot = {
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+};
+
+/** Ficha insertada directo (fixture), sin pasar por las RPC. Devuelve el id. */
+async function customer(c: {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  authUserId?: string | null;
+}): Promise<string> {
+  const { rows } = await pg.query<{ id: string }>(
+    `insert into customers (id, name, email, phone, auth_user_id)
+       values (coalesce($1::uuid, gen_random_uuid()), $2, $3, $4, $5) returning id`,
+    [c.id ?? null, c.name ?? null, c.email ?? null, c.phone ?? null, c.authUserId ?? null],
+  );
+  return rows[0].id;
+}
+
+let slot = 0;
+/**
+ * Reserva 'booking' + pedido pending_payment insertados directo (como el seed). Cada llamada
+ * usa un slot horario distinto, dos semanas adelante (GiST anti-solape).
+ */
+async function booking(c: {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  customerId?: string | null;
+  amount?: number;
+  status?: "held" | "confirmed" | "cancelled";
+}): Promise<{ orderId: string; reservationId: string }> {
+  slot += 1;
+  const starts = new Date(Date.now() + (24 * 14 + slot) * 3_600_000);
+  const ends = new Date(starts.getTime() + 3_600_000);
+  const amount = c.amount ?? 9990;
+  const net = Math.round(amount / 1.19);
+  const status = c.status ?? "held";
+  const o = await pg.query<{ id: string }>(
+    `insert into orders (status, amount_clp, net_clp, tax_clp, customer_name, customer_email, customer_phone, customer_id)
+       values ('pending_payment', $1, $2, $3, $4, $5, $6, $7) returning id`,
+    [amount, net, amount - net, c.name ?? null, c.email ?? null, c.phone ?? null, c.customerId ?? null],
+  );
+  const r = await pg.query<{ id: string }>(
+    `insert into reservations (resource_id, kind, status, starts_at, ends_at, expires_at, order_id,
+                               customer_name, customer_email, customer_phone, customer_id)
+       values ($1, 'booking', $2::reservation_status, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+    [
+      resourceId,
+      status,
+      starts.toISOString(),
+      ends.toISOString(),
+      status === "held" ? new Date(Date.now() + 1_800_000).toISOString() : null,
+      o.rows[0].id,
+      c.name ?? null,
+      c.email ?? null,
+      c.phone ?? null,
+      c.customerId ?? null,
+    ],
+  );
+  return { orderId: o.rows[0].id, reservationId: r.rows[0].id };
+}
+
+/** confirm_payment directo: paid + confirmed + earn (si el email tiene ficha) + boleta. */
+const pay = (orderId: string, paymentId: string) => pg.query("select confirm_payment($1, $2)", [orderId, paymentId]);
+
+const snapshot = async (table: "orders" | "reservations", id: string): Promise<Snapshot> =>
+  (
+    await pg.query<Snapshot>(
+      `select customer_id, customer_name, customer_email, customer_phone from ${table} where id=$1`,
+      [id],
+    )
+  ).rows[0];
+
+const balance = async (id: string) =>
+  (await pg.query<{ b: number }>("select points_balance b from customers where id=$1", [id])).rows[0].b;
+const ledgerSum = async (id: string) =>
+  Number(
+    (await pg.query<{ s: string }>("select coalesce(sum(amount),0)::text s from points_ledger where customer_id=$1", [id]))
+      .rows[0].s,
+  );
+/** El invariante contable del sistema. */
+const expectBalanceConsistent = async (id: string) => expect(await balance(id)).toBe(await ledgerSum(id));
+const count = async (fromClause: string, params: unknown[] = []) =>
+  Number((await pg.query<{ n: string }>(`select count(*)::text n from ${fromClause}`, params)).rows[0].n);
+
+beforeAll(async () => {
+  await pg.connect();
+  await pg2.connect();
+  resourceId = (await pg.query<{ id: string }>("select id from resources limit 1")).rows[0].id;
+  await insertAuthUser(U1, "u1@dir.cl");
+  await insertAuthUser(U2, "u2@dir.cl");
+  await insertAuthUser(U_HOLDER, "titular@dir.cl");
+});
+afterAll(async () => {
+  await pg.query(cleanup);
+  await pg.end();
+  await pg2.end();
+});
+beforeEach(async () => {
+  await pg.query(cleanup);
+});
+
+describe("esquema: identidad propia, constraints, phone_digits y customer_id", () => {
+  it("una ficha ya no necesita usuario auth: id por default y FK a auth.users eliminada", async () => {
+    const { rows } = await pg.query<{ id: string; auth_user_id: string | null }>(
+      "insert into customers (email) values ('sin-auth@dir.cl') returning id, auth_user_id",
+    );
+    expect(rows[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(rows[0].auth_user_id).toBeNull();
+  });
+
+  it("phone_digits se deriva del teléfono ('+56 9 8123 4567' → '56981234567'); email opcional si hay teléfono", async () => {
+    const { rows } = await pg.query<{ phone_digits: string | null; email: string | null }>(
+      "insert into customers (name, phone) values ('Pía Contreras', '+56 9 8123 4567') returning phone_digits, email",
+    );
+    expect(rows[0]).toEqual({ phone_digits: "56981234567", email: null });
+    const none = await pg.query<{ phone_digits: string | null }>(
+      "insert into customers (email, phone) values ('sin-fono@dir.cl', null) returning phone_digits",
+    );
+    expect(none.rows[0].phone_digits).toBeNull();
+  });
+
+  it("constraints: minúsculas, contacto obligatorio, largo de nombre/teléfono, email único, auth_user_id único y con FK", async () => {
+    await expect(pg.query("insert into customers (email) values ('MiXeD@dir.cl')")).rejects.toMatchObject({
+      code: "23514",
+      constraint: "customers_email_lower",
+    });
+    await expect(pg.query("insert into customers (name) values ('Solo Nombre')")).rejects.toMatchObject({
+      code: "23514",
+      constraint: "customers_contact_required",
+    });
+    await expect(
+      pg.query("insert into customers (email, name) values ('largo@dir.cl', $1)", ["N".repeat(81)]),
+    ).rejects.toMatchObject({ code: "23514", constraint: "customers_name_len" });
+    await expect(pg.query("insert into customers (email, phone) values ('corto@dir.cl', '12345')")).rejects.toMatchObject({
+      code: "23514",
+      constraint: "customers_phone_len",
+    });
+    await pg.query("insert into customers (email) values ('unico@dir.cl')");
+    await expect(pg.query("insert into customers (email) values ('unico@dir.cl')")).rejects.toMatchObject({
+      code: "23505",
+      constraint: "customers_email_key",
+    });
+    await expect(
+      pg.query("insert into customers (email, auth_user_id) values ('fantasma@dir.cl', 'e0000000-0000-4000-a000-0000000000ff')"),
+    ).rejects.toMatchObject({ code: "23503", constraint: "customers_auth_user_id_fkey" });
+    await pg.query("insert into customers (email, auth_user_id) values ('u1@dir.cl', $1)", [U1]);
+    await expect(
+      pg.query("insert into customers (email, auth_user_id) values ('u1-bis@dir.cl', $1)", [U1]),
+    ).rejects.toMatchObject({ code: "23505", constraint: "customers_auth_user_id_key" });
+  });
+
+  it("reservations/orders.customer_id: FK a customers con on delete set null; índices parciales presentes", async () => {
+    const c = await customer({ name: "Link", email: "link@dir.cl" });
+    const b = await booking({ name: "Link", email: "link@dir.cl", customerId: c });
+    expect((await snapshot("orders", b.orderId)).customer_id).toBe(c);
+    expect((await snapshot("reservations", b.reservationId)).customer_id).toBe(c);
+    await pg.query("delete from customers where id=$1", [c]);
+    expect((await snapshot("orders", b.orderId)).customer_id).toBeNull();
+    expect((await snapshot("reservations", b.reservationId)).customer_id).toBeNull();
+    const idx = await pg.query<{ indexname: string }>(
+      `select indexname from pg_indexes
+        where indexname in ('customers_phone_digits_idx','customers_created_idx','reservations_customer_idx','orders_customer_idx')
+        order by 1`,
+    );
+    expect(idx.rows.map((r) => r.indexname)).toEqual([
+      "customers_created_idx",
+      "customers_phone_digits_idx",
+      "orders_customer_idx",
+      "reservations_customer_idx",
+    ]);
+  });
+});
