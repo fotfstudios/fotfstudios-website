@@ -333,6 +333,7 @@ declare
   v_evt   uuid;
   v_moved int := 0;
   v_paid  boolean := false;
+  v_earn  int;
   m       record;
 begin
   select * into r from reservations where id = p_reservation for update;
@@ -382,9 +383,17 @@ begin
       perform apply_points(m.customer_id, r.order_id, 'adjust', -m.net, 'reassign:' || v_evt || ':out:' || m.customer_id);
       perform apply_points(c.id,          r.order_id, 'adjust',  m.net, 'reassign:' || v_evt || ':in:'  || m.customer_id);
     end loop;
-    -- Pagada sin earn previo (sin ficha o email inválido al pagar) → 5 % al nuevo cliente.
-    -- No-op cuando (order, 'earn', '') ya existe (points_ledger_once).
-    if v_paid then perform award_retro_points(c.id); end if;
+    -- Pagada sin earn previo (sin ficha o email inválido al pagar) → 5 % del efectivo
+    -- retenido del pedido PRINCIPAL al nuevo cliente. No-op cuando (order, 'earn', '') ya
+    -- existe (points_ledger_once). No se usa award_retro_points: ese recorre TODOS los
+    -- pedidos del email, incluidos los pedidos delta de reagendamiento (cuyo earn vive en
+    -- el pedido original con ref 'reschedule:{id}'), y otorgaría de más.
+    if v_paid then
+      v_earn := floor(0.05 * (o.amount_clp - o.refunded_amount_clp))::int;
+      if v_earn > 0 and apply_points(c.id, r.order_id, 'earn', v_earn, '') then
+        perform log_booking_event(r.id, 'points_earned', p_order => r.order_id, p_amount => v_earn, p_created_by => p_created_by);
+      end if;
+    end if;
   end if;
 end;
 $$;

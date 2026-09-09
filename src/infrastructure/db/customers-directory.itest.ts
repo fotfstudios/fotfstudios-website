@@ -661,4 +661,27 @@ describe("assign_booking_customer (cambiar cliente)", () => {
     expect(await count("booking_events where reservation_id=$1 and type='customer_changed'", [r.rows[0].id])).toBe(1);
     expect(await count("points_ledger")).toBe(0);
   });
+
+  it("reagendamiento pagado antes de reasignar: el earn del delta viaja con el pedido principal y NO se re-otorga sobre el pedido delta (B = 649)", async () => {
+    const { A, B } = await two();
+    const b = await paidByA(A); // 499
+    const endsAt = (await pg.query<{ ends_at: string }>("select ends_at from reservations where id=$1", [b.reservationId])).rows[0].ends_at;
+    const delta = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [b.reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesUp, 3000, 2521, 479, null],
+    );
+    const deltaId = delta.rows[0].delta_order_id;
+    expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1, $2) r", [deltaId, "rs-pay-1"])).rows[0].r).toBe("applied");
+    expect(await balance(A)).toBe(649); // 499 + truing 150 sobre el pedido principal (ref reschedule:{id})
+
+    await assign(b.reservationId, B);
+
+    expect(await balance(A)).toBe(0);
+    expect(await balance(B)).toBe(649);
+    expect(await count("points_ledger where order_id=$1", [deltaId])).toBe(0); // nada sobre el pedido delta
+    expect(await count("points_ledger where order_id=$1 and kind='earn'", [b.orderId])).toBe(2); // earn original + earn del reagendamiento, ambos de A
+    expect((await snapshot("orders", deltaId)).customer_id).toBe(B);
+    await expectBalanceConsistent(A);
+    await expectBalanceConsistent(B);
+  });
 });
