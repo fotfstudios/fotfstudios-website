@@ -147,12 +147,12 @@ begin
      set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
    where customer_id = c.id
       or (customer_id is null and customer_email is not null
-          and lower(customer_email) in (p_old_email, c.email));
+          and lower(customer_email) in (lower(p_old_email), c.email));
   update reservations
      set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
    where customer_id = c.id
       or (customer_id is null and customer_email is not null
-          and lower(customer_email) in (p_old_email, c.email));
+          and lower(customer_email) in (lower(p_old_email), c.email));
 end;
 $$;
 
@@ -259,6 +259,8 @@ begin
         name       = coalesce(customers.name,  excluded.name),
         phone      = coalesce(customers.phone, excluded.phone),
         updated_at = now()
+      where customers.name is null and excluded.name is not null
+         or customers.phone is null and excluded.phone is not null
       returning (xmax = 0) as inserted
   )
   select count(*) filter (where inserted) into v_inserted from ins;
@@ -279,9 +281,10 @@ $$;
 -- Reescribe los snapshots vinculados Y adopta los huérfanos que la join por email ya atribuía a
 -- esta ficha (email viejo o nuevo) vía customer_sync_snapshots, para que FK y join nunca
 -- discrepen; luego retro por el historial del email nuevo (idempotente). Un titular de cuenta
--- no cambia su email aquí (es su acceso). Una ficha con puntos no puede quedarse sin email:
--- sus pedidos pagados perderían el email por el que mark_refunded/reschedule_* revocan (espejo
--- de customer_assign_needs_email). 23505 (customers_email_key) → 'email_taken' en la app;
+-- no cambia su email aquí (es su acceso). Una ficha con puntos O con historial con email no
+-- puede quedarse sin email: sus pedidos/reservas perderían la dirección por la que resuelven las
+-- funciones de puntos (mark_refunded/reschedule_* revocan por ella), las notificaciones y el
+-- pagador de MP (espejo de customer_assign_needs_email). 23505 (customers_email_key) → 'email_taken' en la app;
 -- 23514 → mensajes del parser.
 create function update_customer_contact(p_customer uuid, p_name text, p_email text, p_phone text)
 returns void language plpgsql set search_path = public, pg_temp as $$
@@ -291,6 +294,9 @@ declare
   v_email text := nullif(lower(trim(p_email)), '');
   v_phone text := nullif(trim(p_phone), '');
 begin
+  -- Toma customers ANTES que orders/reservations, al revés de confirm_payment/mark_refunded
+  -- (orders → customers vía apply_points): un webhook concurrente puede dar un 40P01 que
+  -- Postgres resuelve abortando una de las dos y el webhook reintenta — esperado, no corrompe nada.
   select * into c from customers where id = p_customer for update;
   if c.id is null then raise exception 'customer_not_found'; end if;
   if v_email is not null
@@ -300,10 +306,14 @@ begin
   if c.auth_user_id is not null and v_email is distinct from c.email then
     raise exception 'customer_has_account';
   end if;
-  if v_email is null and c.email is not null
-     and exists (select 1 from points_ledger where customer_id = c.id) then
-    raise exception 'customer_email_in_use';
-  end if;
+  -- Puntos O historial con email: sin email, customer_sync_snapshots borraría customer_email
+  -- de esos pedidos/reservas y perderían la dirección por la que resuelven las funciones de
+  -- puntos, las notificaciones y el pagador de MP.
+  if v_email is null and c.email is not null and (
+       exists (select 1 from points_ledger where customer_id = c.id)
+    or exists (select 1 from orders where customer_id = c.id and customer_email is not null)
+    or exists (select 1 from reservations where customer_id = c.id and customer_email is not null))
+  then raise exception 'customer_email_in_use'; end if;
 
   update customers
      set name = v_name, email = v_email, phone = v_phone, updated_at = now()
@@ -384,12 +394,18 @@ begin
       perform apply_points(c.id,          r.order_id, 'adjust',  m.net, 'reassign:' || v_evt || ':in:'  || m.customer_id);
     end loop;
     -- Pagada sin earn previo (sin ficha o email inválido al pagar) → 5 % del efectivo
-    -- retenido del pedido PRINCIPAL al nuevo cliente. No-op cuando (order, 'earn', '') ya
-    -- existe (points_ledger_once). No se usa award_retro_points: ese recorre TODOS los
-    -- pedidos del email, incluidos los pedidos delta de reagendamiento (cuyo earn vive en
-    -- el pedido original con ref 'reschedule:{id}'), y otorgaría de más.
+    -- retenido del pedido PRINCIPAL al nuevo cliente. El monto es la BRECHA entre
+    -- floor(5 % del efectivo retenido) y lo que el pedido ya acumuló en 'earn' + 'earn_revoke'
+    -- (misma forma de truing que apply_reschedule_charge). Eso es lo que lo deja sin punto
+    -- ciego: mirar solo la fila (order, 'earn', '') no vería el earn que apply_reschedule_charge
+    -- escribe con ref 'reschedule:{id}' y volvería a otorgar el 5 % completo (doble premio).
+    -- No se usa award_retro_points: ese recorre TODOS los pedidos del email, incluidos los
+    -- pedidos delta de reagendamiento (cuyo earn vive en el pedido original), y otorgaría de más.
     if v_paid then
-      v_earn := floor(0.05 * (o.amount_clp - o.refunded_amount_clp))::int;
+      select floor(0.05 * (o.amount_clp - o.refunded_amount_clp))::int
+             - coalesce((select sum(amount)::int from points_ledger
+                          where order_id = r.order_id and kind in ('earn', 'earn_revoke')), 0)
+        into v_earn;
       if v_earn > 0 and apply_points(c.id, r.order_id, 'earn', v_earn, '') then
         perform log_booking_event(r.id, 'points_earned', p_order => r.order_id, p_amount => v_earn, p_created_by => p_created_by);
       end if;

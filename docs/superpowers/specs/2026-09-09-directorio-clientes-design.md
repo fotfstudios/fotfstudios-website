@@ -275,10 +275,15 @@ Cubre también pedidos de curso por email (`orders.kind <> 'booking'`), sin excl
   SQL es la última línea).
 - Titular de cuenta (`auth_user_id is not null`) y `v_email is distinct from c.email` →
   `raise 'customer_has_account'` (su email es su acceso).
-- **Quitar el email a una ficha con puntos** (`v_email is null and c.email is not null and
-  exists (select 1 from points_ledger where customer_id = c.id)`) →
-  `raise 'customer_email_in_use'`: sus pedidos pagados perderían el email por el que
-  `mark_refunded` / `reschedule_*` revocan (espejo de `customer_assign_needs_email`).
+- **Quitar el email a una ficha con puntos O con historial con email** (`v_email is null and
+  c.email is not null and (exists (select 1 from points_ledger where customer_id = c.id) or
+  exists (select 1 from orders where customer_id = c.id and customer_email is not null) or
+  exists (select 1 from reservations where customer_id = c.id and customer_email is not null))`)
+  → `raise 'customer_email_in_use'`: `customer_sync_snapshots` dejaría esos pedidos y reservas
+  con `customer_email = null` y perderían la dirección por la que resuelven las funciones de
+  puntos (`mark_refunded` / `reschedule_*`), las notificaciones y el pagador de MP (espejo de
+  `customer_assign_needs_email`). Mirar solo `points_ledger` no basta: un pedido pagado antes de
+  que existiera la ficha no tiene earn y aun así lleva la dirección.
 - `update customers set name, email = v_email, phone, updated_at` (un 23505 sobre
   `customers_email_key` lo mapea la app a `email_taken`; 23514 a la frase del CHECK).
 - `perform customer_sync_snapshots(p_customer, c.email)`: reescribe snapshots en pedidos y
@@ -316,9 +321,16 @@ Efectos, en orden:
    `apply_points(c.id, r.order_id, 'adjust', net, 'reassign:' || v_evt || ':in:' || old)`. El
    `having sum <> 0` respeta `points_ledger_sign` (`adjust` exige `amount <> 0`); los refs
    con el id del evento respetan `points_ledger_once (order_id, kind, ref)`.
-5. Si el pedido está pagado → `perform award_retro_points(c.id)`: un pedido pagado sin earn
-   previo (sin ficha o email inválido en su momento) otorga el 5 % al nuevo cliente; para
-   pedidos ya ganados es no-op por la clave única.
+5. Si el pedido está pagado → un earn **dirigido solo al pedido principal**, calculado como la
+   **brecha** entre `floor(0.05 · (amount_clp − refunded_amount_clp))` y lo que ese pedido ya
+   acumuló en `earn + earn_revoke` (misma forma de truing que `apply_reschedule_charge`):
+   `apply_points(c.id, r.order_id, 'earn', v_earn, '')` cuando la brecha es > 0, y el insert se
+   registra con un evento `points_earned`. Así un pedido pagado sin earn previo (sin ficha o
+   email inválido en su momento) otorga el 5 % al nuevo cliente, y uno que ya lo ganó —en vivo o
+   vía el earn de un reagendamiento, que vive con ref `reschedule:{id}` y no bajo
+   `(order, 'earn', '')`— queda en brecha 0. **No** se usa `award_retro_points`: ese recorre
+   todos los pedidos del email, incluidos los pedidos delta de reagendamiento (que quedan
+   `fulfilled` con el mismo email), y otorgaría de más.
 
 Por qué es seguro con las funciones de puntos intactas: tras A→B, las filas
 `earn`/`earn_revoke` del pedido siguen sumando el mismo `v_earn_net` que `mark_refunded`,
@@ -787,12 +799,15 @@ Nuevo `src/infrastructure/db/customers-directory.itest.ts` con el scaffolding de
 - **`update_customer_contact`:** reescribe snapshots vinculados y huérfanos; email de titular
   rechazado; cambio de email y luego `mark_refunded` revoca al mismo cliente; solo-teléfono que
   gana email → retro; quitar el email a una ficha con puntos → `customer_email_in_use` (snapshot
-  y saldo intactos), y sin ledger sí se permite.
+  y saldo intactos); a una ficha sin puntos pero con historial vinculado con email, también; sin
+  ledger ni historial vinculado sí se permite.
 - **`assign_booking_customer`:** snapshots reescritos incluido el pedido delta; evento con
   detail; A→B mueve el earn y ambos saldos igualan sus sumas del ledger; A→B→C y A→B→A
   convergen; pedido con canje rechazado; destino solo-teléfono rechazado en pagada; reserva
   cancelada rechazada; `mark_refunded` tras reasignar revoca al cliente nuevo; pedido pagado
-  legacy sin cliente → el nuevo gana el 5 %.
+  legacy sin cliente → el nuevo gana el 5 %; y un pedido cuyo único earn vive con ref
+  `reschedule:{id}` (ficha creada después de pagar) → el neto se mueve una sola vez, la brecha
+  es 0 y nadie recibe el 5 % dos veces.
 - **PR3 (`create_checkout` / cortesía):** vincula por `p_customer_id`; invitado se auto-crea y
   vincula con snapshot desde el registro; el teléfono nuevo de un invitado que vuelve gana;
   `slot_taken` revierte la ficha; email inválido → sin vincular; nombre del titular no se pisa;

@@ -494,10 +494,26 @@ describe("update_customer_contact (edición desde /admin/clientes y /cuenta/perf
     expect((await snapshot("orders", b.orderId)).customer_email).toBe("cata@dir.cl");
     expect(await balance(c)).toBe(499);
     await expectBalanceConsistent(c);
-    // Sin ledger sí se puede (queda solo-teléfono, como una ficha nueva del directorio).
+    // Sin ledger NI historial vinculado sí se puede (queda solo-teléfono, como una ficha nueva del directorio).
     const d = await customer({ name: "Dani", email: "dani@dir.cl", phone: "+56 9 5555 5555" });
     await update(d, "Dani", null, "+56 9 5555 5555");
     expect((await pg.query<{ email: string | null }>("select email from customers where id=$1", [d])).rows[0].email).toBeNull();
+  });
+
+  it("ficha SIN puntos pero con historial vinculado con email: quitarle el email también levanta customer_email_in_use", async () => {
+    // Pagó como invitada, sin ficha para su email → confirm_payment no otorga nada (ledger vacío).
+    const b = await booking({ name: "Bruno", email: "bruno@dir.cl", phone: "+56 9 4444 4444" });
+    await pay(b.orderId, "uce2");
+    const c = await customer({ name: "Bruno", email: "bruno@dir.cl", phone: "+56 9 4444 4444" });
+    await pg.query("update orders set customer_id=$1 where id=$2", [c, b.orderId]);
+    await pg.query("update reservations set customer_id=$1 where id=$2", [c, b.reservationId]);
+    expect(await count("points_ledger where customer_id=$1", [c])).toBe(0);
+
+    await expect(update(c, "Bruno", null, "+56 9 4444 4444")).rejects.toThrow("customer_email_in_use");
+    // Sin la guarda ampliada, customer_sync_snapshots habría dejado customer_email en NULL.
+    expect((await snapshot("orders", b.orderId)).customer_email).toBe("bruno@dir.cl");
+    expect((await snapshot("reservations", b.reservationId)).customer_email).toBe("bruno@dir.cl");
+    expect((await pg.query<{ email: string | null }>("select email from customers where id=$1", [c])).rows[0].email).toBe("bruno@dir.cl");
   });
 });
 
@@ -683,5 +699,34 @@ describe("assign_booking_customer (cambiar cliente)", () => {
     expect((await snapshot("orders", deltaId)).customer_id).toBe(B);
     await expectBalanceConsistent(A);
     await expectBalanceConsistent(B);
+  });
+
+  it("earn con ref de reagendamiento (sin ficha al pagar): al reasignar se mueve una sola vez, no se re-otorga", async () => {
+    // Pagada SIN ficha para su email → confirm_payment no otorga nada.
+    const b = await booking({ name: "Sin Ficha", email: "sinficha@dir.cl" });
+    await pay(b.orderId, "gap-1");
+    expect(await count("points_ledger where order_id=$1", [b.orderId])).toBe(0);
+
+    // La ficha nace después (como la creará /admin/clientes en PR6: insert simple, sin retro).
+    const X = await customer({ name: "Sin Ficha", email: "sinficha@dir.cl" });
+    expect(await balance(X)).toBe(0);
+
+    // Reagendamiento hacia arriba pagado: apply_reschedule_charge sí encuentra ficha y otorga
+    // el 5 % COMPLETO del nuevo vivo, con ref 'reschedule:{id}'.
+    const endsAt = (await pg.query<{ ends_at: string }>("select ends_at from reservations where id=$1", [b.reservationId])).rows[0].ends_at;
+    const delta = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [b.reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesUp, 3000, 2521, 479, null],
+    );
+    expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1, $2) r", [delta.rows[0].delta_order_id, "gap-rs"])).rows[0].r).toBe("applied");
+    expect(await balance(X)).toBe(649); // floor(0.05 · 12990), ref 'reschedule:{id}'
+
+    // Reasignar: el neto viaja con el par 'adjust' y NO se vuelve a otorgar el 5 %.
+    const Y = await customer({ name: "Y", email: "y@dir.cl" });
+    await assign(b.reservationId, Y);
+    expect(await balance(X)).toBe(0);
+    expect(await balance(Y)).toBe(649); // sin la fórmula de brecha serían 1298
+    await expectBalanceConsistent(X);
+    await expectBalanceConsistent(Y);
   });
 });
