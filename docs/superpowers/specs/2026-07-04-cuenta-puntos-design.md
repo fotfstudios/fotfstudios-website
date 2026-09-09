@@ -147,3 +147,18 @@ al efectivo (mismo criterio que `create_boleta_amount`).
   la contabilidad del repo, pero **confirmar con el contador** — decisión de negocio.
 - Orden de PRs: 1) auth + login + esqueleto (flag off = inerte), 2) backend de puntos,
   3) páginas + widget. Flag a prod recién con el PR 3 verificado.
+
+## Nota 2026-09-09 — directorio de clientes
+
+- Desde la activación del directorio (`20260909130000_customer_directory_activate.sql`), un
+  invitado con email de forma válida recibe una fila en `customers` dentro de `create_checkout`
+  y **gana en `confirm_payment`** (ya no espera al retro del signup); el claw-back de
+  `mark_refunded` aplica en vivo.
+- Los clientes backfilleados desde el historial reciben `award_retro_points` en esa misma
+  migración. Los saldos son idénticos a los que produciría un signup posterior: la clave
+  única `points_ledger_once (order_id, kind, ref)` hace no-op el retro sobre pedidos ya ganados.
+- `customers.id` **ya no es** `auth.users.id`: el login se vincula por `auth_user_id`
+  (nullable, único); una ficha adoptada del directorio conserva su id.
+- Las funciones de puntos siguen byte-idénticas (siguen colgando de `lower(customer_email)`);
+  el canje sigue exigiendo sesión en `/cuenta`. Diseño completo:
+  `docs/superpowers/specs/2026-09-09-directorio-clientes-design.md`.
