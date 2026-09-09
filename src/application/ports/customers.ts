@@ -1,8 +1,8 @@
 export type PointsEntryKind = "earn" | "earn_revoke" | "redeem" | "redeem_release" | "redeem_restore" | "adjust";
 
 export interface CustomerProfile {
-  id: string; // auth.users.id
-  email: string;
+  id: string; // customers.id (== auth.users.id para cuentas creadas antes del directorio; PR2 agrega authUserId)
+  email: string | null; // null = ficha solo-teléfono del directorio (nunca para titulares de cuenta)
   name: string | null;
   phone: string | null;
   pointsBalance: number;
