@@ -30,11 +30,11 @@ beforeAll(async () => {
   resourceId = (await pg.query<{ id: string }>("select id from resources limit 1")).rows[0].id;
 });
 afterAll(async () => {
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
   await pg.end();
 });
 beforeEach(async () => {
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
 });
 
 describe("AvailabilityService", () => {

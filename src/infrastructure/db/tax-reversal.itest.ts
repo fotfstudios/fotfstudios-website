@@ -69,7 +69,7 @@ async function paidBooking(start: number, paymentId: string) {
   return { orderId: b.value.orderId, boleta: bo.rows[0] };
 }
 
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, customers cascade";
 
 beforeAll(async () => {
   await pg.connect();

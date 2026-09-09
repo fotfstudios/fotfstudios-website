@@ -15,7 +15,7 @@ const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@12
 
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
-const cleanup = "truncate reservations, orders, order_lines, payment_intents cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, customers cascade";
 const MON = futureDate(1); // lunes futuro
 
 beforeAll(async () => {

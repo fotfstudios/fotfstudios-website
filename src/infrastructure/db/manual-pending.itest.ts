@@ -21,7 +21,7 @@ const pg = new Client({ connectionString: DB_URL });
 const db = createServiceClient(URL, KEY);
 const checkout = new CheckoutService(new PricingService(new SupabaseRatePlanRepository(db)), new SupabaseCheckoutRepository(db));
 let resourceId: string;
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, customers cascade";
 const MON = futureDate(1);
 const startsAt = () => `${MON}T14:00:00-04:00`;
 const endsAt = () => `${MON}T15:00:00-04:00`;

@@ -64,7 +64,7 @@ const MON = futureDate(1); // lunes futuro
 const book = (start: number, email: string) =>
   checkout.createBooking({ resourceId, date: MON, startMinute: start, durationHours: 1, customer: { email } });
 
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, customers cascade";
 
 beforeAll(async () => {
   await pg.connect();

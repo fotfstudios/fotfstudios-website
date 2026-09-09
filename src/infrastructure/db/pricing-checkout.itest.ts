@@ -31,12 +31,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
   await pg.end();
 });
 
 beforeEach(async () => {
-  await pg.query("truncate reservations, orders, order_lines cascade");
+  await pg.query("truncate reservations, orders, order_lines, customers cascade");
 });
 
 describe("PricingService.quoteBooking", () => {

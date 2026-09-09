@@ -70,7 +70,7 @@ const lines1h = JSON.stringify([{ line_type: "room_time", description: "Sala · 
 const linesUp = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 }]);
 const linesDown = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 7990, subtotal_clp: 7990 }]);
 
-const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, booking_events cascade";
+const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, booking_events, customers cascade";
 
 /** Eventos de una reserva, en el orden del timeline (más reciente primero). */
 async function events(reservationId: string) {
