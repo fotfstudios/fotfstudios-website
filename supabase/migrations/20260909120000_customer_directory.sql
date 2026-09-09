@@ -94,3 +94,36 @@ returns text language sql immutable set search_path = public, pg_temp as $$
     when p_type = 'access_sent' then 'Notificaciones'
   end
 $$;
+
+-- ── 7. upsert_guest_customer: ÚNICO escritor de fichas de invitado (checkout, cortesía, backfill) ──
+-- Normaliza (lower/trim, topes), y sin email de forma válida no hay ficha → null (el pedido
+-- queda sin vincular, como hoy). Con ficha existente: para invitados lo tipeado gana (teléfono y
+-- nombre nuevos son la verdad más reciente para WhatsApp/MP); un titular de cuenta conserva
+-- nombre y email y solo se le rellena un teléfono vacío.
+create function upsert_guest_customer(p_name text, p_email text, p_phone text)
+returns uuid language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_email text := nullif(lower(trim(p_email)), '');
+  v_name  text := nullif(left(trim(p_name), 80), '');
+  v_phone text := case when char_length(trim(p_phone)) between 6 and 40 then trim(p_phone) end;
+  v_id    uuid;
+begin
+  if v_email is null
+     or v_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$'
+     or char_length(v_email) > 120 then
+    return null;
+  end if;
+
+  insert into customers (email, name, phone) values (v_email, v_name, v_phone)
+    on conflict (email) do update set
+      name  = case when customers.auth_user_id is null
+                   then coalesce(excluded.name, customers.name)
+                   else customers.name end,
+      phone = case when customers.auth_user_id is null
+                   then coalesce(excluded.phone, customers.phone)
+                   else coalesce(customers.phone, excluded.phone) end,
+      updated_at = now()
+    returning id into v_id;
+  return v_id;
+end;
+$$;

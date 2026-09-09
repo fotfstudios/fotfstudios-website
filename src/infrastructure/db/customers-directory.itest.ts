@@ -214,3 +214,62 @@ describe("esquema: identidad propia, constraints, phone_digits y customer_id", (
     ]);
   });
 });
+
+describe("upsert_guest_customer (escritor único de invitados)", () => {
+  const upsert = async (name: string | null, email: string | null, phone: string | null) =>
+    (await pg.query<{ id: string | null }>("select upsert_guest_customer($1, $2, $3) id", [name, email, phone])).rows[0].id;
+
+  it("la puerta de forma acepta un email normal (normalizado) y devuelve null ante 'a@b' y otras basuras", async () => {
+    const id = await upsert("  Matías Rojas ", " Matias.Rojas@Gmail.com ", "+56 9 8123 4567");
+    expect(id).not.toBeNull();
+    const row = await pg.query<{ name: string; email: string; phone: string; phone_digits: string }>(
+      "select name, email, phone, phone_digits from customers where id=$1",
+      [id],
+    );
+    expect(row.rows[0]).toEqual({
+      name: "Matías Rojas",
+      email: "matias.rojas@gmail.com",
+      phone: "+56 9 8123 4567",
+      phone_digits: "56981234567",
+    });
+    for (const bad of ["a@b", "", null, "sin-arroba.cl", "dos@@x.cl", "con espacio@x.cl", `${"a".repeat(116)}@x.cl`]) {
+      expect(await upsert("X", bad, null)).toBeNull();
+    }
+    expect(await upsert("Y", `${"a".repeat(110)}@x.cl`, null)).not.toBeNull(); // 115 chars: dentro del tope 120
+    expect(await count("customers")).toBe(2);
+  });
+
+  it("nombre vacío y teléfono fuera de 6–40 se guardan como null (basta el email)", async () => {
+    const id = await upsert("   ", "solo-email@dir.cl", "123");
+    const row = await pg.query<{ name: string | null; phone: string | null }>("select name, phone from customers where id=$1", [id]);
+    expect(row.rows[0]).toEqual({ name: null, phone: null });
+  });
+
+  it("para fichas de invitado ganan los datos tipeados; los vacíos no pisan lo existente", async () => {
+    const g = await upsert("Ana", "ana@dir.cl", "+56911111111");
+    expect(await upsert("Ana María", "ANA@dir.cl", "+56922222222")).toBe(g);
+    expect((await pg.query("select name, phone from customers where id=$1", [g])).rows[0]).toEqual({
+      name: "Ana María",
+      phone: "+56922222222",
+    });
+    expect(await upsert(null, "ana@dir.cl", null)).toBe(g);
+    expect((await pg.query("select name, phone from customers where id=$1", [g])).rows[0]).toEqual({
+      name: "Ana María",
+      phone: "+56922222222",
+    });
+    expect(await count("customers")).toBe(1);
+  });
+
+  it("titular de cuenta: conserva nombre y email; solo se rellena un teléfono vacío", async () => {
+    const h = await customer({ name: "Titular Real", email: "titular@dir.cl", phone: null, authUserId: U_HOLDER });
+    expect(await upsert("Otro Nombre", "titular@dir.cl", "+56933333333")).toBe(h);
+    expect((await pg.query("select name, phone from customers where id=$1", [h])).rows[0]).toEqual({
+      name: "Titular Real",
+      phone: "+56933333333",
+    });
+    expect(await upsert("Otro", "titular@dir.cl", "+56944444444")).toBe(h);
+    expect((await pg.query<{ phone: string }>("select phone from customers where id=$1", [h])).rows[0].phone).toBe(
+      "+56933333333", // ya tenía teléfono → no se pisa
+    );
+  });
+});
