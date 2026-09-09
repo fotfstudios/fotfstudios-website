@@ -315,3 +315,76 @@ begin
   if v_email is not null then perform award_retro_points(p_customer); end if;
 end;
 $$;
+
+-- ── 11. assign_booking_customer: cambiar el cliente de una reserva vigente ──
+-- El ledger es append-only → el earn neto de cada otro cliente se MUEVE con un par 'adjust'
+-- (ref única por evento y origen). Netear también los 'adjust' hace que A→B→A restaure a A y
+-- A→B→C deje a B en 0. Como el snapshot pasa a llevar el email del nuevo cliente, el claw-back
+-- de mark_refunded/reschedule_* (que suma earn+earn_revoke sin mirar cliente y revoca al que
+-- resuelve el email) cae sobre quien tiene el neto. Canjes: rechazados (misma postura que
+-- reschedule). Ficha solo-teléfono: rechazada en pedidos pagados para que un claw-back futuro
+-- siempre encuentre al titular.
+create function assign_booking_customer(p_reservation uuid, p_customer uuid, p_created_by uuid default null)
+returns void language plpgsql set search_path = public, pg_temp as $$
+declare
+  r       reservations%rowtype;
+  c       customers%rowtype;
+  o       orders%rowtype;
+  v_evt   uuid;
+  v_moved int := 0;
+  v_paid  boolean := false;
+  m       record;
+begin
+  select * into r from reservations where id = p_reservation for update;
+  if r.id is null or r.kind <> 'booking' then raise exception 'customer_assign_not_booking'; end if;
+  if r.status not in ('held', 'confirmed') then raise exception 'customer_assign_inactive'; end if;
+
+  select * into c from customers where id = p_customer;
+  if c.id is null then raise exception 'customer_not_found'; end if;
+  if r.customer_id = p_customer then return; end if;   -- no-op: sin evento ni movimientos
+
+  if r.order_id is not null then
+    select * into o from orders where id = r.order_id for update;
+    if o.points_redeemed_clp > 0 or exists (
+         select 1 from points_ledger
+          where order_id = r.order_id and kind in ('redeem', 'redeem_release', 'redeem_restore')) then
+      raise exception 'customer_assign_points_order';
+    end if;
+    v_paid := o.status in ('paid', 'fulfilled', 'refunded');
+    if v_paid and c.email is null then raise exception 'customer_assign_needs_email'; end if;
+    select coalesce(sum(amount), 0) into v_moved from points_ledger
+      where order_id = r.order_id and kind in ('earn', 'earn_revoke', 'adjust') and customer_id <> c.id;
+  end if;
+
+  -- INVARIANTE: snapshot desde la ficha (reserva, pedido y pedidos de delta del reagendamiento).
+  update reservations
+     set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
+   where id = r.id;
+  if r.order_id is not null then
+    update orders
+       set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
+     where id = r.order_id
+        or id in (select delta_order_id from reschedules
+                   where reservation_id = r.id and delta_order_id is not null);
+  end if;
+
+  v_evt := log_booking_event(r.id, 'customer_changed', p_order => r.order_id, p_created_by => p_created_by,
+    p_detail => jsonb_build_object(
+      'from_customer_id', r.customer_id, 'from_name', r.customer_name, 'from_email', r.customer_email,
+      'to_customer_id', c.id, 'to_name', c.name, 'to_email', c.email, 'points_moved', v_moved));
+
+  if r.order_id is not null then
+    for m in
+      select customer_id, sum(amount)::int as net from points_ledger
+       where order_id = r.order_id and kind in ('earn', 'earn_revoke', 'adjust') and customer_id <> c.id
+       group by customer_id having sum(amount) <> 0
+    loop
+      perform apply_points(m.customer_id, r.order_id, 'adjust', -m.net, 'reassign:' || v_evt || ':out:' || m.customer_id);
+      perform apply_points(c.id,          r.order_id, 'adjust',  m.net, 'reassign:' || v_evt || ':in:'  || m.customer_id);
+    end loop;
+    -- Pagada sin earn previo (sin ficha o email inválido al pagar) → 5 % al nuevo cliente.
+    -- No-op cuando (order, 'earn', '') ya existe (points_ledger_once).
+    if v_paid then perform award_retro_points(c.id); end if;
+  end if;
+end;
+$$;

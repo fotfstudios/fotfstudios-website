@@ -500,3 +500,165 @@ describe("update_customer_contact (edición desde /admin/clientes y /cuenta/perf
     expect((await pg.query<{ email: string | null }>("select email from customers where id=$1", [d])).rows[0].email).toBeNull();
   });
 });
+
+describe("assign_booking_customer (cambiar cliente)", () => {
+  const assign = (reservationId: string, customerId: string, actor: string | null = ACTOR) =>
+    pg.query("select assign_booking_customer($1, $2, $3)", [reservationId, customerId, actor]);
+  const addHours = (iso: string, n: number) => new Date(Date.parse(iso) + n * 3_600_000).toISOString();
+  const linesUp = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 }]);
+  const two = async () => ({
+    A: await customer({ name: "A", email: "a@dir.cl", phone: "+56 9 1111 1111" }),
+    B: await customer({ name: "B", email: "b@dir.cl", phone: "+56 9 2222 2222" }),
+  });
+  const paidByA = async (A: string) => {
+    const b = await booking({ name: "A", email: "a@dir.cl", phone: "+56 9 1111 1111", customerId: A });
+    await pay(b.orderId, `pay-${slot}`); // A gana floor(0.05·9990) = 499
+    return b;
+  };
+
+  it("A→B: reescribe snapshots (reserva, pedido y pedido de delta), registra customer_changed y MUEVE el earn; balances == ledger", async () => {
+    const { A, B } = await two();
+    const b = await paidByA(A);
+    const endsAt = (await pg.query<{ ends_at: string }>("select ends_at from reservations where id=$1", [b.reservationId])).rows[0].ends_at;
+    const delta = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [b.reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesUp, 3000, 2521, 479, null],
+    );
+
+    await assign(b.reservationId, B);
+
+    const snapB = { customer_id: B, customer_name: "B", customer_email: "b@dir.cl", customer_phone: "+56 9 2222 2222" };
+    expect(await snapshot("reservations", b.reservationId)).toEqual(snapB);
+    expect(await snapshot("orders", b.orderId)).toEqual(snapB);
+    expect(await snapshot("orders", delta.rows[0].delta_order_id)).toEqual(snapB);
+    expect(await balance(A)).toBe(0);
+    expect(await balance(B)).toBe(499);
+    await expectBalanceConsistent(A);
+    await expectBalanceConsistent(B);
+
+    const ev = await pg.query<{ category: string; created_by: string; order_id: string; detail: Record<string, unknown> }>(
+      "select category, created_by, order_id, detail from booking_events where reservation_id=$1 and type='customer_changed'",
+      [b.reservationId],
+    );
+    expect(ev.rows).toHaveLength(1);
+    expect(ev.rows[0]).toMatchObject({ category: "Reservas", created_by: ACTOR, order_id: b.orderId });
+    expect(ev.rows[0].detail).toEqual({
+      from_customer_id: A, from_name: "A", from_email: "a@dir.cl",
+      to_customer_id: B, to_name: "B", to_email: "b@dir.cl", points_moved: 499,
+    });
+    const adj = await pg.query<{ customer_id: string; amount: number; ref: string }>(
+      "select customer_id, amount, ref from points_ledger where order_id=$1 and kind='adjust' order by amount",
+      [b.orderId],
+    );
+    expect(adj.rows.map((r) => [r.customer_id, r.amount])).toEqual([[A, -499], [B, 499]]);
+    expect(adj.rows.every((r) => r.ref.startsWith("reassign:"))).toBe(true);
+    expect(await count("points_ledger where order_id=$1 and kind='earn'", [b.orderId])).toBe(1); // el retro NO duplica el earn
+  });
+
+  it("A→B→A restaura a A; A→B→C deja a B en 0", async () => {
+    const { A, B } = await two();
+    const C = await customer({ name: "C", email: "c@dir.cl" });
+    const b1 = await paidByA(A);
+    await assign(b1.reservationId, B);
+    await assign(b1.reservationId, A);
+    expect(await balance(A)).toBe(499);
+    expect(await balance(B)).toBe(0);
+
+    const b2 = await paidByA(A);
+    await assign(b2.reservationId, B);
+    await assign(b2.reservationId, C);
+    expect(await balance(A)).toBe(499); // solo b1
+    expect(await balance(B)).toBe(0);
+    expect(await balance(C)).toBe(499);
+    for (const id of [A, B, C]) await expectBalanceConsistent(id);
+  });
+
+  it("misma ficha → no-op sin evento; ficha inexistente → customer_not_found", async () => {
+    const { A } = await two();
+    const b = await paidByA(A);
+    await assign(b.reservationId, A);
+    expect(await count("booking_events where reservation_id=$1 and type='customer_changed'", [b.reservationId])).toBe(0);
+    await expect(assign(b.reservationId, "e0000000-0000-4000-a000-0000000000ff")).rejects.toThrow("customer_not_found");
+  });
+
+  it("pedido con canje de puntos → customer_assign_points_order (por points_redeemed_clp o por fila redeem*)", async () => {
+    const { A, B } = await two();
+    const b1 = await paidByA(A);
+    await pg.query("update orders set points_redeemed_clp = 1000 where id=$1", [b1.orderId]);
+    await expect(assign(b1.reservationId, B)).rejects.toThrow("customer_assign_points_order");
+
+    const b2 = await paidByA(A);
+    await pg.query("select apply_points($1, $2, 'redeem', -100, '')", [A, b2.orderId]);
+    await expect(assign(b2.reservationId, B)).rejects.toThrow("customer_assign_points_order");
+    expect((await snapshot("orders", b2.orderId)).customer_id).toBe(A);
+  });
+
+  it("ficha solo-teléfono: rechazada en pedido pagado (customer_assign_needs_email), aceptada en pendiente", async () => {
+    const { A } = await two();
+    const P = await customer({ name: "Pía", email: null, phone: "+56 9 1234 5678" });
+    const paid = await paidByA(A);
+    await expect(assign(paid.reservationId, P)).rejects.toThrow("customer_assign_needs_email");
+    expect((await snapshot("orders", paid.orderId)).customer_id).toBe(A);
+
+    const pending = await booking({ name: "A", email: "a@dir.cl", customerId: A });
+    await assign(pending.reservationId, P);
+    expect(await snapshot("orders", pending.orderId)).toEqual({ customer_id: P, customer_name: "Pía", customer_email: null, customer_phone: "+56 9 1234 5678" });
+  });
+
+  it("reserva cancelada → customer_assign_inactive; bloqueo → customer_assign_not_booking", async () => {
+    const { A, B } = await two();
+    const cancelled = await booking({ name: "A", email: "a@dir.cl", customerId: A, status: "cancelled" });
+    await expect(assign(cancelled.reservationId, B)).rejects.toThrow("customer_assign_inactive");
+    const block = await pg.query<{ id: string }>(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at, notes)
+         values ($1, 'block', 'confirmed', now() + interval '30 days', now() + interval '30 days 2 hours', 'Mantención') returning id`,
+      [resourceId],
+    );
+    await expect(assign(block.rows[0].id, B)).rejects.toThrow("customer_assign_not_booking");
+  });
+
+  it("mark_refunded después de reasignar revoca del NUEVO cliente", async () => {
+    const { A, B } = await two();
+    const b = await paidByA(A);
+    await assign(b.reservationId, B);
+    await pg.query("select mark_refunded($1, 'asg-rf', null)", [b.orderId]);
+    expect(await balance(A)).toBe(0);
+    expect(await balance(B)).toBe(0);
+    await expectBalanceConsistent(A);
+    await expectBalanceConsistent(B);
+    const revoke = await pg.query<{ customer_id: string; amount: number }>(
+      "select customer_id, amount from points_ledger where order_id=$1 and kind='earn_revoke'",
+      [b.orderId],
+    );
+    expect(revoke.rows).toEqual([{ customer_id: B, amount: -499 }]);
+  });
+
+  it("pedido pagado legacy sin ficha → el nuevo cliente gana el 5 % (retro), points_moved = 0", async () => {
+    const C = await customer({ name: "C", email: "c@dir.cl" });
+    const b = await booking({ name: "Legacy", email: "legacy@dir.cl" });
+    await pay(b.orderId, "legacy1"); // nadie gana: no hay ficha para ese email
+    expect(await count("points_ledger")).toBe(0);
+    await assign(b.reservationId, C);
+    expect((await snapshot("orders", b.orderId)).customer_email).toBe("c@dir.cl");
+    expect(await balance(C)).toBe(499);
+    await expectBalanceConsistent(C);
+    const ev = await pg.query<{ detail: { points_moved: number; from_customer_id: string | null } }>(
+      "select detail from booking_events where reservation_id=$1 and type='customer_changed'",
+      [b.reservationId],
+    );
+    expect(ev.rows[0].detail).toMatchObject({ points_moved: 0, from_customer_id: null });
+  });
+
+  it("cortesía (sin pedido): reescribe solo la reserva y registra el evento sin puntos", async () => {
+    const { B } = await two();
+    const r = await pg.query<{ id: string }>(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at, customer_name, customer_email)
+         values ($1, 'booking', 'confirmed', now() + interval '31 days', now() + interval '31 days 1 hour', 'Walk-in', null) returning id`,
+      [resourceId],
+    );
+    await assign(r.rows[0].id, B, null);
+    expect(await snapshot("reservations", r.rows[0].id)).toEqual({ customer_id: B, customer_name: "B", customer_email: "b@dir.cl", customer_phone: "+56 9 2222 2222" });
+    expect(await count("booking_events where reservation_id=$1 and type='customer_changed'", [r.rows[0].id])).toBe(1);
+    expect(await count("points_ledger")).toBe(0);
+  });
+});
