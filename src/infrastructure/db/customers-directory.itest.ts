@@ -273,3 +273,75 @@ describe("upsert_guest_customer (escritor único de invitados)", () => {
     );
   });
 });
+
+describe("ensure_customer_for_user (login → ficha)", () => {
+  const ensure = async (user: string, email: string, client: Client = pg) =>
+    (await client.query<{ id: string }>("select ensure_customer_for_user($1, $2) id", [user, email])).rows[0].id;
+
+  it("adopta la ficha del directorio conservando su id (normaliza el email) y es idempotente", async () => {
+    const guest = await customer({ name: "Uno", email: "u1@dir.cl", phone: "+56911111111" });
+    expect(await ensure(U1, " U1@dir.cl ")).toBe(guest);
+    expect((await pg.query("select auth_user_id, name from customers where id=$1", [guest])).rows[0]).toEqual({
+      auth_user_id: U1,
+      name: "Uno",
+    });
+    expect(await ensure(U1, "u1@dir.cl")).toBe(guest);
+    expect(await count("customers")).toBe(1);
+  });
+
+  it("sin ficha previa crea una con id = usuario auth", async () => {
+    expect(await ensure(U1, "u1@dir.cl")).toBe(U1);
+    expect((await pg.query("select auth_user_id, email from customers where id=$1", [U1])).rows[0]).toEqual({
+      auth_user_id: U1,
+      email: "u1@dir.cl",
+    });
+  });
+
+  it("reclama la fila legacy (id = usuario, auth_user_id null) aunque el email de auth haya cambiado", async () => {
+    await customer({ id: U1, email: "viejo@dir.cl" }); // creada por el upsert-por-id anterior a PR2
+    expect(await ensure(U1, "u1@dir.cl")).toBe(U1);
+    expect((await pg.query("select auth_user_id, email from customers where id=$1", [U1])).rows[0]).toEqual({
+      auth_user_id: U1,
+      email: "u1@dir.cl",
+    });
+  });
+
+  it("refresca el email si cambió en auth y está libre; si otra ficha lo tiene, levanta", async () => {
+    await ensure(U1, "u1@dir.cl");
+    await ensure(U1, "nuevo@dir.cl");
+    expect((await pg.query<{ email: string }>("select email from customers where id=$1", [U1])).rows[0].email).toBe("nuevo@dir.cl");
+    await customer({ name: "Otra", email: "ocupado@dir.cl" });
+    await expect(ensure(U1, "ocupado@dir.cl")).rejects.toThrow("customer_email_owned_by_other_user");
+    expect((await pg.query<{ email: string }>("select email from customers where id=$1", [U1])).rows[0].email).toBe("nuevo@dir.cl");
+  });
+
+  it("dos usuarios auth con el mismo email: el segundo levanta (nunca se fusiona)", async () => {
+    await ensure(U1, "mismo@dir.cl");
+    await expect(ensure(U2, "mismo@dir.cl")).rejects.toThrow("customer_email_owned_by_other_user");
+    expect(await count("customers")).toBe(1);
+  });
+
+  it("email vacío levanta customer_email_required", async () => {
+    await expect(ensure(U1, "  ")).rejects.toThrow("customer_email_required");
+  });
+
+  it("carrera: dos llamadas concurrentes del mismo usuario → una sola ficha", async () => {
+    const [a, b] = await Promise.all([ensure(U1, "u1@dir.cl", pg), ensure(U1, "u1@dir.cl", pg2)]);
+    expect(a).toBe(b);
+    expect(await count("customers where auth_user_id=$1", [U1])).toBe(1);
+  });
+
+  it("al refrescar el email de auth propaga el snapshot: mark_refunded sigue revocando del MISMO cliente", async () => {
+    const c = await customer({ name: "Uno", email: "u1@dir.cl", authUserId: U1 });
+    const b = await booking({ name: "Uno", email: "u1@dir.cl", customerId: c });
+    await pay(b.orderId, "ens1"); // earn 499 a c (join por email)
+    expect(await balance(c)).toBe(499);
+    expect(await ensure(U1, "nuevo@dir.cl")).toBe(c);
+    const expected = { customer_id: c, customer_name: "Uno", customer_email: "nuevo@dir.cl", customer_phone: null };
+    expect(await snapshot("orders", b.orderId)).toEqual(expected);
+    expect(await snapshot("reservations", b.reservationId)).toEqual(expected);
+    await pg.query("select mark_refunded($1, 'ens1-rf', null)", [b.orderId]);
+    expect(await balance(c)).toBe(0);
+    await expectBalanceConsistent(c);
+  });
+});

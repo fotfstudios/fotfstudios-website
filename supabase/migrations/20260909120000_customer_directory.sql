@@ -127,3 +127,86 @@ begin
   return v_id;
 end;
 $$;
+
+-- ── 8. customer_sync_snapshots (helper privado) + ensure_customer_for_user: login → ficha ──
+-- INVARIANTE para quien reescribe customers.email de una ficha que ya puede estar vinculada:
+-- reescribe el snapshot (desde la ficha) en pedidos/reservas vinculados Y adopta+reescribe los
+-- huérfanos que la join por email atribuía a esta ficha (email viejo o nuevo). Sin esto, tras
+-- cambiar el email los pedidos pagados quedarían con el email viejo y mark_refunded /
+-- reschedule_down / apply_reschedule_charge (join c.email = lower(o.customer_email)) revocarían
+-- a nadie — o, si otra ficha tomara ese email, al cliente equivocado.
+create function customer_sync_snapshots(p_customer uuid, p_old_email text)
+returns void language plpgsql set search_path = public, pg_temp as $$
+declare
+  c customers%rowtype;
+begin
+  select * into c from customers where id = p_customer;
+  if c.id is null then raise exception 'customer_not_found'; end if;
+
+  update orders
+     set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
+   where customer_id = c.id
+      or (customer_id is null and customer_email is not null
+          and lower(customer_email) in (p_old_email, c.email));
+  update reservations
+     set customer_id = c.id, customer_name = c.name, customer_email = c.email, customer_phone = c.phone
+   where customer_id = c.id
+      or (customer_id is null and customer_email is not null
+          and lower(customer_email) in (p_old_email, c.email));
+end;
+$$;
+
+-- Orden: (1) ficha ya vinculada por auth_user_id (refresca el email si cambió en auth y está
+-- libre — y propaga el snapshot con customer_sync_snapshots —; si otra ficha lo tiene, levanta:
+-- fusionar es manual); (2) fila legacy id = usuario sin reclamar (creada por el upsert-por-id
+-- vigente hasta PR2) → reclamarla; (3) ficha del directorio con ese email y sin dueño →
+-- adoptarla conservando su id; (4) alta con id = usuario (paridad con el modelo anterior).
+-- Carrera en (4): on conflict do nothing + relectura.
+create function ensure_customer_for_user(p_user uuid, p_email text)
+returns uuid language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_email text := nullif(lower(trim(p_email)), '');
+  v_id    uuid;
+  v_cur   text;
+begin
+  if p_user is null then raise exception 'customer_user_required'; end if;
+  if v_email is null then raise exception 'customer_email_required'; end if;
+
+  -- (1) ya vinculada
+  select id, email into v_id, v_cur from customers where auth_user_id = p_user;
+
+  -- (2) fila legacy sin reclamar
+  if v_id is null then
+    update customers set auth_user_id = p_user, updated_at = now()
+      where id = p_user and auth_user_id is null
+      returning id, email into v_id, v_cur;
+  end if;
+
+  if v_id is not null then
+    if v_cur is distinct from v_email then
+      update customers set email = v_email, updated_at = now()
+        where id = v_id and not exists (select 1 from customers where email = v_email);
+      if not found then raise exception 'customer_email_owned_by_other_user'; end if;
+      -- INVARIANTE: los pedidos/reservas ya vinculados (y los huérfanos del email viejo/nuevo)
+      -- pasan a llevar el email nuevo; el claw-back sigue resolviendo a esta ficha.
+      perform customer_sync_snapshots(v_id, v_cur);
+    end if;
+    return v_id;
+  end if;
+
+  -- (3) ficha del directorio (invitado/backfill) sin dueño → adoptar, id intacto
+  update customers set auth_user_id = p_user, updated_at = now()
+    where email = v_email and auth_user_id is null
+    returning id into v_id;
+  if v_id is not null then return v_id; end if;
+
+  -- (4) alta nueva; carrera → relectura
+  insert into customers (id, email, auth_user_id) values (p_user, v_email, p_user)
+    on conflict do nothing returning id into v_id;
+  if v_id is null then
+    select id into v_id from customers where auth_user_id = p_user;
+    if v_id is null then raise exception 'customer_email_owned_by_other_user'; end if;
+  end if;
+  return v_id;
+end;
+$$;
