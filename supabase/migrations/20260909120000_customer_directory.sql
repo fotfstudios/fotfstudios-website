@@ -274,3 +274,44 @@ begin
   return v_inserted;
 end;
 $$;
+
+-- ── 10. update_customer_contact: edición (admin y /cuenta) que propaga el snapshot ──
+-- Reescribe los snapshots vinculados Y adopta los huérfanos que la join por email ya atribuía a
+-- esta ficha (email viejo o nuevo) vía customer_sync_snapshots, para que FK y join nunca
+-- discrepen; luego retro por el historial del email nuevo (idempotente). Un titular de cuenta
+-- no cambia su email aquí (es su acceso). Una ficha con puntos no puede quedarse sin email:
+-- sus pedidos pagados perderían el email por el que mark_refunded/reschedule_* revocan (espejo
+-- de customer_assign_needs_email). 23505 (customers_email_key) → 'email_taken' en la app;
+-- 23514 → mensajes del parser.
+create function update_customer_contact(p_customer uuid, p_name text, p_email text, p_phone text)
+returns void language plpgsql set search_path = public, pg_temp as $$
+declare
+  c       customers%rowtype;
+  v_name  text := nullif(left(trim(p_name), 80), '');
+  v_email text := nullif(lower(trim(p_email)), '');
+  v_phone text := nullif(trim(p_phone), '');
+begin
+  select * into c from customers where id = p_customer for update;
+  if c.id is null then raise exception 'customer_not_found'; end if;
+  if v_email is not null
+     and (v_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$' or char_length(v_email) > 120) then
+    raise exception 'customer_email_invalid';
+  end if;
+  if c.auth_user_id is not null and v_email is distinct from c.email then
+    raise exception 'customer_has_account';
+  end if;
+  if v_email is null and c.email is not null
+     and exists (select 1 from points_ledger where customer_id = c.id) then
+    raise exception 'customer_email_in_use';
+  end if;
+
+  update customers
+     set name = v_name, email = v_email, phone = v_phone, updated_at = now()
+   where id = p_customer;
+
+  -- INVARIANTE: snapshot desde la ficha en vinculados + huérfanos del email viejo/nuevo.
+  perform customer_sync_snapshots(p_customer, c.email);
+
+  if v_email is not null then perform award_retro_points(p_customer); end if;
+end;
+$$;

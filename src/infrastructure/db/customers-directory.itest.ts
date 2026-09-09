@@ -412,3 +412,91 @@ describe("backfill_customers_from_bookings (definido en PR1, se ejecuta en PR3)"
     await expectBalanceConsistent(c);
   });
 });
+
+describe("update_customer_contact (edición desde /admin/clientes y /cuenta/perfil)", () => {
+  const update = (id: string, name: string | null, email: string | null, phone: string | null) =>
+    pg.query("select update_customer_contact($1, $2, $3, $4)", [id, name, email, phone]);
+
+  it("reescribe los snapshots vinculados y adopta+reescribe los huérfanos del email viejo o nuevo", async () => {
+    const c = await customer({ name: "Cata", email: "cata@dir.cl", phone: null });
+    const linked = await booking({ name: "Cata", email: "cata@dir.cl", phone: null, customerId: c });
+    const orphanOld = await booking({ name: "Catalina", email: "CATA@dir.cl", phone: null }); // sin customer_id, email viejo
+    const orphanNew = await booking({ name: "C. Soto", email: "catalina.soto@dir.cl", phone: null }); // sin customer_id, email nuevo
+    const other = await booking({ name: "Otra", email: "otra@dir.cl", phone: null });
+
+    await update(c, " Catalina Soto ", " Catalina.Soto@dir.cl ", "+56 9 7654 3210");
+
+    const expected = { customer_id: c, customer_name: "Catalina Soto", customer_email: "catalina.soto@dir.cl", customer_phone: "+56 9 7654 3210" };
+    for (const b of [linked, orphanOld, orphanNew]) {
+      expect(await snapshot("orders", b.orderId)).toEqual(expected);
+      expect(await snapshot("reservations", b.reservationId)).toEqual(expected);
+    }
+    expect((await snapshot("orders", other.orderId)).customer_id).toBeNull();
+    expect((await pg.query("select name, email, phone from customers where id=$1", [c])).rows[0]).toEqual({
+      name: "Catalina Soto",
+      email: "catalina.soto@dir.cl",
+      phone: "+56 9 7654 3210",
+    });
+  });
+
+  it("titular de cuenta: cambiar el email levanta customer_has_account; nombre/teléfono sí se editan", async () => {
+    const h = await customer({ name: "Titular", email: "titular@dir.cl", phone: null, authUserId: U_HOLDER });
+    await expect(update(h, "Titular", "otro@dir.cl", null)).rejects.toThrow("customer_has_account");
+    await expect(update(h, "Titular", null, "+56 9 1111 1111")).rejects.toThrow("customer_has_account");
+    await update(h, "Titular Editado", "TITULAR@dir.cl", "+56 9 1111 1111"); // mismo email (normalizado) → ok
+    expect((await pg.query("select name, email, phone from customers where id=$1", [h])).rows[0]).toEqual({
+      name: "Titular Editado",
+      email: "titular@dir.cl",
+      phone: "+56 9 1111 1111",
+    });
+  });
+
+  it("errores que la app mapea: ficha inexistente, email inválido, email ocupado (23505), sin contacto (23514)", async () => {
+    const c = await customer({ name: "Uno", email: "uno@dir.cl" });
+    await customer({ name: "Dos", email: "dos@dir.cl" });
+    await expect(update("e0000000-0000-4000-a000-0000000000ff", "X", "x@dir.cl", null)).rejects.toThrow("customer_not_found");
+    await expect(update(c, "Uno", "a@b", null)).rejects.toThrow("customer_email_invalid");
+    await expect(update(c, "Uno", "dos@dir.cl", null)).rejects.toMatchObject({ code: "23505", constraint: "customers_email_key" });
+    await expect(update(c, "Uno", null, null)).rejects.toMatchObject({ code: "23514", constraint: "customers_contact_required" });
+    await expect(update(c, "Uno", "uno@dir.cl", "123")).rejects.toMatchObject({ code: "23514", constraint: "customers_phone_len" });
+    expect((await pg.query<{ email: string }>("select email from customers where id=$1", [c])).rows[0].email).toBe("uno@dir.cl");
+  });
+
+  it("solo-teléfono que gana email: adopta el historial pagado de ese email y recibe retro", async () => {
+    const c = await customer({ name: "Pía", email: null, phone: "+56 9 1234 5678" });
+    const b = await booking({ name: "Pía", email: "pia@dir.cl", phone: null }); // pagó como invitada, sin ficha
+    await pay(b.orderId, "ucc1");
+    expect(await balance(c)).toBe(0);
+    await update(c, "Pía", "pia@dir.cl", "+56 9 1234 5678");
+    expect((await snapshot("orders", b.orderId)).customer_id).toBe(c);
+    expect(await balance(c)).toBe(499); // floor(0.05·9990)
+    await expectBalanceConsistent(c);
+  });
+
+  it("tras cambiar el email, mark_refunded revoca del MISMO cliente", async () => {
+    const c = await customer({ name: "Cata", email: "cata@dir.cl" });
+    const b = await booking({ name: "Cata", email: "cata@dir.cl", customerId: c });
+    await pay(b.orderId, "ucr1"); // earn 499 a c (join por email)
+    expect(await balance(c)).toBe(499);
+    await update(c, "Cata", "nuevo@dir.cl", null);
+    await pg.query("select mark_refunded($1, 'ucr1-rf', null)", [b.orderId]);
+    expect(await balance(c)).toBe(0);
+    await expectBalanceConsistent(c);
+  });
+
+  it("ficha con puntos: quitarle el email levanta customer_email_in_use; snapshot y saldo intactos", async () => {
+    const c = await customer({ name: "Cata", email: "cata@dir.cl", phone: "+56 9 7654 3210" });
+    const b = await booking({ name: "Cata", email: "cata@dir.cl", phone: "+56 9 7654 3210", customerId: c });
+    await pay(b.orderId, "uce1"); // earn 499 a c
+    expect(await balance(c)).toBe(499);
+    await expect(update(c, "Cata", null, "+56 9 7654 3210")).rejects.toThrow("customer_email_in_use");
+    expect((await pg.query<{ email: string }>("select email from customers where id=$1", [c])).rows[0].email).toBe("cata@dir.cl");
+    expect((await snapshot("orders", b.orderId)).customer_email).toBe("cata@dir.cl");
+    expect(await balance(c)).toBe(499);
+    await expectBalanceConsistent(c);
+    // Sin ledger sí se puede (queda solo-teléfono, como una ficha nueva del directorio).
+    const d = await customer({ name: "Dani", email: "dani@dir.cl", phone: "+56 9 5555 5555" });
+    await update(d, "Dani", null, "+56 9 5555 5555");
+    expect((await pg.query<{ email: string | null }>("select email from customers where id=$1", [d])).rows[0].email).toBeNull();
+  });
+});
