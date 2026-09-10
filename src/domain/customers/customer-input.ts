@@ -73,6 +73,16 @@ export function customerLabel(c: { name?: string | null; email?: string | null; 
   return c.name?.trim() || c.email || c.phone || "Cliente sin nombre";
 }
 
+/**
+ * Copy genérico cuando un error de la DB no calza con ningún sentinela
+ * reconocido (deadlock, timeout, un CHECK nuevo, columna que cambió, texto de
+ * red...). Fuente única: tanto `throwDbError` del adaptador como `legible` de
+ * `customer-service.ts` usan ESTA MISMA frase, para que un error sin
+ * sentinela se vea idéntico sin importar qué capa lo atrapó primero. El texto
+ * crudo de Postgres nunca llega a `.message` — solo a `.cause`, para logs.
+ */
+export const CUSTOMER_GENERIC_DB_ERROR = "No pudimos completar la operación. Intenta de nuevo.";
+
 /** Frases (una por sentinela). Chileno, directo, oración completa. */
 const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
   email_taken: "Ese email ya pertenece a otro cliente.",

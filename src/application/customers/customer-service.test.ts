@@ -93,4 +93,41 @@ describe("CustomerService: resolución por auth_user_id", () => {
       new CustomerService(repo).updateProfileByUser("user-1", { name: "x".repeat(81), phone: null }),
     ).rejects.toThrow("El nombre no puede superar los 80 caracteres.");
   });
+
+  // Fix round 1, hallazgo importante: un error SIN sentinela reconocido (de la
+  // ESCRITURA, updateContact) nunca debe filtrar texto crudo al `.message` que
+  // `run()` muestra tal cual en el toast — pero el original sigue disponible
+  // en `.cause` para logs.
+  it("un fallo de escritura sin sentinela conocido sale genérico en .message, con el original en .cause", async () => {
+    const repo = fakeRepo({ updateContact: vi.fn().mockRejectedValue(new Error("deadlock detected")) });
+    const err: Error = await new CustomerService(repo)
+      .updateProfileByUser("user-1", { name: "Ana", phone: null })
+      .then(() => {
+        throw new Error("se esperaba que rechazara");
+      })
+      .catch((e: unknown) => e as Error);
+
+    expect(err.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
+    expect(err.message).not.toMatch(/deadlock/i);
+    expect(String(err.cause)).toMatch(/deadlock detected/i);
+  });
+
+  // Fix round 1, hallazgo importante: misma garantía para un fallo de LECTURA
+  // (findByAuthUser) — es la ruta que estaba dormida porque perfil/actions.ts
+  // todavía llama al método deprecado; Task 7 la despierta.
+  it("un fallo de lectura (findByAuthUser) sin sentinela conocido también sale genérico, nunca crudo", async () => {
+    const repo = fakeRepo({
+      findByAuthUser: vi.fn().mockRejectedValue(new Error('invalid input syntax for type uuid: "x"')),
+    });
+    const err: Error = await new CustomerService(repo)
+      .updateProfileByUser("user-1", { name: "Ana", phone: null })
+      .then(() => {
+        throw new Error("se esperaba que rechazara");
+      })
+      .catch((e: unknown) => e as Error);
+
+    expect(err.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
+    expect(err.message).not.toMatch(/uuid|syntax/i);
+    expect(String(err.cause)).toMatch(/invalid input syntax for type uuid/i);
+  });
 });

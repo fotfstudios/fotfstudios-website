@@ -8,7 +8,7 @@ import type {
   PointsMovement,
 } from "@/src/application/ports/customers";
 import { escapeIlike } from "@/src/domain/admin/reservas-list";
-import { customerDbErrorCode, isEnsureEmailConflict } from "@/src/domain/customers/customer-input";
+import { CUSTOMER_GENERIC_DB_ERROR, customerDbErrorCode, isEnsureEmailConflict } from "@/src/domain/customers/customer-input";
 import type { Database } from "./database.types";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
@@ -53,25 +53,19 @@ const BOOKING_COLS =
   "id, starts_at, ends_at, status, order_id, customer_id, customer_email, orders(status, amount_clp, points_redeemed_clp)";
 
 /**
- * Copy genérico cuando la DB no tiene un sentinela reconocido (deadlock 40P01,
- * timeout 57014, un CHECK nuevo, conexión caída, …). `customerDbErrorCode`
- * devuelve "unknown" a propósito en vez de inventar copy (Task 2); es acá,
- * en la frontera del adaptador, donde ese "unknown" deja de ser una palabra
- * mostrable y se vuelve esta frase — el texto crudo de Postgres jamás llega
- * al `.message` que ve una persona, solo a `.cause` (logs).
- */
-const GENERIC_DB_ERROR = "No pudimos completar la operación. Intenta de nuevo.";
-
-/**
  * Relanza el error de la DB con una SENTINELA estable como mensaje
- * (`email_taken`, `customer_has_account`, `customers_name_len`, …). La capa de
- * aplicación ramifica sobre ella y `customerDbErrorMessage` la traduce; nunca
- * viaja texto crudo de Postgres hacia un toast — el mensaje original queda en
- * `cause` para logs, nunca en `.message`.
+ * (`email_taken`, `customer_has_account`, `customers_name_len`, …), o con el
+ * copy genérico compartido (`CUSTOMER_GENERIC_DB_ERROR`) cuando
+ * `customerDbErrorCode` no reconoce nada (deadlock 40P01, timeout 57014, un
+ * CHECK nuevo, conexión caída, …). Es el ÚNICO camino de error de la clase:
+ * cada método de este adaptador pasa su `error` por acá, así que texto crudo
+ * de Postgres jamás llega al `.message` que ve una persona — solo a `.cause`,
+ * para logs. La capa de aplicación ramifica sobre el sentinela y
+ * `customerDbErrorMessage` lo traduce.
  */
 function throwDbError(error: { code?: string | null; message: string }): never {
   const sentinel = customerDbErrorCode(error.code, null, error.message);
-  throw new Error(sentinel === "unknown" ? GENERIC_DB_ERROR : sentinel, { cause: error.message });
+  throw new Error(sentinel === "unknown" ? CUSTOMER_GENERIC_DB_ERROR : sentinel, { cause: error.message });
 }
 
 /** Adaptador Supabase del perfil de cliente + ledger de puntos. */
@@ -80,18 +74,18 @@ export class SupabaseCustomerRepository implements CustomerRepository {
 
   async upsertCustomer(id: string, email: string): Promise<void> {
     const { error } = await this.db.from("customers").upsert({ id, email }, { onConflict: "id" });
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
   }
 
   async awardRetroPoints(id: string): Promise<number> {
     const { data, error } = await this.db.rpc("award_retro_points", { p_customer: id });
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return data ?? 0;
   }
 
   async getProfile(id: string): Promise<CustomerProfile | null> {
     const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("id", id).maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return data ? toProfile(data) : null;
   }
 
@@ -100,7 +94,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       .from("customers")
       .update({ name: data.name, phone: data.phone, updated_at: new Date().toISOString() })
       .eq("id", id);
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
   }
 
   async movements(id: string, limit: number): Promise<PointsMovement[]> {
@@ -110,7 +104,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       .eq("customer_id", id)
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return (data ?? []).map((r) => ({
       id: r.id,
       orderId: r.order_id,
@@ -131,13 +125,13 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       .eq("kind", "booking")
       .order("starts_at", { ascending: false })
       .limit(200);
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return (data ?? []).filter((r) => r.customer_email?.toLowerCase() === email).map(toBooking);
   }
 
   async findByAuthUser(userId: string): Promise<CustomerProfile | null> {
     const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("auth_user_id", userId).maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return data ? toProfile(data) : null;
   }
 
@@ -156,7 +150,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       : query.eq("customer_id", customerId);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throwDbError(error);
     return (data ?? [])
       .filter((r) => r.customer_id === customerId || (r.customer_id === null && r.customer_email?.toLowerCase() === lower))
       .map(toBooking);

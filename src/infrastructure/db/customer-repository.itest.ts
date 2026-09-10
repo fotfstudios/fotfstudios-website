@@ -140,6 +140,25 @@ describe("lecturas del directorio", () => {
     expect(await repo.findByAuthUser(U2)).toBeNull();
   });
 
+  // Fix round 1 (CustomerService), hallazgo importante: `throwDbError` ahora
+  // es el ÚNICO camino de error del adaptador — antes solo `ensureForAuthUser`
+  // y `updateContact` lo usaban; `getProfile`, `updateProfile`, `movements`,
+  // `bookingsForEmail`, `upsertCustomer` y `bookingsForCustomer` relanzaban
+  // `error.message` crudo. Un caso representativo de LECTURA (no se duplica
+  // la cobertura de escritura que ya existe abajo para `updateContact`).
+  it("findByAuthUser también sale genérico ante un error de la DB, con el texto crudo solo en .cause", async () => {
+    const err: Error = await repo
+      .findByAuthUser("no-es-un-uuid")
+      .then(() => {
+        throw new Error("se esperaba que rechazara");
+      })
+      .catch((e: unknown) => e as Error);
+
+    expect(err.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
+    expect(err.message).not.toMatch(/uuid|syntax|postgres/i);
+    expect(String(err.cause)).toMatch(/invalid input syntax for type uuid/i);
+  });
+
   it("bookingsForCustomer suma las vinculadas Y las huérfanas de su email", async () => {
     const id = await customer({ email: "duena@repo.cl", name: "Dueña" });
     await booking({ email: "duena@repo.cl", customerId: id }); // vinculada

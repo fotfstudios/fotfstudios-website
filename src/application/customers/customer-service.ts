@@ -4,15 +4,22 @@ import type {
   CustomerRepository,
   PointsMovement,
 } from "@/src/application/ports/customers";
-import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
+import { CUSTOMER_GENERIC_DB_ERROR, customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 
 /** Resultado de asegurar la ficha del titular de la sesión. */
 export type EnsureCustomerOutcome = { kind: "ok"; profile: CustomerProfile } | { kind: "email_conflict" };
 
-/** Traduce la sentinela del adaptador a una frase; deja pasar lo desconocido. */
+/**
+ * Traduce una sentinela a una frase. Lo desconocido NUNCA pasa tal cual — cae
+ * al mismo copy genérico que usa `throwDbError` del adaptador
+ * (`CUSTOMER_GENERIC_DB_ERROR`), así un error sin sentinela se ve idéntico
+ * venga de donde venga. El texto original (o la sentinela) queda en `.cause`
+ * para logs, nunca en `.message`.
+ */
 function legible(e: unknown): Error {
   const msg = e instanceof Error ? e.message : String(e);
-  return new Error(customerDbErrorMessage(null, null, msg) ?? msg);
+  const cause = e instanceof Error && e.cause !== undefined ? e.cause : msg;
+  return new Error(customerDbErrorMessage(null, null, msg) ?? CUSTOMER_GENERIC_DB_ERROR, { cause });
 }
 
 /**
@@ -20,8 +27,13 @@ function legible(e: unknown): Error {
  * valores derivados de la sesión verificada (userId/email) — nunca con input
  * del cliente — porque el service-role bypasea RLS.
  *
- * La ficha se resuelve SIEMPRE por `auth_user_id`: desde el directorio,
- * `customers.id` ya no es `auth.users.id` (una ficha adoptada conserva su id).
+ * Los métodos NUEVOS (`ensureCustomer`, `profileByUser`, `movementsByUser`,
+ * `updateProfileByUser`) resuelven la ficha SIEMPRE por `auth_user_id`: desde
+ * el directorio, `customers.id` ya no es `auth.users.id` (una ficha adoptada
+ * conserva su id propio). Los tres métodos `@deprecated` de abajo todavía
+ * asumen `id === userId` — es el bug que esta clase reemplaza — y quedan solo
+ * para que los call sites actuales sigan compilando hasta que Task 7 los
+ * migre; Task 8 los borra.
  */
 export class CustomerService {
   constructor(private readonly repo: CustomerRepository) {}
@@ -35,7 +47,7 @@ export class CustomerService {
    */
   async ensureCustomer(userId: string, email: string): Promise<EnsureCustomerOutcome> {
     const ensured = await this.repo.ensureForAuthUser(userId, email.trim().toLowerCase());
-    if (ensured.kind !== "ok") return { kind: "email_conflict" };
+    if (ensured.kind === "email_conflict") return { kind: "email_conflict" };
     await this.repo.awardRetroPoints(ensured.id);
     const profile = await this.repo.getProfile(ensured.id);
     // Inalcanzable salvo borrado concurrente (no hay flujo de borrado de fichas).
@@ -58,9 +70,11 @@ export class CustomerService {
    * la próxima reserva (el que el staff usa para WhatsApp) se actualiza solo.
    * Reenvía el email ACTUAL: la función rechaza cambiarlo para un titular.
    *
-   * OJO: la LECTURA va dentro del try. Si `findByAuthUser` falla, su mensaje es
-   * texto crudo de Postgres y `run()` lo mostraría tal cual en el toast del
-   * perfil; adentro pasa por `legible` como cualquier otro fallo.
+   * OJO: la LECTURA va dentro del try. `findByAuthUser` ya no puede lanzar
+   * texto crudo de Postgres (el adaptador lo traduce con `throwDbError`), pero
+   * igual pasa por `legible` acá — mismo camino que la escritura — para que
+   * `run()` nunca dependa de qué método falló para decidir si el toast del
+   * perfil es seguro de mostrar tal cual.
    */
   async updateProfileByUser(userId: string, data: { name: string | null; phone: string | null }): Promise<void> {
     try {
