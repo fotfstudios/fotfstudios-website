@@ -10,6 +10,7 @@ import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
 import { normalizeEmail, normalizePhone } from "@/src/domain/contact/contact";
+import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,8 @@ export async function POST(req: Request): Promise<Response> {
     !b.date ||
     typeof b.startMinute !== "number" ||
     typeof b.durationHours !== "number" ||
-    !b.customer?.email
+    typeof b.customer?.email !== "string" ||
+    !b.customer.email
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
   }
@@ -65,9 +67,11 @@ export async function POST(req: Request): Promise<Response> {
     // guarda tal como se tipeó y la reserva queda sin vincular, como hoy).
     const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
     let customer: { name?: string; email?: string; phone?: string } = {
-      name: b.customer.name?.trim().slice(0, 80) || undefined,
-      email: normalizeEmail(b.customer.email) ?? b.customer.email.trim().slice(0, 120),
-      phone: b.customer.phone ? (normalizePhone(b.customer.phone) ?? b.customer.phone.trim().slice(0, 40)) : undefined,
+      name: b.customer.name?.trim().slice(0, CUSTOMER_CAPS.name) || undefined,
+      email: normalizeEmail(b.customer.email) ?? b.customer.email.trim().slice(0, CUSTOMER_CAPS.email),
+      phone: b.customer.phone
+        ? (normalizePhone(b.customer.phone) ?? b.customer.phone.trim().slice(0, CUSTOMER_CAPS.phone))
+        : undefined,
     };
     let customerId: string | undefined;
 
@@ -77,7 +81,11 @@ export async function POST(req: Request): Promise<Response> {
       const session = await currentCustomer();
       if (!session) return Response.json({ error: "points_session" }, { status: 401 });
       const ensured = await customerService(client).ensureCustomer(session.userId, session.email);
-      if (ensured.kind !== "ok") return Response.json({ error: "points_session" }, { status: 401 });
+      // Distinto de "sesión expirada": acá la sesión es válida, pero el email
+      // ya es de otra ficha del directorio — volver a entrar no lo arregla.
+      // Copy propia para no mandar a "vuelve a entrar" a alguien a quien
+      // entrar de nuevo no le sirve de nada.
+      if (ensured.kind !== "ok") return Response.json({ error: "points_email_conflict" }, { status: 409 });
       // El canje va contra la FICHA, nunca contra el usuario de auth: una ficha
       // adoptada del directorio tiene id ≠ session.userId y el row lock del
       // canje (p_customer_id) se toma sobre ella.
