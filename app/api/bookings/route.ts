@@ -9,6 +9,7 @@ import {
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
+import { normalizeEmail, normalizePhone } from "@/src/domain/contact/contact";
 
 export const dynamic = "force-dynamic";
 
@@ -59,17 +60,29 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const client = db();
 
+    // Normalización de dominio: el email válido se guarda canónico (minúsculas)
+    // y el teléfono en "+dígitos"; un email inválido NO bloquea la reserva (se
+    // guarda tal como se tipeó y la reserva queda sin vincular, como hoy).
+    const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
+    let customer: { name?: string; email?: string; phone?: string } = {
+      name: b.customer.name?.trim().slice(0, 80) || undefined,
+      email: normalizeEmail(b.customer.email) ?? b.customer.email.trim().slice(0, 120),
+      phone: b.customer.phone ? (normalizePhone(b.customer.phone) ?? b.customer.phone.trim().slice(0, 40)) : undefined,
+    };
+    let customerId: string | undefined;
+
     // Canje de puntos: la identidad es SOLO la sesión (cookie verificada) — el
     // email del body se sobreescribe y el saldo lo valida el row lock en la DB.
-    const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
-    let customer = b.customer;
-    let customerId: string | undefined;
     if (points > 0) {
       const session = await currentCustomer();
       if (!session) return Response.json({ error: "points_session" }, { status: 401 });
-      await customerService(client).ensureCustomer(session.userId, session.email);
-      customer = { ...b.customer, email: session.email };
-      customerId = session.userId;
+      const ensured = await customerService(client).ensureCustomer(session.userId, session.email);
+      if (ensured.kind !== "ok") return Response.json({ error: "points_session" }, { status: 401 });
+      // El canje va contra la FICHA, nunca contra el usuario de auth: una ficha
+      // adoptada del directorio tiene id ≠ session.userId y el row lock del
+      // canje (p_customer_id) se toma sobre ella.
+      customer = { ...customer, email: ensured.profile.email ?? session.email };
+      customerId = ensured.profile.id;
     }
 
     const booking = await checkoutService(client).createBooking({

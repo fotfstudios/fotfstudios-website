@@ -28,15 +28,20 @@ export default async function ReservarPage() {
   if (accountEnabled()) {
     const session = await currentCustomer();
     if (session) {
-      const svc = customerService();
-      await svc.ensureCustomer(session.userId, session.email);
-      const profile = await svc.profile(session.userId);
-      customer = {
-        email: session.email,
-        name: profile?.name ?? "",
-        phone: profile?.phone ?? "",
-        points: profile?.pointsBalance ?? 0,
-      };
+      // La ficha puede tener id ≠ session.userId (adoptada del directorio):
+      // se usa el perfil que devuelve ensureCustomer, no una segunda consulta
+      // por el id del usuario (devolvería null y el widget mostraría 0 pts).
+      const ensured = await customerService().ensureCustomer(session.userId, session.email);
+      if (ensured.kind === "ok") {
+        customer = {
+          email: ensured.profile.email ?? session.email,
+          name: ensured.profile.name ?? "",
+          phone: ensured.profile.phone ?? "",
+          points: ensured.profile.pointsBalance,
+        };
+      }
+      // Con email_conflict el widget sigue como invitado: un conflicto de
+      // directorio no puede impedir que alguien reserve.
     }
   }
 

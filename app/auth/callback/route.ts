@@ -35,9 +35,14 @@ export async function GET(req: Request): Promise<Response> {
   // layout lo reintenta (idempotente) si esto falla.
   const user = exchanged?.user;
   if (accountEnabled() && user?.email) {
-    await customerService()
+    const ensured = await customerService()
       .ensureCustomer(user.id, user.email)
-      .catch((e) => console.error("[auth-callback:customer]", e));
+      .catch((e) => {
+        console.error("[auth-callback:customer]", e);
+        return null;
+      });
+    // El login NUNCA falla por esto: el layout de /cuenta muestra el estado.
+    if (ensured?.kind === "email_conflict") console.warn("[auth-callback:customer] email_conflict", user.id);
   }
 
   const { data } = await supabase.auth.getClaims();

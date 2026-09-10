@@ -13,7 +13,7 @@ export async function updateProfileAction(_prev: ActionResult | null, fd: FormDa
       name: String(fd.get("name") ?? ""),
       phone: String(fd.get("phone") ?? ""),
     });
-    await customerService().updateProfile(session.userId, data);
+    await customerService().updateProfileByUser(session.userId, data);
     revalidatePath("/cuenta", "layout");
   });
 }
