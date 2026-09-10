@@ -143,15 +143,28 @@ begin
 
   update reservations set order_id = v_order where id = v_res;
 
-  -- Bloque de canje: BYTE-IDÉNTICO al de 20260707240000 y sigue usando p_customer_id, NO
-  -- v_cust. Hoy son el mismo valor cuando p_points > 0: el canje exige sesión
-  -- (checkout-service.ts:62) y esa rama siempre pasa p_customer_id, así que v_cust nunca se
-  -- reasignó (la rama del invitado solo corre con p_customer_id null, y entonces p_points = 0).
-  -- Se deja el parámetro a propósito, para que este bloque quede idéntico al original y el
-  -- diff de la migración muestre SOLO la resolución de la ficha y las dos columnas customer_id.
-  -- Si alguna vez un canje pudiera llegar sin p_customer_id, esta línea debe pasar a v_cust.
+  -- Bloque de canje: sigue usando p_customer_id, NO v_cust. Hoy son el mismo valor cuando
+  -- p_points > 0: el canje exige sesión (checkout-service.ts:62) y esa rama siempre pasa
+  -- p_customer_id, así que v_cust nunca se reasignó (la rama del invitado solo corre con
+  -- p_customer_id null, y entonces p_points = 0). Si alguna vez un canje pudiera llegar sin
+  -- p_customer_id, esta línea debe pasar a v_cust.
+  --
+  -- FIX ROUND 1 (deadlock): este bloque YA NO es byte-idéntico al de 20260707240000 — el lock
+  -- bajó de FOR UPDATE a FOR NO KEY UPDATE. Motivo: las dos columnas customer_id de arriba
+  -- (reservations/orders) hacen que un INSERT tome un lock FOR KEY SHARE sobre la fila del
+  -- cliente (así es como Postgres valida una FK). Con FOR UPDATE, dos create_checkout
+  -- concurrentes para EL MISMO cliente y AMBOS con p_points > 0 quedan cada uno sosteniendo
+  -- el FOR KEY SHARE de su propio insert y pidiendo el FOR UPDATE del otro — ciclo, deadlock
+  -- (medido con harness de dos conexiones, slots bien separados para no tocar la exclusion
+  -- constraint de reservas: 40/40 pares deadlockearon, 80/80 intentos). FOR NO KEY UPDATE es
+  -- la fuerza correcta para esta sección: solo toca points_balance, que no participa de
+  -- ninguna key, y por diseño de Postgres NO conflictúa con FOR KEY SHARE — pero SÍ
+  -- conflictúa con otro FOR NO KEY UPDATE, así que dos canjes concurrentes sobre el mismo
+  -- cliente siguen serializando correctamente (uno espera, no hay ciclo) y el
+  -- chequeo-y-descuento sigue atómico bajo lock. Medido tras el fix: 0 deadlocks en 100 pares
+  -- (200 intentos, dos corridas del mismo harness). Ver task-3-report.md § Fix round 1.
   if p_points > 0 then
-    select points_balance into v_balance from customers where id = p_customer_id for update;
+    select points_balance into v_balance from customers where id = p_customer_id for no key update;
     if v_balance is null then raise exception 'points_without_customer'; end if;
     if v_balance < p_points then raise exception 'insufficient_points'; end if;
     perform apply_points(p_customer_id, v_order, 'redeem', -p_points, '');

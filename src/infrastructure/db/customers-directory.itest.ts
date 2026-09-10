@@ -1011,4 +1011,63 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
       customer_phone: null,
     });
   });
+
+  // FIX ROUND 1 (deadlock): guarda determinista del mecanismo del que depende el fix, sin
+  // depender de una carrera real. Antes de este fix, dos create_checkout concurrentes para
+  // EL MISMO cliente con p_points > 0 deadlockeaban ~35-40 de cada 40 pares (medido con un
+  // harness de dos conexiones fuera de este archivo — ver task-3-report.md § Fix round 1):
+  // cada uno sostiene el FOR KEY SHARE que Postgres exige para el FK de reservations/
+  // orders.customer_id y luego pide FOR UPDATE del bloque de canje, que SÍ conflictúa con
+  // FOR KEY SHARE — ciclo. El fix bajó ese lock a FOR NO KEY UPDATE, que por diseño de
+  // Postgres NO conflictúa con FOR KEY SHARE (deja pasar el insert de la otra conexión) pero
+  // SÍ conflictúa con otro FOR NO KEY UPDATE (dos canjes sobre el mismo cliente siguen
+  // serializando, uno espera al otro, sin ciclo). Este test reproduce esas dos propiedades
+  // con locks explícitos y `pg_stat_activity` — determinista: no hay dos resultados posibles
+  // por azar, solo una secuencia de estados que se espera con polling acotado, no una carrera.
+  // No reemplaza al harness (que sí ejercita la función real de punta a punta bajo carga);
+  // documenta y protege el mecanismo de bloqueo del que el fix depende.
+  it("FOR KEY SHARE (el insert del FK) no bloquea FOR NO KEY UPDATE (el lock del canje); dos FOR NO KEY UPDATE sí serializan sin deadlock", async () => {
+    const c = await customer({ name: "Lock", email: "lock@dir.cl", phone: null });
+    await pg.query("select apply_points($1, null, 'adjust', 1000, 'seed-lock')", [c]);
+
+    const pid2 = (await pg2.query<{ pid: number }>("select pg_backend_pid() pid")).rows[0].pid;
+    await pg.query("begin");
+    await pg2.query("begin");
+    try {
+      // Ambas conexiones toman el lock que un INSERT con customer_id tomaría por el FK —
+      // compatible entre sí, ninguna espera a la otra.
+      await pg.query("select 1 from customers where id=$1 for key share", [c]);
+      await pg2.query("select 1 from customers where id=$1 for key share", [c]);
+
+      // pg pide el lock REAL del bloque de canje (FOR NO KEY UPDATE): debe entrar de
+      // inmediato porque NO conflictúa con el FOR KEY SHARE que pg2 sostiene.
+      await pg.query("select points_balance from customers where id=$1 for no key update", [c]);
+
+      // pg2 pide el MISMO lock: con pg ya sosteniéndolo, pg2 debe BLOQUEARSE (no deadlockear:
+      // pg no espera nada de pg2 en este punto, así que no hay ciclo posible).
+      const pending = pg2.query<{ points_balance: number }>(
+        "select points_balance from customers where id=$1 for no key update",
+        [c],
+      );
+      let waiting = false;
+      for (let i = 0; i < 60 && !waiting; i++) {
+        const r = await pg.query<{ wait_event_type: string | null }>(
+          "select wait_event_type from pg_stat_activity where pid=$1",
+          [pid2],
+        );
+        if (r.rows[0]?.wait_event_type === "Lock") waiting = true;
+        else await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(waiting).toBe(true); // pg2 espera un lock — no deadlockeó, no fue rechazada
+
+      // Al soltar pg, pg2 debe completar limpio (no "deadlock detected").
+      await pg.query("commit");
+      const r2 = await pending;
+      expect(r2.rows[0].points_balance).toBe(1000);
+      await pg2.query("commit");
+    } finally {
+      await pg.query("rollback").catch(() => {});
+      await pg2.query("rollback").catch(() => {});
+    }
+  }, 10_000);
 });
