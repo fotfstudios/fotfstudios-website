@@ -413,6 +413,82 @@ describe("backfill_customers_from_bookings (definido en PR1, se ejecuta en PR3)"
   });
 });
 
+describe("customer_sync_snapshots (no destructivo desde PR3)", () => {
+  const sync = (id: string, oldEmail: string | null) =>
+    pg.query("select customer_sync_snapshots($1, $2)", [id, oldEmail]);
+
+  // El defecto que PR3 arregla: en prod las tres fichas tienen name y phone en
+  // NULL mientras 13 reservas llevan nombre y 5 llevan teléfono. La versión
+  // vieja copiaba los NULL encima y borraba el contacto del historial.
+  it("una ficha sin nombre ni teléfono NO borra el nombre ni el teléfono del historial", async () => {
+    const c = await customer({ name: null, email: "vacia@dir.cl", phone: null });
+    const linked = await booking({
+      name: "Nombre Del Historial",
+      email: "vacia@dir.cl",
+      phone: "+56 9 1111 1111",
+      customerId: c,
+    });
+    const orphan = await booking({ name: "Huérfana", email: "VACIA@dir.cl", phone: "+56 9 2222 2222" });
+
+    await sync(c, "vacia@dir.cl");
+
+    expect(await snapshot("orders", linked.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Nombre Del Historial",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 1111 1111",
+    });
+    expect(await snapshot("reservations", linked.reservationId)).toEqual({
+      customer_id: c,
+      customer_name: "Nombre Del Historial",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 1111 1111",
+    });
+    // El huérfano se adopta y su email se canoniza, pero conserva su contacto.
+    expect(await snapshot("orders", orphan.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Huérfana",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 2222 2222",
+    });
+  });
+
+  it("cuando la ficha SÍ tiene nombre y teléfono, siguen ganando los de la ficha", async () => {
+    const c = await customer({ name: "Ficha", email: "manda@dir.cl", phone: "+56 9 3333 3333" });
+    const b = await booking({ name: "Viejo", email: "manda@dir.cl", phone: "+56 9 4444 4444", customerId: c });
+
+    await sync(c, "manda@dir.cl");
+
+    expect(await snapshot("orders", b.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Ficha",
+      customer_email: "manda@dir.cl",
+      customer_phone: "+56 9 3333 3333",
+    });
+  });
+
+  // El email NO se coalescea: las ocho funciones de puntos resuelven al cliente
+  // por c.email = lower(o.customer_email). Si el snapshot pudiera quedarse con
+  // el email viejo, el claw-back de mark_refunded revocaría a nadie.
+  it("el email de la ficha SIEMPRE manda, incluso sobre un snapshot que traía otro", async () => {
+    const c = await customer({ name: null, email: "nuevo@dir.cl", phone: null });
+    const b = await booking({ name: "Con Nombre", email: "viejo@dir.cl", phone: null, customerId: c });
+
+    await sync(c, "viejo@dir.cl");
+
+    expect(await snapshot("orders", b.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Con Nombre",
+      customer_email: "nuevo@dir.cl",
+      customer_phone: null,
+    });
+  });
+
+  it("una ficha inexistente sigue levantando customer_not_found", async () => {
+    await expect(sync("e0000000-0000-4000-a000-0000000000fe", null)).rejects.toThrow("customer_not_found");
+  });
+});
+
 describe("update_customer_contact (edición desde /admin/clientes y /cuenta/perfil)", () => {
   const update = (id: string, name: string | null, email: string | null, phone: string | null) =>
     pg.query("select update_customer_contact($1, $2, $3, $4)", [id, name, email, phone]);
