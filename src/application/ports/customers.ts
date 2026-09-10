@@ -1,12 +1,17 @@
 export type PointsEntryKind = "earn" | "earn_revoke" | "redeem" | "redeem_release" | "redeem_restore" | "adjust";
 
 export interface CustomerProfile {
-  id: string; // customers.id (== auth.users.id para cuentas creadas antes del directorio; PR2 agrega authUserId)
-  email: string | null; // null = ficha solo-teléfono del directorio (nunca para titulares de cuenta)
+  id: string; // customers.id — ya NO es auth.users.id (una ficha adoptada tiene id propio)
+  authUserId: string | null; // cuenta de auth vinculada; null = ficha del directorio (invitado/backfill)
+  email: string | null; // null = ficha solo-teléfono (nunca para titulares de cuenta)
   name: string | null;
   phone: string | null;
   pointsBalance: number;
+  createdAt: string;
 }
+
+/** Resultado de `ensure_customer_for_user`: nunca lanza para un conflicto de email. */
+export type EnsureCustomerResult = { kind: "ok"; id: string } | { kind: "email_conflict" };
 
 export interface PointsMovement {
   id: string;

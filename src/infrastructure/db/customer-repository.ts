@@ -8,6 +8,23 @@ import type {
 } from "@/src/application/ports/customers";
 import type { Database } from "./database.types";
 
+type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
+
+/** Columnas del perfil completo (una sola fuente para todas las consultas). */
+const PROFILE_COLS = "id, auth_user_id, email, name, phone, points_balance, created_at";
+
+function toProfile(r: Pick<CustomerRow, "id" | "auth_user_id" | "email" | "name" | "phone" | "points_balance" | "created_at">): CustomerProfile {
+  return {
+    id: r.id,
+    authUserId: r.auth_user_id,
+    email: r.email,
+    name: r.name,
+    phone: r.phone,
+    pointsBalance: r.points_balance,
+    createdAt: r.created_at,
+  };
+}
+
 /** Adaptador Supabase del perfil de cliente + ledger de puntos. */
 export class SupabaseCustomerRepository implements CustomerRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
@@ -24,14 +41,9 @@ export class SupabaseCustomerRepository implements CustomerRepository {
   }
 
   async getProfile(id: string): Promise<CustomerProfile | null> {
-    const { data, error } = await this.db
-      .from("customers")
-      .select("id, email, name, phone, points_balance")
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    if (!data) return null;
-    return { id: data.id, email: data.email, name: data.name, phone: data.phone, pointsBalance: data.points_balance };
+    return data ? toProfile(data) : null;
   }
 
   async updateProfile(id: string, data: { name: string | null; phone: string | null }): Promise<void> {
