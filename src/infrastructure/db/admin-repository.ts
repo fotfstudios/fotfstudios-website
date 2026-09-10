@@ -858,20 +858,34 @@ export class SupabaseAdminRepository {
    * deja la ficha creada. Es dato válido de directorio, no un huérfano — decisión explícita de
    * la spec.
    *
-   * LOCKS sobre `customers` (fix round 1, Finding 2 — corrige el reporte de la Task 5 original,
-   * que decía que cortesía y el canje "no compiten por el mismo recurso"; sí compiten, por eso
-   * esto importa): el upsert de `upsert_guest_customer` SÍ toma el lock más fuerte que existe
-   * sobre la fila del cliente, `FOR NO KEY UPDATE` (el `on conflict do update` solo toca
-   * columnas que no son key, igual que el bloque de canje de `create_checkout` tras el fix
-   * round 1 de la Task 3) — el mismo lock, no uno distinto. Lo que evita el deadlock es que ese
-   * `FOR NO KEY UPDATE` vive en SU PROPIA sentencia autocommit (el rpc), y para cuando el
-   * insert de `reservations` toma el `FOR KEY SHARE` implícito de la FK (sentencia aparte,
-   * autocommit también), el `FOR NO KEY UPDATE` del rpc ya se soltó — nunca están sostenidos a
-   * la vez. CONSECUENCIA para quien toque esto después: si alguna vez estas tres sentencias se
-   * envuelven en una sola transacción Y el insert de `reservations` pasa a ir ANTES del rpc,
-   * eso arma una secuencia compartido-luego-más-fuerte (KEY SHARE → NO KEY UPDATE) sobre la
-   * MISMA fila, y dos cortesías concurrentes para el mismo cliente deadlockean — la misma
-   * clase de bug que el fix round 1 de la Task 3 corrigió en `create_checkout`.
+   * LOCKS sobre `customers` (fix round 2, Finding 2 — corrige la consecuencia escrita en el fix
+   * round 1: esa versión decía que reordenar el insert de `reservations` antes del rpc armaba
+   * un ciclo KEY SHARE → NO KEY UPDATE. Eso es FALSO: verificado en vivo con dos conexiones
+   * — una sostiene `FOR KEY SHARE` 8s mientras la otra pide `FOR NO KEY UPDATE` sobre la MISMA
+   * fila, y viceversa; en ambas direcciones la segunda entra en 3-4ms, sin esperar nada. Los dos
+   * modos son COMPATIBLES entre sí — no conflictan, no hay ciclo posible solo por reordenar
+   * estas dos sentencias. Ver report § Fix round 2 para la evidencia completa.):
+   *
+   * El upsert de `upsert_guest_customer` SÍ toma el lock más fuerte que existe sobre la fila
+   * del cliente, `FOR NO KEY UPDATE` (el `on conflict do update` solo toca columnas que no son
+   * key, igual que el bloque de canje de `create_checkout` tras el fix round 1 de la Task 3) —
+   * el mismo lock, no uno distinto, así que cortesía y el canje SÍ compiten por la fila. Es
+   * seguro porque ese `FOR NO KEY UPDATE` vive en SU PROPIA sentencia autocommit (el rpc), y
+   * para cuando el insert de `reservations` toma el `FOR KEY SHARE` implícito de la FK
+   * (sentencia aparte, autocommit también), el `FOR NO KEY UPDATE` del rpc ya se soltó — nunca
+   * están sostenidos a la vez (aunque, como se verificó arriba, tampoco importaría si lo
+   * estuvieran: son compatibles).
+   *
+   * Los dos peligros REALES sobre esta fila (no el que se escribió en el fix round 1):
+   * 1. El ciclo de una sola fila es sostener `FOR KEY SHARE` (por la FK) y DESPUÉS pedir
+   *    `FOR UPDATE` — no `NO KEY UPDATE` — sobre esa MISMA fila. Es exactamente el ciclo que el
+   *    fix round 1 de la Task 3 cerró bajando el lock del canje de `FOR UPDATE` a `FOR NO KEY
+   *    UPDATE`; por eso ningún escritor de este camino puede volver a pedir `FOR UPDATE` sobre
+   *    `customers`.
+   * 2. El peligro ordinario multi-fila: dos cortesías que tocan DOS fichas distintas en orden
+   *    opuesto (p.ej. cortesía A vincula la 1 y luego la 2; cortesía B vincula la 2 y luego la
+   *    1) deadlockean igual que cualquier transacción multi-fila sin orden fijo, sin importar
+   *    el modo de lock que usen.
    */
   async createCourtesyBooking(
     resourceId: string,
