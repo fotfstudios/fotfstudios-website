@@ -5,6 +5,7 @@ import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
 import { adminRepository, checkoutService, notificationService, pricingService } from "@/src/composition";
 import { TERMS_VERSION } from "@/lib/site";
+import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
@@ -20,7 +21,9 @@ const checkoutErrorMessage = (code: string): string => {
   // El motor de descuentos ya devuelve una frase para el staff (es la única
   // validación que necesita el quote del server para decidirse).
   if (code.startsWith("discount:")) return code.slice("discount:".length);
-  if (code === "customer_not_found") return "El cliente ya no existe. Vuelve a seleccionarlo.";
+  // Fix round 1 (Finding 3): la frase vive en customer-input.ts (pinneada por su test); se
+  // importa en vez de duplicarla para que las dos copias no puedan desalinearse.
+  if (code === "customer_not_found") return customerDbErrorMessage(null, null, code) ?? "No se pudo crear la reserva.";
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";

@@ -854,8 +854,24 @@ export class SupabaseAdminRepository {
    * MISMO escritor de invitados que usa el checkout (`upsert_guest_customer`), que devuelve
    * null cuando el email no pasa la puerta de forma → la reserva queda sin vincular.
    *
-   * Son dos sentencias (rpc + insert): un `slot_taken` en el insert deja la ficha creada. Es
-   * dato válido de directorio, no un huérfano — decisión explícita de la spec.
+   * Son dos o tres sentencias (rpc + opcional select + insert): un `slot_taken` en el insert
+   * deja la ficha creada. Es dato válido de directorio, no un huérfano — decisión explícita de
+   * la spec.
+   *
+   * LOCKS sobre `customers` (fix round 1, Finding 2 — corrige el reporte de la Task 5 original,
+   * que decía que cortesía y el canje "no compiten por el mismo recurso"; sí compiten, por eso
+   * esto importa): el upsert de `upsert_guest_customer` SÍ toma el lock más fuerte que existe
+   * sobre la fila del cliente, `FOR NO KEY UPDATE` (el `on conflict do update` solo toca
+   * columnas que no son key, igual que el bloque de canje de `create_checkout` tras el fix
+   * round 1 de la Task 3) — el mismo lock, no uno distinto. Lo que evita el deadlock es que ese
+   * `FOR NO KEY UPDATE` vive en SU PROPIA sentencia autocommit (el rpc), y para cuando el
+   * insert de `reservations` toma el `FOR KEY SHARE` implícito de la FK (sentencia aparte,
+   * autocommit también), el `FOR NO KEY UPDATE` del rpc ya se soltó — nunca están sostenidos a
+   * la vez. CONSECUENCIA para quien toque esto después: si alguna vez estas tres sentencias se
+   * envuelven en una sola transacción Y el insert de `reservations` pasa a ir ANTES del rpc,
+   * eso arma una secuencia compartido-luego-más-fuerte (KEY SHARE → NO KEY UPDATE) sobre la
+   * MISMA fila, y dos cortesías concurrentes para el mismo cliente deadlockean — la misma
+   * clase de bug que el fix round 1 de la Task 3 corrigió en `create_checkout`.
    */
   async createCourtesyBooking(
     resourceId: string,
@@ -880,14 +896,20 @@ export class SupabaseAdminRepository {
       linkedId = (guestId as string | null) ?? null;
     }
 
-    let snapName = customer.name ?? null;
-    // El email tipeado se normaliza IGUAL que en create_checkout (`nullif(lower(trim(…)), '')`):
-    // si upsert_guest_customer lo rechaza por forma, la reserva queda sin vincular pero con el
-    // email guardado en la MISMA grafía que habría guardado el checkout público. Sin esto, la
-    // cortesía y el checkout escribirían dos versiones del mismo email rechazado — justo la
-    // divergencia que este método existe para cerrar (y `priorCustomerEmails` compara en minúsculas).
+    // Fix round 1 (Finding 1): nombre, email y teléfono se normalizan IGUAL que create_checkout
+    // (supabase/migrations/20260909130000_customer_directory_activate.sql:106-109 —
+    // `nullif(left(trim(name), 80), '')`, `nullif(lower(trim(email)), '')`, y el teléfono solo
+    // si `char_length(trim(phone))` cae entre 6 y 40). Sin esto, un teléfono de 3 dígitos
+    // quedaba como "123" por cortesía y como NULL por checkout, y un nombre de 120 caracteres
+    // quedaba entero por cortesía y truncado a 80 por checkout — misma ficha, dos snapshots.
+    // Si upsert_guest_customer rechaza el email por forma, la reserva queda sin vincular pero
+    // con los TRES campos en la MISMA grafía que habría guardado el checkout público. También
+    // alimenta los fallbacks de abajo (`rec.name ?? snapName`, `rec.phone ?? snapPhone`), que
+    // heredan la normalización por construcción.
+    let snapName = customer.name?.trim().slice(0, 80) || null;
     let snapEmail = customer.email?.trim().toLowerCase() || null;
-    let snapPhone = customer.phone ?? null;
+    const phoneTrimmed = customer.phone?.trim();
+    let snapPhone = phoneTrimmed && phoneTrimmed.length >= 6 && phoneTrimmed.length <= 40 ? phoneTrimmed : null;
 
     if (linkedId !== null) {
       const { data: rec, error: recErr } = await this.db

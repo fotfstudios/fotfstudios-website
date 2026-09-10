@@ -332,6 +332,27 @@ describe("admin actions", () => {
     ).rejects.toThrow("customer_not_found");
   });
 
+  // Fix round 1 (Finding 1): sin ficha (walk-in, sin email) el nombre y el teléfono tipeados
+  // deben normalizarse EXACTAMENTE igual que create_checkout
+  // (supabase/migrations/20260909130000_customer_directory_activate.sql:106-109): nombre
+  // recortado y truncado a 80, teléfono solo si su longitud recortada cae entre 6 y 40.
+  it("cortesía sin ficha: nombre largo y teléfono corto se normalizan IGUAL que create_checkout", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-08", 600, 1, tz);
+    const longName = "N".repeat(120);
+    const id = await repo.createCourtesyBooking(resourceId, startsAt, endsAt, {
+      name: `  ${longName}  `,
+      phone: " 123 ",
+    });
+
+    const r = await pg.query<{ customer_name: string | null; customer_phone: string | null }>(
+      "select customer_name, customer_phone from reservations where id=$1",
+      [id],
+    );
+    expect(r.rows[0].customer_name).toBe(longName.slice(0, 80));
+    expect(r.rows[0].customer_name?.length).toBe(80);
+    expect(r.rows[0].customer_phone).toBeNull();
+  });
+
   it("confirmOffline devuelve 'confirmed'; cancelUnpaidOrder libera hold + cancela la orden", async () => {
     const ok = await book(960);
     if (!ok.ok) return;
