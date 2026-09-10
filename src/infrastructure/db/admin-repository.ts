@@ -845,14 +845,63 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.code === "23P01" ? "overlap" : error.message);
   }
 
-  /** Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). Devuelve el id. */
+  /**
+   * Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). Devuelve el id.
+   *
+   * INVARIANTE (spec §"Invariante central"): quien escribe customer_id escribe también el
+   * snapshot DESDE la ficha. La cortesía no pasa por create_checkout, así que replica su
+   * semántica a mano: con `customerId` manda la ficha; sin id pero con email, la resuelve el
+   * MISMO escritor de invitados que usa el checkout (`upsert_guest_customer`), que devuelve
+   * null cuando el email no pasa la puerta de forma → la reserva queda sin vincular.
+   *
+   * Son dos sentencias (rpc + insert): un `slot_taken` en el insert deja la ficha creada. Es
+   * dato válido de directorio, no un huérfano — decisión explícita de la spec.
+   */
   async createCourtesyBooking(
     resourceId: string,
     startsAt: string,
     endsAt: string,
     customer: { name?: string; email?: string; phone?: string },
     notes?: string,
+    customerId?: string,
   ): Promise<string> {
+    let linkedId: string | null = customerId ?? null;
+
+    if (linkedId === null && customer.email) {
+      const { data: guestId, error: guestErr } = await this.db.rpc("upsert_guest_customer", {
+        // El generador tipa los text params como `string` y el retorno como no-nulo; la
+        // función SQL acepta NULL y devuelve NULL si el email no pasa la puerta. Los casts
+        // documentan el gap, no cambian runtime.
+        p_name: (customer.name ?? null) as unknown as string,
+        p_email: customer.email,
+        p_phone: (customer.phone ?? null) as unknown as string,
+      });
+      if (guestErr) throw new Error(guestErr.message);
+      linkedId = (guestId as string | null) ?? null;
+    }
+
+    let snapName = customer.name ?? null;
+    // El email tipeado se normaliza IGUAL que en create_checkout (`nullif(lower(trim(…)), '')`):
+    // si upsert_guest_customer lo rechaza por forma, la reserva queda sin vincular pero con el
+    // email guardado en la MISMA grafía que habría guardado el checkout público. Sin esto, la
+    // cortesía y el checkout escribirían dos versiones del mismo email rechazado — justo la
+    // divergencia que este método existe para cerrar (y `priorCustomerEmails` compara en minúsculas).
+    let snapEmail = customer.email?.trim().toLowerCase() || null;
+    let snapPhone = customer.phone ?? null;
+
+    if (linkedId !== null) {
+      const { data: rec, error: recErr } = await this.db
+        .from("customers")
+        .select("name, email, phone")
+        .eq("id", linkedId)
+        .maybeSingle();
+      if (recErr) throw new Error(recErr.message);
+      if (!rec) throw new Error("customer_not_found");
+      snapName = rec.name ?? snapName;
+      snapEmail = rec.email;
+      snapPhone = rec.phone ?? snapPhone;
+    }
+
     const { data, error } = await this.db
       .from("reservations")
       .insert({
@@ -861,9 +910,10 @@ export class SupabaseAdminRepository {
         status: "confirmed",
         starts_at: startsAt,
         ends_at: endsAt,
-        customer_name: customer.name ?? null,
-        customer_email: customer.email ?? null,
-        customer_phone: customer.phone ?? null,
+        customer_name: snapName,
+        customer_email: snapEmail,
+        customer_phone: snapPhone,
+        customer_id: linkedId,
         notes: notes ? `Cortesía — ${notes}` : "Cortesía",
       })
       .select("id")

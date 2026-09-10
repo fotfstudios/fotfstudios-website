@@ -74,6 +74,12 @@ export async function createManualBookingAction(
         );
       }
       // Best-effort: el email nunca voltea una reserva ya creada.
+      // OJO (PR3): esto manda el email/nombre TIPEADOS, mientras el snapshot de la reserva ya
+      // salió de la ficha (`createCourtesyBooking` lee `customers` después del upsert). Pueden
+      // diferir: una ficha con cuenta conserva SU nombre, y la ficha puede traer otro email si
+      // se pasó `customerId`. Es a propósito — el aviso va a la dirección que el staff escribió—,
+      // pero cuando PR5 conecte el picker hay que decidirlo explícito: la action ya devolverá
+      // `customer: { name, phone }` del servidor y ese es el dato que debería alimentar el aviso.
       await notificationService()
         .notifyCourtesy({ email: customer.email ?? null, name: customer.name ?? null, startsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));
