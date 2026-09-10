@@ -195,6 +195,21 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
     if (!r.ok) expect(r.error).toBe("customer_not_found");
   });
 
+  // Fix round 2: ficha solo-teléfono en un pedido que cobra. El código tiene que llegar
+  // entero a la action (que lo traduce con customerDbErrorMessage); si cayera en el
+  // `checkout_failed: …` genérico, el staff vería el texto crudo de Postgres.
+  it("ficha sin email en un pedido que cobra (raise de la DB) → customer_checkout_needs_email", async () => {
+    const repo: CheckoutRepository = {
+      createCheckout: vi.fn().mockRejectedValue(new Error("customer_checkout_needs_email")),
+    };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    const r = await svc.createBooking({ ...input, customerId: "cust-solo-telefono" });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("customer_checkout_needs_email");
+  });
+
   it("sin puntos: sin línea de canje y pointsApplied 0", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
     const svc = new CheckoutService(pricedPricing(), repo);

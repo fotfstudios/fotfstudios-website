@@ -858,6 +858,15 @@ export class SupabaseAdminRepository {
    * deja la ficha creada. Es dato válido de directorio, no un huérfano — decisión explícita de
    * la spec.
    *
+   * OJO (fix round 2): `upsert_guest_customer` no solo CREA. Sobre una ficha de invitado que
+   * ya existe también PISA nombre y teléfono con lo tipeado (para el checkout eso es lo
+   * correcto: lo recién escrito es la verdad más fresca para WhatsApp/MP). Así que una
+   * cortesía que después falla por `slot_taken` no deja "solo una ficha nueva": si el email
+   * ya era de un cliente real, le deja el contacto REESCRITO, y eso no se revierte. Un typo
+   * en el nombre o un teléfono viejo quedan en el directorio aunque la reserva nunca exista.
+   * Un titular de cuenta (`auth_user_id` no nulo) está a salvo: conserva nombre y email, y
+   * solo se le rellena un teléfono vacío.
+   *
    * LOCKS sobre `customers` (fix round 2, Finding 2 — corrige la consecuencia escrita en el fix
    * round 1: esa versión decía que reordenar el insert de `reservations` antes del rpc armaba
    * un ciclo KEY SHARE → NO KEY UPDATE. Eso es FALSO: verificado en vivo con dos conexiones

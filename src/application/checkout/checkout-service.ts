@@ -122,6 +122,9 @@ export class CheckoutService {
       const msg = e instanceof Error ? e.message : String(e);
       // La ficha elegida ya no existe (carrera entre el picker y el guardado).
       if (/customer_not_found/i.test(msg)) return err("customer_not_found");
+      // La ficha elegida no tiene email y el pedido cobra: sin email los puntos no resuelven
+      // al cliente (ni ganan ni se revocan). Se arregla agregándole el email a la ficha.
+      if (/customer_checkout_needs_email/i.test(msg)) return err("customer_checkout_needs_email");
       if (/insufficient_points/i.test(msg)) return err("insufficient_points");
       if (/points_without_customer/i.test(msg)) return err("points_session");
       if (/exclusion|23P01|overlap|conflict/i.test(msg)) return err("slot_taken");

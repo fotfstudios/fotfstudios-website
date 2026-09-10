@@ -461,12 +461,19 @@ describe("customer_sync_snapshots (no destructivo desde PR3)", () => {
 
     await sync(c, "manda@dir.cl");
 
-    expect(await snapshot("orders", b.orderId)).toEqual({
+    const esperado = {
       customer_id: c,
       customer_name: "Ficha",
       customer_email: "manda@dir.cl",
       customer_phone: "+56 9 3333 3333",
-    });
+    };
+    expect(await snapshot("orders", b.orderId)).toEqual(esperado);
+    // La MISMA aserción sobre la reserva: el brazo de `reservations` tiene su propio
+    // coalesce, y sin este caso (ficha CON nombre y CON teléfono, snapshot con otros dos)
+    // se podía invertir `coalesce(c.phone, r.customer_phone)` sin que nada se pusiera rojo
+    // — todos los demás escenarios de reservas tienen la ficha o el snapshot en blanco, y
+    // por simétricos no distinguen la dirección.
+    expect(await snapshot("reservations", b.reservationId)).toEqual(esperado);
   });
 
   // El email NO se coalescea: las ocho funciones de puntos resuelven al cliente
@@ -903,7 +910,12 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
   const reservationOf = async (orderId: string) =>
     (await pg.query<{ id: string }>("select id from reservations where order_id=$1", [orderId])).rows[0].id;
 
-  /** create_checkout directo (sin supabase-js), con la firma de 15 parámetros. Devuelve el orderId. */
+  /**
+   * create_checkout directo (sin supabase-js), con la firma de 15 parámetros. Devuelve el
+   * orderId. `amount` (default 9990, el precio de una hora) se parametriza porque la guarda
+   * de email depende de si el pedido COBRA: un pedido de $0 no puede ganar puntos y por eso
+   * sigue permitido contra una ficha solo-teléfono.
+   */
   let hour = 0;
   const checkout = async (opts: {
     slot?: number;
@@ -911,12 +923,15 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
     email?: string | null;
     phone?: string | null;
     customerId?: string | null;
+    amount?: number;
   }): Promise<string> => {
     hour += 1;
     const starts = new Date(Date.now() + (24 * 30 + (opts.slot ?? hour)) * 3_600_000);
     const ends = new Date(starts.getTime() + 3_600_000);
+    const amount = opts.amount ?? 9990;
+    const net = Math.round(amount / 1.19);
     const { rows } = await pg.query<{ id: string }>(
-      `select create_checkout($1, $2, $3, 9990, 8395, 1595, 'CLP',
+      `select create_checkout($1, $2, $3, $8::int, $9::int, $10::int, 'CLP',
               jsonb_build_object('name', $4::text, 'email', $5::text, 'phone', $6::text),
               '{}'::jsonb, '[]'::jsonb, interval '10 minutes', $7::uuid, 0, null, null) id`,
       [
@@ -927,6 +942,9 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
         opts.email ?? null,
         opts.phone ?? null,
         opts.customerId ?? null,
+        amount,
+        net,
+        amount - net,
       ],
     );
     return rows[0].id;
@@ -936,6 +954,34 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
     await expect(
       checkout({ email: "x@dir.cl", customerId: "e0000000-0000-4000-a000-0000000000fd" }),
     ).rejects.toThrow("customer_not_found");
+  });
+
+  // Ficha SOLO-TELÉFONO: legal (customers_contact_required se conforma con el teléfono) y
+  // hoy sin caller, pero el picker de PR5 podrá elegirla. Sin la guarda, el pedido quedaba
+  // con customer_id puesto y customer_email vacío: las ocho funciones de puntos resuelven al
+  // cliente por c.email = lower(o.customer_email), así que esa reserva no ganaría NUNCA y un
+  // reembolso no revocaría nada — el FK y la join discrepando, justo lo que el invariante
+  // central de este PR prohíbe. Espejo de customer_assign_needs_email (PR1).
+  it("ficha solo-teléfono: el pedido que cobra se rechaza (customer_checkout_needs_email); el de $0 pasa", async () => {
+    const pia = await customer({ name: "Pía Contreras", email: null, phone: "+56912345678" });
+
+    await expect(checkout({ name: "Pía Contreras", customerId: pia })).rejects.toThrow(
+      "customer_checkout_needs_email",
+    );
+    // La transacción entera se revierte: ni reserva ni pedido a medio vincular.
+    expect(await count("orders")).toBe(0);
+    expect(await count("reservations")).toBe(0);
+
+    // $0 no gana nada (floor(0.05 · 0) = 0): no hay puntos que perder, así que se permite.
+    const orderId = await checkout({ name: "Pía Contreras", customerId: pia, amount: 0 });
+    const esperado = {
+      customer_id: pia,
+      customer_name: "Pía Contreras",
+      customer_email: null,
+      customer_phone: "+56912345678",
+    };
+    expect(await snapshot("orders", orderId)).toEqual(esperado);
+    expect(await snapshot("reservations", await reservationOf(orderId))).toEqual(esperado);
   });
 
   it("con p_customer_id: vincula y arma el snapshot desde la ficha (el titular conserva nombre y email)", async () => {

@@ -86,7 +86,9 @@ end $$;
 -- ── 4. create_checkout: crea/vincula la ficha (MISMA firma de 15 parámetros) ──
 -- create or replace, nunca drop: checkout-repository.ts no se toca y el código vivo sigue
 -- llamando igual (expand/contract). Con p_customer_id la ficha tiene que existir
--- (customer_not_found cubre la carrera entre elegir el cliente y guardar); sin él, el invitado
+-- (customer_not_found cubre la carrera entre elegir el cliente y guardar, y el chequeo toma
+-- FOR KEY SHARE para que un delete concurrente ESPERE en vez de aflorar como un 23503 crudo)
+-- y, si el pedido cobra, tiene que tener email (customer_checkout_needs_email); sin él, el invitado
 -- se resuelve por email con upsert_guest_customer — el MISMO escritor que usa la cortesía —,
 -- que devuelve null si el email no pasa la puerta de forma (entonces la reserva queda sin
 -- vincular, exactamente como hoy). INVARIANTE: el snapshot se lee de la fila DESPUÉS del
@@ -111,9 +113,16 @@ begin
   perform expire_stale_holds(p_resource);
 
   if v_cust is not null then
-    if not exists (select 1 from customers where id = v_cust) then
-      raise exception 'customer_not_found';
-    end if;
+    -- FIX ROUND 2 (revisión final): lock COMPARTIDO, no un `exists` pelado. Un `exists` no
+    -- toma ningún lock, así que un delete de la ficha entre el chequeo y el insert se cuela y
+    -- aflora como un 23503 (foreign_key_violation) que el mapeo de errores de la app NO
+    -- reconoce → texto crudo de Postgres en pantalla. Hoy nada borra clientes; /admin/clientes
+    -- (PR6) sí. FOR KEY SHARE es EXACTAMENTE el mismo modo que los dos insert de abajo toman
+    -- implícito para validar la FK: adquirirlo antes no agrega ningún conflicto nuevo ni
+    -- cambia el análisis de deadlock del bloque de canje (FOR KEY SHARE no conflictúa con
+    -- FOR NO KEY UPDATE), solo hace esperar al delete hasta el commit.
+    perform 1 from customers where id = v_cust for key share;
+    if not found then raise exception 'customer_not_found'; end if;
   else
     v_cust := upsert_guest_customer(v_name, v_email, v_phone);   -- null si el email no pasa la puerta
   end if;
@@ -122,6 +131,15 @@ begin
     select coalesce(c.name, v_name), c.email, coalesce(c.phone, v_phone)
       into v_name, v_email, v_phone
       from customers c where c.id = v_cust;
+    -- Ficha SOLO-TELÉFONO (legal: customers_contact_required se conforma con el teléfono) en
+    -- un pedido que COBRA: prohibido. El snapshot quedaría con customer_id puesto y
+    -- customer_email vacío, y las ocho funciones de puntos resuelven al cliente por
+    -- `c.email = lower(o.customer_email)`: esa reserva no ganaría NUNCA y un reembolso no
+    -- revocaría nada — el FK y la join discrepando, justo lo que prohíbe el INVARIANTE de
+    -- arriba. Espejo de customer_assign_needs_email (20260909120000_customer_directory.sql:365),
+    -- que ya rechaza este mismo caso al reasignar. Un pedido de $0 (cortesía, canje 100 %
+    -- puntos) no puede ganar nada — el earn es floor(0.05 · 0) = 0 —, así que sigue permitido.
+    if v_email is null and p_amount > 0 then raise exception 'customer_checkout_needs_email'; end if;
   end if;
 
   insert into reservations (resource_id, kind, status, starts_at, ends_at, expires_at,
