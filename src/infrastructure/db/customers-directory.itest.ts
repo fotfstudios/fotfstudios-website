@@ -1071,3 +1071,30 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
     }
   }, 10_000);
 });
+
+describe("PR3: create_reschedule_charge copia el vínculo al pedido delta", () => {
+  it("el pedido delta hereda customer_id junto al snapshot de contacto", async () => {
+    const c = await customer({ name: "Delta", email: "delta@dir.cl", phone: "+56 9 5555 5555" });
+    const b = await booking({
+      name: "Delta",
+      email: "delta@dir.cl",
+      phone: "+56 9 5555 5555",
+      customerId: c,
+    });
+    await pay(b.orderId, "dch1"); // paga y confirma la reserva
+
+    const starts = new Date(Date.now() + 24 * 40 * 3_600_000);
+    const ends = new Date(starts.getTime() + 3_600_000);
+    const { rows } = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1, $2, $3, '{}'::jsonb, '[]'::jsonb, 2000, 1681, 319, null)",
+      [b.reservationId, starts.toISOString(), ends.toISOString()],
+    );
+
+    expect(await snapshot("orders", rows[0].delta_order_id)).toEqual({
+      customer_id: c,
+      customer_name: "Delta",
+      customer_email: "delta@dir.cl",
+      customer_phone: "+56 9 5555 5555",
+    });
+  });
+});

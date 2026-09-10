@@ -190,3 +190,50 @@ begin
   return v_order;
 end;
 $$;
+
+-- ── 5. create_reschedule_charge: el pedido delta hereda el vínculo ──
+-- MISMA firma. El pedido delta ya copiaba nombre/email/teléfono del pedido original; ahora copia
+-- también customer_id, para que el pagador de MP, las notificaciones y una futura reasignación
+-- (PR7 reescribe también los pedidos delta) vean al mismo cliente. INVARIANTE cumplido por
+-- construcción: los cuatro valores salen de la MISMA fila de orders, que ya venía de la ficha.
+create or replace function create_reschedule_charge(
+  p_reservation uuid, p_starts timestamptz, p_ends timestamptz,
+  p_snapshot jsonb, p_lines jsonb,
+  p_delta int, p_delta_net int, p_delta_tax int, p_created_by uuid default null
+) returns table(reschedule_id uuid, delta_order_id uuid)
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_order uuid; v_old_start timestamptz; v_old_end timestamptz; v_live int;
+  v_name text; v_email text; v_phone text; v_currency text; v_cust uuid;
+  v_delta_order uuid; v_resched uuid;
+begin
+  select r.order_id, r.starts_at, r.ends_at into v_order, v_old_start, v_old_end
+    from reservations r where r.id = p_reservation and r.status = 'confirmed' and r.kind = 'booking';
+  if v_order is null then raise exception 'reschedule_not_active'; end if;
+
+  select amount_clp - refunded_amount_clp, customer_name, customer_email, customer_phone, currency, customer_id
+    into v_live, v_name, v_email, v_phone, v_currency, v_cust
+    from orders where id = v_order and status = 'paid' and coalesce(points_redeemed_clp, 0) = 0;
+  if v_live is null then raise exception 'reschedule_not_eligible'; end if;
+  if p_delta < 1 then raise exception 'reschedule_bad_delta'; end if;
+
+  insert into orders (status, currency, amount_clp, net_clp, tax_clp,
+                      customer_name, customer_email, customer_phone, customer_id)
+    values ('pending_payment', v_currency, p_delta, p_delta_net, p_delta_tax,
+            v_name, v_email, v_phone, v_cust)
+    returning id into v_delta_order;
+
+  insert into reschedules (reservation_id, original_order_id, delta_order_id, kind, status,
+      old_starts_at, old_ends_at, new_starts_at, new_ends_at, old_live_clp, new_total_clp, delta_clp,
+      new_snapshot, new_lines, created_by)
+    values (p_reservation, v_order, v_delta_order, 'charge', 'pending_charge',
+      v_old_start, v_old_end, p_starts, p_ends, v_live, v_live + p_delta, p_delta, p_snapshot, p_lines, p_created_by)
+    returning id into v_resched;
+
+  perform log_booking_event(p_reservation, 'reschedule_charge_pending', p_order => v_delta_order,
+    p_reschedule => v_resched, p_amount => p_delta, p_created_by => p_created_by,
+    p_detail => jsonb_build_object('old_starts_at', v_old_start, 'new_starts_at', p_starts));
+
+  return query select v_resched, v_delta_order;
+end;
+$$;
