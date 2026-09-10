@@ -891,7 +891,10 @@ describe("activación PR3: backfill + retro (exactamente lo que corre la migraci
       join(process.cwd(), "supabase/migrations/20260909130000_customer_directory_activate.sql"),
       "utf8",
     );
-    expect(sql).toContain("backfill_customers_from_bookings()");
-    expect(sql).toContain("award_retro_points(r.id)");
+    // Las dos líneas de invocación REAL, textuales — no solo el nombre de la función, que un
+    // comentario (p. ej. explicando por qué se capturan los retornos) también contiene y dejaría
+    // pasar aunque la llamada real se cayera de la migración.
+    expect(sql).toContain("select backfill_customers_from_bookings() into v_new;");
+    expect(sql).toContain("v_pts := v_pts + award_retro_points(r.id);");
   });
 });
