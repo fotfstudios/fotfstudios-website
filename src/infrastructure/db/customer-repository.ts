@@ -159,6 +159,23 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     return { kind: "ok", id: data };
   }
 
+  /**
+   * Solo `name` y `phone`, por el id de la FICHA. Deliberadamente NO pasa por
+   * `update_customer_contact`: esa RPC propaga la fila (NULLs incluidos) a los
+   * snapshots de pedidos y reservas, y el formulario de perfil manda null por
+   * cada campo vacío. Ver `CustomerRepository.updateNamePhone`.
+   *
+   * Un `where id` que no matchea ninguna fila no es error acá: el caller ya
+   * resolvió la ficha por `auth_user_id` y no existe flujo de borrado de fichas.
+   */
+  async updateNamePhone(customerId: string, d: { name: string | null; phone: string | null }): Promise<void> {
+    const { error } = await this.db
+      .from("customers")
+      .update({ name: d.name, phone: d.phone, updated_at: new Date().toISOString() })
+      .eq("id", customerId);
+    if (error) throwDbError(error);
+  }
+
   async updateContact(
     customerId: string,
     d: { name: string | null; email: string | null; phone: string | null },

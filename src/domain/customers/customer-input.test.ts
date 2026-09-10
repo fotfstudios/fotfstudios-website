@@ -7,6 +7,7 @@ import {
   customerSearchNeedle,
   isEnsureEmailConflict,
   parseCustomerInput,
+  SEARCH_MAX,
 } from "./customer-input";
 
 describe("parseCustomerInput", () => {
@@ -51,6 +52,18 @@ describe("customerSearchNeedle", () => {
     expect(customerSearchNeedle("100%_off").text).toBe("100\\%\\_off");
     expect(customerSearchNeedle(`a,b(c)"d*e`).text).toBe("a b c  d e");
     expect(customerSearchNeedle("x".repeat(200)).text).toHaveLength(80);
+  });
+
+  // Fix round 2: el tope se aplica UNA vez, sobre el input crudo. Recortar
+  // después de escapar partía el par `\%` justo en el límite y dejaba un
+  // backslash suelto al final — un escape sin nada que escapar dentro del
+  // patrón de ILIKE (silenciosamente sin match, o error de Postgres).
+  it("nunca termina en un backslash suelto: el escape no se recorta al medio", () => {
+    const needle = customerSearchNeedle("a".repeat(SEARCH_MAX - 1) + "%");
+
+    expect(needle.text).toBe("a".repeat(SEARCH_MAX - 1) + "\\%");
+    expect(needle.text).toHaveLength(SEARCH_MAX + 1); // el escape puede pasarse del tope
+    expect(/(?:^|[^\\])(?:\\\\)*\\$/.test(needle.text)).toBe(false);
   });
 
   it("extrae dígitos solo con 3 o más", () => {
@@ -128,6 +141,20 @@ describe("customerDbErrorCode / customerDbErrorMessage", () => {
     expect(customerDbErrorMessage("08006", null, "connection failure")).toBeNull();
     expect(customerDbErrorCode("08006", null, "connection failure")).toBe("unknown");
   });
+
+  // Fix round 2: la búsqueda de la frase mira propiedades PROPIAS. Con el
+  // operador `in`, un constraint o un literal llamado como algo de
+  // Object.prototype daba true y el indexado devolvía una FUNCIÓN por una firma
+  // que promete `string`.
+  it.each(["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"])(
+    "no confunde %s (cadena del prototipo) con un sentinela conocido",
+    (name) => {
+      expect(customerDbErrorCode("23514", name)).toBe("unknown");
+      expect(customerDbErrorMessage("23514", name)).toBeNull();
+      expect(customerDbErrorCode(null, null, name)).toBe("unknown");
+      expect(customerDbErrorMessage(null, null, name)).toBeNull();
+    },
+  );
 });
 
 describe("isEnsureEmailConflict", () => {

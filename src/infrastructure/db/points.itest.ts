@@ -500,9 +500,11 @@ describe("paridad SQL ↔ dominio y ownership", () => {
     const movesA = await repo.movements(CUST_ID, 50);
     expect(movesA.every((m) => m.amount === 100)).toBe(true);
 
-    // La edición pasa por update_customer_contact (mismo camino que el admin):
-    // reenvía el email actual, así el titular no cambia su acceso.
+    // La edición del admin (PR5) pasa por update_customer_contact reenviando el
+    // email actual, así el titular no cambia su acceso.
     await repo.updateContact(CUST_ID, { name: "Cliente A", email: CUST_EMAIL, phone: null });
+    // Fix round 2: sin la aserción positiva un no-op pasaba este test.
+    expect((await repo.getProfile(CUST_ID))?.name).toBe("Cliente A");
     const other = await repo.getProfile(OTHER_ID);
     expect(other?.name).toBeNull(); // el update de A no tocó a B
   });

@@ -64,10 +64,20 @@ export class CustomerService {
   }
 
   /**
-   * Edición desde /cuenta/perfil. Pasa por `update_customer_contact` — el MISMO
-   * camino que el admin — así los dos escritores nunca derivan y el snapshot de
-   * la próxima reserva (el que el staff usa para WhatsApp) se actualiza solo.
-   * Reenvía el email ACTUAL: la función rechaza cambiarlo para un titular.
+   * Edición desde /cuenta/perfil: escribe SOLO la ficha (`updateNamePhone`),
+   * por el id del REGISTRO — nunca por el del usuario de auth. La propagación
+   * a los snapshots de pedidos y reservas NO está en este PR.
+   *
+   * Por qué no `update_customer_contact` todavía: esa RPC llama a
+   * `customer_sync_snapshots`, que copia los campos de la ficha —NULLs
+   * incluidos— sobre cada pedido y reserva del cliente. `validateProfile`
+   * manda null por cada campo vacío del formulario y el formulario se
+   * prellena desde la ficha, que hoy en prod tiene `name` y `phone` en NULL:
+   * el primero que guardara con un campo en blanco borraría el otro dato en
+   * todo su historial (pagado y confirmado incluido) — y son justo los datos
+   * que el backfill de PR3 lee para poblar el directorio. PR3 hace el sync no
+   * destructivo (coalesce de nombre y teléfono, email autoritativo) y recién
+   * ahí este camino puede unificarse con el del admin.
    *
    * OJO: la LECTURA va dentro del try. `findByAuthUser` ya no puede lanzar
    * texto crudo de Postgres (el adaptador lo traduce con `throwDbError`), pero
@@ -79,7 +89,7 @@ export class CustomerService {
     try {
       const profile = await this.repo.findByAuthUser(userId);
       if (!profile) throw new Error("customer_not_found");
-      await this.repo.updateContact(profile.id, { name: data.name, email: profile.email, phone: data.phone });
+      await this.repo.updateNamePhone(profile.id, { name: data.name, phone: data.phone });
     } catch (e) {
       throw legible(e);
     }

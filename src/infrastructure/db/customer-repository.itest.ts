@@ -9,6 +9,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { CustomerService } from "@/src/application/customers/customer-service";
 import { SupabaseCustomerRepository } from "./customer-repository";
 import { createServiceClient } from "./supabase-client";
 
@@ -208,6 +209,52 @@ describe("escrituras del directorio (RPC de la migración)", () => {
     await expect(repo.updateContact(ficha, { name: "X", email: "no-es-email", phone: null })).rejects.toThrow(
       "customer_email_invalid",
     );
+  });
+
+  // Fix round 2, hallazgo CRÍTICO: `update_customer_contact` llama a
+  // `customer_sync_snapshots`, que copia los campos de la ficha —NULLs
+  // incluidos— sobre cada pedido y reserva del cliente. `validateProfile` manda
+  // null por cada campo vacío del formulario y en prod las tres fichas tienen
+  // `name`/`phone` en NULL, así que el camino destructivo era el DEFAULT:
+  // guardar el perfil con un campo en blanco habría borrado el otro dato en
+  // todo el historial (pagado incluido) — justo el dato que el backfill de PR3
+  // lee. Este caso FALLA si alguien vuelve a apuntar el guardado de perfil a
+  // `updateContact`: la reserva y el pedido perderían el nombre.
+  it("el guardado de perfil con un campo en blanco NO borra el otro dato en las reservas del cliente", async () => {
+    const id = await customer({
+      email: "perfil@repo.cl",
+      name: "Nombre Del Historial",
+      phone: "+56911111111",
+      authUserId: U1,
+    });
+    expect(id).not.toBe(U1); // ficha adoptada: id propio
+    const { orderId, reservationId } = await booking({
+      email: "perfil@repo.cl",
+      name: "Nombre Del Historial",
+      phone: "+56911111111",
+      customerId: id,
+      status: "confirmed",
+    });
+
+    // Lo que hace /cuenta/perfil: el campo Nombre quedó vacío → name null.
+    await new CustomerService(repo).updateProfileByUser(U1, { name: null, phone: "+56922222222" });
+
+    // La ficha sí se actualiza…
+    expect(await repo.getProfile(id)).toMatchObject({ name: null, phone: "+56922222222" });
+
+    // …y el historial NO se toca: ni el nombre (que se habría perdido) ni el
+    // teléfono (que se habría propagado). La propagación llega en PR3.
+    const snap = await pg.query<{ customer_name: string | null; customer_phone: string | null }>(
+      `select customer_name, customer_phone from reservations where id = $1
+       union all
+       select customer_name, customer_phone from orders where id = $2`,
+      [reservationId, orderId],
+    );
+    expect(snap.rows).toHaveLength(2);
+    for (const row of snap.rows) {
+      expect(row.customer_name).toBe("Nombre Del Historial");
+      expect(row.customer_phone).toBe("+56911111111");
+    }
   });
 
   // Fix round 1, hallazgo 1: un error SIN sentinela reconocido (acá, uuid

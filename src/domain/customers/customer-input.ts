@@ -58,12 +58,17 @@ export function parseCustomerInput(raw: unknown): Result<CustomerInput, string> 
  * Aguja para el `.or()` de PostgREST: `text` ya escapado (comodines de ILIKE y
  * los delimitadores de la gramática) y `digits` solo cuando hay suficientes
  * para que buscar por teléfono discrimine.
+ *
+ * El tope se aplica UNA sola vez, sobre el input crudo: recortar DESPUÉS de
+ * escapar podría partir un par `\%` al medio y dejar un backslash suelto al
+ * final, que en el patrón de ILIKE es un escape sin nada que escapar (o un
+ * error de Postgres). El escape solo puede alargar el texto, nunca acortarlo.
  */
 export function customerSearchNeedle(q: string): { text: string; digits: string | null } {
   const raw = (q ?? "").trim().slice(0, SEARCH_MAX);
   const digits = phoneDigits(raw);
   return {
-    text: escapeIlike(raw).slice(0, SEARCH_MAX),
+    text: escapeIlike(raw),
     digits: digits && digits.length >= MIN_SEARCH_DIGITS ? digits : null,
   };
 }
@@ -107,6 +112,16 @@ const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
   customer_assign_needs_email: "Ese cliente no tiene email; agrégalo antes de reasignar una reserva pagada.",
 };
 
+/**
+ * ¿Hay frase para esta clave? Propiedad PROPIA, nunca heredada: con el operador
+ * `in`, un constraint o un literal llamado `constructor`/`toString`/`valueOf`
+ * daría true y el indexado devolvería una función por una firma que promete
+ * `string`.
+ */
+function hasMessage(key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(CUSTOMER_DB_MESSAGES, key);
+}
+
 /** Nombre del constraint dentro del mensaje de Postgres (PostgrestError no trae `constraint`). */
 function constraintFromMessage(message: string | null | undefined): string | null {
   return /constraint "([a-zA-Z0-9_]+)"/.exec(message ?? "")?.[1] ?? null;
@@ -126,11 +141,11 @@ export function customerDbErrorCode(
     const name = constraint ?? constraintFromMessage(message);
     if (name === "customers_email_key") return "email_taken";
     if (name === "customers_auth_user_id_key") return "auth_user_taken";
-    if (name && name in CUSTOMER_DB_MESSAGES) return name;
+    if (name && hasMessage(name)) return name;
     return "unknown";
   }
   const literal = (message ?? "").trim();
-  return literal in CUSTOMER_DB_MESSAGES ? literal : "unknown";
+  return hasMessage(literal) ? literal : "unknown";
 }
 
 /**
@@ -142,7 +157,8 @@ export function customerDbErrorMessage(
   constraint: string | null | undefined,
   message: string | null | undefined = null,
 ): string | null {
-  return CUSTOMER_DB_MESSAGES[customerDbErrorCode(code, constraint, message)] ?? null;
+  const key = customerDbErrorCode(code, constraint, message);
+  return hasMessage(key) ? CUSTOMER_DB_MESSAGES[key] : null;
 }
 
 /**

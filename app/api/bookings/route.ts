@@ -43,13 +43,20 @@ export async function POST(req: Request): Promise<Response> {
     termsAccepted?: boolean;
   };
 
+  // `name` y `phone` son opcionales, pero si vienen tienen que ser strings: el
+  // cuerpo abajo les llama métodos de string (trim/slice) y un número o un
+  // objeto reventaría dentro del try → 503 donde corresponde un 400.
+  const optionalString = (v: unknown): boolean => v === undefined || v === null || typeof v === "string";
+
   if (
     !b.resourceId ||
     !b.date ||
     typeof b.startMinute !== "number" ||
     typeof b.durationHours !== "number" ||
     typeof b.customer?.email !== "string" ||
-    !b.customer.email
+    !b.customer.email ||
+    !optionalString(b.customer.name) ||
+    !optionalString(b.customer.phone)
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
   }
