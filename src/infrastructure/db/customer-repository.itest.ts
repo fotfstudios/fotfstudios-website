@@ -190,4 +190,22 @@ describe("escrituras del directorio (RPC de la migración)", () => {
       "customer_email_invalid",
     );
   });
+
+  // Fix round 1, hallazgo 1: un error SIN sentinela reconocido (acá, uuid
+  // inválido → 22P02; en prod también cubre 40P01/57014, ver el comentario de
+  // update_customer_contact en la migración) nunca debe filtrar texto crudo de
+  // Postgres al `.message` que un toast muestra tal cual — pero el original
+  // debe seguir disponible en `.cause` para los logs.
+  it("un error sin sentinela conocido sale genérico en .message, con el texto crudo solo en .cause", async () => {
+    const err: Error = await repo
+      .updateContact("no-es-un-uuid", { name: "X", email: null, phone: null })
+      .then(() => {
+        throw new Error("se esperaba que rechazara");
+      })
+      .catch((e: unknown) => e as Error);
+
+    expect(err.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
+    expect(err.message).not.toMatch(/uuid|syntax|postgres/i);
+    expect(String(err.cause)).toMatch(/invalid input syntax for type uuid/i);
+  });
 });

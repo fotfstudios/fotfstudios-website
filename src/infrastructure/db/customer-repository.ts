@@ -53,14 +53,25 @@ const BOOKING_COLS =
   "id, starts_at, ends_at, status, order_id, customer_id, customer_email, orders(status, amount_clp, points_redeemed_clp)";
 
 /**
+ * Copy genérico cuando la DB no tiene un sentinela reconocido (deadlock 40P01,
+ * timeout 57014, un CHECK nuevo, conexión caída, …). `customerDbErrorCode`
+ * devuelve "unknown" a propósito en vez de inventar copy (Task 2); es acá,
+ * en la frontera del adaptador, donde ese "unknown" deja de ser una palabra
+ * mostrable y se vuelve esta frase — el texto crudo de Postgres jamás llega
+ * al `.message` que ve una persona, solo a `.cause` (logs).
+ */
+const GENERIC_DB_ERROR = "No pudimos completar la operación. Intenta de nuevo.";
+
+/**
  * Relanza el error de la DB con una SENTINELA estable como mensaje
  * (`email_taken`, `customer_has_account`, `customers_name_len`, …). La capa de
  * aplicación ramifica sobre ella y `customerDbErrorMessage` la traduce; nunca
- * viaja texto crudo de Postgres hacia un toast.
+ * viaja texto crudo de Postgres hacia un toast — el mensaje original queda en
+ * `cause` para logs, nunca en `.message`.
  */
 function throwDbError(error: { code?: string | null; message: string }): never {
   const sentinel = customerDbErrorCode(error.code, null, error.message);
-  throw new Error(sentinel === "unknown" ? error.message : sentinel);
+  throw new Error(sentinel === "unknown" ? GENERIC_DB_ERROR : sentinel, { cause: error.message });
 }
 
 /** Adaptador Supabase del perfil de cliente + ledger de puntos. */
@@ -115,24 +126,13 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     // exacto en minúsculas: por aquí no puede colarse una reserva ajena.
     const { data, error } = await this.db
       .from("reservations")
-      .select("id, starts_at, ends_at, status, order_id, customer_email, orders(status, amount_clp, points_redeemed_clp)")
+      .select(BOOKING_COLS)
       .ilike("customer_email", email)
       .eq("kind", "booking")
       .order("starts_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
-    return (data ?? [])
-      .filter((r) => r.customer_email?.toLowerCase() === email)
-      .map((r) => ({
-        id: r.id,
-        startsAt: r.starts_at,
-        endsAt: r.ends_at,
-        status: r.status as CustomerBooking["status"],
-        orderId: r.order_id,
-        orderStatus: r.orders?.status ?? null,
-        amountClp: r.orders?.amount_clp ?? null,
-        pointsRedeemedClp: r.orders?.points_redeemed_clp ?? 0,
-      }));
+    return (data ?? []).filter((r) => r.customer_email?.toLowerCase() === email).map(toBooking);
   }
 
   async findByAuthUser(userId: string): Promise<CustomerProfile | null> {
@@ -172,7 +172,10 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       // como sentinela: por acá NO puede viajar texto crudo de Postgres.
       throwDbError(error);
     }
-    return { kind: "ok", id: data as string };
+    // Toda ruta SQL de la función devuelve un uuid o lanza (nunca null sin error);
+    // el guard hace explícito ese contrato en vez de forzarlo con un cast.
+    if (!data) throwDbError({ code: null, message: "ensure_customer_for_user: id nulo sin error" });
+    return { kind: "ok", id: data };
   }
 
   async updateContact(
