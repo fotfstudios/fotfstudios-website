@@ -5,6 +5,7 @@
  * un resultado de tres vías: ok (datos normalizados), spam (honeypot, se descarta
  * en silencio) o invalid (todos los issues juntos, no solo el primero).
  */
+import { EMAIL_RE, normalizePhone } from "@/src/domain/contact/contact";
 
 export const APPLICATION_STATUSES = ["nueva", "contactada", "descartada"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
@@ -70,17 +71,6 @@ export type ParsedApplication =
 function str(raw: Record<string, unknown>, key: string): string {
   const v = raw[key];
   return typeof v === "string" ? v.trim() : "";
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Normaliza a "+"(opcional) + dígitos; null si no cae en 8–15 dígitos. */
-function normalizePhone(raw: string): string | null {
-  // "+" internacional si aparece antes del primer dígito (tolera "(+56)").
-  const plus = /^[^\d]*\+/.test(raw);
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length < 8 || digits.length > 15) return null;
-  return (plus ? "+" : "") + digits;
 }
 
 /** Normaliza a href http(s) con dominio; null si no es una URL web válida. */
