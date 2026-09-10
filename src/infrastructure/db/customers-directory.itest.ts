@@ -806,3 +806,77 @@ describe("assign_booking_customer (cambiar cliente)", () => {
     await expectBalanceConsistent(Y);
   });
 });
+
+describe("activación PR3: backfill + retro (exactamente lo que corre la migración)", () => {
+  const backfill = async () =>
+    (await pg.query<{ n: number }>("select backfill_customers_from_bookings() n")).rows[0].n;
+
+  /** El bloque de la migración, textual: retro para toda ficha con email. */
+  const retroAll = () =>
+    pg.query(`do $$ declare r record; begin
+                for r in select id from customers where email is not null loop
+                  perform award_retro_points(r.id);
+                end loop;
+              end $$;`);
+
+  it("crea las fichas faltantes, vincula todo, otorga el retro — y correrlo de nuevo no cambia nada", async () => {
+    // Pagó como invitado sin ficha → confirm_payment no otorgó nada en vivo.
+    const paid = await booking({ name: "Matías Rojas", email: "MiXeD@Case.cl", phone: "+56 9 8123 4567" });
+    await pay(paid.orderId, "act1");
+    const pending = await booking({ name: "Ignacio", email: "ignacio@case.cl", phone: null });
+    // La forma exacta de prod: ficha existente con nombre y teléfono vacíos.
+    const existing = await customer({ name: null, email: "existe@case.cl", phone: null });
+    const existingBooking = await booking({
+      name: "Existe Con Nombre",
+      email: "existe@case.cl",
+      phone: "+56 9 9999 9999",
+    });
+
+    expect(await count("points_ledger")).toBe(0);
+    expect(await backfill()).toBe(2); // mixed@case.cl e ignacio@case.cl (existe@case.cl ya tenía ficha)
+    await retroAll();
+
+    const mixed = (await pg.query<{ id: string }>("select id from customers where email='mixed@case.cl'")).rows[0].id;
+    expect(await balance(mixed)).toBe(499); // floor(0.05 · 9990)
+    await expectBalanceConsistent(mixed);
+
+    // La ficha vacía preexistente absorbe nombre y teléfono del historial (solo NULLs rellenados).
+    expect((await pg.query("select name, phone from customers where id=$1", [existing])).rows[0]).toEqual({
+      name: "Existe Con Nombre",
+      phone: "+56 9 9999 9999",
+    });
+
+    // Todo lo que tiene email queda vinculado (en prod: 0 pedidos sin vincular).
+    expect(await count("orders where customer_id is null and customer_email is not null")).toBe(0);
+    expect(await count("reservations where kind='booking' and customer_id is null and customer_email is not null")).toBe(0);
+    expect((await snapshot("orders", existingBooking.orderId)).customer_id).toBe(existing);
+    expect((await snapshot("orders", pending.orderId)).customer_id).not.toBeNull();
+    expect((await snapshot("orders", paid.orderId)).customer_id).toBe(mixed);
+
+    // Idempotencia DESPUÉS de la activación: ni fichas nuevas ni puntos nuevos.
+    const fichas = await count("customers");
+    const asientos = await count("points_ledger");
+    expect(await backfill()).toBe(0);
+    await retroAll();
+    expect(await count("customers")).toBe(fichas);
+    expect(await count("points_ledger")).toBe(asientos);
+    expect(await balance(mixed)).toBe(499);
+    await expectBalanceConsistent(mixed);
+  });
+
+  it("una ficha solo-teléfono no recibe retro y el backfill no la toca", async () => {
+    const pia = await customer({ name: "Pía Contreras", email: null, phone: "+56912345678" });
+    const b = await booking({ name: "Otra", email: "otra@case.cl", phone: null });
+    await pay(b.orderId, "act2");
+
+    expect(await backfill()).toBe(1);
+    await retroAll();
+
+    expect(await balance(pia)).toBe(0);
+    expect((await pg.query("select name, email, phone from customers where id=$1", [pia])).rows[0]).toEqual({
+      name: "Pía Contreras",
+      email: null,
+      phone: "+56912345678",
+    });
+  });
+});

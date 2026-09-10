@@ -46,3 +46,27 @@ begin
           and lower(r.customer_email) in (lower(p_old_email), c.email));
 end;
 $$;
+
+-- ── 2. Backfill del directorio (una vez; la función ya es idempotente y re-ejecutable) ──
+-- Una ficha por lower(customer_email) distinto que pase la puerta de forma; nombre y teléfono
+-- se eligen por independiente (pagadas/cumplidas/reembolsadas/confirmadas primero, luego la más
+-- reciente) y las fichas existentes SOLO reciben los NULL rellenados. Vincula pedidos, reservas
+-- y reservas a través de su pedido. Medido en prod el 2026-09-10: crea 7 fichas (directorio
+-- 3 → 10) y no deja ningún pedido sin vincular.
+select backfill_customers_from_bookings();
+
+-- ── 3. Retro de puntos para toda ficha con email ──
+-- Idempotente por points_ledger_once (order_id, kind, ref): una segunda corrida no otorga nada.
+-- Así /admin/clientes muestra saldos reales en vez de "0 pts" hasta el signup, y el seed local
+-- y prod quedan simétricos (refinamiento flagged #2 de la spec).
+-- OJO: award_retro_points recorre TODOS los pedidos del email, incluidos los pedidos delta de
+-- reagendamiento, y con reagendamientos previos podría otorgar de más. Eso es un defecto
+-- PREEXISTENTE con su propio PR; acá no se arregla y no puede dispararse: prod tiene 0
+-- reagendamientos y 0 filas en points_ledger al momento de esta migración.
+do $$
+declare r record;
+begin
+  for r in select id from customers where email is not null loop
+    perform award_retro_points(r.id);
+  end loop;
+end $$;
