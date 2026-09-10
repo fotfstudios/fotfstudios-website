@@ -50,4 +50,11 @@ export interface CustomerRepository {
    * y las cortesías no pasan por el checkout).
    */
   bookingsForCustomer(customerId: string, email: string | null): Promise<CustomerBooking[]>;
+  /** Login → ficha (rpc `ensure_customer_for_user`). Un email tomado NO lanza: devuelve email_conflict. */
+  ensureForAuthUser(userId: string, email: string): Promise<EnsureCustomerResult>;
+  /** Edición de contacto (rpc `update_customer_contact`): propaga el snapshot y da retro. */
+  updateContact(
+    customerId: string,
+    d: { name: string | null; email: string | null; phone: string | null },
+  ): Promise<void>;
 }

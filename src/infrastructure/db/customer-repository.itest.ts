@@ -155,3 +155,39 @@ describe("lecturas del directorio", () => {
     expect(await repo.bookingsForCustomer(id, null)).toHaveLength(1);
   });
 });
+
+// Solo lo que agrega el ADAPTADOR. La semántica de las RPC (adopción con id
+// propio, idempotencia, fila legacy, cada rechazo) ya está probada al nivel SQL
+// en customers-directory.itest.ts (PR1) — repetirla acá sería duplicar cobertura.
+describe("escrituras del directorio (RPC de la migración)", () => {
+  it("ensureForAuthUser devuelve { kind: 'ok', id } cuando no hay ficha previa", async () => {
+    const r = await repo.ensureForAuthUser(U1, "  U1@Repo.cl ");
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect((await repo.getProfile(r.id))?.email).toBe("u1@repo.cl");
+  });
+
+  // Lo que el adaptador agrega sobre el SQL: el conflicto vuelve como VALOR.
+  it("ensureForAuthUser devuelve email_conflict (no lanza) cuando el email es de otra ficha", async () => {
+    await customer({ id: U1, email: "viejo@repo.cl", authUserId: U1 });
+    await customer({ email: "tomado@repo.cl", name: "Ficha ajena" });
+
+    expect(await repo.ensureForAuthUser(U1, "tomado@repo.cl")).toEqual({ kind: "email_conflict" });
+    // La ficha del usuario queda intacta con su email viejo.
+    expect((await repo.getProfile(U1))?.email).toBe("viejo@repo.cl");
+  });
+
+  // Lo que el adaptador agrega sobre el SQL: `raise exception '<literal>'` llega
+  // como PostgrestError y sale como sentinela (nunca texto crudo de Postgres).
+  it("updateContact relanza los literales de la RPC como sentinelas", async () => {
+    const titular = await customer({ id: U1, email: "titular@repo.cl", authUserId: U1 });
+    await expect(repo.updateContact(titular, { name: "X", email: "otro@repo.cl", phone: null })).rejects.toThrow(
+      "customer_has_account",
+    );
+
+    const ficha = await customer({ email: "ficha@repo.cl", name: "Ficha" });
+    await expect(repo.updateContact(ficha, { name: "X", email: "no-es-email", phone: null })).rejects.toThrow(
+      "customer_email_invalid",
+    );
+  });
+});

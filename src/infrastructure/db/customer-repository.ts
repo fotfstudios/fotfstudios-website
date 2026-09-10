@@ -3,10 +3,12 @@ import type {
   CustomerBooking,
   CustomerProfile,
   CustomerRepository,
+  EnsureCustomerResult,
   PointsEntryKind,
   PointsMovement,
 } from "@/src/application/ports/customers";
 import { escapeIlike } from "@/src/domain/admin/reservas-list";
+import { customerDbErrorCode, isEnsureEmailConflict } from "@/src/domain/customers/customer-input";
 import type { Database } from "./database.types";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
@@ -49,6 +51,17 @@ function toBooking(r: {
 
 const BOOKING_COLS =
   "id, starts_at, ends_at, status, order_id, customer_id, customer_email, orders(status, amount_clp, points_redeemed_clp)";
+
+/**
+ * Relanza el error de la DB con una SENTINELA estable como mensaje
+ * (`email_taken`, `customer_has_account`, `customers_name_len`, …). La capa de
+ * aplicación ramifica sobre ella y `customerDbErrorMessage` la traduce; nunca
+ * viaja texto crudo de Postgres hacia un toast.
+ */
+function throwDbError(error: { code?: string | null; message: string }): never {
+  const sentinel = customerDbErrorCode(error.code, null, error.message);
+  throw new Error(sentinel === "unknown" ? error.message : sentinel);
+}
 
 /** Adaptador Supabase del perfil de cliente + ledger de puntos. */
 export class SupabaseCustomerRepository implements CustomerRepository {
@@ -147,5 +160,33 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     return (data ?? [])
       .filter((r) => r.customer_id === customerId || (r.customer_id === null && r.customer_email?.toLowerCase() === lower))
       .map(toBooking);
+  }
+
+  async ensureForAuthUser(userId: string, email: string): Promise<EnsureCustomerResult> {
+    const { data, error } = await this.db.rpc("ensure_customer_for_user", { p_user: userId, p_email: email });
+    if (error) {
+      // El chequeo de email libre de la RPC no es serializable: una carrera
+      // aflora como 23505 crudo en vez del literal. Misma condición.
+      if (isEnsureEmailConflict(error)) return { kind: "email_conflict" };
+      // Todo lo demás (incluido el 23505 de customers_auth_user_id_key) sale
+      // como sentinela: por acá NO puede viajar texto crudo de Postgres.
+      throwDbError(error);
+    }
+    return { kind: "ok", id: data as string };
+  }
+
+  async updateContact(
+    customerId: string,
+    d: { name: string | null; email: string | null; phone: string | null },
+  ): Promise<void> {
+    const { error } = await this.db.rpc("update_customer_contact", {
+      p_customer: customerId,
+      // El generador tipa los text params como `string`; la función SQL acepta
+      // NULL (normaliza con nullif). El cast documenta el gap, no cambia runtime.
+      p_name: d.name as unknown as string,
+      p_email: d.email as unknown as string,
+      p_phone: d.phone as unknown as string,
+    });
+    if (error) throwDbError(error);
   }
 }
