@@ -72,11 +72,6 @@ function throwDbError(error: { code?: string | null; message: string }): never {
 export class SupabaseCustomerRepository implements CustomerRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
-  async upsertCustomer(id: string, email: string): Promise<void> {
-    const { error } = await this.db.from("customers").upsert({ id, email }, { onConflict: "id" });
-    if (error) throwDbError(error);
-  }
-
   async awardRetroPoints(id: string): Promise<number> {
     const { data, error } = await this.db.rpc("award_retro_points", { p_customer: id });
     if (error) throwDbError(error);
@@ -87,14 +82,6 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("id", id).maybeSingle();
     if (error) throwDbError(error);
     return data ? toProfile(data) : null;
-  }
-
-  async updateProfile(id: string, data: { name: string | null; phone: string | null }): Promise<void> {
-    const { error } = await this.db
-      .from("customers")
-      .update({ name: data.name, phone: data.phone, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throwDbError(error);
   }
 
   async movements(id: string, limit: number): Promise<PointsMovement[]> {

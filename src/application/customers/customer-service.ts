@@ -27,13 +27,12 @@ function legible(e: unknown): Error {
  * valores derivados de la sesión verificada (userId/email) — nunca con input
  * del cliente — porque el service-role bypasea RLS.
  *
- * Los métodos NUEVOS (`ensureCustomer`, `profileByUser`, `movementsByUser`,
- * `updateProfileByUser`) resuelven la ficha SIEMPRE por `auth_user_id`: desde
+ * Todo método (`ensureCustomer`, `profileByUser`, `movementsByUser`,
+ * `updateProfileByUser`) resuelve la ficha SIEMPRE por `auth_user_id`: desde
  * el directorio, `customers.id` ya no es `auth.users.id` (una ficha adoptada
- * conserva su id propio). Los tres métodos `@deprecated` de abajo todavía
- * asumen `id === userId` — es el bug que esta clase reemplaza — y quedan solo
- * para que los call sites actuales sigan compilando hasta que Task 7 los
- * migre; Task 8 los borra.
+ * conserva su id propio). Los tres métodos `@deprecated` que asumían
+ * `id === userId` — el bug que esta clase reemplaza — vivieron acá solo hasta
+ * que Task 7 migró los call sites; Task 8 los borró.
  */
 export class CustomerService {
   constructor(private readonly repo: CustomerRepository) {}
@@ -84,21 +83,6 @@ export class CustomerService {
     } catch (e) {
       throw legible(e);
     }
-  }
-
-  /** @deprecated PR2: usa profileByUser. Se elimina al soltar los métodos legacy del puerto. */
-  profile(userId: string): Promise<CustomerProfile | null> {
-    return this.repo.getProfile(userId);
-  }
-
-  /** @deprecated PR2: usa updateProfileByUser. */
-  updateProfile(userId: string, data: { name: string | null; phone: string | null }): Promise<void> {
-    return this.repo.updateProfile(userId, data);
-  }
-
-  /** @deprecated PR2: usa movementsByUser. */
-  movements(userId: string, limit = 50): Promise<PointsMovement[]> {
-    return this.repo.movements(userId, limit);
   }
 
   bookingsForEmail(email: string): Promise<CustomerBooking[]> {

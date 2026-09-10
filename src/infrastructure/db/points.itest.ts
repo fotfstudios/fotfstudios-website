@@ -67,14 +67,17 @@ const OTHER_EMAIL = "otra@points.cl";
 const MON = futureDate(1); // día futuro (valle a las 10:00 → $9.990/h)
 const HOUR_PRICE = 9990;
 
-const book = (start: number, opts: { email?: string; points?: number } = {}) =>
+const book = (start: number, opts: { email?: string; points?: number; customerId?: string } = {}) =>
   checkout.createBooking({
     resourceId,
     date: MON,
     startMinute: start,
     durationHours: 1,
     customer: { email: opts.email ?? CUST_EMAIL },
-    customerId: opts.points ? CUST_ID : undefined,
+    // Por defecto el canje va sobre CUST_ID (id = usuario auth), que es lo que
+    // asumían los casos viejos; `customerId` permite canjear sobre una ficha
+    // ADOPTADA, que es lo que hace /api/bookings desde este PR.
+    customerId: opts.customerId ?? (opts.points ? CUST_ID : undefined),
     pointsToRedeem: opts.points ?? 0,
   });
 
@@ -127,7 +130,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await pg.query(cleanup);
-  await pg.query("insert into customers (id, email) values ($1, $2), ($3, $4)", [
+  await pg.query("insert into customers (id, email, auth_user_id) values ($1, $2, $1), ($3, $4, $3)", [
     CUST_ID,
     CUST_EMAIL,
     OTHER_ID,
@@ -381,12 +384,16 @@ describe("retro al crear la cuenta", () => {
       [CUST_EMAIL.toUpperCase()], // email histórico con mayúsculas: matchea igual
     );
 
-    await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
+    const first = await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
+    expect(first.kind).toBe("ok");
+    if (first.kind !== "ok") return;
+    const cid = first.profile.id;
+    expect(cid).toBe(CUST_ID); // sin ficha previa, ensure crea con id = usuario
     // 999 + 500 + floor(0.05·14000)=700; la cancelada no suma.
-    expect(await balance()).toBe(999 + 500 + 700);
+    expect(await balance(cid)).toBe(999 + 500 + 700);
 
     await customers.ensureCustomer(CUST_ID, CUST_EMAIL); // idempotente
-    expect(await balance()).toBe(2199);
+    expect(await balance(cid)).toBe(2199);
 
     // Una orden nueva ganada EN VIVO no se re-otorga al correr retro de nuevo.
     const b = await book(600);
@@ -394,8 +401,81 @@ describe("retro al crear la cuenta", () => {
     if (!b.ok) return;
     await payWebhook(b.value.orderId, "pay9", HOUR_PRICE);
     await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
-    expect(await balance()).toBe(2199 + computeEarn(HOUR_PRICE));
-    await expectBalanceConsistent();
+    expect(await balance(cid)).toBe(2199 + computeEarn(HOUR_PRICE));
+    await expectBalanceConsistent(cid);
+  });
+});
+
+describe("identidad: la ficha se resuelve por auth_user_id", () => {
+  it("adopta la fila legacy (id = usuario, auth_user_id null) sin duplicar", async () => {
+    // Lo que dejaba el upsert-por-id vivo hasta este PR.
+    await pg.query("delete from customers where id=$1", [CUST_ID]);
+    await pg.query("insert into customers (id, email) values ($1, $2)", [CUST_ID, CUST_EMAIL]);
+
+    const r = await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.profile.id).toBe(CUST_ID);
+    expect(r.profile.authUserId).toBe(CUST_ID);
+
+    const n = await pg.query<{ n: string }>("select count(*)::text n from customers where email=$1", [CUST_EMAIL]);
+    expect(Number(n.rows[0].n)).toBe(1); // adoptada, no duplicada
+  });
+
+  it("adopta una ficha del directorio con id propio y le resuelve saldo y movimientos", async () => {
+    await pg.query("delete from customers where id=$1", [CUST_ID]);
+    const other = (
+      await pg.query<{ id: string }>("insert into customers (email, name) values ($1, 'Del backfill') returning id", [
+        CUST_EMAIL,
+      ])
+    ).rows[0].id;
+    expect(other).not.toBe(CUST_ID);
+    await seedPoints(300, other);
+
+    const r = await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.profile.id).toBe(other); // conserva su id
+    expect(r.profile.pointsBalance).toBe(300);
+
+    // Con el modelo viejo (id = auth id) esto habría devuelto null / 0 pts.
+    expect((await customers.profileByUser(CUST_ID))?.id).toBe(other);
+    expect(await customers.movementsByUser(CUST_ID, 50)).toHaveLength(1);
+  });
+
+  it("canje: el redeem cae en la ficha adoptada (id ≠ auth id), no en el usuario de auth", async () => {
+    // Ficha del directorio con id PROPIO y saldo, como la dejará el backfill de PR3.
+    await pg.query("delete from customers where id=$1", [CUST_ID]);
+    const other = (
+      await pg.query<{ id: string }>("insert into customers (email, name) values ($1, 'Del backfill') returning id", [
+        CUST_EMAIL,
+      ])
+    ).rows[0].id;
+    expect(other).not.toBe(CUST_ID);
+    await seedPoints(HOUR_PRICE, other);
+
+    // El login la adopta: conserva su id y queda vinculada a la cuenta.
+    const ensured = await customers.ensureCustomer(CUST_ID, CUST_EMAIL);
+    expect(ensured.kind).toBe("ok");
+    if (ensured.kind !== "ok") return;
+    expect(ensured.profile.id).toBe(other);
+
+    // Lo que hace /api/bookings desde Task 7: canjea con el id del PERFIL.
+    const b = await book(600, { points: HOUR_PRICE, customerId: ensured.profile.id });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+
+    const redeem = await pg.query<{ customer_id: string; amount: number }>(
+      "select customer_id, amount from points_ledger where order_id=$1 and kind='redeem'",
+      [b.value.orderId],
+    );
+    expect(redeem.rows).toHaveLength(1);
+    expect(redeem.rows[0].customer_id).toBe(other); // la ficha adoptada
+    expect(redeem.rows[0].amount).toBe(-HOUR_PRICE);
+    // Nada quedó a nombre del usuario de auth (que ya no tiene ficha propia).
+    expect((await pg.query("select 1 from points_ledger where customer_id=$1", [CUST_ID])).rowCount).toBe(0);
+    expect(await balance(other)).toBe(0);
+    await expectBalanceConsistent(other);
   });
 });
 
@@ -420,7 +500,9 @@ describe("paridad SQL ↔ dominio y ownership", () => {
     const movesA = await repo.movements(CUST_ID, 50);
     expect(movesA.every((m) => m.amount === 100)).toBe(true);
 
-    await repo.updateProfile(CUST_ID, { name: "Cliente A", phone: null });
+    // La edición pasa por update_customer_contact (mismo camino que el admin):
+    // reenvía el email actual, así el titular no cambia su acceso.
+    await repo.updateContact(CUST_ID, { name: "Cliente A", email: CUST_EMAIL, phone: null });
     const other = await repo.getProfile(OTHER_ID);
     expect(other?.name).toBeNull(); // el update de A no tocó a B
   });
