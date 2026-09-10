@@ -181,6 +181,20 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
     if (!r.ok) expect(r.error).toBe("insufficient_points");
   });
 
+  // PR3: create_checkout exige que la ficha exista cuando se le pasa p_customer_id.
+  // Cubre la carrera entre elegir el cliente en la consola y guardar la reserva.
+  it("ficha borrada entre elegirla y guardar (raise de la DB) → customer_not_found", async () => {
+    const repo: CheckoutRepository = {
+      createCheckout: vi.fn().mockRejectedValue(new Error("customer_not_found")),
+    };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    const r = await svc.createBooking({ ...input, customerId: "cust-borrada" });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("customer_not_found");
+  });
+
   it("sin puntos: sin línea de canje y pointsApplied 0", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
     const svc = new CheckoutService(pricedPricing(), repo);

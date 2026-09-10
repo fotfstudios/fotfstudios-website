@@ -20,6 +20,7 @@ const checkoutErrorMessage = (code: string): string => {
   // El motor de descuentos ya devuelve una frase para el staff (es la única
   // validación que necesita el quote del server para decidirse).
   if (code.startsWith("discount:")) return code.slice("discount:".length);
+  if (code === "customer_not_found") return "El cliente ya no existe. Vuelve a seleccionarlo.";
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";

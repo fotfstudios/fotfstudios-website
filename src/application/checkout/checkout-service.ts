@@ -120,6 +120,8 @@ export class CheckoutService {
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // La ficha elegida ya no existe (carrera entre el picker y el guardado).
+      if (/customer_not_found/i.test(msg)) return err("customer_not_found");
       if (/insufficient_points/i.test(msg)) return err("insufficient_points");
       if (/points_without_customer/i.test(msg)) return err("points_session");
       if (/exclusion|23P01|overlap|conflict/i.test(msg)) return err("slot_taken");
