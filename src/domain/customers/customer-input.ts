@@ -1,0 +1,153 @@
+/**
+ * Entrada de cliente (staff e invitado) — parseo puro y COPY de los errores de
+ * la DB. Único lugar donde viven las frases del directorio: `run()`/`runData`
+ * muestran `e.message` tal cual en un toast, así que nada crudo de Postgres
+ * puede llegar a una persona. La forma del email es la de `contact.ts`, que a
+ * su vez es el espejo del gate SQL de PR1.
+ */
+import { escapeIlike } from "@/src/domain/admin/reservas-list";
+import { EMAIL_MAX, normalizeEmail, normalizePhone, phoneDigits } from "@/src/domain/contact/contact";
+import { err, ok, type Result } from "@/src/domain/shared/result";
+
+/** Topes de las columnas de `customers` (name/email/phone). */
+export const CUSTOMER_CAPS = { name: 80, email: EMAIL_MAX, phone: 40 } as const;
+
+/** Aguja de búsqueda: tope de caracteres antes de escapar. */
+export const SEARCH_MAX = 80;
+
+/** Mínimo de dígitos para buscar por teléfono (menos que eso matchea todo). */
+const MIN_SEARCH_DIGITS = 3;
+
+export interface CustomerInput {
+  name: string;
+  email: string | null;
+  phone: string | null;
+}
+
+/** Lee una clave como string recortado; cualquier no-string se vuelve "". */
+function str(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/**
+ * Identidad mínima (decisión 3 del dueño): nombre + al menos uno de email o
+ * teléfono. El email queda en minúsculas y con forma válida; el teléfono, en
+ * `(+)?dígitos`. Devuelve Result — el dominio no lanza.
+ */
+export function parseCustomerInput(raw: unknown): Result<CustomerInput, string> {
+  const obj = (typeof raw === "object" && raw !== null && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+
+  const name = str(obj, "name");
+  if (!name) return err("El nombre es obligatorio.");
+  if (name.length > CUSTOMER_CAPS.name) return err("El nombre no puede superar los 80 caracteres.");
+
+  const emailRaw = str(obj, "email");
+  const email = emailRaw ? normalizeEmail(emailRaw) : null;
+  if (emailRaw && !email) return err("Email no válido.");
+
+  const phoneRaw = str(obj, "phone");
+  const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
+  if (phoneRaw && !phone) return err("Teléfono no válido. Usa 8 a 15 dígitos, con o sin +.");
+
+  if (!email && !phone) return err("Ingresa un email o un teléfono.");
+  return ok({ name, email, phone });
+}
+
+/**
+ * Aguja para el `.or()` de PostgREST: `text` ya escapado (comodines de ILIKE y
+ * los delimitadores de la gramática) y `digits` solo cuando hay suficientes
+ * para que buscar por teléfono discrimine.
+ */
+export function customerSearchNeedle(q: string): { text: string; digits: string | null } {
+  const raw = (q ?? "").trim().slice(0, SEARCH_MAX);
+  const digits = phoneDigits(raw);
+  return {
+    text: escapeIlike(raw).slice(0, SEARCH_MAX),
+    digits: digits && digits.length >= MIN_SEARCH_DIGITS ? digits : null,
+  };
+}
+
+/** Cómo se nombra a un cliente en la UI cuando falta el nombre. */
+export function customerLabel(c: { name?: string | null; email?: string | null; phone?: string | null }): string {
+  return c.name?.trim() || c.email || c.phone || "Cliente sin nombre";
+}
+
+/** Frases (una por sentinela). Chileno, directo, oración completa. */
+const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
+  email_taken: "Ese email ya pertenece a otro cliente.",
+  auth_user_taken: "Esa cuenta ya está vinculada a otro cliente.",
+  customers_contact_required: "Ingresa un email o un teléfono.",
+  customers_name_len: "El nombre no puede superar los 80 caracteres.",
+  customers_phone_len: "Teléfono no válido. Usa 8 a 15 dígitos, con o sin +.",
+  customers_email_lower: "Email no válido.",
+  customer_not_found: "El cliente ya no existe. Vuelve a seleccionarlo.",
+  customer_email_invalid: "Email no válido.",
+  customer_has_account: "Este cliente tiene cuenta: su email es su acceso y no se puede cambiar desde el panel.",
+  customer_email_in_use: "Este cliente tiene puntos o reservas con ese email: no puede quedarse sin email.",
+  // OJO: el literal exagera la causa — también salta con una ficha de invitado
+  // sin reclamar y en la carrera por PK. La frase habla de "otro cliente"
+  // (una ficha del directorio), nunca de "otra cuenta".
+  customer_email_owned_by_other_user: "Ese email ya pertenece a otro cliente.",
+  customer_email_required: "Falta el email de la cuenta.",
+  customer_user_required: "Falta la cuenta que vincular.",
+  customer_assign_not_booking: "Solo se puede cambiar el cliente de una reserva de sala.",
+  customer_assign_inactive: "Solo se puede cambiar el cliente de una reserva vigente.",
+  customer_assign_points_order: "Esta reserva usó Puntos FOTF y no se puede reasignar; cancélala y vuelve a crearla.",
+  customer_assign_needs_email: "Ese cliente no tiene email; agrégalo antes de reasignar una reserva pagada.",
+};
+
+/** Nombre del constraint dentro del mensaje de Postgres (PostgrestError no trae `constraint`). */
+function constraintFromMessage(message: string | null | undefined): string | null {
+  return /constraint "([a-zA-Z0-9_]+)"/.exec(message ?? "")?.[1] ?? null;
+}
+
+/**
+ * Sentinela estable del error de DB: `email_taken`, el nombre del CHECK, el
+ * literal de la RPC — o `"unknown"`. El adaptador relanza con esta cadena para
+ * que la capa de aplicación pueda ramificar sin conocer códigos de Postgres.
+ */
+export function customerDbErrorCode(
+  code: string | null | undefined,
+  constraint: string | null | undefined,
+  message: string | null | undefined = null,
+): string {
+  if (code === "23505" || code === "23514") {
+    const name = constraint ?? constraintFromMessage(message);
+    if (name === "customers_email_key") return "email_taken";
+    if (name === "customers_auth_user_id_key") return "auth_user_taken";
+    if (name && name in CUSTOMER_DB_MESSAGES) return name;
+    return "unknown";
+  }
+  const literal = (message ?? "").trim();
+  return literal in CUSTOMER_DB_MESSAGES ? literal : "unknown";
+}
+
+/**
+ * Frase para una persona, o null si no reconocemos el error (el caller decide:
+ * jamás mostrar el texto crudo de Postgres).
+ */
+export function customerDbErrorMessage(
+  code: string | null | undefined,
+  constraint: string | null | undefined,
+  message: string | null | undefined = null,
+): string | null {
+  return CUSTOMER_DB_MESSAGES[customerDbErrorCode(code, constraint, message)] ?? null;
+}
+
+/**
+ * ¿El fallo de `ensure_customer_for_user` es "ese email ya es de otra ficha"?
+ * El chequeo de email libre de la RPC no es serializable (PR1 lo dejó así a
+ * propósito): una inserción concurrente del mismo email aflora como 23505 crudo
+ * en vez del literal. Para el usuario es exactamente la misma condición.
+ *
+ * OJO: `customers` tiene DOS unique. El 23505 de `customers_auth_user_id_key`
+ * (dos logins concurrentes del mismo usuario) es `auth_user_taken`, otra cosa:
+ * se excluye para no mostrarle la pantalla de conflicto de email a alguien cuyo
+ * email está perfecto. Ese caso sale por `throwDbError` como sentinela traducible.
+ */
+export function isEnsureEmailConflict(e: { code?: string | null; message?: string | null }): boolean {
+  const message = e.message ?? "";
+  if (message.includes("customer_email_owned_by_other_user")) return true;
+  return e.code === "23505" && !message.includes("customers_auth_user_id_key");
+}
