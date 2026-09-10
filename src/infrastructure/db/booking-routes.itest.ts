@@ -243,8 +243,11 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
     expect((await second.json()).error).toBe("slot_taken");
   });
 
-  it("normaliza nombre y teléfono del body en el snapshot", async () => {
-    await adoptedCustomer(50_000);
+  // PR3: con la ficha vinculada, el snapshot sale del REGISTRO, no del body. Un
+  // titular de cuenta conserva su nombre y su email (ni un nombre de 120
+  // caracteres se los pisa) y solo un teléfono vacío se llena con lo tipeado.
+  it("el snapshot sale de la FICHA vinculada; el teléfono tipeado solo llena el que la ficha no tiene", async () => {
+    const customerId = await adoptedCustomer(50_000);
     auth.session = { userId: AUTH_USER, email: AUTH_EMAIL };
 
     const res = await post(
@@ -253,13 +256,25 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
     expect(res.status).toBe(200);
     const { orderId } = await res.json();
 
-    const snap = await pg.query<{ customer_name: string; customer_phone: string; customer_email: string }>(
-      "select customer_name, customer_phone, customer_email from orders where id = $1",
-      [orderId],
+    const snap = await pg.query<{
+      customer_id: string;
+      customer_name: string;
+      customer_phone: string;
+      customer_email: string;
+    }>("select customer_id, customer_name, customer_phone, customer_email from orders where id = $1", [orderId]);
+    expect(snap.rows[0]).toMatchObject({
+      customer_id: customerId,
+      customer_name: "Titular Adoptado",
+      customer_phone: "+56962803298",
+      customer_email: AUTH_EMAIL,
+    });
+
+    // La ficha del titular tampoco cambia de nombre por el camino del checkout.
+    const rec = await pg.query<{ name: string; phone: string | null }>(
+      "select name, phone from customers where id=$1",
+      [customerId],
     );
-    expect(snap.rows[0].customer_name).toHaveLength(80); // tope de customers_name_len
-    expect(snap.rows[0].customer_phone).toBe("+56962803298");
-    expect(snap.rows[0].customer_email).toBe(AUTH_EMAIL);
+    expect(rec.rows[0]).toEqual({ name: "Titular Adoptado", phone: null });
   });
 
   // Fix round 2: `name`/`phone` no-string reventaban dentro del try (la ruta

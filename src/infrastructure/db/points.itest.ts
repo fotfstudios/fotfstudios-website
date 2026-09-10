@@ -157,12 +157,40 @@ describe("earn al confirmar pago", () => {
     await expectBalanceConsistent();
   });
 
-  it("sin perfil de cliente no otorga (el retro lo cubre al crear la cuenta)", async () => {
+  // PR3: create_checkout crea la ficha del invitado en la misma transacción, así
+  // que el earn cae EN VIVO al pagar en vez de esperar al signup. El saldo final
+  // es idéntico al que produciría un retro posterior (points_ledger_once lo hace
+  // no-op), y el claw-back de mark_refunded aplica desde ya.
+  it("invitado con email válido: la ficha se crea en el checkout y el earn cae en vivo", async () => {
     const b = await book(600, { email: "invitado@points.cl" });
     expect(b.ok).toBe(true);
     if (!b.ok) return;
     await payWebhook(b.value.orderId, "pay2", HOUR_PRICE);
 
+    const guest = (
+      await pg.query<{ id: string }>("select id from customers where email='invitado@points.cl'")
+    ).rows[0];
+    expect(guest).toBeDefined();
+
+    const earns = await pg.query<{ customer_id: string; amount: number }>(
+      "select customer_id, amount from points_ledger where order_id=$1 and kind='earn'",
+      [b.value.orderId],
+    );
+    expect(earns.rows).toHaveLength(1);
+    expect(earns.rows[0]).toMatchObject({ customer_id: guest.id, amount: computeEarn(HOUR_PRICE) });
+
+    // Un login posterior ADOPTA esa ficha y el retro ya no tiene nada que otorgar.
+    expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [guest.id])).rows[0].n).toBe(0);
+    await expectBalanceConsistent(guest.id);
+  });
+
+  it("un email sin forma válida sigue sin ficha y sin puntos", async () => {
+    const b = await book(660, { email: "a@b" });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    await payWebhook(b.value.orderId, "pay3", HOUR_PRICE);
+
+    expect(Number((await pg.query<{ n: string }>("select count(*)::text n from customers where email='a@b'")).rows[0].n)).toBe(0);
     const rows = await pg.query("select 1 from points_ledger where order_id=$1", [b.value.orderId]);
     expect(rows.rowCount).toBe(0);
   });

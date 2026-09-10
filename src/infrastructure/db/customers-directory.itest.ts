@@ -898,3 +898,117 @@ describe("activación PR3: backfill + retro (exactamente lo que corre la migraci
     expect(sql).toContain("v_pts := v_pts + award_retro_points(r.id);");
   });
 });
+
+describe("PR3: create_checkout crea/vincula la ficha", () => {
+  const reservationOf = async (orderId: string) =>
+    (await pg.query<{ id: string }>("select id from reservations where order_id=$1", [orderId])).rows[0].id;
+
+  /** create_checkout directo (sin supabase-js), con la firma de 15 parámetros. Devuelve el orderId. */
+  let hour = 0;
+  const checkout = async (opts: {
+    slot?: number;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    customerId?: string | null;
+  }): Promise<string> => {
+    hour += 1;
+    const starts = new Date(Date.now() + (24 * 30 + (opts.slot ?? hour)) * 3_600_000);
+    const ends = new Date(starts.getTime() + 3_600_000);
+    const { rows } = await pg.query<{ id: string }>(
+      `select create_checkout($1, $2, $3, 9990, 8395, 1595, 'CLP',
+              jsonb_build_object('name', $4::text, 'email', $5::text, 'phone', $6::text),
+              '{}'::jsonb, '[]'::jsonb, interval '10 minutes', $7::uuid, 0, null, null) id`,
+      [
+        resourceId,
+        starts.toISOString(),
+        ends.toISOString(),
+        opts.name ?? null,
+        opts.email ?? null,
+        opts.phone ?? null,
+        opts.customerId ?? null,
+      ],
+    );
+    return rows[0].id;
+  };
+
+  it("p_customer_id que ya no existe → customer_not_found (la carrera entre elegir y guardar)", async () => {
+    await expect(
+      checkout({ email: "x@dir.cl", customerId: "e0000000-0000-4000-a000-0000000000fd" }),
+    ).rejects.toThrow("customer_not_found");
+  });
+
+  it("con p_customer_id: vincula y arma el snapshot desde la ficha (el titular conserva nombre y email)", async () => {
+    const c = await customer({ name: "Titular", email: "titular@dir.cl", phone: null, authUserId: U_HOLDER });
+    const orderId = await checkout({
+      name: "Otro Nombre",
+      email: "otro@dir.cl",
+      phone: "+56 9 1111 1111",
+      customerId: c,
+    });
+
+    const esperado = {
+      customer_id: c,
+      customer_name: "Titular",
+      customer_email: "titular@dir.cl",
+      customer_phone: "+56 9 1111 1111", // la ficha no tenía teléfono → lo tipeado llena el hueco
+    };
+    expect(await snapshot("orders", orderId)).toEqual(esperado);
+    expect(await snapshot("reservations", await reservationOf(orderId))).toEqual(esperado);
+  });
+
+  it("invitado nuevo: la ficha se crea en la MISMA transacción y el email queda en minúsculas", async () => {
+    const orderId = await checkout({ name: "  Nueva Invitada  ", email: " Nueva@Dir.CL ", phone: "+56 9 2222 2222" });
+
+    const c = (
+      await pg.query<{ id: string; name: string; phone: string }>(
+        "select id, name, phone from customers where email='nueva@dir.cl'",
+      )
+    ).rows[0];
+    expect(c).toMatchObject({ name: "Nueva Invitada", phone: "+56 9 2222 2222" });
+    expect(await snapshot("orders", orderId)).toEqual({
+      customer_id: c.id,
+      customer_name: "Nueva Invitada",
+      customer_email: "nueva@dir.cl",
+      customer_phone: "+56 9 2222 2222",
+    });
+  });
+
+  it("invitado que vuelve: el teléfono nuevo tipeado gana en la ficha y viaja al snapshot", async () => {
+    const c = await customer({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 0000 0000" });
+    const orderId = await checkout({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 3333 3333" });
+
+    expect((await pg.query("select phone from customers where id=$1", [c])).rows[0].phone).toBe("+56 9 3333 3333");
+    expect((await snapshot("orders", orderId)).customer_phone).toBe("+56 9 3333 3333");
+    expect((await snapshot("orders", orderId)).customer_id).toBe(c);
+  });
+
+  it("email sin forma válida: reserva igual, sin ficha y sin vínculo (snapshot con lo tipeado, en minúsculas)", async () => {
+    const orderId = await checkout({ name: "Basura", email: "A@B", phone: "+56 9 4444 4444" });
+
+    expect(await count("customers")).toBe(0);
+    expect(await snapshot("orders", orderId)).toEqual({
+      customer_id: null,
+      customer_name: "Basura",
+      customer_email: "a@b",
+      customer_phone: "+56 9 4444 4444",
+    });
+  });
+
+  it("slot_taken revierte también la ficha del invitado (una sola transacción)", async () => {
+    await checkout({ slot: 90, name: "Primero", email: "primero@dir.cl" });
+    await expect(checkout({ slot: 90, name: "Segundo", email: "segundo@dir.cl" })).rejects.toMatchObject({
+      code: "23P01",
+    });
+    expect(await count("customers where email='segundo@dir.cl'")).toBe(0);
+    expect(await count("customers where email='primero@dir.cl'")).toBe(1);
+  });
+
+  it("nombre de 120 caracteres y teléfono de 3 dígitos: se clampean como en upsert_guest_customer", async () => {
+    const orderId = await checkout({ name: "N".repeat(120), email: "clamp@dir.cl", phone: "123" });
+    expect(await snapshot("orders", orderId)).toMatchObject({
+      customer_name: "N".repeat(80),
+      customer_phone: null,
+    });
+  });
+});

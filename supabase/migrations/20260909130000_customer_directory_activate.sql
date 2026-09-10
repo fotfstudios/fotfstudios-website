@@ -82,3 +82,98 @@ begin
   end loop;
   raise notice 'activación directorio: % fichas nuevas, % puntos retro otorgados', v_new, v_pts;
 end $$;
+
+-- ── 4. create_checkout: crea/vincula la ficha (MISMA firma de 15 parámetros) ──
+-- create or replace, nunca drop: checkout-repository.ts no se toca y el código vivo sigue
+-- llamando igual (expand/contract). Con p_customer_id la ficha tiene que existir
+-- (customer_not_found cubre la carrera entre elegir el cliente y guardar); sin él, el invitado
+-- se resuelve por email con upsert_guest_customer — el MISMO escritor que usa la cortesía —,
+-- que devuelve null si el email no pasa la puerta de forma (entonces la reserva queda sin
+-- vincular, exactamente como hoy). INVARIANTE: el snapshot se lee de la fila DESPUÉS del
+-- upsert, así un invitado que vuelve trae su teléfono nuevo y un titular de cuenta conserva
+-- nombre y email. Consecuencia: orders.customer_email queda SIEMPRE en minúsculas.
+create or replace function create_checkout(
+  p_resource uuid, p_starts timestamptz, p_ends timestamptz,
+  p_amount int, p_net int, p_tax int, p_currency text,
+  p_customer jsonb, p_snapshot jsonb, p_lines jsonb,
+  p_ttl interval default interval '10 minutes',
+  p_customer_id uuid default null, p_points int default 0,
+  p_terms_version text default null, p_terms_source text default null
+) returns uuid language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_res uuid; v_order uuid; v_line jsonb; v_balance int;
+  v_cust  uuid := p_customer_id;
+  v_name  text := nullif(left(trim(p_customer ->> 'name'), 80), '');
+  v_email text := nullif(lower(trim(p_customer ->> 'email')), '');
+  v_phone text := case when char_length(trim(p_customer ->> 'phone')) between 6 and 40
+                       then trim(p_customer ->> 'phone') end;
+begin
+  perform expire_stale_holds(p_resource);
+
+  if v_cust is not null then
+    if not exists (select 1 from customers where id = v_cust) then
+      raise exception 'customer_not_found';
+    end if;
+  else
+    v_cust := upsert_guest_customer(v_name, v_email, v_phone);   -- null si el email no pasa la puerta
+  end if;
+
+  if v_cust is not null then
+    select coalesce(c.name, v_name), c.email, coalesce(c.phone, v_phone)
+      into v_name, v_email, v_phone
+      from customers c where c.id = v_cust;
+  end if;
+
+  insert into reservations (resource_id, kind, status, starts_at, ends_at, expires_at,
+                            customer_name, customer_email, customer_phone, customer_id)
+    values (p_resource, 'booking', 'held', p_starts, p_ends,
+            case when p_ttl is null then null else now() + p_ttl end,
+            v_name, v_email, v_phone, v_cust)
+    returning id into v_res;
+
+  insert into orders (status, currency, amount_clp, net_clp, tax_clp,
+                      customer_name, customer_email, customer_phone, pricing_snapshot,
+                      terms_accepted_at, terms_version, terms_source, customer_id)
+    values ('pending_payment', p_currency, p_amount, p_net, p_tax,
+            v_name, v_email, v_phone, p_snapshot,
+            case when p_terms_source is not null then now() end,
+            case when p_terms_source is not null then p_terms_version end,
+            p_terms_source, v_cust)
+    returning id into v_order;
+
+  update reservations set order_id = v_order where id = v_res;
+
+  -- Bloque de canje: BYTE-IDÉNTICO al de 20260707240000 y sigue usando p_customer_id, NO
+  -- v_cust. Hoy son el mismo valor cuando p_points > 0: el canje exige sesión
+  -- (checkout-service.ts:62) y esa rama siempre pasa p_customer_id, así que v_cust nunca se
+  -- reasignó (la rama del invitado solo corre con p_customer_id null, y entonces p_points = 0).
+  -- Se deja el parámetro a propósito, para que este bloque quede idéntico al original y el
+  -- diff de la migración muestre SOLO la resolución de la ficha y las dos columnas customer_id.
+  -- Si alguna vez un canje pudiera llegar sin p_customer_id, esta línea debe pasar a v_cust.
+  if p_points > 0 then
+    select points_balance into v_balance from customers where id = p_customer_id for update;
+    if v_balance is null then raise exception 'points_without_customer'; end if;
+    if v_balance < p_points then raise exception 'insufficient_points'; end if;
+    perform apply_points(p_customer_id, v_order, 'redeem', -p_points, '');
+    update orders set points_redeemed_clp = p_points where id = v_order;
+  end if;
+
+  for v_line in select jsonb_array_elements(p_lines) loop
+    insert into order_lines (order_id, line_type, reservation_id, addon_key, description,
+                             quantity, unit_price_clp, subtotal_clp)
+      values (v_order, v_line ->> 'line_type',
+              case when v_line ->> 'line_type' = 'room_time' then v_res else null end,
+              v_line ->> 'addon_key', v_line ->> 'description',
+              coalesce((v_line ->> 'quantity')::int, 1),
+              (v_line ->> 'unit_price_clp')::int, (v_line ->> 'subtotal_clp')::int);
+  end loop;
+
+  perform log_booking_event(v_res, 'created', p_order => v_order);
+
+  if p_points > 0 and p_amount = 0 then
+    perform confirm_payment(v_order, 'offline:puntos');
+  end if;
+
+  return v_order;
+end;
+$$;
