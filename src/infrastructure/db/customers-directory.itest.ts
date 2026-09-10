@@ -5,6 +5,8 @@
  * cada escenario con puntos: customers.points_balance === sum(points_ledger).
  * Requiere Supabase local.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -852,6 +854,10 @@ describe("activación PR3: backfill + retro (exactamente lo que corre la migraci
     expect((await snapshot("orders", existingBooking.orderId)).customer_id).toBe(existing);
     expect((await snapshot("orders", pending.orderId)).customer_id).not.toBeNull();
     expect((await snapshot("orders", paid.orderId)).customer_id).toBe(mixed);
+    // El vínculo escribe customer_id pero NO reescribe el email del snapshot: el pedido
+    // conserva su mayúscula/minúscula original aunque la ficha ya sea lower(email) — inocuo
+    // porque los joins de puntos siempre comparan lower(o.customer_email) = c.email.
+    expect((await snapshot("orders", paid.orderId)).customer_email).toBe("MiXeD@Case.cl");
 
     // Idempotencia DESPUÉS de la activación: ni fichas nuevas ni puntos nuevos.
     const fichas = await count("customers");
@@ -878,5 +884,14 @@ describe("activación PR3: backfill + retro (exactamente lo que corre la migraci
       email: null,
       phone: "+56912345678",
     });
+  });
+
+  it("la migración sigue invocando el backfill y el retro (no solo la copia de este archivo)", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260909130000_customer_directory_activate.sql"),
+      "utf8",
+    );
+    expect(sql).toContain("backfill_customers_from_bookings()");
+    expect(sql).toContain("award_retro_points(r.id)");
   });
 });

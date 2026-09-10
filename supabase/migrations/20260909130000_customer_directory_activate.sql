@@ -53,7 +53,10 @@ $$;
 -- reciente) y las fichas existentes SOLO reciben los NULL rellenados. Vincula pedidos, reservas
 -- y reservas a través de su pedido. Medido en prod el 2026-09-10: crea 7 fichas (directorio
 -- 3 → 10) y no deja ningún pedido sin vincular.
-select backfill_customers_from_bookings();
+-- OJO: el vínculo escribe customer_id pero NO reescribe customer_email en el snapshot — un
+-- pedido guardado como 'P4@Prod.CL' conserva esa mayúscula/minúscula aunque su ficha ya sea
+-- 'p4@prod.cl'; es inocuo porque las ocho funciones de puntos siempre comparan
+-- lower(o.customer_email) = c.email, nunca el valor crudo del snapshot.
 
 -- ── 3. Retro de puntos para toda ficha con email ──
 -- Idempotente por points_ledger_once (order_id, kind, ref): una segunda corrida no otorga nada.
@@ -63,10 +66,19 @@ select backfill_customers_from_bookings();
 -- reagendamiento, y con reagendamientos previos podría otorgar de más. Eso es un defecto
 -- PREEXISTENTE con su propio PR; acá no se arregla y no puede dispararse: prod tiene 0
 -- reagendamientos y 0 filas en points_ledger al momento de esta migración.
+
+-- 2 y 3 comparten un solo bloque para CAPTURAR lo que hicieron: por separado, el `select`
+-- descartaba el int de backfill_customers_from_bookings() y el loop descartaba cada `perform`
+-- de award_retro_points, así que el log del deploy solo mostraría "Applying migration
+-- 20260909130000_..." — ninguna huella de una escritura irreversible sobre prod (sin down
+-- migration) cuyas cifras exactas dependen del momento en que corra. `raise notice` las deja en
+-- el log sin cambiar ningún número: mismas funciones, mismo conjunto de iteración, mismo filtro.
 do $$
-declare r record;
+declare v_new int; v_pts int := 0; r record;
 begin
+  select backfill_customers_from_bookings() into v_new;
   for r in select id from customers where email is not null loop
-    perform award_retro_points(r.id);
+    v_pts := v_pts + award_retro_points(r.id);
   end loop;
+  raise notice 'activación directorio: % fichas nuevas, % puntos retro otorgados', v_new, v_pts;
 end $$;
