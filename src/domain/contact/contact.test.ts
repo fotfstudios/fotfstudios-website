@@ -45,16 +45,34 @@ describe("normalizePhone", () => {
     ["00123456", "00123456"],
     ["+1 415 555 0100", "+14155550100"], // extranjero: pasa por el rango 8–15
     ["4155550100", "4155550100"], // sin +, no chileno: se conserva tal cual
+    // Decisión aceptada en review: un "+" explícito NO salva a un número de 9
+    // dígitos que empieza en 9. Ningún país con código de país que empiece en
+    // 9 tiene solo 9 dígitos en total, así que en el contexto de este estudio
+    // eso es un móvil chileno mal prefijado, no un número extranjero real.
+    ["+912345678", "+56912345678"],
+    ["(+91) 2345678", "+56912345678"], // misma regla, otra forma de escribir el "+"
+    // Decisión aceptada en review: 15 dígitos es el máximo de un número E.164,
+    // así que el 00 se saca y el número se acepta — el null de antes era el
+    // defecto, no la regla; esto solo amplía lo que se acepta, nunca lo angosta.
+    ["0012345678912345", "12345678912345"],
   ])("normaliza %s → %s", (raw, expected) => {
     expect(normalizePhone(raw)).toBe(expected);
   });
 
-  it.each(["", "12345", "1234567", "+1234567890123456", "no-es-fono", null, undefined])(
-    "rechaza %s",
-    (raw) => {
-      expect(normalizePhone(raw)).toBeNull();
-    },
-  );
+  it.each([
+    "",
+    "12345",
+    "1234567",
+    "+1234567890123456",
+    "no-es-fono",
+    null,
+    undefined,
+    // Límite explícito de la ventana anterior: acá quedarían 16 dígitos tras
+    // sacar el 00, uno más que el máximo E.164 (15), así que sigue null.
+    "00" + "1".repeat(16),
+  ])("rechaza %s", (raw) => {
+    expect(normalizePhone(raw)).toBeNull();
+  });
 
   it("el resultado nunca supera los 40 caracteres del CHECK customers_phone_len", () => {
     expect(normalizePhone("+123456789012345")).toHaveLength(16);

@@ -94,6 +94,8 @@ Consolidating four copies of `normalizePhone` into one Chile-aware helper, and r
 5. **`/api/bookings` now truncates the customer name to 80 characters** (the `customers_name_len` CHECK), instead of passing an arbitrarily long name into the order snapshot.
 6. **The big one: saving `/cuenta/perfil` now goes through `update_customer_contact`.** That RPC does three things beyond writing the row: it **rewrites the `customer_name/email/phone` snapshot on ALL of that customer's orders and reservations — paid historical ones included**; it **adopts orphan rows whose `customer_email` matches by setting their `customer_id`**; and it runs **`award_retro_points`**. In other words a **per-customer partial backfill lands in PR2**, before PR3's global one. Every one of those effects is something PR3 performs anyway for the whole table, so the end state is identical — it just happens earlier, one customer at a time, for whoever edits their profile. It also adds a second trigger for the **known, pre-existing `award_retro_points` over-award on reschedule top-up orders**, which is tracked as its own separate PR and is not fixed here.
 7. **A phone with a leading `00` is only stripped when what remains is itself 8–15 digits** — i.e. `"00123456"` keeps returning `"00123456"`, exactly as today. Without that guard the consolidation would have turned a previously-accepted DJ application / course lead phone into `null` (a rejected submission). This one is a **fix inside this PR**, not an accepted change: it is pinned by a test in Task 1.
+8. **An explicit `+` is overridden by the Chilean branch: a 9-digit number starting with `9` gains `+56` even when the caller already marked it international** (`"+912345678"` → `"+56912345678"`, and the same through `"(+91) 2345678"`). Accepted: no country whose calling code starts with `9` has only 9 digits total, so in this studio's forms that shape is always a mis-prefixed Chilean mobile, never a real foreign number — the new result is the more useful one.
+9. **The `00` strip also widens acceptance at the long end: a `00`-prefixed 16- or 17-digit input that used to return `null` is now accepted whenever what remains after stripping the `00` is 15 digits or fewer** (`"0012345678912345"` → old `null`, new `"12345678912345"`). Accepted: 15 digits is exactly the E.164 maximum, so the old `null` was the defect, not the rule — this only ever accepts more, never rejects more.
 
 ---
 
@@ -2147,6 +2149,16 @@ Consolidar cuatro copias de `normalizePhone` y mandar `/cuenta/perfil` por
    ocurre antes y de a un cliente, para quien edite su perfil. También agrega un segundo
    disparador del **sobre-otorgamiento conocido y preexistente de `award_retro_points` en los
    pedidos delta de reagendamiento**, que se arregla en su propio PR aparte y **no** acá.
+7. Un `+` explícito no salva a un número de 9 dígitos que parte en `9`: igual se le antepone
+   `+56`, pisando la marca internacional (`"+912345678"` → `"+56912345678"`, y lo mismo con
+   `"(+91) 2345678"`). Ningún país con código de país que empiece en `9` tiene solo 9 dígitos en
+   total, así que en este negocio ese patrón siempre es un móvil chileno mal prefijado, nunca un
+   número extranjero real.
+8. El `00` también amplía la aceptación en el otro extremo: un número de 16 o 17 dígitos con
+   prefijo `00` que hoy se rechazaba ahora se acepta si al sacarle el `00` quedan 15 dígitos o
+   menos (`"0012345678912345"` → antes `null`, ahora `"12345678912345"`). 15 dígitos es el
+   máximo de un número E.164, así que el `null` de antes era el defecto — esto solo amplía lo
+   que se acepta, nunca lo angosta.
 
 ## Por qué
 
