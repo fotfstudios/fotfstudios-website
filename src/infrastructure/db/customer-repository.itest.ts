@@ -128,3 +128,30 @@ describe("getProfile: identidad propia", () => {
     expect(await repo.getProfile("e0000000-0000-4000-a000-0000000002ff")).toBeNull();
   });
 });
+
+describe("lecturas del directorio", () => {
+  it("findByAuthUser resuelve por la cuenta, no por el id (ficha adoptada)", async () => {
+    const adopted = await customer({ email: "adoptada@repo.cl", name: "Adoptada", authUserId: U1 });
+    expect(adopted).not.toBe(U1);
+
+    const p = await repo.findByAuthUser(U1);
+    expect(p?.id).toBe(adopted);
+    expect(p?.authUserId).toBe(U1);
+    expect(await repo.findByAuthUser(U2)).toBeNull();
+  });
+
+  it("bookingsForCustomer suma las vinculadas Y las huérfanas de su email", async () => {
+    const id = await customer({ email: "duena@repo.cl", name: "Dueña" });
+    await booking({ email: "duena@repo.cl", customerId: id }); // vinculada
+    await booking({ email: "DUENA@repo.cl" }); // huérfana (cortesía / pre-backfill)
+    await booking({ email: "ajena@repo.cl" }); // de otra persona
+    await booking({ email: "duena@repo.cl", customerId: await customer({ email: "otra@repo.cl" }) }); // vinculada a otra
+
+    const rows = await repo.bookingsForCustomer(id, "duena@repo.cl");
+    expect(rows).toHaveLength(2);
+    expect(rows.every((b) => b.status === "held")).toBe(true);
+
+    // Sin email (ficha solo-teléfono): solo las vinculadas por FK.
+    expect(await repo.bookingsForCustomer(id, null)).toHaveLength(1);
+  });
+});

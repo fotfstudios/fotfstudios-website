@@ -42,4 +42,12 @@ export interface CustomerRepository {
   movements(id: string, limit: number): Promise<PointsMovement[]>;
   /** Reservas del email (verificado por sesión) — el WHERE es la frontera de ownership. */
   bookingsForEmail(email: string): Promise<CustomerBooking[]>;
+  /** Ficha de una cuenta de auth (índice único `auth_user_id`). NUNCA asumir id = userId. */
+  findByAuthUser(userId: string): Promise<CustomerProfile | null>;
+  /**
+   * Reservas de un cliente: `customer_id = id` OR (sin vincular AND el email
+   * coincide). La rama por email es alcanzable en prod (el backfill llega en PR3
+   * y las cortesías no pasan por el checkout).
+   */
+  bookingsForCustomer(customerId: string, email: string | null): Promise<CustomerBooking[]>;
 }

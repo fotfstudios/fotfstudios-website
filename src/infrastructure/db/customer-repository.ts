@@ -6,6 +6,7 @@ import type {
   PointsEntryKind,
   PointsMovement,
 } from "@/src/application/ports/customers";
+import { escapeIlike } from "@/src/domain/admin/reservas-list";
 import type { Database } from "./database.types";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
@@ -24,6 +25,30 @@ function toProfile(r: Pick<CustomerRow, "id" | "auth_user_id" | "email" | "name"
     createdAt: r.created_at,
   };
 }
+
+/** Mapea la fila de reserva (con su pedido) al shape del puerto. */
+function toBooking(r: {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  order_id: string | null;
+  orders: { status: string; amount_clp: number | null; points_redeemed_clp: number } | null;
+}): CustomerBooking {
+  return {
+    id: r.id,
+    startsAt: r.starts_at,
+    endsAt: r.ends_at,
+    status: r.status as CustomerBooking["status"],
+    orderId: r.order_id,
+    orderStatus: r.orders?.status ?? null,
+    amountClp: r.orders?.amount_clp ?? null,
+    pointsRedeemedClp: r.orders?.points_redeemed_clp ?? 0,
+  };
+}
+
+const BOOKING_COLS =
+  "id, starts_at, ends_at, status, order_id, customer_id, customer_email, orders(status, amount_clp, points_redeemed_clp)";
 
 /** Adaptador Supabase del perfil de cliente + ledger de puntos. */
 export class SupabaseCustomerRepository implements CustomerRepository {
@@ -95,5 +120,32 @@ export class SupabaseCustomerRepository implements CustomerRepository {
         amountClp: r.orders?.amount_clp ?? null,
         pointsRedeemedClp: r.orders?.points_redeemed_clp ?? 0,
       }));
+  }
+
+  async findByAuthUser(userId: string): Promise<CustomerProfile | null> {
+    const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("auth_user_id", userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toProfile(data) : null;
+  }
+
+  async bookingsForCustomer(customerId: string, email: string | null): Promise<CustomerBooking[]> {
+    const lower = email?.trim().toLowerCase() ?? null;
+    let query = this.db
+      .from("reservations")
+      .select(BOOKING_COLS)
+      .eq("kind", "booking")
+      .order("starts_at", { ascending: false })
+      .limit(200);
+    // El email histórico se guardó tal como lo tipearon → ilike; el re-filtro
+    // exacto en JS es la frontera (ilike trata `_` como comodín).
+    query = lower
+      ? query.or(`customer_id.eq.${customerId},and(customer_id.is.null,customer_email.ilike.${escapeIlike(lower)})`)
+      : query.eq("customer_id", customerId);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? [])
+      .filter((r) => r.customer_id === customerId || (r.customer_id === null && r.customer_email?.toLowerCase() === lower))
+      .map(toBooking);
   }
 }
