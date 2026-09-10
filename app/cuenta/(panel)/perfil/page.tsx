@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** Perfil: nombre/teléfono editables (prefill de futuras reservas); el email es la identidad. */
 export default async function CuentaPerfil() {
   const session = await requireCustomer();
-  const profile = await customerService().profile(session.userId);
+  const profile = await customerService().profileByUser(session.userId);
 
   return (
     <main className="space-y-8">

@@ -5,6 +5,7 @@ import CuentaShell from "@/components/cuenta/CuentaShell";
 import { accountEnabled } from "@/lib/flags";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
+import EmailConflict from "./_components/EmailConflict";
 
 export const metadata: Metadata = { title: "Mi cuenta — FOTF Studios", robots: { index: false } };
 
@@ -17,9 +18,10 @@ export default async function CuentaLayout({ children }: { children: ReactNode }
   if (!accountEnabled()) notFound();
   const session = await requireCustomer();
 
-  const svc = customerService();
-  await svc.ensureCustomer(session.userId, session.email);
-  const profile = await svc.profile(session.userId);
+  // Un conflicto de email NO es una excepción: los error.tsx solo muestran el
+  // digest y un layout no lo captura su propio boundary.
+  const ensured = await customerService().ensureCustomer(session.userId, session.email);
+  if (ensured.kind !== "ok") return <EmailConflict />;
 
-  return <CuentaShell balance={profile?.pointsBalance ?? 0}>{children}</CuentaShell>;
+  return <CuentaShell balance={ensured.profile.pointsBalance}>{children}</CuentaShell>;
 }

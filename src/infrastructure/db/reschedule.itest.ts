@@ -420,7 +420,9 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
 
   it("dos reschedule_down consecutivos (más barato), ambos con p_refund_id NULL, revocan CADA incremento de earn", async () => {
     await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
-    await pg.query("insert into customers (id, email) values ($1,$2) on conflict (id) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+    // El id ya no es la clave natural de una ficha: el conflicto que importa es
+    // el email (customers_email_key), que `on conflict (id)` dejaría escapar como 23505.
+    await pg.query("insert into customers (id, email, auth_user_id) values ($1,$2,$1) on conflict (email) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
 
     // Cliente con perfil ANTES de pagar → confirm_payment otorga el earn real (5%).
     const b = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: EARN_EMAIL } });
@@ -460,7 +462,9 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
 
   it("encarecer hace TRUING de earn (floor del total, no floor-por-tramo): 9990→19980 ⇒ 999 (no 998)", async () => {
     await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
-    await pg.query("insert into customers (id, email) values ($1,$2) on conflict (id) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+    // El id ya no es la clave natural de una ficha: el conflicto que importa es
+    // el email (customers_email_key), que `on conflict (id)` dejaría escapar como 23505.
+    await pg.query("insert into customers (id, email, auth_user_id) values ($1,$2,$1) on conflict (email) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
 
     const b = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: EARN_EMAIL } });
     if (!b.ok) throw new Error(`book failed: ${b.error}`);

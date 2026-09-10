@@ -19,8 +19,8 @@ export default async function CuentaResumen() {
   const session = await requireCustomer();
   const svc = customerService();
   const [profile, movements] = await Promise.all([
-    svc.profile(session.userId),
-    svc.movements(session.userId, 200),
+    svc.profileByUser(session.userId),
+    svc.movementsByUser(session.userId, 200),
   ]);
 
   const balance = profile?.pointsBalance ?? 0;

@@ -9,6 +9,8 @@ import {
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
+import { normalizeEmail, normalizePhone } from "@/src/domain/contact/contact";
+import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +43,20 @@ export async function POST(req: Request): Promise<Response> {
     termsAccepted?: boolean;
   };
 
+  // `name` y `phone` son opcionales, pero si vienen tienen que ser strings: el
+  // cuerpo abajo les llama métodos de string (trim/slice) y un número o un
+  // objeto reventaría dentro del try → 503 donde corresponde un 400.
+  const optionalString = (v: unknown): boolean => v === undefined || v === null || typeof v === "string";
+
   if (
     !b.resourceId ||
     !b.date ||
     typeof b.startMinute !== "number" ||
     typeof b.durationHours !== "number" ||
-    !b.customer?.email
+    typeof b.customer?.email !== "string" ||
+    !b.customer.email ||
+    !optionalString(b.customer.name) ||
+    !optionalString(b.customer.phone)
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
   }
@@ -59,17 +69,35 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const client = db();
 
+    // Normalización de dominio: el email válido se guarda canónico (minúsculas)
+    // y el teléfono en "+dígitos"; un email inválido NO bloquea la reserva (se
+    // guarda tal como se tipeó y la reserva queda sin vincular, como hoy).
+    const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
+    let customer: { name?: string; email?: string; phone?: string } = {
+      name: b.customer.name?.trim().slice(0, CUSTOMER_CAPS.name) || undefined,
+      email: normalizeEmail(b.customer.email) ?? b.customer.email.trim().slice(0, CUSTOMER_CAPS.email),
+      phone: b.customer.phone
+        ? (normalizePhone(b.customer.phone) ?? b.customer.phone.trim().slice(0, CUSTOMER_CAPS.phone))
+        : undefined,
+    };
+    let customerId: string | undefined;
+
     // Canje de puntos: la identidad es SOLO la sesión (cookie verificada) — el
     // email del body se sobreescribe y el saldo lo valida el row lock en la DB.
-    const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
-    let customer = b.customer;
-    let customerId: string | undefined;
     if (points > 0) {
       const session = await currentCustomer();
       if (!session) return Response.json({ error: "points_session" }, { status: 401 });
-      await customerService(client).ensureCustomer(session.userId, session.email);
-      customer = { ...b.customer, email: session.email };
-      customerId = session.userId;
+      const ensured = await customerService(client).ensureCustomer(session.userId, session.email);
+      // Distinto de "sesión expirada": acá la sesión es válida, pero el email
+      // ya es de otra ficha del directorio — volver a entrar no lo arregla.
+      // Copy propia para no mandar a "vuelve a entrar" a alguien a quien
+      // entrar de nuevo no le sirve de nada.
+      if (ensured.kind !== "ok") return Response.json({ error: "points_email_conflict" }, { status: 409 });
+      // El canje va contra la FICHA, nunca contra el usuario de auth: una ficha
+      // adoptada del directorio tiene id ≠ session.userId y el row lock del
+      // canje (p_customer_id) se toma sobre ella.
+      customer = { ...customer, email: ensured.profile.email ?? session.email };
+      customerId = ensured.profile.id;
     }
 
     const booking = await checkoutService(client).createBooking({

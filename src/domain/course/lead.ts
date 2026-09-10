@@ -11,6 +11,7 @@
  * carrera de asientos del borde público por completo.
  */
 import { COURSE_LEAD_STATUSES, EXPERIENCE_LEVELS, LEAD_PLANS, type CourseLeadStatus, type ExperienceLevel, type LeadPlan } from "./course";
+import { EMAIL_RE, normalizePhone } from "@/src/domain/contact/contact";
 
 /** Topes de largo por campo. Los usa el form (maxLength), el route y el CHECK de la DB. */
 export const COURSE_LEAD_CAPS = {
@@ -49,16 +50,6 @@ export function isCourseLeadStatus(s: string): s is CourseLeadStatus {
 function str(raw: Record<string, unknown>, key: string): string {
   const v = raw[key];
   return typeof v === "string" ? v.trim() : "";
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Normaliza a "+"(opcional) + dígitos; null si no cae en 8–15 dígitos. */
-function normalizePhone(raw: string): string | null {
-  const plus = /^[^\d]*\+/.test(raw);
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length < 8 || digits.length > 15) return null;
-  return (plus ? "+" : "") + digits;
 }
 
 export function parseCourseLead(raw: unknown): ParsedCourseLead {

@@ -6,19 +6,12 @@
 import { DateTime } from "luxon";
 import { SITE, SITE_URL } from "@/lib/site";
 import { formatCLP } from "@/src/domain/money/money";
+import { normalizePhoneCl } from "@/src/domain/contact/contact";
 import type { ManualPaymentMethod } from "@/lib/manual-booking";
 
-/**
- * Dígitos internacionales (sin `+`) de un teléfono chileno, o null si no se
- * reconoce: "+56 9 6280 3298" → "56962803298"; "962803298" → "56962803298".
- */
-export function normalizePhoneCl(raw: string): string | null {
-  let digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  if (digits.length === 11 && digits.startsWith("56")) return digits;
-  if (digits.length === 9 && digits.startsWith("9")) return `56${digits}`;
-  return null;
-}
+// Se re-exporta: `waLink` y los callers/tests de lib/whatsapp lo siguen importando
+// desde acá, pero la implementación vive en el dominio (un solo hogar).
+export { normalizePhoneCl };
 
 /** Link wa.me con mensaje prellenado, o null si el teléfono no se reconoce. */
 export function waLink(phone: string, text: string): string | null {
