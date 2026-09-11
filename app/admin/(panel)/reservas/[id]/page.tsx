@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
-import { cancelBookingAction, markAccessAction, recordBoletaAction } from "./actions";
+import { cancelBookingAction, recordBoletaAction } from "./actions";
 import { fmtDate, fmtDateTime, fmtDateTimeSec } from "@/components/admin/format";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
@@ -17,6 +17,7 @@ import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { AccessCodeCard } from "./_components/AccessCodeCard";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
 import { CobroPendiente } from "./_components/CobroPendiente";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
@@ -179,21 +180,16 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
           {!isBlock && (
             <div className="grid gap-6 sm:grid-cols-2">
-              <Card title="Acceso">
-                <ActionForm action={markAccessAction} success="Acceso guardado.">
-                  <input type="hidden" name="reservationId" value={b.id} />
-                  <Input name="code" defaultValue={b.accessCode ?? ""} placeholder="Código o instrucciones" />
-                  <div className="mt-3 flex items-center gap-3">
-                    <SubmitButton size="sm">Guardar acceso</SubmitButton>
-                    {b.accessSentAt && <span className="label-sm text-bone-mute">Registrado</span>}
-                  </div>
-                  <p className="label-sm mt-2 text-bone-mute">
-                    {b.customerEmail
-                      ? "Al guardar, el código se envía por email al cliente."
-                      : "Sin email — envía el código por WhatsApp."}
-                  </p>
-                </ActionForm>
-              </Card>
+              <AccessCodeCard
+                reservationId={b.id}
+                status={b.status}
+                endsAt={b.endsAt}
+                customerEmail={b.customerEmail}
+                accessCode={b.accessCode}
+                accessLoadedAt={b.accessLoadedAt}
+                accessSentAt={b.accessSentAt}
+                accessRemovedAt={b.accessRemovedAt}
+              />
 
               {b.taxDocs.length > 0 && (
                 <Card title="Documentos tributarios">
