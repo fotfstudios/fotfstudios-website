@@ -73,24 +73,55 @@ export async function recordBoletaAction(_prev: ActionResult | null, fd: FormDat
   });
 }
 
+/**
+ * Código tipeado a mano (override del generado). YA NO manda el email: eso lo
+ * hace el barrido del cron 10 minutos antes de la sesión, y solo después de que
+ * el dueño marque que el PIN está cargado en la cerradura. Mandarlo acá, al
+ * guardar, le daba al cliente un código que todavía no abría.
+ */
 export async function markAccessAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("reservations.access");
     const reservationId = str(fd, "reservationId");
     const code = str(fd, "code");
-    if (badField(code)) throw new Error("Código inválido.");
-    if (code) {
-      await adminRepository().markAccess(reservationId, code);
-      // Email best-effort con el código: solo reservas confirmadas con email. Cada
-      // guardado reenvía a propósito (un código corregido también debe llegar).
-      const b = await adminRepository().getBooking(reservationId).catch(() => null);
-      if (b?.status === "confirmed" && b.customerEmail) {
-        await notificationService()
-          .notifyAccessCode({ email: b.customerEmail, name: b.customerName, startsAt: b.startsAt, code })
-          .catch((e) => console.error("[access:notify]", e));
-      }
-    }
+    if (!/^\d{4,10}$/.test(code)) throw new Error("El PIN son entre 4 y 10 dígitos.");
+    await adminRepository().markAccess(reservationId, code);
     revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
+/** PIN nuevo generado por la app. Reinicia el ciclo: hay que volver a cargarlo en la Yale. */
+export async function regenerateAccessCodeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.access");
+    const reservationId = str(fd, "reservationId");
+    await adminRepository().regenerateAccessCode(reservationId);
+    revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
+/**
+ * El dueño confirma que el PIN está en la cerradura. Es la ÚNICA señal de que el
+ * código es real: la app no habla con Yale. Desde acá el cron puede mandarlo.
+ */
+export async function markAccessLoadedAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.access");
+    const reservationId = str(fd, "reservationId");
+    await adminRepository().markAccessLoaded(reservationId);
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    revalidatePath("/admin");
+  });
+}
+
+/** El dueño confirma que borró el PIN de la cerradura: cierra el ciclo. */
+export async function markAccessRemovedAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.access");
+    const reservationId = str(fd, "reservationId");
+    await adminRepository().markAccessRemoved(reservationId);
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    revalidatePath("/admin");
   });
 }
 
