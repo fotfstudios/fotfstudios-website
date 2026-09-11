@@ -444,3 +444,115 @@ describe("pendingBoletas — a dónde lleva cada boleta", () => {
     expect(boleta.reservationId).toBeNull();
   });
 });
+
+/**
+ * "Cambiar cliente" — lo que agrega el ADAPTADOR sobre la RPC. La semántica de
+ * `assign_booking_customer` (snapshot, pedidos delta, par de adjust, retro,
+ * evento, las cinco guardas, A→B→A) ya la prueba customers-directory.itest.ts;
+ * acá se fija que el adaptador la llama bien, pasa el actor, y traduce cada
+ * rechazo a un sentinela — nunca texto crudo de Postgres — y que `customer_id`
+ * llega a la página por primera vez.
+ */
+describe("assignCustomer (adaptador)", () => {
+  const ficha = async (name: string, email: string | null, phone: string | null = null) =>
+    (
+      await pg.query<{ id: string }>("insert into customers (name, email, phone) values ($1,$2,$3) returning id", [
+        name,
+        email,
+        phone,
+      ])
+    ).rows[0].id;
+
+  it("reasigna, pasa el actor a booking_events.created_by y customer_id llega a getBooking", async () => {
+    const ana = await ficha("Ana Silva", "ana@e.cl");
+    const beto = await ficha("Beto Pérez", "beto@e.cl");
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    const reservationId = await reservationOf(b.value.orderId);
+    // Vinculada a Ana a mano (el checkout de este fixture no manda customerId). El
+    // "de dónde" del evento sale del SNAPSHOT de la reserva, no de la ficha.
+    await pg.query("update reservations set customer_id=$1, customer_name=$2 where id=$3", [ana, "Ana Silva", reservationId]);
+
+    const actor = "e0000000-0000-4000-a000-000000000777";
+    await repo.assignCustomer(reservationId, beto, actor);
+
+    const detail = await repo.getBooking(reservationId);
+    expect(detail?.customerId).toBe(beto);
+    expect(detail?.customerName).toBe("Beto Pérez");
+    expect(detail?.customerEmail).toBe("beto@e.cl");
+
+    const ev = await pg.query<{ created_by: string | null; detail: { from_name: string; to_name: string } }>(
+      "select created_by, detail from booking_events where reservation_id=$1 and type='customer_changed'",
+      [reservationId],
+    );
+    expect(ev.rows).toHaveLength(1);
+    expect(ev.rows[0].created_by).toBe(actor);
+    expect(ev.rows[0].detail).toMatchObject({ from_name: "Ana Silva", to_name: "Beto Pérez" });
+
+    // Y la línea de tiempo de la página lo trae con el detail ensanchado.
+    const timeline = await repo.getBookingTimeline(reservationId);
+    const changed = timeline.find((e) => e.type === "customer_changed");
+    expect(changed?.detail?.to_name).toBe("Beto Pérez");
+    expect(changed?.category).toBe("Reservas");
+  });
+
+  it("actor null también sirve (created_by queda null, como todo lo anterior)", async () => {
+    const beto = await ficha("Beto Pérez", "beto@e.cl");
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    await expect(repo.assignCustomer(await reservationOf(b.value.orderId), beto, null)).resolves.toBeUndefined();
+  });
+
+  it("reasignar a la misma ficha es un no-op silencioso: ni error ni evento", async () => {
+    const ana = await ficha("Ana Silva", "ana@e.cl");
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    const reservationId = await reservationOf(b.value.orderId);
+    await pg.query("update reservations set customer_id=$1 where id=$2", [ana, reservationId]);
+
+    await expect(repo.assignCustomer(reservationId, ana, null)).resolves.toBeUndefined();
+    const n = await pg.query<{ n: string }>(
+      "select count(*)::text n from booking_events where reservation_id=$1 and type='customer_changed'",
+      [reservationId],
+    );
+    expect(n.rows[0].n).toBe("0");
+  });
+
+  it.each([
+    ["00000000-0000-4000-8000-000000000000", "customer_not_found"],
+  ])("ficha inexistente → sentinela %s", async (customerId, sentinel) => {
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    await expect(repo.assignCustomer(await reservationOf(b.value.orderId), customerId, null)).rejects.toThrow(sentinel);
+  });
+
+  it("reserva cancelada → customer_assign_inactive", async () => {
+    const beto = await ficha("Beto Pérez", "beto@e.cl");
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    const reservationId = await reservationOf(b.value.orderId);
+    await pg.query("update reservations set status='cancelled' where id=$1", [reservationId]);
+    await expect(repo.assignCustomer(reservationId, beto, null)).rejects.toThrow("customer_assign_inactive");
+  });
+
+  it("ficha sin email en una reserva pagada → customer_assign_needs_email", async () => {
+    const pia = await ficha("Pía Contreras", null, "+56922223333");
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    await repo.confirmOffline(b.value.orderId, "efectivo");
+    await expect(repo.assignCustomer(await reservationOf(b.value.orderId), pia, null)).rejects.toThrow(
+      "customer_assign_needs_email",
+    );
+  });
+
+  it("un id malformado no filtra texto crudo de Postgres", async () => {
+    const b = await book(600);
+    if (!b.ok) throw new Error(b.error);
+    const err = await repo
+      .assignCustomer(await reservationOf(b.value.orderId), "no-es-uuid", null)
+      .then(() => null, (e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err?.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
+    expect(String(err?.cause)).toMatch(/uuid/i);
+  });
+});

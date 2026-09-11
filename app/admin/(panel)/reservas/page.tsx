@@ -7,7 +7,7 @@ import { parseReservasSearchParams, reservasHref } from "@/src/domain/admin/rese
 import { formatCLP } from "@/src/domain/money/money";
 import { BookingsTable } from "./_components/BookingsTable";
 import { FilterBar } from "./_components/FilterBar";
-import { Pagination } from "./_components/Pagination";
+import { Pagination } from "@/components/admin/ui/Pagination";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reservas — Admin", robots: { index: false } };
@@ -97,7 +97,7 @@ export default async function ReservasPage({
                   orden={query.orden}
                   exactCounts={list.total <= query.perPage}
                 />
-                <Pagination query={query} total={list.total} />
+                <Pagination query={query} total={list.total} href={(p) => reservasHref(query, { page: p })} />
               </>
             )}
           </div>

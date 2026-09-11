@@ -416,3 +416,80 @@ describe("directorio: búsqueda y alta", () => {
     expect(String(err?.cause)).toMatch(/customers_contact_required/i);
   });
 });
+
+/**
+ * La lista paginada de /admin/clientes. Lo que solo prueba la DB real: el
+ * conteo exacto respeta la búsqueda mientras grandTotal no, el orden es estable
+ * con desempate por id, y `q` vacío lista TODO (acá el "vuelco" es la función).
+ */
+describe("directorio: lista paginada", () => {
+  const q = (over: Partial<Parameters<typeof repo.list>[0]> = {}) => ({
+    q: "",
+    orden: "recientes" as const,
+    page: 1,
+    perPage: 25,
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await customer({ name: "Matías Rojas", email: "matias@fotf.cl", phone: "+56911111111" });
+    await customer({ name: "Camila Soto", email: "camila@fotf.cl", phone: "+56922222222" });
+    await customer({ name: "Pía Contreras", email: null, phone: "+56933333333" });
+    await customer({ name: "Ignacio Fuentes", email: "ignacio@fotf.cl", phone: null });
+  });
+
+  it("q vacío lista todo, con total = grandTotal", async () => {
+    const r = await repo.list(q());
+    expect(r.rows).toHaveLength(4);
+    expect(r.total).toBe(4);
+    expect(r.grandTotal).toBe(4);
+  });
+
+  it("la búsqueda filtra total pero NO grandTotal (distingue 'sin clientes' de 'sin resultados')", async () => {
+    const r = await repo.list(q({ q: "pia" }));
+    expect(r.rows.map((c) => c.name)).toEqual(["Pía Contreras"]);
+    expect(r.total).toBe(1);
+    expect(r.grandTotal).toBe(4);
+  });
+
+  it("busca por dígitos del teléfono", async () => {
+    const r = await repo.list(q({ q: "2222" }));
+    expect(r.rows.map((c) => c.name)).toEqual(["Camila Soto"]);
+  });
+
+  it("orden por nombre usa name_norm: sin acentos, Ignacio < Matías < Pía", async () => {
+    const r = await repo.list(q({ orden: "nombre" }));
+    expect(r.rows.map((c) => c.name)).toEqual(["Camila Soto", "Ignacio Fuentes", "Matías Rojas", "Pía Contreras"]);
+  });
+
+  it("orden por puntos: mayor saldo primero", async () => {
+    const ids = (await pg.query<{ id: string; name: string }>("select id, name from customers")).rows;
+    const matias = ids.find((c) => c.name === "Matías Rojas")!.id;
+    const camila = ids.find((c) => c.name === "Camila Soto")!.id;
+    await pg.query("select apply_points($1, null, 'adjust', 500, 'fixture')", [matias]);
+    await pg.query("select apply_points($1, null, 'adjust', 900, 'fixture')", [camila]);
+    const r = await repo.list(q({ orden: "puntos" }));
+    expect(r.rows.slice(0, 2).map((c) => c.name)).toEqual(["Camila Soto", "Matías Rojas"]);
+  });
+
+  it("pagina con páginas disjuntas y una última página corta", async () => {
+    const p1 = await repo.list(q({ perPage: 3, page: 1 }));
+    const p2 = await repo.list(q({ perPage: 3, page: 2 }));
+    expect(p1.rows).toHaveLength(3);
+    expect(p2.rows).toHaveLength(1);
+    expect(p1.total).toBe(4);
+    const ids = [...p1.rows, ...p2.rows].map((c) => c.id);
+    expect(new Set(ids).size).toBe(4);
+  });
+
+  it("una página fuera de rango devuelve [] sin error, con el total intacto", async () => {
+    const r = await repo.list(q({ perPage: 3, page: 50 }));
+    expect(r.rows).toEqual([]);
+    expect(r.total).toBe(4);
+  });
+
+  it("sin coincidencias: rows vacío, total 0, grandTotal intacto", async () => {
+    const r = await repo.list(q({ q: "zzzz" }));
+    expect(r).toMatchObject({ rows: [], total: 0, grandTotal: 4 });
+  });
+});

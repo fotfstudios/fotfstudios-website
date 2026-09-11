@@ -1,10 +1,25 @@
 import Link from "next/link";
-import { reservasHref, type ReservasListQuery } from "@/src/domain/admin/reservas-list";
 
 const arrow = "label border hairline px-4 py-2 text-bone-dim transition-colors hover:text-gold";
 
-/** Pie de paginación: «Mostrando X–Y de Z» + ‹ › que conservan los filtros de la URL. */
-export function Pagination({ query, total }: { query: ReservasListQuery; total: number }) {
+/**
+ * Pie de paginación: «Mostrando X–Y de Z» + ‹ › que conservan los filtros de la URL.
+ *
+ * Compartido por todas las listas del admin. `href` es el constructor de URL de
+ * cada sección (`reservasHref`, `clientesHref`…): es lo ÚNICO que variaba entre
+ * las tres copias que existían, y el fork del curso ya había perdido el
+ * `<nav aria-label>`, los `aria-label` de los links y el contador "Página X de
+ * Y" por el camino. Una sola copia no puede desalinearse consigo misma.
+ */
+export function Pagination({
+  query,
+  total,
+  href,
+}: {
+  query: { page: number; perPage: number };
+  total: number;
+  href: (page: number) => string;
+}) {
   if (total <= query.perPage) return null;
   const pageCount = Math.max(1, Math.ceil(total / query.perPage));
   const from = (query.page - 1) * query.perPage + 1;
@@ -17,7 +32,7 @@ export function Pagination({ query, total }: { query: ReservasListQuery; total: 
       </p>
       <nav aria-label="Paginación" className="flex items-center gap-2">
         {query.page > 1 ? (
-          <Link aria-label="Página anterior" href={reservasHref(query, { page: query.page - 1 })} className={arrow}>
+          <Link aria-label="Página anterior" href={href(query.page - 1)} className={arrow}>
             ‹
           </Link>
         ) : (
@@ -29,7 +44,7 @@ export function Pagination({ query, total }: { query: ReservasListQuery; total: 
           Página {query.page} de {pageCount}
         </span>
         {query.page < pageCount ? (
-          <Link aria-label="Página siguiente" href={reservasHref(query, { page: query.page + 1 })} className={arrow}>
+          <Link aria-label="Página siguiente" href={href(query.page + 1)} className={arrow}>
             ›
           </Link>
         ) : (

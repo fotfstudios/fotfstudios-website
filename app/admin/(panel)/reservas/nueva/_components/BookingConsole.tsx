@@ -23,13 +23,8 @@ import {
 import { overlaps } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { nowMinuteInTz } from "@/src/domain/scheduling/time";
-import {
-  createCustomerAction,
-  createManualBookingAction,
-  getDayConsoleAction,
-  lookupCustomerPhoneAction,
-  searchCustomersAction,
-} from "../actions";
+import { createManualBookingAction, getDayConsoleAction } from "../actions";
+import { createCustomerAction, lookupCustomerPhoneAction, searchCustomersAction } from "../../_actions/customers";
 import type { DayConsoleData, ManualBookingResult } from "../types";
 import { AddonPicker, type CatalogAddon } from "./AddonPicker";
 import { AdminCalendar } from "./AdminCalendar";
@@ -79,6 +74,7 @@ export default function BookingConsole({
   addons,
   volumeDiscounts,
   canManageCustomers,
+  initialCustomer = null,
 }: {
   resourceId: string;
   tz: string;
@@ -94,6 +90,8 @@ export default function BookingConsole({
   volumeDiscounts: { minHours: number; pct: number }[];
   /** `customers.manage`: decide si se ofrece "Ver ficha →" (si no, el destino da 403). */
   canManageCustomers: boolean;
+  /** Ficha preseleccionada (?c= desde /admin/clientes). null = empezar por el buscador. */
+  initialCustomer?: CustomerProfile | null;
 }) {
   const toast = useToast();
 
@@ -112,7 +110,7 @@ export default function BookingConsole({
   const [extras, setExtras] = useState<string[]>([]);
   const [method, setMethod] = useState<ManualPaymentMethod>("pendiente");
   /** Ficha elegida en el picker. null = todavía sin cliente. */
-  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [customer, setCustomer] = useState<CustomerProfile | null>(initialCustomer);
   /** Prefill del alta rápida; null = no se está creando. */
   const [creating, setCreating] = useState<{ name?: string; email?: string; phone?: string } | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);

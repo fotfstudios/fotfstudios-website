@@ -485,4 +485,77 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
     const earns = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn'", [orderId]);
     expect(earns.rows[0].n).toBe("2"); // earn inicial + earn del encarecimiento (una sola fila)
   });
+
+  /**
+   * El retro NO puede volver a premiar el pedido delta.
+   *
+   * `award_retro_points` recorre todo pedido del email en estado
+   * `paid|fulfilled|refunded` y otorga 5% si no ve una fila `(pedido,'earn','')`.
+   * Un pedido delta de reagendamiento queda `fulfilled` con el mismo email, pero
+   * su earn se asentó en el pedido ORIGINAL con ref `reschedule:{id}` — el delta
+   * no tiene ninguna fila propia. Sin la exclusión, el barrido lo lee como "pagado
+   * y nunca premiado" y acuña un 5% extra.
+   *
+   * Importa porque `ensureCustomer` lo llama en CADA visita autenticada
+   * (`customer-service.ts`), así que sobre-acreditaría en cada login, para siempre:
+   * ningún claw-back lo revierte (todos apuntan al pedido principal).
+   */
+  it("el retro NO vuelve a premiar el pedido delta de un reagendamiento", async () => {
+    await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
+    await pg.query("insert into customers (id, email, auth_user_id) values ($1,$2,$1) on conflict (email) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+
+    const b = await checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: EARN_EMAIL } });
+    if (!b.ok) throw new Error(`book failed: ${b.error}`);
+    const orderId = b.value.orderId;
+    expect(await pay(orderId, "pretro_delta", 9990)).toBe("paid");
+    const r0 = await pg.query<{ id: string; ends_at: string }>("select id, ends_at from reservations where order_id=$1", [orderId]);
+
+    // Encarecer 9990 → 19980. El earn del encarecimiento va al pedido ORIGINAL.
+    const linesUp = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 19980, subtotal_clp: 19980 }]);
+    const c = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [r0.rows[0].id, addHours(r0.rows[0].ends_at, 1), addHours(r0.rows[0].ends_at, 2), "{}", linesUp, 9990, 8395, 1595, null],
+    );
+    const deltaOrderId = c.rows[0].delta_order_id;
+    await pg.query("select apply_reschedule_charge($1,$2)", [deltaOrderId, "mp_retro_delta"]);
+
+    // Premisas del bug, para que el caso falle por la razón correcta y no por otra.
+    const delta = await pg.query<{ status: string; amount_clp: number; email: string }>(
+      "select status::text, amount_clp, lower(customer_email) email from orders where id=$1",
+      [deltaOrderId],
+    );
+    expect(delta.rows[0].status).toBe("fulfilled"); // entra al filtro de estado del retro
+    expect(delta.rows[0].email).toBe(EARN_EMAIL); //  y resuelve al mismo cliente
+    const deltaLedger = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1", [deltaOrderId]);
+    expect(deltaLedger.rows[0].n).toBe("0"); // su earn vive en el pedido original
+
+    const balanceAntes = await pg.query<{ points_balance: number }>("select points_balance from customers where id=$1", [EARN_CUST_ID]);
+    const earnedAntes = await earnSum(orderId);
+
+    // Con la función vieja esto devuelve 499 (= floor(0.05·9990) del delta).
+    const retro = await pg.query<{ n: number }>("select award_retro_points($1) n", [EARN_CUST_ID]);
+    expect(retro.rows[0].n).toBe(0);
+
+    // Y nada se movió: ni el saldo, ni el ledger del original, ni el del delta.
+    const balanceDespues = await pg.query<{ points_balance: number }>("select points_balance from customers where id=$1", [EARN_CUST_ID]);
+    expect(balanceDespues.rows[0].points_balance).toBe(balanceAntes.rows[0].points_balance);
+    expect(await earnSum(orderId)).toBe(earnedAntes);
+    const deltaLedgerDespues = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1", [deltaOrderId]);
+    expect(deltaLedgerDespues.rows[0].n).toBe("0");
+  });
+
+  /** El retro legítimo sigue funcionando: un pedido pagado SIN earn previo sí se premia. */
+  it("el retro sigue premiando un pedido normal que nunca ganó", async () => {
+    await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
+    await pg.query("insert into customers (id, email, auth_user_id) values ($1,$2,$1) on conflict (email) do nothing", [EARN_CUST_ID, EARN_EMAIL]);
+    // Pedido pagado a mano, sin pasar por confirm_payment → sin earn.
+    const o = await pg.query<{ id: string }>(
+      `insert into orders (status, currency, amount_clp, net_clp, tax_clp, customer_email)
+         values ('paid', 'CLP', 20000, 16807, 3193, $1) returning id`,
+      [EARN_EMAIL],
+    );
+    expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [EARN_CUST_ID])).rows[0].n).toBe(1000);
+    const rows = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn'", [o.rows[0].id]);
+    expect(rows.rows[0].n).toBe("1");
+  });
 });

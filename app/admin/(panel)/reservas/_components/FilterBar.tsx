@@ -5,7 +5,7 @@ import {
   type ReservaTiempo,
   type ReservasListQuery,
 } from "@/src/domain/admin/reservas-list";
-import { SearchBox } from "./SearchBox";
+import { SearchBox } from "@/components/admin/ui/SearchBox";
 import { SortSelect } from "./SortSelect";
 
 const TABS: { key: ReservaTab; label: string }[] = [
@@ -69,7 +69,12 @@ export function FilterBar({
             );
           })}
         </nav>
-        <SearchBox defaultValue={query.q} />
+        <SearchBox
+          defaultValue={query.q}
+          basePath="/admin/reservas"
+          placeholder="Buscar cliente…"
+          ariaLabel="Buscar por nombre, correo o teléfono"
+        />
         <SortSelect value={query.orden} />
       </div>
     </div>
