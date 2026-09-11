@@ -16,6 +16,14 @@ export interface RescheduleContext {
   } | null;
   /** addon_keys del pedido, para re-cotizar el nuevo horario con los mismos add-ons. */
   addonKeys: string[];
+  /**
+   * Descuento manual vigente en el pedido, en pesos positivos (0 = ninguno).
+   * El motor no lo conoce —no es parte del price book—, así que sin arrastrarlo
+   * la re-cotización le cobra al cliente la concesión que ya se le había dado.
+   */
+  concessionClp: number;
+  /** Glosa de esa concesión, para la línea nueva y para mostrarla al staff. */
+  concessionLabel: string;
   /** Zona horaria de la sala — para armar el rango destino sin cotizar (cortesías). */
   timezone: string;
 }

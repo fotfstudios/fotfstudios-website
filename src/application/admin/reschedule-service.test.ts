@@ -63,6 +63,8 @@ const CTX: RescheduleContext = {
   reservation: { id: "r1", resourceId: "res1", startsAt: OLD_START, status: "confirmed", kind: "booking" },
   order: { id: "o1", status: "paid", amountClp: 9990, refundedAmountClp: 0, pointsRedeemedClp: 0, mpPaymentId: "mp_123" },
   addonKeys: [],
+  concessionClp: 0,
+  concessionLabel: "",
   timezone: "America/Santiago",
 };
 
@@ -234,5 +236,71 @@ describe("RescheduleService.reschedule — cortesía (sin orden)", () => {
     expect((await cancelled.service.reschedule(input)).ok).toBe(false);
     const block = svc({ repo: makeRepo({ ...COURTESY, reservation: { ...COURTESY.reservation, kind: "block" } }) });
     expect((await block.service.reschedule(input)).ok).toBe(false);
+  });
+});
+
+/**
+ * Regresión de la reserva real (Patricio, 2026-08-24). El pedido se cobró en
+ * 67.970 porque el staff le dio 8.000 de descuento sobre un quote de 75.970. Al
+ * mover a un horario del MISMO precio, el motor volvía a cotizar 75.970 y el
+ * sistema le pedía al cliente los 8.000 que se le habían regalado, lo que obligó
+ * a cancelar y re-crear la reserva a mano (y dejó un cobro fantasma en prod).
+ */
+describe("reagendar con descuento manual — la concesión se arrastra", () => {
+  const CON_CONCESION: RescheduleContext = {
+    ...CTX,
+    order: { ...CTX.order!, amountClp: 67970 },
+    concessionClp: 8000,
+    concessionLabel: "Descuento 20% Grabación audio + video",
+  };
+
+  it("mismo precio → se mueve sin cobrar ni devolver nada", async () => {
+    const repo = makeRepo(CON_CONCESION);
+    const r = await svc({ repo, pricing: makePricing(75970) }).service.reschedule(input);
+    expect(r).toEqual(ok({ kind: "moved" }));
+    expect(repo.createCharge).not.toHaveBeenCalled();
+    expect(repo.settleDown).not.toHaveBeenCalled();
+    expect(repo.moveEqual).toHaveBeenCalledTimes(1);
+  });
+
+  it("las líneas persistidas suman el efectivo y conservan la glosa del descuento", async () => {
+    const repo = makeRepo(CON_CONCESION);
+    await svc({ repo, pricing: makePricing(75970) }).service.reschedule(input);
+    const [args] = (repo.moveEqual as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(args.lines.reduce((s: number, l: { subtotal_clp: number }) => s + l.subtotal_clp, 0)).toBe(67970);
+    expect(args.lines.at(-1)).toMatchObject({
+      line_type: "discount",
+      description: "Descuento 20% Grabación audio + video",
+      subtotal_clp: -8000,
+    });
+  });
+
+  it("el snapshot persistido es el del MOTOR, para poder re-deducir la concesión al mover otra vez", async () => {
+    const repo = makeRepo(CON_CONCESION);
+    await svc({ repo, pricing: makePricing(75970) }).service.reschedule(input);
+    const [args] = (repo.moveEqual as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(args.snapshot.total).toBe(75970);
+  });
+
+  it("horario más caro → solo se cobra la diferencia real, no la concesión", async () => {
+    const repo = makeRepo(CON_CONCESION);
+    // Motor 85.970 − 8.000 de concesión = 77.970 vs 67.970 pagados → 10.000.
+    const r = await svc({ repo, pricing: makePricing(85970) }).service.reschedule(input);
+    expect(r.ok && r.value).toMatchObject({ kind: "charge_pending", amount: 10000 });
+  });
+
+  it("horario más barato → devuelve solo la baja real de precio", async () => {
+    const repo = makeRepo(CON_CONCESION);
+    // Motor 65.970 − 8.000 = 57.970 vs 67.970 pagados → 10.000 de vuelta.
+    const r = await svc({ repo, pricing: makePricing(65970) }).service.reschedule(input);
+    expect(r.ok && r.value).toMatchObject({ kind: "refunded", amount: 10000 });
+  });
+
+  it("sin concesión el comportamiento no cambia: mismo precio de motor, mismo cobro", async () => {
+    const repo = makeRepo({ ...CTX, order: { ...CTX.order!, amountClp: 75970 } });
+    const r = await svc({ repo, pricing: makePricing(75970) }).service.reschedule(input);
+    expect(r).toEqual(ok({ kind: "moved" }));
+    const [args] = (repo.moveEqual as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(args.lines.some((l: { line_type: string }) => l.line_type === "discount")).toBe(false);
   });
 });

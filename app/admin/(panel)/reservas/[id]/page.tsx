@@ -438,6 +438,8 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
     maxDate: DateTime.fromISO(today).plus({ days: 180 }).toFormat("yyyy-MM-dd"),
     initialMonth: today.slice(0, 7),
     addonKeys: b.addonKeys,
+    concessionClp: b.concessionClp,
+    concessionLabel: b.concessionLabel,
     isOffline: !b.mpPaymentId || b.mpPaymentId.startsWith("offline:"),
     isCourtesy,
     customerPhone: b.customerPhone,

@@ -10,6 +10,7 @@ import { PricingService } from "@/src/application/pricing/pricing-service";
 import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
+import { SupabaseRescheduleRepository } from "./reschedule-repository";
 import { createServiceClient } from "./supabase-client";
 
 const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54421";
@@ -245,5 +246,74 @@ describe("CheckoutService.createBooking — descuento manual", () => {
     expect(r.ok).toBe(false);
     const orders = await pg.query<{ n: string }>("select count(*)::text n from orders");
     expect(orders.rows[0].n).toBe("0");
+  });
+});
+
+/**
+ * El descuento manual tiene que sobrevivir al reagendamiento. Antes de este
+ * arreglo, `loadContext` leía solo las líneas con `addon_key`, así que la
+ * concesión desaparecía y el motor re-cotizaba a tarifa de lista: mover una
+ * reserva al MISMO precio le pedía al cliente exactamente el descuento que se le
+ * había dado. Reserva real que lo destapó: Patricio, 2026-08-24.
+ */
+describe("descuento manual → contexto de reagendamiento", () => {
+  // Mismo caso real que el bloque de arriba: Vie 19:00, 2h punta finde + grabación.
+  const base = {
+    date: futureDate(5),
+    startMinute: 1140, // 19:00
+    durationHours: 2,
+    addonKeys: ["audioVideo"],
+    customer: { name: "Test", email: "t@e.cl" },
+  };
+
+  it("rescata la concesión del pedido, con su glosa, desde las líneas reales", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "primera reserva" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.amount).toBe(67970);
+
+    const res = await pg.query<{ id: string }>("select id from reservations where order_id=$1", [r.value.orderId]);
+    const ctx = await new SupabaseRescheduleRepository(db).loadContext(res.rows[0].id);
+    expect(ctx?.concessionClp).toBe(8000);
+    expect(ctx?.concessionLabel).toBe("Descuento 20% sala · primera reserva");
+    // Los add-ons se siguen leyendo igual que antes (no se rompió lo que funcionaba).
+    expect(ctx?.addonKeys).toEqual(["audioVideo"]);
+  });
+
+  it("la concesión es exactamente la brecha entre el quote del motor y lo cobrado", async () => {
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      manualDiscount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "primera reserva" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const o = await pg.query<{ snapshot_total: number; amount_clp: number }>(
+      "select (pricing_snapshot->>'total')::int snapshot_total, amount_clp from orders where id=$1",
+      [r.value.orderId],
+    );
+    const { snapshot_total, amount_clp } = o.rows[0];
+    expect(snapshot_total).toBe(75970);
+    expect(amount_clp).toBe(67970);
+
+    const res = await pg.query<{ id: string }>("select id from reservations where order_id=$1", [r.value.orderId]);
+    const ctx = await new SupabaseRescheduleRepository(db).loadContext(res.rows[0].id);
+    expect(ctx?.concessionClp).toBe(snapshot_total - amount_clp);
+  });
+
+  it("sin descuento manual la concesión es 0 (la línea de volumen no cuenta)", async () => {
+    const r = await checkout.createBooking({ resourceId, ...base });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const res = await pg.query<{ id: string }>("select id from reservations where order_id=$1", [r.value.orderId]);
+    const ctx = await new SupabaseRescheduleRepository(db).loadContext(res.rows[0].id);
+    expect(ctx?.concessionClp).toBe(0);
+    expect(ctx?.concessionLabel).toBe("");
   });
 });

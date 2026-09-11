@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyManualDiscount, resolveDiscountBase } from "./manual-discount";
+import { applyManualDiscount, carryConcession, resolveDiscountBase } from "./manual-discount";
 import type { Quote } from "./types";
 
 /**
@@ -227,5 +227,59 @@ describe("applyManualDiscount — rango del valor", () => {
       reason: "x",
     });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("carryConcession — el descuento sobrevive al reagendamiento", () => {
+  it("mismo precio: el cobro nuevo iguala lo ya pagado (delta 0, el defecto original)", () => {
+    // El motor re-cotiza 75.970 ignorando el descuento; sin arrastre el sistema
+    // pedía la diferencia de 8.000 que era justamente la concesión.
+    const r = carryConcession(quote, 8000, "Descuento 20% Grabación audio + video");
+    expect(r?.cashTotal).toBe(67970);
+    expect(r?.amount).toBe(8000);
+  });
+
+  it("conserva la glosa original (va a la boleta)", () => {
+    expect(carryConcession(quote, 8000, "Descuento 20% Grabación audio + video")?.description).toBe(
+      "Descuento 20% Grabación audio + video",
+    );
+  });
+
+  it("neto e IVA se reparten proporcionales al efectivo, igual que el descuento manual", () => {
+    const arrastrada = carryConcession(quote, 8000, "x");
+    const original = applyManualDiscount(quote, {
+      target: { kind: "addon", key: "audioVideo" },
+      mode: "amount",
+      value: 8000,
+      reason: "",
+    });
+    expect(original.ok).toBe(true);
+    if (!original.ok) return;
+    expect(arrastrada?.cashTotal).toBe(original.value.cashTotal);
+    expect(arrastrada?.cashNet).toBe(original.value.cashNet);
+    expect(arrastrada?.cashTax).toBe(original.value.cashTax);
+  });
+
+  it("horario más caro: la concesión NO crece (se pactó en pesos)", () => {
+    const caro = { ...quote, total: 90000, net: 75630 };
+    expect(carryConcession(caro, 8000, "x")?.cashTotal).toBe(82000);
+  });
+
+  it("horario más barato que la concesión: se capa, el cobro nunca es negativo", () => {
+    const barato = { ...quote, total: 5000, net: 4202 };
+    const r = carryConcession(barato, 8000, "x");
+    expect(r?.amount).toBe(5000);
+    expect(r?.cashTotal).toBe(0);
+    expect(r?.cashNet).toBe(0);
+    expect(r?.cashTax).toBe(0);
+  });
+
+  it("sin concesión → null (el reagendamiento sigue exactamente como antes)", () => {
+    expect(carryConcession(quote, 0, "x")).toBeNull();
+    expect(carryConcession(quote, -100, "x")).toBeNull();
+  });
+
+  it("glosa vacía cae a un texto legible en la boleta", () => {
+    expect(carryConcession(quote, 8000, "   ")?.description).toBe("Descuento mantenido");
   });
 });

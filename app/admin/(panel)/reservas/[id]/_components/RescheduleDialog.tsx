@@ -42,6 +42,13 @@ export function RescheduleDialog(props: {
   initialMonth: string;
   addonKeys: string[];
   isOffline: boolean;
+  /**
+   * Descuento manual vigente (pesos positivos) y su glosa. Hay que restarlo del
+   * quote del motor: /api/pricing/quote solo conoce el price book, así que sin
+   * esto el diálogo proyecta un cobro que el servidor ya no hace.
+   */
+  concessionClp: number;
+  concessionLabel: string;
   /** Cortesía (sin orden): movimiento sin cobro — no se cotiza ni hay delta. */
   isCourtesy: boolean;
   customerPhone: string | null;
@@ -71,6 +78,8 @@ function ReschedulePicker({
   maxDate,
   initialMonth,
   addonKeys,
+  concessionClp,
+  concessionLabel,
   isOffline,
   isCourtesy,
   customerPhone,
@@ -260,7 +269,12 @@ function ReschedulePicker({
 
   const quote = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.quote : null;
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
-  const delta = quote ? classifyReschedule(oldLive, quote.total) : null;
+  // El quote del motor ignora el descuento manual, así que se le resta acá con el
+  // MISMO criterio que usa el servidor (pesos, capado contra el total nuevo). Si
+  // las dos cuentas se separan, el staff confirma un número y se cobra otro.
+  const carried = quote ? Math.min(Math.max(0, concessionClp), quote.total) : 0;
+  const newTotal = quote ? quote.total - carried : 0;
+  const delta = quote ? classifyReschedule(oldLive, newTotal) : null;
 
   const canSubmit = selectedStart !== null && (isCourtesy || quote !== null) && !pending && !loadingDay;
 
@@ -448,6 +462,14 @@ function ReschedulePicker({
                 <span className="text-bone-mute">—</span>
               )}
             </div>
+            {/* La concesión se mantiene: sin esta línea el staff no tiene cómo
+                saber por qué el total nuevo no coincide con la tarifa de lista. */}
+            {!isCourtesy && !quoting && carried > 0 && (
+              <div className="mt-1 label-sm text-bone-mute">
+                Se mantiene el descuento de <strong className="text-bone-dim">{formatCLP(carried)}</strong>
+                {concessionLabel ? ` (${concessionLabel})` : ""}.
+              </div>
+            )}
           </>
         ) : (
           <p className="label-sm text-bone-mute">Elige un nuevo día y horario.</p>
