@@ -317,3 +317,117 @@ describe("descuento manual → contexto de reagendamiento", () => {
     expect(ctx?.concessionLabel).toBe("");
   });
 });
+
+/**
+ * Descuento manual + canje de puntos en la MISMA reserva, que es lo que estrena
+ * la consola del admin. El orden importa y es el del servidor: el descuento baja
+ * el total primero y los puntos se descuentan sobre ESE total. Al revés se
+ * "perderían" puntos contra un total que el descuento iba a bajar igual.
+ */
+describe("CheckoutService.createBooking — descuento + canje", () => {
+  const VIE = futureDate(5);
+  const base = {
+    date: VIE,
+    startMinute: 1140, // 19:00
+    durationHours: 2,
+    addonKeys: ["audioVideo"],
+    customer: { name: "Test", email: "canje@fotf.cl" },
+  };
+
+  /** Ficha con saldo, como la que el picker entrega a la consola. */
+  async function fichaConSaldo(points: number): Promise<string> {
+    const c = await pg.query<{ id: string }>(
+      "insert into customers (name, email, phone) values ('Canje Test', 'canje@fotf.cl', null) returning id",
+    );
+    const id = c.rows[0].id;
+    if (points > 0) {
+      await pg.query("select apply_points($1, null, 'adjust', $2, 'fixture')", [id, points]);
+    }
+    return id;
+  }
+
+  it("el canje se descuenta DESPUÉS del descuento manual", async () => {
+    const customerId = await fichaConSaldo(20_000);
+    const r = await checkout.createBooking({
+      resourceId,
+      ...base,
+      customerId,
+      manualDiscount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "primera reserva" },
+      pointsToRedeem: 10_000,
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // 75.970 − 8.000 (descuento) − 10.000 (puntos) = 57.970 de efectivo.
+    expect(r.value.amount).toBe(57_970);
+    expect(r.value.pointsApplied).toBe(10_000);
+
+    const o = await pg.query<{ amount_clp: number; net_clp: number; tax_clp: number; points_redeemed_clp: number }>(
+      "select amount_clp, net_clp, tax_clp, points_redeemed_clp from orders where id=$1",
+      [r.value.orderId],
+    );
+    expect(o.rows[0].amount_clp).toBe(57_970);
+    expect(o.rows[0].points_redeemed_clp).toBe(10_000);
+    // amount_clp sigue siendo EFECTIVO: neto + IVA cuadran con lo que cobra MP.
+    expect(o.rows[0].net_clp + o.rows[0].tax_clp).toBe(57_970);
+
+    // Las líneas suman el efectivo, con su línea propia de canje.
+    const lines = await pg.query<{ s: string }>(
+      "select coalesce(sum(subtotal_clp),0)::text s from order_lines where order_id=$1",
+      [r.value.orderId],
+    );
+    expect(Number(lines.rows[0].s)).toBe(57_970);
+
+    // Y el saldo bajó exactamente lo canjeado.
+    const bal = await pg.query<{ points_balance: number }>("select points_balance from customers where id=$1", [
+      customerId,
+    ]);
+    expect(bal.rows[0].points_balance).toBe(10_000);
+  });
+
+  it("canje que cubre todo: confirma sola, sin MP y sin boleta", async () => {
+    const customerId = await fichaConSaldo(200_000);
+    const r = await checkout.createBooking({ resourceId, ...base, customerId, pointsToRedeem: 200_000 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.amount).toBe(0);
+    expect(r.value.paidWithPoints).toBe(true);
+    // Se capó al total: no se gastan más puntos que el precio de la reserva.
+    expect(r.value.pointsApplied).toBe(75_970);
+
+    const o = await pg.query<{ status: string; mp_payment_id: string | null }>(
+      "select status, mp_payment_id from orders where id=$1",
+      [r.value.orderId],
+    );
+    expect(o.rows[0].status).toBe("paid");
+    expect(o.rows[0].mp_payment_id).toBe("offline:puntos");
+
+    // $0 no emite boleta.
+    const bol = await pg.query<{ n: string }>(
+      "select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'",
+      [r.value.orderId],
+    );
+    expect(Number(bol.rows[0].n)).toBe(0);
+  });
+
+  it("sin saldo suficiente falla y NO deja la reserva a medias", async () => {
+    const customerId = await fichaConSaldo(1_000);
+    const r = await checkout.createBooking({ resourceId, ...base, customerId, pointsToRedeem: 50_000 });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe("insufficient_points");
+
+    // La transacción entera se revirtió: ni reserva, ni pedido, ni saldo tocado.
+    const res = await pg.query<{ n: string }>("select count(*)::text n from reservations");
+    expect(Number(res.rows[0].n)).toBe(0);
+    const bal = await pg.query<{ points_balance: number }>("select points_balance from customers where id=$1", [
+      customerId,
+    ]);
+    expect(bal.rows[0].points_balance).toBe(1_000);
+  });
+
+  it("canjear sin ficha se rechaza en la capa de aplicación", async () => {
+    const r = await checkout.createBooking({ resourceId, ...base, pointsToRedeem: 5_000 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("points_session");
+  });
+});

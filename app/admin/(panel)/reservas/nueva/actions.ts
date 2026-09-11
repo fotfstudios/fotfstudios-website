@@ -57,6 +57,8 @@ const checkoutErrorMessage = (code: string): string => {
   // customer_checkout_needs_email: ficha solo-teléfono en un pedido que cobra (fix round 2).
   if (code === "customer_not_found" || code === "customer_checkout_needs_email")
     return customerDbErrorMessage(null, null, code) ?? "No se pudo crear la reserva.";
+  if (code === "insufficient_points") return "El cliente no tiene tantos puntos. Revisa su saldo y vuelve a intentar.";
+  if (code === "points_session") return "Para canjear puntos, elige un cliente con ficha.";
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";
@@ -70,7 +72,8 @@ export async function createManualBookingAction(
     await requirePermission("reservations.create");
     const v = validateManualBooking(input);
     if (!v.ok) throw new Error(v.error);
-    const { date, startMinute, durationHours, method, addonKeys, notes, customerId, walkInName, discount } = v.value;
+    const { date, startMinute, durationHours, method, addonKeys, notes, customerId, walkInName, pointsToRedeem, discount } =
+      v.value;
 
     const repo = adminRepository();
     const resource = await repo.defaultResource();
@@ -142,7 +145,7 @@ export async function createManualBookingAction(
         .notifyCourtesy({ email: record?.email ?? null, name: savedCustomer.name, startsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
-      return { reservationId, orderId: null, amount: null, customer: savedCustomer };
+      return { reservationId, orderId: null, amount: null, customer: savedCustomer, pointsApplied: 0 };
     }
 
     // Pendiente de pago: crea la reserva con hold firme y orden pending_payment; se
@@ -153,6 +156,7 @@ export async function createManualBookingAction(
         {
           resourceId: resource.id, date, startMinute, durationHours, addonKeys, customer,
           ...(record ? { customerId: record.id } : {}),
+          ...(pointsToRedeem > 0 ? { pointsToRedeem } : {}),
           ...(discount ? { manualDiscount: discount } : {}),
           ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
         },
@@ -161,7 +165,13 @@ export async function createManualBookingAction(
       if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
       const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
       revalidatePath("/admin/reservas");
-      return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount, customer: savedCustomer };
+      return {
+        reservationId,
+        orderId: booking.value.orderId,
+        amount: booking.value.amount,
+        customer: savedCustomer,
+        pointsApplied: booking.value.pointsApplied,
+      };
     }
 
     // Pago offline (efectivo/transferencia): cobra el total y marca pagado. El admin queda
@@ -179,6 +189,7 @@ export async function createManualBookingAction(
         addonKeys,
         customer,
         ...(record ? { customerId: record.id } : {}),
+        ...(pointsToRedeem > 0 ? { pointsToRedeem } : {}),
         ...(discount ? { manualDiscount: discount } : {}),
         ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
       },
@@ -186,9 +197,15 @@ export async function createManualBookingAction(
     );
     if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
 
+    // Un pedido 100% puntos ya lo confirmó `create_checkout` con
+    // `offline:puntos` (efectivo 0 → sin MP y sin boleta). Volver a confirmarlo
+    // acá sobrescribiría ese medio de pago por "efectivo" y registraría un cobro
+    // que nunca ocurrió.
     try {
-      const status = await repo.confirmOffline(booking.value.orderId, method);
-      if (status !== "confirmed") throw new Error(`confirm_payment: ${status}`);
+      if (!booking.value.paidWithPoints) {
+        const status = await repo.confirmOffline(booking.value.orderId, method);
+        if (status !== "confirmed") throw new Error(`confirm_payment: ${status}`);
+      }
     } catch {
       // El hold quedó sin pago: libéralo ya (si esto también falla, expira solo en ≤10 min).
       await repo.cancelUnpaidOrder(booking.value.orderId).catch(() => {});
@@ -203,7 +220,13 @@ export async function createManualBookingAction(
       .notifyOrder(booking.value.orderId)
       .catch((e) => console.error("[manual-booking:email]", e));
     revalidatePath("/admin/reservas");
-    return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount, customer: savedCustomer };
+    return {
+      reservationId,
+      orderId: booking.value.orderId,
+      amount: booking.value.amount,
+      customer: savedCustomer,
+      pointsApplied: booking.value.pointsApplied,
+    };
   });
 }
 

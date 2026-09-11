@@ -30,6 +30,8 @@ describe("validateManualBooking", () => {
         notes: "Pagó al llegar",
         customerId: null,
         walkInName: "Walk-in de prueba",
+        pointsToRedeem: 0,
+        discount: undefined,
       },
     });
   });
@@ -203,5 +205,51 @@ describe("validateManualBooking — cliente", () => {
       error: "El nombre no puede superar los 80 caracteres.",
     });
     expect(validateManualBooking({ ...base, walkInName: "x".repeat(80) }).ok).toBe(true);
+  });
+});
+
+/**
+ * Canje de puntos desde la consola. El saldo cuelga de la ficha, así que sin
+ * ficha no hay de quién descontar; y una cortesía no cobra nada, así que no hay
+ * contra qué canjear. El monto DEFINITIVO lo decide la DB bajo lock de fila —
+ * acá solo se valida la intención, igual que con el descuento manual.
+ */
+describe("validateManualBooking — canje de puntos", () => {
+  const UUID = "f0bfd658-5aa7-4f12-a3c4-eaddd41a2335";
+  const conFicha = { ...base, customerId: UUID, walkInName: "" };
+
+  it("sin pointsToRedeem el canje queda en 0", () => {
+    expect(validateManualBooking(conFicha).ok && validateManualBooking(conFicha).value?.pointsToRedeem).toBe(0);
+  });
+
+  it("acepta un entero positivo con ficha", () => {
+    const r = validateManualBooking({ ...conFicha, pointsToRedeem: 5000 });
+    expect(r.ok && r.value.pointsToRedeem).toBe(5000);
+  });
+
+  it("cero explícito es válido", () => {
+    expect(validateManualBooking({ ...conFicha, pointsToRedeem: 0 }).ok).toBe(true);
+  });
+
+  it.each([-1, 1.5, "5000", Number.NaN, 10_000_001])("rechaza pointsToRedeem inválido: %s", (pointsToRedeem) => {
+    expect(validateManualBooking({ ...conFicha, pointsToRedeem })).toEqual({ ok: false, error: "Puntos inválidos." });
+  });
+
+  it("canjear SIN ficha se rechaza: el saldo cuelga de la ficha", () => {
+    expect(validateManualBooking({ ...base, walkInName: "Walk-in", pointsToRedeem: 1000 })).toEqual({
+      ok: false,
+      error: "Para canjear puntos, elige un cliente con ficha.",
+    });
+  });
+
+  it("una cortesía no admite canje: ya es sin cobro", () => {
+    expect(validateManualBooking({ ...conFicha, method: "cortesia", pointsToRedeem: 1000 })).toEqual({
+      ok: false,
+      error: "Una cortesía ya es sin cobro: no admite canje de puntos.",
+    });
+  });
+
+  it("una cortesía CON ficha y sin canje sigue siendo válida", () => {
+    expect(validateManualBooking({ ...conFicha, method: "cortesia" }).ok).toBe(true);
   });
 });

@@ -34,6 +34,12 @@ export interface ManualBookingInput {
   customerId: string | null;
   /** Nombre del walk-in sin ficha. Se ignora si hay `customerId`. */
   walkInName?: string;
+  /**
+   * Puntos a descontar. Solo con `customerId`: sin ficha no hay saldo de quién
+   * descontar. El monto DEFINITIVO lo decide la DB bajo lock de fila — esto es
+   * una intención, igual que el descuento manual.
+   */
+  pointsToRedeem?: number;
   notes: string;
   /** Descuento del staff — intención (objetivo/modo/valor), no pesos: los calcula el servidor. */
   discount?: ManualDiscountInput;
@@ -54,4 +60,6 @@ export interface ManualBookingResult {
    * walk-in y teléfono null.
    */
   customer: { name: string | null; phone: string | null };
+  /** Puntos efectivamente descontados (los capa el servidor contra el total y el saldo). */
+  pointsApplied: number;
 }

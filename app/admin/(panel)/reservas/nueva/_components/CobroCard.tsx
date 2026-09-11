@@ -1,7 +1,8 @@
 import { Card } from "@/components/admin/ui/Card";
 import { Icon } from "@/components/admin/ui/icons";
 import { Skeleton } from "@/components/admin/ui/Skeleton";
-import { btn } from "@/components/admin/ui/styles";
+import { btn, inputCls } from "@/components/admin/ui/styles";
+import { fmtPts } from "@/components/cuenta/format";
 import { tierLabel } from "@/components/booking/format";
 import { formatCLP } from "@/src/domain/money/money";
 import type { ManualPaymentMethod } from "@/lib/manual-booking";
@@ -40,6 +41,24 @@ export interface DiscountState {
   onReason: (v: string) => void;
 }
 
+/**
+ * Canje de puntos del cliente elegido. null = oculto: sin ficha no hay saldo de
+ * quién descontar, y una cortesía no cobra nada.
+ *
+ * `applied` ya viene capado contra el saldo Y contra el total con descuento —
+ * el mismo orden que aplica el servidor (descuento manual primero, canje
+ * después). El número DEFINITIVO igual lo decide la DB bajo lock de fila; esto
+ * es previsualización.
+ */
+export interface PointsState {
+  balance: number;
+  value: string;
+  applied: number;
+  max: number;
+  onValue: (v: string) => void;
+  onAll: () => void;
+}
+
 const METHODS: { key: ManualPaymentMethod; label: string }[] = [
   { key: "pendiente", label: "Pendiente" },
   { key: "efectivo", label: "Efectivo" },
@@ -55,6 +74,7 @@ export function CobroCard({
   isCortesia,
   quote,
   discount,
+  points,
   quoting,
   quoteError,
   hasSelection,
@@ -72,6 +92,7 @@ export function CobroCard({
   isCortesia: boolean;
   quote: QuoteView | null;
   discount: DiscountState | null;
+  points: PointsState | null;
   quoting: boolean;
   quoteError: boolean;
   hasSelection: boolean;
@@ -87,8 +108,11 @@ export function CobroCard({
   onSubmit: () => void;
 }) {
   const isPendiente = method === "pendiente";
-  // El descuento manda sobre el total del quote en cuanto es válido.
-  const total = discount?.cashTotal ?? quote?.total ?? null;
+  // Mismo orden que el servidor: el descuento manual baja el total y recién
+  // sobre ESE total se descuentan los puntos (así no se "pierden" puntos contra
+  // un total que el descuento iba a bajar igual).
+  const afterDiscount = discount?.cashTotal ?? quote?.total ?? null;
+  const total = afterDiscount === null ? null : afterDiscount - (points?.applied ?? 0);
   return (
     <Card title="Cobro" className="lg:sticky lg:top-8">
       <span className="label text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</span>
@@ -152,6 +176,12 @@ export function CobroCard({
               <span className="font-mono">−{formatCLP(discount.amount)}</span>
             </li>
           )}
+          {points && points.applied > 0 && (
+            <li className="flex justify-between gap-3 text-gold">
+              <span>Canje de puntos</span>
+              <span className="font-mono">−{formatCLP(points.applied)}</span>
+            </li>
+          )}
         </ul>
       )}
 
@@ -171,6 +201,32 @@ export function CobroCard({
           amount={discount.amount}
           error={discount.error}
         />
+      )}
+
+      {points && (
+        <div className="mt-6 border-t hairline pt-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="label-sm text-bone-mute">Puntos FOTF</span>
+            <span className="label-sm text-bone-dim">Saldo: {fmtPts(points.balance)}</span>
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="Puntos a canjear"
+              placeholder="0"
+              className={inputCls + " font-mono"}
+              value={points.value}
+              onChange={(e) => points.onValue(e.target.value)}
+            />
+            <button type="button" className={btn("secondary", "sm")} onClick={points.onAll} disabled={points.max <= 0}>
+              Usar todo
+            </button>
+          </div>
+          <p className="mt-2 label-sm text-bone-mute">
+            1 punto = $1. Máximo para esta reserva: {fmtPts(points.max)}.
+          </p>
+        </div>
       )}
 
       <div className="mt-6 border-t hairline pt-5">
