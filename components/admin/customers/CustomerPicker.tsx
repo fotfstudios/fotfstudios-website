@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/admin/ui/icons";
 import { inputCls } from "@/components/admin/ui/styles";
 import { fmtPts } from "@/components/cuenta/format";
-import { customerLabel } from "@/src/domain/customers/customer-input";
+import { customerLabel, searchableNeedle } from "@/src/domain/customers/customer-input";
 import type { CustomerProfile } from "@/src/application/ports/customers";
 
 /** Espera antes de consultar: suficiente para no disparar por cada tecla. */
@@ -35,7 +35,8 @@ function prefillFrom(q: string): { name?: string; email?: string; phone?: string
 export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: CustomerPickerProps) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<CustomerProfile[]>([]);
-  const [state, setState] = useState<"idle" | "searching" | "ready" | "error">("idle");
+  /** `short` = hay texto pero no alcanza a discriminar; NO se consultó nada. */
+  const [state, setState] = useState<"idle" | "short" | "searching" | "ready" | "error">("idle");
   const [active, setActive] = useState(0);
 
   // Contador monotónico: gana SIEMPRE la última búsqueda tipeada, aunque una
@@ -48,6 +49,12 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
   // del effect para el caso vacío, que es exactamente lo que el lint prohíbe.
   const run = (term: string) => {
     const id = ++reqId.current;
+    if (timer.current) clearTimeout(timer.current);
+    // Los resultados viejos se van AHORA, no cuando llegue la respuesta: si
+    // sobrevivieran, un Enter dentro del debounce actuaría sobre una lista que
+    // ya no corresponde al texto en pantalla (elegiría el cliente equivocado).
+    setRows([]);
+    setActive(0);
     setState("searching");
     timer.current = setTimeout(async () => {
       try {
@@ -69,20 +76,31 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
   const onQueryChange = (value: string) => {
     setQ(value);
     if (timer.current) clearTimeout(timer.current);
-    const term = value.trim();
-    if (!term) {
+    // El umbral es el MISMO que aplica el servidor (vive en el dominio): así
+    // "escribe más" y "no hay nadie con ese nombre" no se confunden. Decirle
+    // "Sin coincidencias" a quien tipeó una letra es lo que empuja al staff a
+    // crear una ficha duplicada de alguien que sí estaba.
+    if (!searchableNeedle(value.trim())) {
       // Una búsqueda en vuelo ya no puede pisar esto: el contador la invalida.
       reqId.current++;
       setRows([]);
-      setState("idle");
+      setActive(0);
+      setState(value.trim() ? "short" : "idle");
       return;
     }
-    run(term);
+    run(value.trim());
   };
 
-  // Un debounce pendiente al desmontar dispararía un setState sobre un
-  // componente muerto (la consola cambia de paso apenas se elige una ficha).
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  // Al desmontar (la consola cambia de paso apenas se elige una ficha) hay que
+  // cortar las DOS vías: el debounce pendiente y una respuesta ya en vuelo, que
+  // el timer no alcanza y haría setState sobre un componente muerto.
+  useEffect(
+    () => () => {
+      reqId.current++;
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   const visible = rows.slice(0, maxRows);
   // El alta rápida es una fila más de la lista: se navega con las flechas igual
@@ -95,7 +113,13 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
     else if (visible[i]) onSelect(visible[i]);
   };
 
+  /** La lista se pinta —y se navega— solo cuando refleja el texto actual. */
+  const listOpen = state === "ready";
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Con una búsqueda en curso NO hay nada válido que elegir: actuar acá es
+    // justo lo que abría "Nuevo cliente" para alguien que sí existía.
+    if (!listOpen && e.key !== "Escape") return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((a) => (a + 1) % total);
@@ -112,13 +136,13 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
   };
 
   const status =
-    state === "idle" && q.trim()
+    state === "short"
       ? "Escribe al menos 2 letras o 3 dígitos."
       : state === "searching"
         ? "Buscando…"
         : state === "error"
           ? "No se pudo buscar."
-          : state === "ready" && visible.length === 0
+          : listOpen && visible.length === 0
             ? `Sin coincidencias para “${q.trim()}”.`
             : "";
 
@@ -128,10 +152,10 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
         <input
           type="text"
           role="combobox"
-          aria-expanded={state === "ready"}
+          aria-expanded={listOpen}
           aria-controls="customer-picker-list"
           aria-autocomplete="list"
-          aria-activedescendant={state === "ready" ? `customer-opt-${active}` : undefined}
+          aria-activedescendant={listOpen ? `customer-opt-${active}` : undefined}
           aria-busy={state === "searching"}
           aria-label="Buscar cliente"
           inputMode="search"
@@ -159,7 +183,7 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
         </p>
       )}
 
-      {q.trim() !== "" && state !== "idle" && (
+      {listOpen && (
         <ul id="customer-picker-list" role="listbox" aria-label="Clientes" className="mt-2 border hairline">
           {visible.map((c, i) => (
             <li

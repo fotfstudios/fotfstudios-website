@@ -133,6 +133,13 @@ export function validateManualBooking(raw: {
   if (walkInName.length > MAX_WALKIN_NAME) {
     return err("El nombre no puede superar los 80 caracteres.");
   }
+  // Sin ficha Y sin nombre queda una reserva de nadie: las cuatro columnas de
+  // contacto en NULL, sin forma de saber de quién es la sesión ni a quién
+  // avisarle. Con cobro es peor todavía (pedido pagado y anónimo). El walk-in
+  // solo-nombre sigue siendo legal — eso es tener nombre, no tener ficha.
+  if (customerId === null && !walkInName) {
+    return err("Elige un cliente o escribe un nombre.");
+  }
 
   // Una cortesía no crea pedido ni líneas: no hay nada sobre lo cual descontar.
   let discount: ManualDiscountInput | undefined;

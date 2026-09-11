@@ -73,6 +73,30 @@ export function customerSearchNeedle(q: string): { text: string; digits: string 
   };
 }
 
+/** Mínimo de letras para buscar por texto. Con una sola, un ilike matchea medio directorio. */
+const MIN_SEARCH_LETTERS = 2;
+
+/**
+ * La aguja SOLO si alcanza para discriminar; null si no.
+ *
+ * Fuente única del umbral, y eso es lo importante: lo consultan el servicio
+ * (para decidir si va a la base) y el picker (para decidir qué le dice al
+ * staff). Con dos umbrales separados el picker mostraba "Sin coincidencias"
+ * —es decir, "esta persona no está en el directorio"— cuando en realidad no
+ * se había buscado nada, que es exactamente el error que lleva a crear una
+ * ficha duplicada.
+ *
+ * El largo se mide sobre el texto YA ESCAPADO: `escapeIlike` convierte los
+ * delimitadores de PostgREST (`,` `(` `)` `"` `*`) en espacios, así que "(("
+ * son dos caracteres crudos pero una aguja vacía.
+ */
+export function searchableNeedle(q: string): { text: string; digits: string | null } | null {
+  const needle = customerSearchNeedle(q);
+  const letters = needle.text.replace(/\d/g, "").trim().length;
+  if (letters < MIN_SEARCH_LETTERS && !needle.digits) return null;
+  return needle;
+}
+
 /** Cómo se nombra a un cliente en la UI cuando falta el nombre. */
 export function customerLabel(c: { name?: string | null; email?: string | null; phone?: string | null }): string {
   return c.name?.trim() || c.email || c.phone || "Cliente sin nombre";

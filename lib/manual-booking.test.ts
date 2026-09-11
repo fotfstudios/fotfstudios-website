@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateManualBooking } from "./manual-booking";
 
+/**
+ * Toda reserva necesita cliente (ficha o walk-in), así que el base trae un
+ * walk-in: los casos de abajo prueban fecha, duración, descuento, etc., no el
+ * cliente. El bloque "— cliente" al final lo sobreescribe cuando corresponde.
+ */
 const base = {
   date: "2026-07-09",
   startMinute: 600,
@@ -8,6 +13,7 @@ const base = {
   method: "efectivo",
   addonKeys: [] as unknown,
   notes: "",
+  walkInName: "Walk-in de prueba",
 };
 
 describe("validateManualBooking", () => {
@@ -23,7 +29,7 @@ describe("validateManualBooking", () => {
         addonKeys: ["audio", "guided"],
         notes: "Pagó al llegar",
         customerId: null,
-        walkInName: "",
+        walkInName: "Walk-in de prueba",
       },
     });
   });
@@ -146,27 +152,49 @@ describe("validateManualBooking — descuento manual", () => {
  */
 describe("validateManualBooking — cliente", () => {
   const UUID = "f0bfd658-5aa7-4f12-a3c4-eaddd41a2335";
+  /** El base del archivo no trae cliente; acá casi todos los casos necesitan uno. */
+  const conFicha = { ...base, customerId: UUID };
 
   it("acepta un uuid de ficha", () => {
-    const r = validateManualBooking({ ...base, customerId: UUID });
+    const r = validateManualBooking({ ...conFicha, walkInName: "" });
     expect(r.ok && r.value.customerId).toBe(UUID);
+    expect(r.ok && r.value.walkInName).toBe("");
   });
 
   it.each(["no-es-uuid", "123", "f0bfd658-5aa7-4f12-a3c4", 42, {}])("rechaza customerId inválido: %s", (customerId) => {
     expect(validateManualBooking({ ...base, customerId })).toEqual({ ok: false, error: "Cliente inválido." });
   });
 
-  it("ausente, null y cadena vacía son todos “sin ficha”", () => {
-    expect(validateManualBooking({ ...base }).ok && validateManualBooking({ ...base }).value?.customerId).toBeNull();
+  it("acepta un walk-in solo-nombre, sin ficha", () => {
+    const r = validateManualBooking({ ...base, walkInName: "  Pía  " });
+    expect(r.ok && r.value).toMatchObject({ customerId: null, walkInName: "Pía" });
+  });
+
+  it("null y cadena vacía en customerId son “sin ficha” (con nombre, siguen siendo válidos)", () => {
     for (const customerId of [null, ""]) {
-      const r = validateManualBooking({ ...base, customerId });
+      const r = validateManualBooking({ ...base, customerId, walkInName: "Pía" });
       expect(r.ok && r.value.customerId).toBeNull();
     }
   });
 
-  it("recorta el nombre del walk-in y acepta el vacío", () => {
-    expect(validateManualBooking({ ...base, walkInName: "  Pía  " }).ok && validateManualBooking({ ...base, walkInName: "  Pía  " }).value?.walkInName).toBe("Pía");
-    expect(validateManualBooking({ ...base }).ok && validateManualBooking({ ...base }).value?.walkInName).toBe("");
+  /**
+   * Sin ficha Y sin nombre queda una reserva de nadie: las cuatro columnas de
+   * contacto en NULL y —si cobra— un pedido pagado anónimo. Lo encontró la
+   * revisión: era alcanzable desde la UI real, no solo por un request armado.
+   */
+  it("rechaza una reserva sin ficha y sin nombre", () => {
+    expect(validateManualBooking({ ...base, walkInName: "" })).toEqual({
+      ok: false,
+      error: "Elige un cliente o escribe un nombre.",
+    });
+    expect(validateManualBooking({ ...base, walkInName: "   " })).toEqual({
+      ok: false,
+      error: "Elige un cliente o escribe un nombre.",
+    });
+  });
+
+  it("con ficha no hace falta nombre", () => {
+    expect(validateManualBooking({ ...conFicha, walkInName: "" }).ok).toBe(true);
   });
 
   it("rechaza un nombre de walk-in sobre el tope de la columna", () => {

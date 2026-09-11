@@ -288,9 +288,26 @@ describe("directorio: búsqueda y alta", () => {
     await customer({ name: "Pía Contreras", email: null, phone: "+56922223333" });
   });
 
-  it("encuentra por nombre parcial, sin importar mayúsculas ni tildes tipeadas igual", async () => {
-    const r = await repo.search({ text: "mat", digits: null }, 8);
-    expect(r.map((c) => c.name)).toEqual(["Matías Rojas"]);
+  it("encuentra por nombre parcial, sin importar mayúsculas", async () => {
+    expect((await repo.search({ text: "mat", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+    expect((await repo.search({ text: "MAT", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+  });
+
+  /**
+   * LIMITACIÓN CONOCIDA, fijada acá para que se vea y no sorprenda: `ilike` es
+   * sensible a los acentos. Se prueba con Pía, que NO tiene email — con Matías
+   * el caso engañaría, porque su email `matias.rojas@…` matchea la versión sin
+   * tilde y disimula el problema del nombre.
+   *
+   * Efecto real: a un cliente sin email y con tilde en el nombre no se le
+   * encuentra escribiendo la forma sin tilde; hay que tipear hasta antes de
+   * ella ("Pí") o buscar por teléfono. Arreglarlo pide `unaccent` (extensión +
+   * índice) y va en su propio cambio.
+   */
+  it("ilike es sensible a acentos: “pia” no encuentra a “Pía” (limitación conocida)", async () => {
+    expect(await repo.search({ text: "pia", digits: null }, 8)).toEqual([]);
+    // Y así es como el staff igual la encuentra hoy.
+    expect((await repo.search({ text: "Pí", digits: null }, 8)).map((c) => c.name)).toEqual(["Pía Contreras"]);
   });
 
   it("encuentra por email parcial", async () => {
@@ -314,6 +331,16 @@ describe("directorio: búsqueda y alta", () => {
 
   it("sin coincidencias devuelve [] (no lanza)", async () => {
     expect(await repo.search({ text: "zzzzz", digits: null }, 8)).toEqual([]);
+  });
+
+  /**
+   * Una aguja vacía armaba `name.ilike.%%`, que matchea TODO: dos paréntesis
+   * tipeados en el buscador volcaban el directorio con contacto y puntos,
+   * porque `escapeIlike` los convierte en espacios. Lo encontró la revisión.
+   */
+  it("una aguja vacía NO devuelve el directorio entero", async () => {
+    expect(await repo.search({ text: "", digits: null }, 8)).toEqual([]);
+    expect(await repo.search({ text: "   ", digits: null }, 8)).toEqual([]);
   });
 
   it("findByEmail resuelve exacto y devuelve null cuando no está", async () => {
@@ -353,12 +380,20 @@ describe("directorio: búsqueda y alta", () => {
   it("create sin email ni teléfono lo rechaza la DB, y sale traducible", async () => {
     // El dominio ya lo impide antes; esto fija que la última línea de defensa
     // (el CHECK `customers_contact_required`) tampoco filtra texto crudo.
-    const err: Error = await repo
+    //
+    // El rechazo se afirma APARTE del contenido del mensaje. La versión anterior
+    // usaba un `.then(() => { throw … })` como centinela y comparaba solo con
+    // `not.toMatch`: si `create` llegaba a tener éxito, el texto del propio
+    // centinela también pasaba esa comparación y el caso quedaba verde con la
+    // restricción borrada. Lo encontró la revisión, probándolo.
+    // `then(éxito → null, fallo → error)`: si `create` llegara a funcionar, `err`
+    // queda null y `toBeInstanceOf` falla. Así el caso SÍ puede ponerse rojo.
+    const err = await repo
       .create({ name: "Sin Contacto", email: null, phone: null })
-      .then(() => {
-        throw new Error("se esperaba que rechazara");
-      })
-      .catch((e: Error) => e);
-    expect(err.message).not.toMatch(/violates|constraint|null value/i);
+      .then(() => null, (e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err?.message).not.toMatch(/violates|constraint|null value/i);
+    // El texto crudo de Postgres sigue disponible para logs, solo que en .cause.
+    expect(String(err?.cause)).toMatch(/customers_contact_required/i);
   });
 });

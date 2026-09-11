@@ -174,8 +174,12 @@ export class SupabaseCustomerRepository implements CustomerRepository {
    * casi siempre lo que el staff está buscando.
    */
   async search(needle: { text: string; digits: string | null }, limit: number): Promise<CustomerProfile[]> {
-    const parts = [`name.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`];
+    // Un texto vacío haría `name.ilike.%%`, que matchea TODO. El servicio ya lo
+    // corta antes, pero la defensa vive también acá: este método es público y
+    // un caller nuevo no tiene por qué conocer esa trampa.
+    const parts = needle.text.trim() ? [`name.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`] : [];
     if (needle.digits) parts.push(`phone_digits.ilike.%${needle.digits}%`);
+    if (parts.length === 0) return [];
 
     const { data, error } = await this.db
       .from("customers")

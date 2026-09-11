@@ -354,7 +354,9 @@ export default function BookingConsole({
       addonKeys,
       method,
       customerId: customer?.id ?? null,
-      walkInName: walkInName.trim(),
+      // Con ficha el nombre suelto no se manda: el servidor lo ignoraría, pero
+      // un payload que se contradice a sí mismo es una trampa para el que lea esto.
+      walkInName: customer ? "" : walkInName.trim(),
       notes,
       ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
@@ -573,7 +575,13 @@ export default function BookingConsole({
               <>
                 <CustomerPicker
                   search={searchCustomersAction}
-                  onSelect={setCustomer}
+                  // Elegir ficha limpia el walk-in: si sobrevive, "Cambiar" vuelve
+                  // al buscador con un nombre viejo listo para bautizar la reserva.
+                  onSelect={(c) => {
+                    setCustomer(c);
+                    setWalkInName("");
+                    setWalkInOpen(false);
+                  }}
                   onCreateNew={(prefill) => setCreating(prefill)}
                 />
                 {/* Walk-in solo-nombre: sigue siendo legal (decisión del dueño).

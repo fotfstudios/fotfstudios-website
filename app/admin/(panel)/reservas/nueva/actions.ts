@@ -91,10 +91,12 @@ export async function createManualBookingAction(
         }
       : { name: walkInName || undefined, email: undefined, phone: undefined };
     /** Lo que se devuelve a la consola: el dato GUARDADO, no el tipeado. */
-    const savedCustomer = {
-      name: record?.name ?? (walkInName || null),
-      phone: record?.phone ?? null,
-    };
+    // Con ficha manda la ficha, aunque su nombre sea null: un `??` dejaba
+    // colarse el walk-in tipeado y el panel mostraba un nombre que la reserva
+    // NO guardó.
+    const savedCustomer = record
+      ? { name: record.name, phone: record.phone }
+      : { name: walkInName || null, phone: null };
 
     // Cortesía: reserva sin cobro ni boleta (no pasa por checkout/pago). Sin orden
     // no hay líneas: los add-ons elegidos quedan como dato operativo en las notas.
@@ -121,9 +123,14 @@ export async function createManualBookingAction(
           record?.id,
         );
       } catch (e) {
-        throw new Error(
-          e instanceof Error && e.message === "slot_taken" ? "Ese horario ya está tomado." : "No se pudo crear la reserva.",
-        );
+        const code = e instanceof Error ? e.message : "";
+        if (code === "slot_taken") throw new Error("Ese horario ya está tomado.");
+        // La ficha puede desaparecer entre el re-read y el insert; esa carrera
+        // merece su propia frase y no el copy genérico.
+        if (code === "customer_not_found") {
+          throw new Error(customerDbErrorMessage(null, null, code) ?? "El cliente ya no existe.");
+        }
+        throw new Error("No se pudo crear la reserva.");
       }
       // Best-effort: el email nunca voltea una reserva ya creada.
       // Decidido en PR5 (era la duda que dejó anotada PR3): el aviso va a los datos de la

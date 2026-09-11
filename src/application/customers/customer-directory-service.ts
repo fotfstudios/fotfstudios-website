@@ -3,20 +3,13 @@ import { normalizePhone, phoneDigits } from "@/src/domain/contact/contact";
 import {
   CUSTOMER_GENERIC_DB_ERROR,
   customerDbErrorMessage,
-  customerSearchNeedle,
   parseCustomerInput,
+  searchableNeedle,
 } from "@/src/domain/customers/customer-input";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
 /** Filas que muestra el picker de una vez. Más que esto deja de ser un vistazo. */
 export const PICKER_LIMIT = 8;
-
-/**
- * Mínimos para que la búsqueda discrimine. Con menos, un `ilike %a%` devuelve
- * medio directorio y el staff no aprende nada del resultado.
- */
-export const MIN_SEARCH_LETTERS = 2;
-const MIN_SEARCH_DIGITS = 3;
 
 /**
  * Alta desde el admin. `exists` NO es un error: el staff tipeó el email de
@@ -44,14 +37,13 @@ export class CustomerDirectoryService {
   constructor(private readonly repo: CustomerRepository) {}
 
   /**
-   * Devuelve [] cuando el término es demasiado corto, en vez de buscar igual:
-   * un `%` solo haría un scan del directorio entero para mostrar basura.
+   * Devuelve [] cuando el término no alcanza a discriminar, en vez de buscar
+   * igual: un `ilike %%` devolvería el directorio entero con contacto y puntos.
+   * El umbral vive en el dominio, compartido con el picker.
    */
   async search(q: string, limit = PICKER_LIMIT): Promise<CustomerProfile[]> {
-    const raw = (q ?? "").trim();
-    const needle = customerSearchNeedle(raw);
-    const letters = raw.replace(/\d/g, "").trim().length;
-    if (letters < MIN_SEARCH_LETTERS && !needle.digits) return [];
+    const needle = searchableNeedle((q ?? "").trim());
+    if (!needle) return [];
     return this.repo.search(needle, limit);
   }
 
@@ -98,8 +90,9 @@ export class CustomerDirectoryService {
   async lookupPhone(phone: string): Promise<CustomerProfile | null> {
     const normalized = normalizePhone((phone ?? "").trim());
     if (!normalized) return null;
+    // `normalizePhone` ya garantizó 8-15 dígitos, así que no hace falta otro piso.
     const digits = phoneDigits(normalized);
-    if (!digits || digits.length < MIN_SEARCH_DIGITS) return null;
+    if (!digits) return null;
     return this.repo.findByPhoneDigits(digits);
   }
 }
