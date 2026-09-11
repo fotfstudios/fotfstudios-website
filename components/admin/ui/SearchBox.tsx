@@ -10,8 +10,22 @@ import { inputCls } from "@/components/admin/ui/styles";
  * conserva el resto de filtros). No controlado a propósito: el caret y el foco
  * sobreviven las navegaciones del server mientras se tipea; cuando `?q=`
  * cambia desde afuera (Limpiar filtros, back/forward) se re-sincroniza.
+ *
+ * Compartido por las listas del admin: `basePath` es la ruta de la sección
+ * (antes estaba hardcodeada a /admin/reservas y copiarla sin cambiarla mandaba
+ * a la sección equivocada). Las claves `q` y `p` son convención de todas.
  */
-export function SearchBox({ defaultValue }: { defaultValue: string }) {
+export function SearchBox({
+  defaultValue,
+  basePath,
+  placeholder = "Buscar…",
+  ariaLabel = "Buscar",
+}: {
+  defaultValue: string;
+  basePath: string;
+  placeholder?: string;
+  ariaLabel?: string;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,7 +53,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
     else sp.delete("q");
     sp.delete("p");
     const qs = sp.toString();
-    startTransition(() => router.replace(`/admin/reservas${qs ? `?${qs}` : ""}`, { scroll: false }));
+    startTransition(() => router.replace(`${basePath}${qs ? `?${qs}` : ""}`, { scroll: false }));
   };
   const schedule = (value: string) => {
     if (timer.current) clearTimeout(timer.current);
@@ -67,8 +81,8 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
             navigate("");
           }
         }}
-        placeholder="Buscar cliente…"
-        aria-label="Buscar por nombre, correo o teléfono"
+        placeholder={placeholder}
+        aria-label={ariaLabel}
         aria-busy={pending}
         className={`${inputCls} max-w-64 pl-9`}
       />
