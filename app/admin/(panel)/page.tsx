@@ -23,7 +23,8 @@ export default async function AdminHome() {
     [
       { n: d.pendingBoletas, icon: "doc", label: "Boletas por emitir", href: "#boletas" },
       { n: d.pendingPayments, icon: "clock", label: "Pagos pendientes", href: "/admin/reservas" },
-      { n: d.accessToSend, icon: "today", label: "Accesos por enviar", href: "/admin/reservas" },
+      { n: d.accessToLoad, icon: "today", label: "PIN por cargar en la cerradura", href: "/admin/reservas" },
+      { n: d.accessToRemove, icon: "block", label: "PIN por quitar de la cerradura", href: "/admin/reservas" },
     ] as { n: number; icon: IconName; label: string; href: string }[]
   ).filter((x) => x.n > 0);
 

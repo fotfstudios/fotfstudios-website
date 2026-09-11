@@ -1213,6 +1213,8 @@ export type Database = {
       reservations: {
         Row: {
           access_code: string | null
+          access_loaded_at: string | null
+          access_removed_at: string | null
           access_sent_at: string | null
           cancelled_at: string | null
           created_at: string
@@ -1232,6 +1234,8 @@ export type Database = {
         }
         Insert: {
           access_code?: string | null
+          access_loaded_at?: string | null
+          access_removed_at?: string | null
           access_sent_at?: string | null
           cancelled_at?: string | null
           created_at?: string
@@ -1251,6 +1255,8 @@ export type Database = {
         }
         Update: {
           access_code?: string | null
+          access_loaded_at?: string | null
+          access_removed_at?: string | null
           access_sent_at?: string | null
           cancelled_at?: string | null
           created_at?: string
@@ -1662,6 +1668,7 @@ export type Database = {
         Returns: number
       }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
+      generate_access_code: { Args: never; Returns: string }
       immutable_unaccent: { Args: { p_text: string }; Returns: string }
       log_booking_event: {
         Args: {
@@ -1785,6 +1792,7 @@ export type Database = {
         Returns: string
       }
       reservation_for_order: { Args: { p_order: string }; Returns: string }
+      run_access_code_cron: { Args: never; Returns: undefined }
       schedule_course_generation: {
         Args: { p_created_by?: string; p_generation: string; p_sessions: Json }
         Returns: number
