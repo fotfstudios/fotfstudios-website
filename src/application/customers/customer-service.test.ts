@@ -19,7 +19,6 @@ function fakeRepo(over: Partial<CustomerRepository> = {}): CustomerRepository {
     awardRetroPoints: vi.fn().mockResolvedValue(0),
     getProfile: vi.fn().mockResolvedValue(ADOPTED),
     findByAuthUser: vi.fn().mockResolvedValue(ADOPTED),
-    updateNamePhone: vi.fn().mockResolvedValue(undefined),
     updateContact: vi.fn().mockResolvedValue(undefined),
     movements: vi.fn().mockResolvedValue([]),
     bookingsForEmail: vi.fn().mockResolvedValue([]),
@@ -70,29 +69,35 @@ describe("CustomerService: resolución por auth_user_id", () => {
     expect(repo.movements).not.toHaveBeenCalled();
   });
 
-  it("updateProfileByUser escribe SOLO la ficha, por el id del registro", async () => {
+  it("updateProfileByUser propaga por el id del registro, con el email de la ficha", async () => {
     const repo = fakeRepo();
     await new CustomerService(repo).updateProfileByUser("user-1", { name: "Ana Silva", phone: "+56999999999" });
 
-    // El id es el de la FICHA (adoptada), nunca el del usuario de auth.
-    expect(repo.updateNamePhone).toHaveBeenCalledWith("cust-adoptada", {
+    // El id es el de la FICHA (adoptada), nunca el del usuario de auth. Y el
+    // email es el que YA tiene la ficha: el formulario no puede cambiarlo (para
+    // un titular de cuenta es su acceso, y la RPC lo rechaza).
+    expect(repo.updateContact).toHaveBeenCalledWith("cust-adoptada", {
       name: "Ana Silva",
+      email: "ana@fotf.cl",
       phone: "+56999999999",
     });
   });
 
-  // Fix round 2, hallazgo crítico: `update_customer_contact` propaga la ficha
-  // —NULLs incluidos— a los snapshots de pedidos y reservas, y este formulario
-  // manda null por cada campo vacío. Hasta que PR3 haga el sync no destructivo,
-  // el guardado de perfil NO puede pasar por ahí. El itest
-  // `customer-repository.itest.ts` prueba el efecto contra la DB real; acá se
-  // fija el contrato de la capa de aplicación.
-  it("updateProfileByUser NO pasa por updateContact (propaga snapshots destructivamente hasta PR3)", async () => {
+  // La migración de PR3 hizo `customer_sync_snapshots` no destructivo (coalesce
+  // de nombre y teléfono), así que el guardado de perfil ya puede unificarse con
+  // el del admin: un solo escritor, sin dos caminos que puedan divergir. Un campo
+  // vacío llega como null y el coalesce del SQL conserva el dato del historial;
+  // el itest `customer-repository.itest.ts` lo prueba contra la DB real.
+  it("updateProfileByUser pasa por updateContact incluso con un campo vacío", async () => {
     const repo = fakeRepo();
     await new CustomerService(repo).updateProfileByUser("user-1", { name: null, phone: "+56999999999" });
 
-    expect(repo.updateContact).not.toHaveBeenCalled();
-    expect(repo.updateNamePhone).toHaveBeenCalledTimes(1);
+    expect(repo.updateContact).toHaveBeenCalledTimes(1);
+    expect(repo.updateContact).toHaveBeenCalledWith("cust-adoptada", {
+      name: null,
+      email: "ana@fotf.cl",
+      phone: "+56999999999",
+    });
   });
 
   it("updateProfileByUser sin ficha lanza el sentinela traducible", async () => {
@@ -103,7 +108,7 @@ describe("CustomerService: resolución por auth_user_id", () => {
   });
 
   it("traduce un sentinela de la DB a una frase antes de que llegue al toast", async () => {
-    const repo = fakeRepo({ updateNamePhone: vi.fn().mockRejectedValue(new Error("customers_name_len")) });
+    const repo = fakeRepo({ updateContact: vi.fn().mockRejectedValue(new Error("customers_name_len")) });
     await expect(
       new CustomerService(repo).updateProfileByUser("user-1", { name: "x".repeat(81), phone: null }),
     ).rejects.toThrow("El nombre no puede superar los 80 caracteres.");
@@ -114,7 +119,7 @@ describe("CustomerService: resolución por auth_user_id", () => {
   // `run()` muestra tal cual en el toast — pero el original sigue disponible
   // en `.cause` para logs.
   it("un fallo de escritura sin sentinela conocido sale genérico en .message, con el original en .cause", async () => {
-    const repo = fakeRepo({ updateNamePhone: vi.fn().mockRejectedValue(new Error("deadlock detected")) });
+    const repo = fakeRepo({ updateContact: vi.fn().mockRejectedValue(new Error("deadlock detected")) });
     const err: Error = await new CustomerService(repo)
       .updateProfileByUser("user-1", { name: "Ana", phone: null })
       .then(() => {

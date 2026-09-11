@@ -64,20 +64,20 @@ export class CustomerService {
   }
 
   /**
-   * Edición desde /cuenta/perfil: escribe SOLO la ficha (`updateNamePhone`),
-   * por el id del REGISTRO — nunca por el del usuario de auth. La propagación
-   * a los snapshots de pedidos y reservas NO está en este PR.
+   * Guarda el perfil del cliente y PROPAGA el contacto a sus reservas y pedidos
+   * (rpc `update_customer_contact`).
    *
-   * Por qué no `update_customer_contact` todavía: esa RPC llama a
-   * `customer_sync_snapshots`, que copia los campos de la ficha —NULLs
-   * incluidos— sobre cada pedido y reserva del cliente. `validateProfile`
-   * manda null por cada campo vacío del formulario y el formulario se
-   * prellena desde la ficha, que hoy en prod tiene `name` y `phone` en NULL:
-   * el primero que guardara con un campo en blanco borraría el otro dato en
-   * todo su historial (pagado y confirmado incluido) — y son justo los datos
-   * que el backfill de PR3 lee para poblar el directorio. PR3 hace el sync no
-   * destructivo (coalesce de nombre y teléfono, email autoritativo) y recién
-   * ahí este camino puede unificarse con el del admin.
+   * El email viaja como el que ya tiene la ficha, nunca el del formulario: para
+   * un titular de cuenta el email es su acceso, y la RPC además rechaza
+   * cambiárselo (`customer_has_account`).
+   *
+   * Esto era imposible hasta que la migración de PR3 hizo `customer_sync_snapshots`
+   * no destructivo: antes copiaba los campos de la ficha —NULLs incluidos— sobre
+   * todo el historial, así que el primer perfil guardado con un campo en blanco
+   * borraba ese dato de reservas pagadas. Ahora nombre y teléfono se coalescean
+   * (el email sigue siendo autoritativo, que es lo que mantiene vivo el join de
+   * puntos). Efecto lateral buscado: vaciar el teléfono en el perfil NO lo borra
+   * de las reservas viejas; solo deja de agregarlo.
    *
    * OJO: la LECTURA va dentro del try. `findByAuthUser` ya no puede lanzar
    * texto crudo de Postgres (el adaptador lo traduce con `throwDbError`), pero
@@ -89,7 +89,7 @@ export class CustomerService {
     try {
       const profile = await this.repo.findByAuthUser(userId);
       if (!profile) throw new Error("customer_not_found");
-      await this.repo.updateNamePhone(profile.id, { name: data.name, phone: data.phone });
+      await this.repo.updateContact(profile.id, { name: data.name, email: profile.email, phone: data.phone });
     } catch (e) {
       throw legible(e);
     }

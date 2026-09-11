@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   "applications.manage": "Gestionar postulaciones",
   "course.manage": "Gestionar curso",
   "course.billing": "Cobrar curso",
+  "customers.manage": "Gestionar clientes",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
