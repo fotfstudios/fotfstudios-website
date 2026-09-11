@@ -58,8 +58,11 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         </p>
       </header>
 
+      {/* min-w-0 en los hijos: sin eso conservan min-width:auto y la tabla de
+          32rem infla la columna hasta que la página entera scrollea horizontal
+          en móvil (medido: 576px de scrollWidth en un viewport de 365). */}
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_20rem]">
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <Card title="Datos">
             <ActionForm action={updateCustomerAction} success="Cliente actualizado." className="max-w-md space-y-4">
               <input type="hidden" name="id" value={c.id} />
@@ -141,7 +144,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           </Card>
         </div>
 
-        <aside className="flex flex-col gap-6">
+        <aside className="flex min-w-0 flex-col gap-6">
           <Card title="Puntos FOTF">
             <Stat label="Disponibles" value={`${fmtPts(c.pointsBalance)} pts`} accent={c.pointsBalance > 0} />
             {!c.email && (

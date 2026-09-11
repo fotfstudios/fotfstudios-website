@@ -25,6 +25,7 @@ export function NuevoClienteButton({ size = "md" }: { size?: BtnSize }) {
           <NuevoClienteForm
             create={createCustomerAction}
             lookupPhone={lookupCustomerPhoneAction}
+            submitLabel="Crear cliente"
             onCreated={(c) => {
               setOpen(false);
               toast({ tone: "ok", message: "Cliente creado." });
