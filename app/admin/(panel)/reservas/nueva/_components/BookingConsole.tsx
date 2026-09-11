@@ -117,6 +117,8 @@ export default function BookingConsole({
   const [creating, setCreating] = useState<{ name?: string; email?: string; phone?: string } | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInName, setWalkInName] = useState("");
+  /** Puntos tipeados por el staff. Solo dígitos; el tope real lo pone el saldo. */
+  const [pointsValue, setPointsValue] = useState("");
   const [notes, setNotes] = useState("");
   const [termsAttested, setTermsAttested] = useState(false);
 
@@ -336,6 +338,14 @@ export default function BookingConsole({
   const discountBroken = discountState?.error != null;
   const displayTotal = discountState?.cashTotal ?? quote?.total ?? null;
 
+  // Canje: solo con ficha, saldo > 0 y un método que cobra — una cortesía no
+  // cobra nada, así que no hay contra qué canjear. El tope es el mínimo entre el
+  // saldo y el total YA con descuento, que es el mismo orden que aplica el
+  // servidor: así lo que se ve en pantalla es lo que se termina cobrando.
+  const canRedeem = !isCortesia && !!customer && customer.pointsBalance > 0;
+  const pointsMax = canRedeem ? Math.max(0, Math.min(customer.pointsBalance, displayTotal ?? 0)) : 0;
+  const pointsApplied = Math.min(Math.max(0, Number.parseInt(pointsValue || "0", 10) || 0), pointsMax);
+
   const canSubmit =
     selectedStart !== null &&
     !pending &&
@@ -357,6 +367,7 @@ export default function BookingConsole({
       // Con ficha el nombre suelto no se manda: el servidor lo ignoraría, pero
       // un payload que se contradice a sí mismo es una trampa para el que lea esto.
       walkInName: customer ? "" : walkInName.trim(),
+      pointsToRedeem: canRedeem ? pointsApplied : 0,
       notes,
       ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
@@ -394,6 +405,7 @@ export default function BookingConsole({
     setCreating(null);
     setWalkInOpen(false);
     setWalkInName("");
+    setPointsValue("");
     setNotes("");
     setTermsAttested(false);
     setDiscountOn(false);
@@ -552,10 +564,14 @@ export default function BookingConsole({
               <CustomerSummary
                 customer={customer}
                 canManageCustomers={canManageCustomers}
-                onChange={() => setCustomer(null)}
+                onChange={() => {
+                  setCustomer(null);
+                  setPointsValue("");
+                }}
                 onClear={() => {
                   setCustomer(null);
                   setWalkInName("");
+                  setPointsValue("");
                 }}
               />
             ) : creating ? (
@@ -581,6 +597,8 @@ export default function BookingConsole({
                     setCustomer(c);
                     setWalkInName("");
                     setWalkInOpen(false);
+                    // Lo tipeado era contra el saldo de OTRA persona.
+                    setPointsValue("");
                   }}
                   onCreateNew={(prefill) => setCreating(prefill)}
                 />
@@ -640,6 +658,18 @@ export default function BookingConsole({
         isCortesia={isCortesia}
         quote={quote}
         discount={discountState}
+        points={
+          canRedeem && customer
+            ? {
+                balance: customer.pointsBalance,
+                value: pointsValue,
+                applied: pointsApplied,
+                max: pointsMax,
+                onValue: (v) => setPointsValue(v.replace(/\D/g, "").slice(0, 8)),
+                onAll: () => setPointsValue(String(pointsMax)),
+              }
+            : null
+        }
         quoting={quoting}
         quoteError={quoteError}
         hasSelection={selectedStart !== null}
