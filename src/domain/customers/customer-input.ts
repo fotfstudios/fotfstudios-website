@@ -68,9 +68,26 @@ export function customerSearchNeedle(q: string): { text: string; digits: string 
   const raw = (q ?? "").trim().slice(0, SEARCH_MAX);
   const digits = phoneDigits(raw);
   return {
-    text: escapeIlike(raw),
+    text: escapeIlike(stripAccents(raw.toLowerCase())),
     digits: digits && digits.length >= MIN_SEARCH_DIGITS ? digits : null,
   };
+}
+
+/**
+ * Quita diacríticos: "Matías" → "Matias", "Muñoz" → "Munoz".
+ *
+ * Espejo en JS de `immutable_unaccent` en SQL, que alimenta la columna generada
+ * `customers.name_norm`. Los dos lados TIENEN que coincidir: la columna guarda
+ * el nombre ya normalizado y acá se normaliza lo que tipeó el staff, así que si
+ * uno de los dos cambiara de criterio la búsqueda dejaría de encontrar.
+ *
+ * NFD separa la letra base de su marca combinante, y U+0300–U+036F son
+ * exactamente esas marcas; es la misma descomposición que aplica `unaccent`.
+ * El rango va escapado a propósito: escrito con los caracteres literales queda
+ * invisible en el editor y cualquier reformateo puede comérselo.
+ */
+export function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 /** Mínimo de letras para buscar por texto. Con una sola, un ilike matchea medio directorio. */
