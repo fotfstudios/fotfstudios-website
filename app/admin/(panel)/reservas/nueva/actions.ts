@@ -4,48 +4,12 @@ import { revalidatePath } from "next/cache";
 import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
 import { adminRepository, checkoutService, customerDirectory, notificationService, pricingService } from "@/src/composition";
-import type { CreateCustomerOutcome } from "@/src/application/customers/customer-directory-service";
-import type { CustomerProfile } from "@/src/application/ports/customers";
 import { TERMS_VERSION } from "@/lib/site";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
 import type { DayConsoleData, ManualBookingInput, ManualBookingResult } from "./types";
-
-/**
- * Busca fichas para el picker. Va bajo `reservations.create` y no bajo
- * `customers.manage`: agendar exige elegir un cliente, y el dueño decidió que
- * administrar el directorio es un permiso aparte que el staff no tiene.
- */
-export async function searchCustomersAction(q: string): Promise<ActionDataResult<CustomerProfile[]>> {
-  return runData(async () => {
-    await requirePermission("reservations.create");
-    return customerDirectory().search(q);
-  });
-}
-
-/** Alta rápida desde la consola. `exists` vuelve como dato, no como error. */
-export async function createCustomerAction(raw: {
-  name?: unknown;
-  email?: unknown;
-  phone?: unknown;
-}): Promise<ActionDataResult<CreateCustomerOutcome>> {
-  return runData(async () => {
-    await requirePermission("reservations.create");
-    const r = await customerDirectory().create(raw);
-    if (!r.ok) throw new Error(r.error);
-    return r.value;
-  });
-}
-
-/** Aviso blando al tipear un teléfono ya conocido. Nunca elige por el staff. */
-export async function lookupCustomerPhoneAction(phone: string): Promise<ActionDataResult<CustomerProfile | null>> {
-  return runData(async () => {
-    await requirePermission("reservations.create");
-    return customerDirectory().lookupPhone(phone);
-  });
-}
 
 /** Errores del checkout → mensaje para el staff (nunca el código crudo). */
 const checkoutErrorMessage = (code: string): string => {

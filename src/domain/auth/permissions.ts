@@ -26,6 +26,8 @@ export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as Permission[];
 
 /** Claims que el Custom Access Token Hook inyecta en el JWT. */
 export interface AdminClaims {
+  /** uid del usuario de auth (claim estándar `sub`). Es el actor de `booking_events.created_by`. */
+  sub?: string;
   app_role?: string;
   app_permissions?: string[];
 }

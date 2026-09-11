@@ -17,6 +17,9 @@ import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { hasPermission } from "@/src/domain/auth/permissions";
+import { currentClaims } from "@/src/infrastructure/auth/require-admin";
+import { CambiarClienteDialog } from "./_components/CambiarClienteDialog";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
 import { CobroPendiente } from "./_components/CobroPendiente";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
@@ -85,6 +88,12 @@ function timelineEntry(
       return { label: "Puntos otorgados", detail: e.amountClp != null ? `+${e.amountClp} pts` : undefined };
     case "points_revoked":
       return { label: "Puntos revocados", detail: e.amountClp != null ? `−${e.amountClp} pts` : undefined };
+    case "customer_changed": {
+      const from = e.detail?.from_name ?? e.detail?.from_email ?? "sin cliente";
+      const to = e.detail?.to_name ?? e.detail?.to_email ?? "—";
+      const pts = e.detail?.points_moved ?? 0;
+      return { label: "Cliente reasignado", detail: `${from} → ${to}${pts > 0 ? ` · ${pts} pts movidos` : ""}` };
+    }
     case "cancelled":
       return { label: "Cancelada" };
     case "refunded":
@@ -102,6 +111,10 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const isBlock = isRoomBlock(b.kind);
   const isCourtesy = !isBlock && !b.orderId;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
+  // Solo para "Ver ficha ↗": /admin/clientes exige este permiso y sin él daría 403.
+  const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
+  // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
+  const canReassign = !isBlock && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
 
   // Reagendar: reservas pagadas (sin puntos, ≥12 h de anticipación) o cortesías
   // confirmadas (sin plata no aplica la política — misma flexibilidad que crearlas).
@@ -237,19 +250,47 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           )}
 
           {!isBlock && (
-            <Card title="Cliente">
+            <Card
+              title="Cliente"
+              action={
+                b.customerId && canManageCustomers ? (
+                  <Link
+                    href={`/admin/clientes/${b.customerId}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="label-sm text-bone-mute underline hover:text-gold"
+                  >
+                    Ver ficha ↗
+                  </Link>
+                ) : undefined
+              }
+            >
               <p className="text-bone">{b.customerName ?? "Sin nombre"}</p>
               <p className="mt-0.5 text-sm text-bone-dim">{b.customerEmail ?? "Sin email"}</p>
-              {b.customerPhone && (
-                <a
-                  href={`https://wa.me/${waDigits}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
-                >
-                  <Icon name="whatsapp" size={15} /> WhatsApp
-                </a>
+              {!b.customerId && (
+                <p className="mt-0.5 label-sm text-bone-mute">Sin ficha en el directorio.</p>
               )}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {b.customerPhone && (
+                  <a
+                    href={`https://wa.me/${waDigits}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
+                  >
+                    <Icon name="whatsapp" size={15} /> WhatsApp
+                  </a>
+                )}
+                {canReassign && (
+                  <CambiarClienteDialog
+                    reservationId={b.id}
+                    currentLabel={b.customerName ?? b.customerEmail ?? "sin cliente"}
+                    currentCustomerId={b.customerId}
+                    isPaid={isPaid}
+                    usedPoints={b.pointsRedeemedClp > 0}
+                  />
+                )}
+              </div>
             </Card>
           )}
 

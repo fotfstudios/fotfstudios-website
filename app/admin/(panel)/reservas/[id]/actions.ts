@@ -6,7 +6,8 @@ import { type ActionDataResult, type ActionResult, run, runData } from "@/compon
 import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
 import type { RescheduleOutcome } from "@/src/application/admin/reschedule-service";
-import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { hostFromHeaders } from "@/lib/urls";
 import { getRescheduleDay } from "./reschedule-data";
 import type { DayConsoleData } from "../nueva/types";
@@ -159,6 +160,35 @@ export async function rescheduleAction(input: {
     revalidatePath(`/admin/reservas/${reservationId}`);
     revalidatePath("/admin/reservas");
     return res.value;
+  });
+}
+
+/**
+ * Cambia el cliente de una reserva vigente. Bajo `reservations.create` por
+ * decisión del dueño: quien puede crear una reserva a nombre de alguien puede
+ * corregir a nombre de quién quedó. Todo el trabajo —snapshot, pedidos delta,
+ * puntos, evento— lo hace la RPC en una transacción; acá solo se pasa el actor
+ * y se traduce el error.
+ *
+ * Estrena `booking_events.created_by`: hasta acá nada en el sistema lo llenaba.
+ */
+export async function assignCustomerAction(input: {
+  reservationId: string;
+  customerId: string;
+}): Promise<ActionDataResult<{ ok: true }>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    const actor = (await currentClaims())?.sub ?? null;
+    try {
+      await adminRepository().assignCustomer(input.reservationId, input.customerId, actor);
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "";
+      throw new Error(customerDbErrorMessage(null, null, code) ?? code);
+    }
+    revalidatePath(`/admin/reservas/${input.reservationId}`);
+    revalidatePath("/admin/reservas");
+    revalidatePath(`/admin/clientes/${input.customerId}`);
+    return { ok: true as const };
   });
 }
 
