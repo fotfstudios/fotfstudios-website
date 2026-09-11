@@ -330,6 +330,31 @@ export function courseEnrollmentPending(
   return { subject: `Tu cupo en el Curso de DJ — falta el pago`, html, text };
 }
 
+/**
+ * Email al cliente: su reserva está tomada pero falta pagar, con el link.
+ *
+ * Espejo de `courseEnrollmentPending` — mismo patrón, mismo vencimiento visible.
+ * El link se dice CUÁNDO vence a propósito: son 72 h y una reserva manual puede
+ * ser para dentro de semanas, así que el cliente tiene que saber que este link
+ * no lo va a esperar hasta la sesión.
+ */
+export function bookingPaymentPending(
+  v: { name: string | null; when: string; total: string; initPoint: string; expiresInHours: number },
+  ctx: { termsUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu hora está tomada</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(v.name ?? "Hola")}: te reservamos la sala. Queda confirmada al pagar.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
+     <a href="${esc(v.initPoint)}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Pagar ahora</a>
+     <p style="color:#b9b5ab;margin:20px 0 0">El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos y te mandamos otro.</p>
+     <p style="color:#b9b5ab;margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:#e8c94a">términos y condiciones</a>.</p>`,
+  );
+  const text = `${v.name ?? "Hola"}: te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { subject: "Tu hora en FOTF Studios — falta el pago", html, text };
+}
+
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
 export function ownerCoursePaid(v: {
   name: string;

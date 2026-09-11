@@ -190,3 +190,86 @@ describe("notifyOrder — un pedido de curso no usa la plantilla de reserva", ()
     expect(mailer.send).toHaveBeenCalled();
   });
 });
+
+/**
+ * Link de pago de una reserva pendiente. Hasta este cambio, una reserva creada
+ * con método "pendiente" no generaba NINGÚN correo en toda su vida hasta que se
+ * pagaba: el cliente no tenía nada por escrito y el dueño tampoco se enteraba.
+ */
+describe("notifyBookingPaymentLink", () => {
+  const ORDER = {
+    email: "ana@e.cl",
+    name: "Ana",
+    amount: 39980,
+    startsAt: "2026-07-12T18:00:00Z",
+    lines: [],
+    kind: "booking",
+    notifiedAt: null,
+  };
+
+  it("manda el link al cliente, con el horario en zona Santiago", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
+
+    const sent = await service.notifyBookingPaymentLink("o1", { initPoint: "https://mp/x", expiresInHours: 72 });
+    expect(sent).toBe(true);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+
+    const msg = (mailer.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.subject).toMatch(/falta el pago/i);
+    expect(msg.text).toContain("https://mp/x");
+    expect(msg.text).toContain("72 horas");
+    expect(msg.html).toContain("https://mp/x");
+    // 18:00 UTC = 14:00 en Santiago.
+    expect(msg.text).toContain("14:00");
+  });
+
+  /**
+   * La que importa: marcar `notified_at` acá dejaría al cliente SIN su email de
+   * confirmación al pagar y al dueño sin su aviso de reserva pagada, porque
+   * `notifyOrder` corta apenas ve esa marca. El link y la confirmación son dos
+   * correos distintos en dos momentos distintos.
+   */
+  it("NO marca la orden como notificada: la confirmación al pagar tiene que salir igual", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
+
+    await service.notifyBookingPaymentLink("o1", { initPoint: "https://mp/x", expiresInHours: 72 });
+    expect(repo.markNotified).not.toHaveBeenCalled();
+
+    // Y efectivamente, la confirmación posterior sí sale.
+    const enviadosAntes = (mailer.send as ReturnType<typeof vi.fn>).mock.calls.length;
+    const confirmado = await service.notifyOrder("o1");
+    expect(confirmado).toBe(true);
+    expect((mailer.send as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(enviadosAntes);
+    expect(repo.markNotified).toHaveBeenCalledWith("o1");
+  });
+
+  it("sin email en la reserva no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, email: null });
+
+    expect(await service.notifyBookingPaymentLink("o1", { initPoint: "https://mp/x", expiresInHours: 72 })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(repo.markNotified).not.toHaveBeenCalled();
+  });
+
+  it("una orden que no existe no revienta", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    expect(await service.notifyBookingPaymentLink("o1", { initPoint: "https://mp/x", expiresInHours: 72 })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("manda el link AUNQUE la orden ya esté notificada: son correos distintos", async () => {
+    // Caso real: se pagó, se reembolsó y se vuelve a generar un link. El guard
+    // de `notified_at` es de la confirmación, no de este correo.
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, notifiedAt: "2026-07-11T00:00:00Z" });
+
+    expect(await service.notifyBookingPaymentLink("o1", { initPoint: "https://mp/x", expiresInHours: 72 })).toBe(true);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+  });
+});
