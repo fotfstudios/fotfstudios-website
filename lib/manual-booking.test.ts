@@ -22,6 +22,8 @@ describe("validateManualBooking", () => {
         method: "efectivo",
         addonKeys: ["audio", "guided"],
         notes: "Pagó al llegar",
+        customerId: null,
+        walkInName: "",
       },
     });
   });
@@ -134,5 +136,44 @@ describe("validateManualBooking — descuento manual", () => {
       discount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "" },
     });
     expect(r.ok).toBe(false);
+  });
+});
+
+/**
+ * Cliente: o una ficha del directorio (por id) o un walk-in solo-nombre. El
+ * contacto NO viaja nunca en el request — el servidor lo lee de `customers`—,
+ * así un navegador manipulado no puede inventar el snapshot de una reserva.
+ */
+describe("validateManualBooking — cliente", () => {
+  const UUID = "f0bfd658-5aa7-4f12-a3c4-eaddd41a2335";
+
+  it("acepta un uuid de ficha", () => {
+    const r = validateManualBooking({ ...base, customerId: UUID });
+    expect(r.ok && r.value.customerId).toBe(UUID);
+  });
+
+  it.each(["no-es-uuid", "123", "f0bfd658-5aa7-4f12-a3c4", 42, {}])("rechaza customerId inválido: %s", (customerId) => {
+    expect(validateManualBooking({ ...base, customerId })).toEqual({ ok: false, error: "Cliente inválido." });
+  });
+
+  it("ausente, null y cadena vacía son todos “sin ficha”", () => {
+    expect(validateManualBooking({ ...base }).ok && validateManualBooking({ ...base }).value?.customerId).toBeNull();
+    for (const customerId of [null, ""]) {
+      const r = validateManualBooking({ ...base, customerId });
+      expect(r.ok && r.value.customerId).toBeNull();
+    }
+  });
+
+  it("recorta el nombre del walk-in y acepta el vacío", () => {
+    expect(validateManualBooking({ ...base, walkInName: "  Pía  " }).ok && validateManualBooking({ ...base, walkInName: "  Pía  " }).value?.walkInName).toBe("Pía");
+    expect(validateManualBooking({ ...base }).ok && validateManualBooking({ ...base }).value?.walkInName).toBe("");
+  });
+
+  it("rechaza un nombre de walk-in sobre el tope de la columna", () => {
+    expect(validateManualBooking({ ...base, walkInName: "x".repeat(81) })).toEqual({
+      ok: false,
+      error: "El nombre no puede superar los 80 caracteres.",
+    });
+    expect(validateManualBooking({ ...base, walkInName: "x".repeat(80) }).ok).toBe(true);
   });
 });

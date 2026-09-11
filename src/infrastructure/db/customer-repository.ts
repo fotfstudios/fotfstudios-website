@@ -159,6 +159,70 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     return { kind: "ok", id: data };
   }
 
+  /**
+   * Búsqueda del picker. Tres columnas en un solo `or`: nombre y email por
+   * texto, teléfono por la columna GENERADA `phone_digits` (que ya viene sin
+   * `+`, espacios ni guiones), así "9988" encuentra a quien guardó
+   * "+56 9 9988 7766".
+   *
+   * `needle.text` YA VIENE ESCAPADO por `customerSearchNeedle` (que es donde el
+   * tope de largo y el escape tienen que ir juntos, porque recortar después de
+   * escapar puede partir un par `\%` al medio). Volver a escaparlo acá buscaría
+   * los backslashes literalmente, así que se usa tal cual.
+   *
+   * Orden por `updated_at` desc: en una lista acotada a 8, lo más reciente es
+   * casi siempre lo que el staff está buscando.
+   */
+  async search(needle: { text: string; digits: string | null }, limit: number): Promise<CustomerProfile[]> {
+    const parts = [`name.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`];
+    if (needle.digits) parts.push(`phone_digits.ilike.%${needle.digits}%`);
+
+    const { data, error } = await this.db
+      .from("customers")
+      .select(PROFILE_COLS)
+      .or(parts.join(","))
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throwDbError(error);
+    return (data ?? []).map(toProfile);
+  }
+
+  async findByEmail(email: string): Promise<CustomerProfile | null> {
+    const { data, error } = await this.db.from("customers").select(PROFILE_COLS).eq("email", email).maybeSingle();
+    if (error) throwDbError(error);
+    return data ? toProfile(data) : null;
+  }
+
+  /**
+   * `phone_digits` NO es único (dos personas pueden compartir un teléfono, y de
+   * hecho una pareja que reserva por el mismo número es un caso real), así que
+   * esto ordena y toma una — nunca `maybeSingle`, que reventaría con dos filas.
+   * Se usa solo para AVISAR al staff, jamás para elegir por él.
+   */
+  async findByPhoneDigits(digits: string): Promise<CustomerProfile | null> {
+    const { data, error } = await this.db
+      .from("customers")
+      .select(PROFILE_COLS)
+      .eq("phone_digits", digits)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (error) throwDbError(error);
+    return data?.[0] ? toProfile(data[0]) : null;
+  }
+
+  async create(d: { name: string; email: string | null; phone: string | null }): Promise<CustomerProfile> {
+    const { data, error } = await this.db
+      .from("customers")
+      .insert({ name: d.name, email: d.email, phone: d.phone })
+      .select(PROFILE_COLS)
+      .single();
+    if (error) throwDbError(error);
+    // El insert con `.select().single()` devuelve la fila o error; el guard hace
+    // explícito ese contrato en vez de forzarlo con un cast.
+    if (!data) throwDbError({ code: null, message: "customers insert: fila nula sin error" });
+    return toProfile(data);
+  }
+
   async updateContact(
     customerId: string,
     d: { name: string | null; email: string | null; phone: string | null },

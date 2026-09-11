@@ -23,6 +23,7 @@ import { RefundService } from "@/src/application/admin/refund-service";
 import { RescheduleService } from "@/src/application/admin/reschedule-service";
 import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { CustomerService } from "@/src/application/customers/customer-service";
+import { CustomerDirectoryService } from "@/src/application/customers/customer-directory-service";
 import { SupabaseCustomerRepository } from "@/src/infrastructure/db/customer-repository";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
 import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
@@ -250,6 +251,15 @@ export async function rescheduleNotifyInfo(
 /** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */
 export function customerService(client: SupabaseClient<Database> = db()): CustomerService {
   return new CustomerService(new SupabaseCustomerRepository(client));
+}
+
+/**
+ * Directorio de clientes para el admin: buscar, crear y resolver una ficha por
+ * id. Separado de `customerService` a propósito: ese resuelve siempre por la
+ * sesión del titular y nunca acepta un id de afuera.
+ */
+export function customerDirectory(client: SupabaseClient<Database> = db()): CustomerDirectoryService {
+  return new CustomerDirectoryService(new SupabaseCustomerRepository(client));
 }
 
 /**
