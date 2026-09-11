@@ -184,6 +184,15 @@ export async function markPaidOfflineAction(_prev: ActionResult | null, fd: Form
       throw new Error("El cupo ya no estaba reservado (expiró). El pago quedó registrado y se avisó para revisión.");
     }
     if (status !== "confirmed") throw new Error("No se pudo registrar el pago (el cupo pudo expirar).");
+    // La confirmación sale AHORA, no con el cron de la noche. Sin esto, una
+    // reserva que el dueño marca pagada acá dejaba al cliente hasta ~24 h sin
+    // email por algo que ya pagó (el barrido corre una vez al día). Es el mismo
+    // disparo inmediato que ya hacen efectivo y transferencia al crearse, y
+    // `notifyOrder` es idempotente por `notified_at`, así que el cron no duplica.
+    // Best-effort: el pago ya quedó registrado y un fallo de correo no lo revierte.
+    await notificationService()
+      .notifyOrder(order.orderId)
+      .catch((e) => console.error("[markPaidOffline:email]", e));
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
 }
@@ -202,6 +211,15 @@ export async function sharePaymentLinkAction(reservationId: string): Promise<Act
     const host = hostFromHeaders(await headers());
     const pref = await paymentService(db(), host).createPreferenceForOrder(order.orderId, { expiresInMinutes: 72 * 60 });
     if (!pref.ok) throw new Error(pref.error);
+    // El link también por email, además del WhatsApp que arma la UI: hasta acá
+    // una reserva "pendiente de pago" no generaba NINGÚN correo en toda su vida
+    // hasta que se pagaba, así que el cliente no tenía nada por escrito. Mismo
+    // patrón que el curso (notifyCoursePaymentLink). Best-effort: el link ya
+    // existe y el dueño lo va a compartir igual, así que un fallo de correo no
+    // puede voltear la acción ni esconder el link.
+    await notificationService()
+      .notifyBookingPaymentLink(order.orderId, { initPoint: pref.value.initPoint, expiresInHours: 72 })
+      .catch((e) => console.error("[sharePaymentLink:email]", e));
     return { initPoint: pref.value.initPoint, amount: order.amountClp };
   });
 }

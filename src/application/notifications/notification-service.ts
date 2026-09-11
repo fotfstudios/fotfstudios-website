@@ -20,6 +20,7 @@ import {
   courseEnrollmentCancelled,
   courseEnrollmentPaid,
   ownerCoursePaid,
+  bookingPaymentPending,
   courseEnrollmentPending,
 } from "./templates";
 
@@ -322,6 +323,32 @@ export class NotificationService {
         { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
+  }
+
+  /**
+   * Manda al cliente el link de pago de una reserva pendiente.
+   *
+   * Best-effort, como el resto de los avisos: el link ya existe y el dueño lo va
+   * a compartir igual por WhatsApp, así que un fallo de correo no puede voltear
+   * la acción. Sin email en la reserva no hay nada que mandar y devuelve false.
+   */
+  async notifyBookingPaymentLink(orderId: string, v: { initPoint: string; expiresInHours: number }): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    // NO se marca notified_at: eso pertenece al email de CONFIRMACIÓN, que sale
+    // cuando la reserva se paga. Marcarlo acá dejaría al cliente sin su
+    // confirmación y al dueño sin su aviso de reserva pagada.
+    const when = o.startsAt
+      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
+      : "—";
+    await this.mailer.send({
+      to: o.email,
+      ...bookingPaymentPending(
+        { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours },
+        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
   }
 
   /** Inscripción impaga anulada: aviso al alumno. Sin dinero de por medio. */
