@@ -163,7 +163,10 @@ export class SupabaseCustomerRepository implements CustomerRepository {
    * Búsqueda del picker. Tres columnas en un solo `or`: nombre y email por
    * texto, teléfono por la columna GENERADA `phone_digits` (que ya viene sin
    * `+`, espacios ni guiones), así "9988" encuentra a quien guardó
-   * "+56 9 9988 7766".
+   * "+56 9 9988 7766", y "pia" a "Pía" — el nombre se compara contra la columna
+   * generada `name_norm` (minúsculas, sin diacríticos) y el término viene ya
+   * normalizado igual por `customerSearchNeedle`. El email se guarda en
+   * minúsculas y sin tildes válidas, así que se compara tal cual.
    *
    * `needle.text` YA VIENE ESCAPADO por `customerSearchNeedle` (que es donde el
    * tope de largo y el escape tienen que ir juntos, porque recortar después de
@@ -177,7 +180,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     // Un texto vacío haría `name.ilike.%%`, que matchea TODO. El servicio ya lo
     // corta antes, pero la defensa vive también acá: este método es público y
     // un caller nuevo no tiene por qué conocer esa trampa.
-    const parts = needle.text.trim() ? [`name.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`] : [];
+    const parts = needle.text.trim() ? [`name_norm.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`] : [];
     if (needle.digits) parts.push(`phone_digits.ilike.%${needle.digits}%`);
     if (parts.length === 0) return [];
 

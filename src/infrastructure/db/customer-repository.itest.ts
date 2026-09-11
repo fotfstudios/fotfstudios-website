@@ -10,6 +10,7 @@
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CustomerService } from "@/src/application/customers/customer-service";
+import { customerSearchNeedle } from "@/src/domain/customers/customer-input";
 import { SupabaseCustomerRepository } from "./customer-repository";
 import { createServiceClient } from "./supabase-client";
 
@@ -289,25 +290,43 @@ describe("directorio: búsqueda y alta", () => {
   });
 
   it("encuentra por nombre parcial, sin importar mayúsculas", async () => {
-    expect((await repo.search({ text: "mat", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
-    expect((await repo.search({ text: "MAT", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+    expect((await repo.search(customerSearchNeedle("mat"), 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+    expect((await repo.search(customerSearchNeedle("MAT"), 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
   });
 
   /**
-   * LIMITACIÓN CONOCIDA, fijada acá para que se vea y no sorprenda: `ilike` es
-   * sensible a los acentos. Se prueba con Pía, que NO tiene email — con Matías
-   * el caso engañaría, porque su email `matias.rojas@…` matchea la versión sin
-   * tilde y disimula el problema del nombre.
+   * Sin acentos. Se prueba con Pía, que NO tiene email: con Matías el caso
+   * engañaría, porque su email `matias.rojas@…` matchea la versión sin tilde y
+   * disimularía si el nombre funciona o no.
    *
-   * Efecto real: a un cliente sin email y con tilde en el nombre no se le
-   * encuentra escribiendo la forma sin tilde; hay que tipear hasta antes de
-   * ella ("Pí") o buscar por teléfono. Arreglarlo pide `unaccent` (extensión +
-   * índice) y va en su propio cambio.
+   * La aguja llega ya normalizada desde `customerSearchNeedle` (minúsculas, sin
+   * diacríticos) y se compara contra la columna generada `name_norm`. Acá se
+   * pasa a mano lo que produciría esa función.
    */
-  it("ilike es sensible a acentos: “pia” no encuentra a “Pía” (limitación conocida)", async () => {
-    expect(await repo.search({ text: "pia", digits: null }, 8)).toEqual([]);
-    // Y así es como el staff igual la encuentra hoy.
-    expect((await repo.search({ text: "Pí", digits: null }, 8)).map((c) => c.name)).toEqual(["Pía Contreras"]);
+  /**
+   * Las dos mitades tienen que coincidir: `customerSearchNeedle` normaliza el
+   * término en JS y la columna generada `name_norm` normaliza el nombre en SQL.
+   * Por eso estos casos pasan por el constructor real en vez de armar la aguja
+   * a mano — si los criterios divergieran, acá se vería.
+   */
+  it.each([
+    ["pia", "Pía Contreras"],
+    ["Pía", "Pía Contreras"],
+    ["PIA", "Pía Contreras"],
+    ["matias", "Matías Rojas"],
+    ["Matías", "Matías Rojas"],
+  ])("“%s” encuentra a %s, con o sin tilde", async (q, expected) => {
+    expect((await repo.search(customerSearchNeedle(q), 8)).map((c) => c.name)).toEqual([expected]);
+  });
+
+  it("la ñ también se normaliza: “munoz” encuentra a “Muñoz”", async () => {
+    await customer({ name: "Felipe Muñoz", email: null, phone: "+56944445555" });
+    expect((await repo.search(customerSearchNeedle("munoz"), 8)).map((c) => c.name)).toEqual(["Felipe Muñoz"]);
+    expect((await repo.search(customerSearchNeedle("Muñoz"), 8)).map((c) => c.name)).toEqual(["Felipe Muñoz"]);
+  });
+
+  it("name_norm es SOLO para buscar: lo que se muestra conserva la tilde", async () => {
+    expect((await repo.search(customerSearchNeedle("matias"), 8))[0].name).toBe("Matías Rojas");
   });
 
   it("encuentra por email parcial", async () => {
@@ -321,7 +340,7 @@ describe("directorio: búsqueda y alta", () => {
   });
 
   it("una ficha sin email igual aparece por nombre", async () => {
-    const r = await repo.search({ text: "Pía", digits: null }, 8);
+    const r = await repo.search(customerSearchNeedle("Pía"), 8);
     expect(r.map((c) => c.name)).toEqual(["Pía Contreras"]);
   });
 

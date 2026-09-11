@@ -6,6 +6,7 @@ import {
   customerLabel,
   customerSearchNeedle,
   searchableNeedle,
+  stripAccents,
   isEnsureEmailConflict,
   parseCustomerInput,
   SEARCH_MAX,
@@ -231,5 +232,34 @@ describe("searchableNeedle", () => {
 
   it("mezcla de puntuación y letras suficientes sí pasa", () => {
     expect(searchableNeedle("(ma)")).not.toBeNull();
+  });
+});
+
+/**
+ * Espejo en JS de `immutable_unaccent` en SQL. Los dos lados tienen que
+ * coincidir: la columna generada `customers.name_norm` guarda el nombre ya
+ * normalizado y esto normaliza lo que tipeó el staff. Si divergen, la búsqueda
+ * deja de encontrar y nadie se entera hasta que alguien duplica una ficha.
+ */
+describe("stripAccents", () => {
+  it.each([
+    ["Matías", "Matias"],
+    ["Pía", "Pia"],
+    ["Muñoz", "Munoz"],
+    ["Nicolás Sepúlveda", "Nicolas Sepulveda"],
+    ["Sebastián", "Sebastian"],
+    ["Renée", "Renee"],
+  ])("%s → %s", (input, expected) => {
+    expect(stripAccents(input)).toBe(expected);
+  });
+
+  it("deja intacto lo que no tiene diacríticos", () => {
+    expect(stripAccents("Camila Soto")).toBe("Camila Soto");
+    expect(stripAccents("")).toBe("");
+  });
+
+  it("la aguja de búsqueda sale en minúsculas y sin tildes", () => {
+    expect(customerSearchNeedle("Matías").text).toBe("matias");
+    expect(customerSearchNeedle("PÍA").text).toBe("pia");
   });
 });

@@ -620,6 +620,7 @@ export type Database = {
           email: string | null
           id: string
           name: string | null
+          name_norm: string | null
           phone: string | null
           phone_digits: string | null
           points_balance: number
@@ -631,6 +632,7 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+          name_norm?: string | null
           phone?: string | null
           phone_digits?: string | null
           points_balance?: number
@@ -642,6 +644,7 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+          name_norm?: string | null
           phone?: string | null
           phone_digits?: string | null
           points_balance?: number
@@ -1659,6 +1662,7 @@ export type Database = {
         Returns: number
       }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
+      immutable_unaccent: { Args: { p_text: string }; Returns: string }
       log_booking_event: {
         Args: {
           p_amount?: number
