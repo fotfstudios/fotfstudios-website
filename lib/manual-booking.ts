@@ -29,6 +29,8 @@ export interface ManualBookingFields {
    * únicamente cuando `customerId` es null; no crea ficha.
    */
   walkInName: string;
+  /** Puntos a descontar (0 = ninguno). Solo puede ser > 0 con `customerId`. */
+  pointsToRedeem: number;
   /** Descuento digitado por el staff; undefined = sin descuento. */
   discount?: ManualDiscountInput;
 }
@@ -41,6 +43,8 @@ const ADDON_KEY = /^[a-zA-Z0-9_-]{1,40}$/;
 const MAX_REASON = 60;
 /** Tope de cordura del monto; el límite real (< total) lo pone el motor con el quote del server. */
 const MAX_DISCOUNT_CLP = 10_000_000;
+/** Tope de cordura del canje; el límite real lo pone el saldo del cliente, en la DB. */
+const MAX_POINTS = 10_000_000;
 
 /**
  * Valida la INTENCIÓN del descuento (objetivo, modo, valor, motivo). Nunca pesos
@@ -93,6 +97,7 @@ export function validateManualBooking(raw: {
   notes: unknown;
   customerId?: unknown;
   walkInName?: unknown;
+  pointsToRedeem?: unknown;
   discount?: unknown;
 }): Result<ManualBookingFields, string> {
   const date = typeof raw.date === "string" ? raw.date.trim() : "";
@@ -141,6 +146,25 @@ export function validateManualBooking(raw: {
     return err("Elige un cliente o escribe un nombre.");
   }
 
+  // Canje: la ficha es obligatoria porque el saldo cuelga de ella, y el monto
+  // final lo resuelve la DB con row lock (acá solo se valida la INTENCIÓN, igual
+  // que con el descuento). El tope duro lo pone el saldo; este es de cordura.
+  const rawPoints = raw.pointsToRedeem;
+  let pointsToRedeem = 0;
+  if (rawPoints != null && rawPoints !== "") {
+    if (typeof rawPoints !== "number" || !Number.isInteger(rawPoints) || rawPoints < 0) {
+      return err("Puntos inválidos.");
+    }
+    if (rawPoints > MAX_POINTS) return err("Puntos inválidos.");
+    pointsToRedeem = rawPoints;
+  }
+  if (pointsToRedeem > 0 && customerId === null) {
+    return err("Para canjear puntos, elige un cliente con ficha.");
+  }
+  if (pointsToRedeem > 0 && method === "cortesia") {
+    return err("Una cortesía ya es sin cobro: no admite canje de puntos.");
+  }
+
   // Una cortesía no crea pedido ni líneas: no hay nada sobre lo cual descontar.
   let discount: ManualDiscountInput | undefined;
   if (raw.discount != null) {
@@ -159,6 +183,7 @@ export function validateManualBooking(raw: {
     notes,
     customerId,
     walkInName,
+    pointsToRedeem,
     discount,
   });
 }
