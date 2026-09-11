@@ -3,6 +3,8 @@ import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { adminRepository, availabilityService, pricingService } from "@/src/composition";
 import { todayInTz } from "@/src/domain/scheduling/time";
+import { hasPermission } from "@/src/domain/auth/permissions";
+import { currentClaims } from "@/src/infrastructure/auth/require-admin";
 import BookingConsole from "./_components/BookingConsole";
 import { loadDayConsole } from "./day-data";
 
@@ -19,6 +21,9 @@ export default async function NuevaReserva({
 }) {
   const { d, h } = await searchParams;
   const resource = await adminRepository().defaultResource();
+  // Solo para decidir si el resumen ofrece "Ver ficha →"; /admin/clientes exige
+  // este mismo permiso, así que sin él el enlace llevaría a un 403.
+  const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
 
   const header = (
     <PageHeader kicker="Operación" title="Reserva manual" editorial="Walk-in, teléfono o WhatsApp." />
@@ -70,7 +75,8 @@ export default async function NuevaReserva({
         initialMonthStatus={monthAvail.ok ? monthAvail.value.days : {}}
         initialDay={initialDay}
         addons={catalog?.addons ?? []}
-        volumeDiscounts={catalog?.volumeDiscounts ?? []}
+        canManageCustomers={canManageCustomers}
+      volumeDiscounts={catalog?.volumeDiscounts ?? []}
       />
     </>
   );

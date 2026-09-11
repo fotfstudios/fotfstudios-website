@@ -18,11 +18,25 @@ export interface ManualBookingFields {
   method: ManualPaymentMethod;
   addonKeys: string[];
   notes: string; // trimmed; "" = sin notas
+  /**
+   * Ficha elegida en el picker. El cliente NUNCA manda nombre/email/teléfono:
+   * el servidor los lee de `customers` con este id, así un navegador
+   * manipulado no puede inventar el snapshot de una reserva.
+   */
+  customerId: string | null;
+  /**
+   * Walk-in solo-nombre (decisión del dueño: siguen siendo legales). Se usa
+   * únicamente cuando `customerId` es null; no crea ficha.
+   */
+  walkInName: string;
   /** Descuento digitado por el staff; undefined = sin descuento. */
   discount?: ManualDiscountInput;
 }
 
 const MAX_NOTES = 500;
+const MAX_WALKIN_NAME = 80;
+/** uuid v4 tal como los genera `gen_random_uuid()`. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ADDON_KEY = /^[a-zA-Z0-9_-]{1,40}$/;
 const MAX_REASON = 60;
 /** Tope de cordura del monto; el límite real (< total) lo pone el motor con el quote del server. */
@@ -77,6 +91,8 @@ export function validateManualBooking(raw: {
   method: unknown;
   addonKeys: unknown;
   notes: unknown;
+  customerId?: unknown;
+  walkInName?: unknown;
   discount?: unknown;
 }): Result<ManualBookingFields, string> {
   const date = typeof raw.date === "string" ? raw.date.trim() : "";
@@ -107,6 +123,24 @@ export function validateManualBooking(raw: {
   const notes = typeof raw.notes === "string" ? raw.notes.trim() : "";
   if (notes.length > MAX_NOTES) return err(`Notas demasiado largas (máx. ${MAX_NOTES} caracteres).`);
 
+  // Cliente: o una ficha del directorio, o un walk-in solo-nombre. Nunca ambos
+  // y nunca los datos de contacto sueltos — esos salen de la ficha, en el server.
+  const customerId = raw.customerId == null || raw.customerId === "" ? null : raw.customerId;
+  if (customerId !== null && (typeof customerId !== "string" || !UUID.test(customerId))) {
+    return err("Cliente inválido.");
+  }
+  const walkInName = typeof raw.walkInName === "string" ? raw.walkInName.trim() : "";
+  if (walkInName.length > MAX_WALKIN_NAME) {
+    return err("El nombre no puede superar los 80 caracteres.");
+  }
+  // Sin ficha Y sin nombre queda una reserva de nadie: las cuatro columnas de
+  // contacto en NULL, sin forma de saber de quién es la sesión ni a quién
+  // avisarle. Con cobro es peor todavía (pedido pagado y anónimo). El walk-in
+  // solo-nombre sigue siendo legal — eso es tener nombre, no tener ficha.
+  if (customerId === null && !walkInName) {
+    return err("Elige un cliente o escribe un nombre.");
+  }
+
   // Una cortesía no crea pedido ni líneas: no hay nada sobre lo cual descontar.
   let discount: ManualDiscountInput | undefined;
   if (raw.discount != null) {
@@ -123,6 +157,8 @@ export function validateManualBooking(raw: {
     method: method as ManualPaymentMethod,
     addonKeys: addonKeys as string[],
     notes,
+    customerId,
+    walkInName,
     discount,
   });
 }

@@ -273,3 +273,127 @@ describe("escrituras del directorio (RPC de la migración)", () => {
     expect(String(err.cause)).toMatch(/invalid input syntax for type uuid/i);
   });
 });
+
+/**
+ * Consultas del directorio que estrena el picker. Lo que solo se puede
+ * comprobar contra la DB real: que el OR de PostgREST arme bien las tres
+ * columnas, que `phone_digits` (columna GENERADA) encuentre por dígitos sueltos
+ * un teléfono guardado con `+` y espacios, y que el índice único del email
+ * aflore como el sentinela `email_taken` y no como texto crudo de Postgres.
+ */
+describe("directorio: búsqueda y alta", () => {
+  beforeEach(async () => {
+    await customer({ name: "Matías Rojas", email: "matias.rojas@gmail.com", phone: "+56 9 9888 7766" });
+    await customer({ name: "Camila Soto", email: "camila@fotf.cl", phone: "+56911112222" });
+    await customer({ name: "Pía Contreras", email: null, phone: "+56922223333" });
+  });
+
+  it("encuentra por nombre parcial, sin importar mayúsculas", async () => {
+    expect((await repo.search({ text: "mat", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+    expect((await repo.search({ text: "MAT", digits: null }, 8)).map((c) => c.name)).toEqual(["Matías Rojas"]);
+  });
+
+  /**
+   * LIMITACIÓN CONOCIDA, fijada acá para que se vea y no sorprenda: `ilike` es
+   * sensible a los acentos. Se prueba con Pía, que NO tiene email — con Matías
+   * el caso engañaría, porque su email `matias.rojas@…` matchea la versión sin
+   * tilde y disimula el problema del nombre.
+   *
+   * Efecto real: a un cliente sin email y con tilde en el nombre no se le
+   * encuentra escribiendo la forma sin tilde; hay que tipear hasta antes de
+   * ella ("Pí") o buscar por teléfono. Arreglarlo pide `unaccent` (extensión +
+   * índice) y va en su propio cambio.
+   */
+  it("ilike es sensible a acentos: “pia” no encuentra a “Pía” (limitación conocida)", async () => {
+    expect(await repo.search({ text: "pia", digits: null }, 8)).toEqual([]);
+    // Y así es como el staff igual la encuentra hoy.
+    expect((await repo.search({ text: "Pí", digits: null }, 8)).map((c) => c.name)).toEqual(["Pía Contreras"]);
+  });
+
+  it("encuentra por email parcial", async () => {
+    const r = await repo.search({ text: "camila@", digits: null }, 8);
+    expect(r.map((c) => c.name)).toEqual(["Camila Soto"]);
+  });
+
+  it("encuentra por DÍGITOS aunque el teléfono se haya guardado con + y espacios", async () => {
+    const r = await repo.search({ text: "9988", digits: "9988" }, 8);
+    expect(r.map((c) => c.name)).toEqual(["Matías Rojas"]);
+  });
+
+  it("una ficha sin email igual aparece por nombre", async () => {
+    const r = await repo.search({ text: "Pía", digits: null }, 8);
+    expect(r.map((c) => c.name)).toEqual(["Pía Contreras"]);
+  });
+
+  it("respeta el límite", async () => {
+    expect((await repo.search({ text: "a", digits: null }, 2)).length).toBeLessThanOrEqual(2);
+  });
+
+  it("sin coincidencias devuelve [] (no lanza)", async () => {
+    expect(await repo.search({ text: "zzzzz", digits: null }, 8)).toEqual([]);
+  });
+
+  /**
+   * Una aguja vacía armaba `name.ilike.%%`, que matchea TODO: dos paréntesis
+   * tipeados en el buscador volcaban el directorio con contacto y puntos,
+   * porque `escapeIlike` los convierte en espacios. Lo encontró la revisión.
+   */
+  it("una aguja vacía NO devuelve el directorio entero", async () => {
+    expect(await repo.search({ text: "", digits: null }, 8)).toEqual([]);
+    expect(await repo.search({ text: "   ", digits: null }, 8)).toEqual([]);
+  });
+
+  it("findByEmail resuelve exacto y devuelve null cuando no está", async () => {
+    expect((await repo.findByEmail("camila@fotf.cl"))?.name).toBe("Camila Soto");
+    expect(await repo.findByEmail("nadie@fotf.cl")).toBeNull();
+  });
+
+  it("findByPhoneDigits encuentra por los dígitos normalizados", async () => {
+    expect((await repo.findByPhoneDigits("56911112222"))?.name).toBe("Camila Soto");
+    expect(await repo.findByPhoneDigits("56900000000")).toBeNull();
+  });
+
+  it("dos fichas con el mismo teléfono NO revientan: devuelve una", async () => {
+    // El teléfono no es único a propósito (una pareja reserva por el mismo número).
+    await customer({ name: "Segundo Del Mismo Fono", email: "otro@fotf.cl", phone: "+56911112222" });
+    const hit = await repo.findByPhoneDigits("56911112222");
+    expect(hit).not.toBeNull();
+  });
+
+  it("create devuelve la ficha con su id y saldo en cero", async () => {
+    const c = await repo.create({ name: "Nuevo Cliente", email: "nuevo@fotf.cl", phone: null });
+    expect(c).toMatchObject({ name: "Nuevo Cliente", email: "nuevo@fotf.cl", pointsBalance: 0, authUserId: null });
+    expect(c.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("create sin email (solo teléfono) es legal: los walk-ins con ficha existen", async () => {
+    const c = await repo.create({ name: "Solo Fono", email: null, phone: "+56933334444" });
+    expect(c.email).toBeNull();
+  });
+
+  it("create con un email ya tomado sale como el sentinela, nunca como texto de Postgres", async () => {
+    await expect(repo.create({ name: "Duplicado", email: "camila@fotf.cl", phone: null })).rejects.toThrow(
+      "email_taken",
+    );
+  });
+
+  it("create sin email ni teléfono lo rechaza la DB, y sale traducible", async () => {
+    // El dominio ya lo impide antes; esto fija que la última línea de defensa
+    // (el CHECK `customers_contact_required`) tampoco filtra texto crudo.
+    //
+    // El rechazo se afirma APARTE del contenido del mensaje. La versión anterior
+    // usaba un `.then(() => { throw … })` como centinela y comparaba solo con
+    // `not.toMatch`: si `create` llegaba a tener éxito, el texto del propio
+    // centinela también pasaba esa comparación y el caso quedaba verde con la
+    // restricción borrada. Lo encontró la revisión, probándolo.
+    // `then(éxito → null, fallo → error)`: si `create` llegara a funcionar, `err`
+    // queda null y `toBeInstanceOf` falla. Así el caso SÍ puede ponerse rojo.
+    const err = await repo
+      .create({ name: "Sin Contacto", email: null, phone: null })
+      .then(() => null, (e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err?.message).not.toMatch(/violates|constraint|null value/i);
+    // El texto crudo de Postgres sigue disponible para logs, solo que en .cause.
+    expect(String(err?.cause)).toMatch(/customers_contact_required/i);
+  });
+});

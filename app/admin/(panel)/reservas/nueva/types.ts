@@ -27,7 +27,13 @@ export interface ManualBookingInput {
   durationHours: number;
   addonKeys: string[];
   method: string;
-  customer: { name?: string; email?: string; phone?: string };
+  /**
+   * Ficha elegida en el picker, o null para un walk-in solo-nombre. El cliente
+   * NO manda nombre/email/teléfono: el servidor los lee de `customers`.
+   */
+  customerId: string | null;
+  /** Nombre del walk-in sin ficha. Se ignora si hay `customerId`. */
+  walkInName?: string;
   notes: string;
   /** Descuento del staff — intención (objetivo/modo/valor), no pesos: los calcula el servidor. */
   discount?: ManualDiscountInput;
@@ -42,4 +48,10 @@ export interface ManualBookingResult {
   orderId: string | null;
   /** Total según el servidor: cobrado (efectivo/transferencia) o a cobrar (pendiente); null = cortesía. */
   amount: number | null;
+  /**
+   * Cliente tal como quedó GUARDADO (de la ficha, no de lo que se tipeó): lo
+   * usan el panel de éxito y el link de WhatsApp. Sin ficha, el nombre del
+   * walk-in y teléfono null.
+   */
+  customer: { name: string | null; phone: string | null };
 }

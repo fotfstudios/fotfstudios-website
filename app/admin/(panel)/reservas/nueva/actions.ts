@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
-import { adminRepository, checkoutService, notificationService, pricingService } from "@/src/composition";
+import { adminRepository, checkoutService, customerDirectory, notificationService, pricingService } from "@/src/composition";
+import type { CreateCustomerOutcome } from "@/src/application/customers/customer-directory-service";
+import type { CustomerProfile } from "@/src/application/ports/customers";
 import { TERMS_VERSION } from "@/lib/site";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { rangeFor } from "@/src/domain/scheduling/time";
@@ -11,10 +13,39 @@ import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
 import type { DayConsoleData, ManualBookingInput, ManualBookingResult } from "./types";
 
-const clean = (s: string | undefined) => {
-  const t = (s ?? "").trim();
-  return t ? t.slice(0, 200) : undefined;
-};
+/**
+ * Busca fichas para el picker. Va bajo `reservations.create` y no bajo
+ * `customers.manage`: agendar exige elegir un cliente, y el dueño decidió que
+ * administrar el directorio es un permiso aparte que el staff no tiene.
+ */
+export async function searchCustomersAction(q: string): Promise<ActionDataResult<CustomerProfile[]>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    return customerDirectory().search(q);
+  });
+}
+
+/** Alta rápida desde la consola. `exists` vuelve como dato, no como error. */
+export async function createCustomerAction(raw: {
+  name?: unknown;
+  email?: unknown;
+  phone?: unknown;
+}): Promise<ActionDataResult<CreateCustomerOutcome>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    const r = await customerDirectory().create(raw);
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  });
+}
+
+/** Aviso blando al tipear un teléfono ya conocido. Nunca elige por el staff. */
+export async function lookupCustomerPhoneAction(phone: string): Promise<ActionDataResult<CustomerProfile | null>> {
+  return runData(async () => {
+    await requirePermission("reservations.create");
+    return customerDirectory().lookupPhone(phone);
+  });
+}
 
 /** Errores del checkout → mensaje para el staff (nunca el código crudo). */
 const checkoutErrorMessage = (code: string): string => {
@@ -39,17 +70,33 @@ export async function createManualBookingAction(
     await requirePermission("reservations.create");
     const v = validateManualBooking(input);
     if (!v.ok) throw new Error(v.error);
-    const { date, startMinute, durationHours, method, addonKeys, notes, discount } = v.value;
+    const { date, startMinute, durationHours, method, addonKeys, notes, customerId, walkInName, discount } = v.value;
 
     const repo = adminRepository();
     const resource = await repo.defaultResource();
     if (!resource) throw new Error("No hay sala configurada.");
 
-    const customer = {
-      name: clean(input.customer?.name),
-      email: clean(input.customer?.email),
-      phone: clean(input.customer?.phone),
-    };
+    // El snapshot sale de la FICHA, nunca de lo que viajó en el request: el
+    // cliente manda solo un id. Se re-lee acá para cerrar la carrera entre el
+    // picker y el guardado (alguien pudo borrar o editar la ficha en el medio).
+    const record = customerId ? await customerDirectory().get(customerId) : null;
+    if (customerId && !record) {
+      throw new Error(customerDbErrorMessage(null, null, "customer_not_found") ?? "El cliente ya no existe.");
+    }
+    const customer = record
+      ? {
+          name: record.name ?? undefined,
+          email: record.email ?? undefined,
+          phone: record.phone ?? undefined,
+        }
+      : { name: walkInName || undefined, email: undefined, phone: undefined };
+    /** Lo que se devuelve a la consola: el dato GUARDADO, no el tipeado. */
+    // Con ficha manda la ficha, aunque su nombre sea null: un `??` dejaba
+    // colarse el walk-in tipeado y el panel mostraba un nombre que la reserva
+    // NO guardó.
+    const savedCustomer = record
+      ? { name: record.name, phone: record.phone }
+      : { name: walkInName || null, phone: null };
 
     // Cortesía: reserva sin cobro ni boleta (no pasa por checkout/pago). Sin orden
     // no hay líneas: los add-ons elegidos quedan como dato operativo en las notas.
@@ -73,24 +120,29 @@ export async function createManualBookingAction(
           endsAt,
           customer,
           courtesyNotes || undefined,
+          record?.id,
         );
       } catch (e) {
-        throw new Error(
-          e instanceof Error && e.message === "slot_taken" ? "Ese horario ya está tomado." : "No se pudo crear la reserva.",
-        );
+        const code = e instanceof Error ? e.message : "";
+        if (code === "slot_taken") throw new Error("Ese horario ya está tomado.");
+        // La ficha puede desaparecer entre el re-read y el insert; esa carrera
+        // merece su propia frase y no el copy genérico.
+        if (code === "customer_not_found") {
+          throw new Error(customerDbErrorMessage(null, null, code) ?? "El cliente ya no existe.");
+        }
+        throw new Error("No se pudo crear la reserva.");
       }
       // Best-effort: el email nunca voltea una reserva ya creada.
-      // OJO (PR3): esto manda el email/nombre TIPEADOS, mientras el snapshot de la reserva ya
-      // salió de la ficha (`createCourtesyBooking` lee `customers` después del upsert). Pueden
-      // diferir: una ficha con cuenta conserva SU nombre, y la ficha puede traer otro email si
-      // se pasó `customerId`. Es a propósito — el aviso va a la dirección que el staff escribió—,
-      // pero cuando PR5 conecte el picker hay que decidirlo explícito: la action ya devolverá
-      // `customer: { name, phone }` del servidor y ese es el dato que debería alimentar el aviso.
+      // Decidido en PR5 (era la duda que dejó anotada PR3): el aviso va a los datos de la
+      // FICHA, los mismos que quedaron en el snapshot de la reserva. Antes se mandaba lo
+      // TIPEADO, que podía diferir — un titular de cuenta conserva SU nombre— y dejaba al
+      // cliente recibiendo un correo que no coincidía con su reserva. Sin ficha (walk-in
+      // solo-nombre) no hay email y `notifyCourtesy` no manda nada.
       await notificationService()
-        .notifyCourtesy({ email: customer.email ?? null, name: customer.name ?? null, startsAt, addonNames })
+        .notifyCourtesy({ email: record?.email ?? null, name: savedCustomer.name, startsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
-      return { reservationId, orderId: null, amount: null };
+      return { reservationId, orderId: null, amount: null, customer: savedCustomer };
     }
 
     // Pendiente de pago: crea la reserva con hold firme y orden pending_payment; se
@@ -100,6 +152,7 @@ export async function createManualBookingAction(
       const booking = await checkoutService().createBooking(
         {
           resourceId: resource.id, date, startMinute, durationHours, addonKeys, customer,
+          ...(record ? { customerId: record.id } : {}),
           ...(discount ? { manualDiscount: discount } : {}),
           ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
         },
@@ -108,7 +161,7 @@ export async function createManualBookingAction(
       if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
       const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
       revalidatePath("/admin/reservas");
-      return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount };
+      return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount, customer: savedCustomer };
     }
 
     // Pago offline (efectivo/transferencia): cobra el total y marca pagado. El admin queda
@@ -125,6 +178,7 @@ export async function createManualBookingAction(
         durationHours,
         addonKeys,
         customer,
+        ...(record ? { customerId: record.id } : {}),
         ...(discount ? { manualDiscount: discount } : {}),
         ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
       },
@@ -149,7 +203,7 @@ export async function createManualBookingAction(
       .notifyOrder(booking.value.orderId)
       .catch((e) => console.error("[manual-booking:email]", e));
     revalidatePath("/admin/reservas");
-    return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount };
+    return { reservationId, orderId: booking.value.orderId, amount: booking.value.amount, customer: savedCustomer };
   });
 }
 

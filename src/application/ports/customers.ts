@@ -50,6 +50,18 @@ export interface CustomerRepository {
   /** Login → ficha (rpc `ensure_customer_for_user`). Un email tomado NO lanza: devuelve email_conflict. */
   ensureForAuthUser(userId: string, email: string): Promise<EnsureCustomerResult>;
   /**
+   * Búsqueda del picker del admin: nombre o email por texto, teléfono por
+   * dígitos (columna generada `phone_digits`, que ignora +, espacios y guiones).
+   * Devuelve las más recientes primero, acotadas a `limit`.
+   */
+  search(needle: { text: string; digits: string | null }, limit: number): Promise<CustomerProfile[]>;
+  /** Ficha por email exacto — el email ya viene normalizado por el dominio. */
+  findByEmail(email: string): Promise<CustomerProfile | null>;
+  /** Ficha por dígitos del teléfono. NO es único: devuelve la más reciente. */
+  findByPhoneDigits(digits: string): Promise<CustomerProfile | null>;
+  /** Alta desde el admin. Lanza el sentinela `email_taken` si el email ya es de otra ficha. */
+  create(d: { name: string; email: string | null; phone: string | null }): Promise<CustomerProfile>;
+  /**
    * Edición de contacto (rpc `update_customer_contact`): escribe la ficha,
    * propaga el snapshot a sus reservas y pedidos, y otorga los retro si hay
    * email. Camino ÚNICO de edición: lo usan `/cuenta/perfil` y el editor del

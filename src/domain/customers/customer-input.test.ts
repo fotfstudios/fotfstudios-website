@@ -5,6 +5,7 @@ import {
   customerDbErrorMessage,
   customerLabel,
   customerSearchNeedle,
+  searchableNeedle,
   isEnsureEmailConflict,
   parseCustomerInput,
   SEARCH_MAX,
@@ -193,5 +194,42 @@ describe("isEnsureEmailConflict", () => {
     expect(isEnsureEmailConflict({ code: "P0001", message: "customer_email_required" })).toBe(false);
     expect(isEnsureEmailConflict({ code: "08006", message: "connection failure" })).toBe(false);
     expect(isEnsureEmailConflict({})).toBe(false);
+  });
+});
+
+/**
+ * Umbral compartido por el servicio (decide si consulta) y el picker (decide
+ * qué mensaje muestra). Estaban separados y el picker decía "Sin coincidencias"
+ * cuando no se había buscado nada — el empujón exacto para crear una ficha
+ * duplicada de alguien que sí estaba en el directorio.
+ */
+describe("searchableNeedle", () => {
+  it("dos letras alcanzan; una no", () => {
+    expect(searchableNeedle("ma")).toEqual({ text: "ma", digits: null });
+    expect(searchableNeedle("m")).toBeNull();
+  });
+
+  it("tres dígitos alcanzan aunque no haya letras; dos no", () => {
+    expect(searchableNeedle("998")?.digits).toBe("998");
+    expect(searchableNeedle("99")).toBeNull();
+  });
+
+  /**
+   * El caso que volcaba el directorio: `escapeIlike` convierte los delimitadores
+   * de PostgREST en espacios, así que estos términos tienen largo crudo >= 2
+   * pero dejan la aguja VACÍA. Medir el largo sobre el crudo los dejaba pasar y
+   * armaba `name.ilike.%%`, que matchea todo.
+   */
+  it.each(["((", "()", "**", ",,", '""', "( , )"])("no deja pasar puntuación que se escapa a nada: %s", (q) => {
+    expect(searchableNeedle(q)).toBeNull();
+  });
+
+  it("vacío y espacios tampoco pasan", () => {
+    expect(searchableNeedle("")).toBeNull();
+    expect(searchableNeedle("   ")).toBeNull();
+  });
+
+  it("mezcla de puntuación y letras suficientes sí pasa", () => {
+    expect(searchableNeedle("(ma)")).not.toBeNull();
   });
 });

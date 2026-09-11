@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Card } from "@/components/admin/ui/Card";
 import { Field, Input, Textarea } from "@/components/admin/ui/Field";
+import { CustomerPicker } from "@/components/admin/customers/CustomerPicker";
+import { CustomerSummary } from "@/components/admin/customers/CustomerSummary";
+import { NuevoClienteForm } from "@/components/admin/customers/NuevoClienteForm";
+import type { CustomerProfile } from "@/src/application/ports/customers";
 import { Skeleton } from "@/components/admin/ui/Skeleton";
 import { btn } from "@/components/admin/ui/styles";
 import { useToast } from "@/components/admin/ui/Toaster";
@@ -19,7 +23,13 @@ import {
 import { overlaps } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { nowMinuteInTz } from "@/src/domain/scheduling/time";
-import { createManualBookingAction, getDayConsoleAction } from "../actions";
+import {
+  createCustomerAction,
+  createManualBookingAction,
+  getDayConsoleAction,
+  lookupCustomerPhoneAction,
+  searchCustomersAction,
+} from "../actions";
 import type { DayConsoleData, ManualBookingResult } from "../types";
 import { AddonPicker, type CatalogAddon } from "./AddonPicker";
 import { AdminCalendar } from "./AdminCalendar";
@@ -68,6 +78,7 @@ export default function BookingConsole({
   initialDay,
   addons,
   volumeDiscounts,
+  canManageCustomers,
 }: {
   resourceId: string;
   tz: string;
@@ -81,6 +92,8 @@ export default function BookingConsole({
   initialDay: DayConsoleData;
   addons: CatalogAddon[];
   volumeDiscounts: { minHours: number; pct: number }[];
+  /** `customers.manage`: decide si se ofrece "Ver ficha →" (si no, el destino da 403). */
+  canManageCustomers: boolean;
 }) {
   const toast = useToast();
 
@@ -98,9 +111,12 @@ export default function BookingConsole({
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
   const [method, setMethod] = useState<ManualPaymentMethod>("pendiente");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  /** Ficha elegida en el picker. null = todavía sin cliente. */
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  /** Prefill del alta rápida; null = no se está creando. */
+  const [creating, setCreating] = useState<{ name?: string; email?: string; phone?: string } | null>(null);
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [walkInName, setWalkInName] = useState("");
   const [notes, setNotes] = useState("");
   const [termsAttested, setTermsAttested] = useState(false);
 
@@ -337,7 +353,10 @@ export default function BookingConsole({
       durationHours: duration,
       addonKeys,
       method,
-      customer: { name: name.trim() || undefined, email: email.trim() || undefined, phone: phone.trim() || undefined },
+      customerId: customer?.id ?? null,
+      // Con ficha el nombre suelto no se manda: el servidor lo ignoraría, pero
+      // un payload que se contradice a sí mismo es una trampa para el que lea esto.
+      walkInName: customer ? "" : walkInName.trim(),
       notes,
       ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
@@ -353,8 +372,8 @@ export default function BookingConsole({
             startMinute: selectedStart,
             durationHours: duration,
             method,
-            name: name.trim() || undefined,
-            phone: phone.trim() || undefined,
+            name: res.data.customer.name ?? undefined,
+            phone: res.data.customer.phone ?? undefined,
             addonNames: addons.filter((a) => addonKeys.includes(a.key)).map((a) => a.name),
           },
         });
@@ -371,9 +390,10 @@ export default function BookingConsole({
     setStart(null);
     setRec("none");
     setExtras([]);
-    setName("");
-    setEmail("");
-    setPhone("");
+    setCustomer(null);
+    setCreating(null);
+    setWalkInOpen(false);
+    setWalkInName("");
     setNotes("");
     setTermsAttested(false);
     setDiscountOn(false);
@@ -526,15 +546,67 @@ export default function BookingConsole({
 
         <Card title="Cliente">
           <div className="flex flex-col gap-4">
-            <Field label="Nombre">
-              <Input type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Email" hint="Opcional">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Teléfono" hint="Para WhatsApp: +56 9 …">
-              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
-            </Field>
+            {/* Tres estados excluyentes: ficha elegida, alta rápida, o buscar.
+                El contacto ya NO se tipea acá — sale de la ficha, en el servidor. */}
+            {customer ? (
+              <CustomerSummary
+                customer={customer}
+                canManageCustomers={canManageCustomers}
+                onChange={() => setCustomer(null)}
+                onClear={() => {
+                  setCustomer(null);
+                  setWalkInName("");
+                }}
+              />
+            ) : creating ? (
+              <NuevoClienteForm
+                create={createCustomerAction}
+                lookupPhone={lookupCustomerPhoneAction}
+                prefill={creating}
+                onCreated={(c) => {
+                  setCustomer(c);
+                  setCreating(null);
+                  setWalkInName("");
+                  toast({ tone: "ok", message: "Cliente creado." });
+                }}
+                onCancel={() => setCreating(null)}
+              />
+            ) : (
+              <>
+                <CustomerPicker
+                  search={searchCustomersAction}
+                  // Elegir ficha limpia el walk-in: si sobrevive, "Cambiar" vuelve
+                  // al buscador con un nombre viejo listo para bautizar la reserva.
+                  onSelect={(c) => {
+                    setCustomer(c);
+                    setWalkInName("");
+                    setWalkInOpen(false);
+                  }}
+                  onCreateNew={(prefill) => setCreating(prefill)}
+                />
+                {/* Walk-in solo-nombre: sigue siendo legal (decisión del dueño).
+                    No crea ficha, así que no acumula puntos ni historial. */}
+                {walkInOpen ? (
+                  <Field label="Solo nombre" hint="Sin ficha: no acumula puntos ni historial.">
+                    <Input
+                      type="text"
+                      value={walkInName}
+                      maxLength={80}
+                      onChange={(e) => setWalkInName(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </Field>
+                ) : (
+                  <button
+                    type="button"
+                    className="self-start label-sm text-bone-mute underline"
+                    onClick={() => setWalkInOpen(true)}
+                  >
+                    Solo nombre (sin ficha)
+                  </button>
+                )}
+              </>
+            )}
             <Field label="Notas internas" hint="Solo para el panel. No se envían al cliente.">
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
             </Field>
