@@ -128,6 +128,10 @@ export class CheckoutService {
       if (/insufficient_points/i.test(msg)) return err("insufficient_points");
       if (/points_without_customer/i.test(msg)) return err("points_session");
       if (/exclusion|23P01|overlap|conflict/i.test(msg)) return err("slot_taken");
+      // Dos deadlocks seguidos (el adaptador ya reintentó uno): la única espera cíclica
+      // posible en create_checkout es la de reservations_no_overlap contra otro checkout del
+      // mismo slot, así que para el cliente es "horario tomado", no un error crudo de Postgres.
+      if (/deadlock|40P01/i.test(msg)) return err("slot_taken");
       return err(`checkout_failed: ${msg}`);
     }
   }

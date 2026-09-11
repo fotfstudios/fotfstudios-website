@@ -547,6 +547,7 @@ export async function redeemPracticeAction(_prev: ActionResult | null, fd: FormD
 
 function practiceErrorMessage(raw: string): string {
   if (/exclusion|23P01|overlap/i.test(raw)) return "Ese horario ya está tomado.";
+  if (/deadlock|40P01/i.test(raw)) return "Ese horario ya está tomado."; // segundo 40P01 seguido
   if (/practica_sin_saldo/.test(raw)) return "No le quedan horas de práctica suficientes.";
   if (/practica_no_elegible/.test(raw)) return "Solo una inscripción pagada tiene horas de práctica.";
   if (/practica_vencida/.test(raw)) return "Ese día queda fuera del plazo de las horas de práctica.";

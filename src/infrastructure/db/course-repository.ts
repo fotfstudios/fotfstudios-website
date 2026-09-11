@@ -36,6 +36,7 @@ import {
 import { type CourseCredit, creditDiscount, creditExpiryFrom, isCreditApplicable } from "@/src/domain/course/credit";
 import type { CourseSessionPlan } from "@/src/domain/course/sessions";
 import type { Database } from "./database.types";
+import { retryOnDeadlock } from "./rpc-retry";
 
 /**
  * Único lugar donde el plan de sesiones (camelCase, dominio) se traduce al payload
@@ -537,12 +538,15 @@ export class SupabaseCourseRepository
     enrollmentId: string,
     p: { startsAt: string; endsAt: string; hours: number },
   ): Promise<string> {
-    const { data, error } = await this.db.rpc("redeem_practice_hours", {
-      p_enrollment: enrollmentId,
-      p_starts: p.startsAt,
-      p_ends: p.endsAt,
-      p_hours: p.hours,
-    });
+    // Inserta una reserva → misma carrera por el slot que create_checkout (rpc-retry.ts).
+    const { data, error } = await retryOnDeadlock(() =>
+      this.db.rpc("redeem_practice_hours", {
+        p_enrollment: enrollmentId,
+        p_starts: p.startsAt,
+        p_ends: p.endsAt,
+        p_hours: p.hours,
+      }),
+    );
     if (error) throw new Error(error.message);
     return data as unknown as string;
   }
