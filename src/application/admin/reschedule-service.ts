@@ -8,6 +8,7 @@ import { splitRefundAcrossPayments } from "@/src/domain/scheduling/refund-split"
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { reschedulePolicy } from "@/src/domain/scheduling/cancellation-policy";
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
+import { carryConcession } from "@/src/domain/pricing/manual-discount";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
 /** Inbox compartido con el webhook: dedupe por `refund:{id}` (misma clave que RefundService). */
@@ -88,9 +89,27 @@ export class RescheduleService {
     const { quote, startsAt, endsAt } = q.value;
     if (Date.parse(startsAt) <= now.getTime()) return err("target_past");
 
+    // El motor solo sabe de price book: un descuento que decidió una persona no
+    // sobrevive a la re-cotización por sí solo. Sin arrastrarlo, mover una reserva
+    // con concesión al MISMO precio le pedía al cliente justo esos pesos de vuelta.
+    const carried = carryConcession(quote, ctx.concessionClp, ctx.concessionLabel);
+    const newTotal = carried ? carried.cashTotal : quote.total;
+
     const oldLive = ctx.order.amountClp - ctx.order.refundedAmountClp;
-    const delta = classifyReschedule(oldLive, quote.total);
+    const delta = classifyReschedule(oldLive, newTotal);
     const lines = orderLinesFromQuote(quote);
+    if (carried) {
+      lines.push({
+        line_type: "discount",
+        description: carried.description,
+        quantity: 1,
+        unit_price_clp: -carried.amount,
+        subtotal_clp: -carried.amount,
+      });
+    }
+    // El snapshot que se persiste es el del MOTOR (sin la concesión), igual que en
+    // el checkout: así la concesión se vuelve a deducir de las líneas la próxima
+    // vez que esta reserva se mueva.
     // Sin nota automática: la tabla `reschedules` es el registro (la línea de
     // tiempo del admin lo muestra); las notas quedan para el operador.
     const base = { reservationId: ctx.reservation.id, startsAt, endsAt, snapshot: quote, lines, note: null };
@@ -133,7 +152,11 @@ export class RescheduleService {
     // delta + su preference; la reserva NO se mueve hasta que el cliente pague (el
     // webhook finaliza vía apply_reschedule_charge). Split del delta proporcional al
     // quote nuevo (mismo criterio que create_boleta_amount en la DB).
-    const deltaNet = Math.round((delta.amount * quote.net) / quote.total);
+    // El reparto neto/IVA va contra el total EFECTIVO (ya con la concesión), que es
+    // lo que respalda la boleta del delta; usar el del motor inflaría el neto.
+    const netBase = carried ? carried.cashNet : quote.net;
+    const totalBase = carried ? carried.cashTotal : quote.total;
+    const deltaNet = Math.round((delta.amount * netBase) / totalBase);
     const deltaTax = delta.amount - deltaNet;
     const { rescheduleId, deltaOrderId } = await this.repo.createCharge({
       ...base,

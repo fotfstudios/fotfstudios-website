@@ -8,6 +8,8 @@ import type {
   RescheduleSettleDownParams,
 } from "@/src/application/ports/reschedule";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
+import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
+import { snapshotQuote } from "./pricing-snapshot";
 import type { Database, Json } from "./database.types";
 
 /** Traduce los errores de las RPC de reagendamiento a mensajes es-CL para el admin. */
@@ -33,10 +35,11 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
 
     let order: RescheduleContext["order"] = null;
     let addonKeys: string[] = [];
+    let concession: CarriedConcession = { amount: 0, description: "" };
     if (r.order_id) {
       const { data: o } = await this.db
         .from("orders")
-        .select("id, status, amount_clp, refunded_amount_clp, points_redeemed_clp, mp_payment_id")
+        .select("id, status, amount_clp, refunded_amount_clp, points_redeemed_clp, mp_payment_id, pricing_snapshot")
         .eq("id", r.order_id)
         .single();
       if (o) {
@@ -48,12 +51,15 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
           pointsRedeemedClp: o.points_redeemed_clp ?? 0,
           mpPaymentId: o.mp_payment_id,
         };
+        // Se leen TODAS las líneas (no solo las que traen addon_key): las de
+        // descuento son las que guardan la concesión del staff, y filtrarlas en
+        // la consulta era justamente lo que la hacía desaparecer al reagendar.
         const { data: lines } = await this.db
           .from("order_lines")
-          .select("addon_key")
-          .eq("order_id", r.order_id)
-          .not("addon_key", "is", null);
+          .select("line_type, addon_key, description, subtotal_clp")
+          .eq("order_id", r.order_id);
         addonKeys = (lines ?? []).map((l) => l.addon_key).filter((k): k is string => !!k);
+        concession = concessionFromLines(lines ?? [], snapshotQuote(o.pricing_snapshot));
       }
     }
 
@@ -61,6 +67,8 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       reservation: { id: r.id, resourceId: r.resource_id, startsAt: r.starts_at, status: r.status, kind: r.kind },
       order,
       addonKeys,
+      concessionClp: concession.amount,
+      concessionLabel: concession.description,
       timezone,
     };
   }

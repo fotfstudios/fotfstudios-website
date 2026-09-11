@@ -16,7 +16,9 @@ import {
   type ExceptionRow,
   type OpeningHourRow,
 } from "@/src/domain/analytics/metrics";
-import type { Database } from "./database.types";
+import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
+import { snapshotQuote } from "./pricing-snapshot";
+import type { Database, Json } from "./database.types";
 
 const TZ = "America/Santiago";
 
@@ -60,6 +62,13 @@ export interface AdminBookingDetail extends AdminBooking {
   lines: { description: string; subtotal: number }[];
   /** addon_keys del pedido — para re-cotizar el mismo servicio al reagendar. */
   addonKeys: string[];
+  /**
+   * Descuento manual vigente (pesos positivos, 0 = ninguno) y su glosa. El motor
+   * no lo conoce, así que el diálogo de reagendamiento tiene que restarlo para
+   * proyectar el mismo delta que después calcula el servidor.
+   */
+  concessionClp: number;
+  concessionLabel: string;
   /** Puntos canjeados (CLP). >0 bloquea el reagendamiento en v1. */
   pointsRedeemedClp: number;
   taxDocs: {
@@ -539,7 +548,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
@@ -550,6 +559,7 @@ export class SupabaseAdminRepository {
             mp_preference_id: string | null;
             mp_refund_id: string | null;
             payment_snapshot: PaymentSnapshot | null;
+            pricing_snapshot: Json | null;
           })
         | null;
     };
@@ -557,14 +567,18 @@ export class SupabaseAdminRepository {
 
     let lines: { description: string; subtotal: number }[] = [];
     let addonKeys: string[] = [];
+    let concession: CarriedConcession = { amount: 0, description: "" };
     let taxDocs: AdminBookingDetail["taxDocs"] = [];
     if (base.orderId) {
       const { data: l } = await this.db
         .from("order_lines")
-        .select("description, subtotal_clp, addon_key")
+        .select("line_type, description, subtotal_clp, addon_key")
         .eq("order_id", base.orderId);
       lines = (l ?? []).map((x) => ({ description: x.description, subtotal: x.subtotal_clp }));
       addonKeys = (l ?? []).map((x) => x.addon_key).filter((k): k is string => !!k);
+      // El descuento que decidió el staff, para que el diálogo de reagendamiento
+      // proyecte el MISMO delta que después calcula el servidor.
+      concession = concessionFromLines(l ?? [], snapshotQuote(row.orders?.pricing_snapshot ?? null));
       // Todos los documentos tributarios (boletas + NC): un pedido reembolsado
       // parcialmente puede tener boleta original + NC + boleta del saldo.
       const { data: docs } = await this.db
@@ -602,6 +616,8 @@ export class SupabaseAdminRepository {
       ...base,
       lines,
       addonKeys,
+      concessionClp: concession.amount,
+      concessionLabel: concession.description,
       pointsRedeemedClp: row.orders?.points_redeemed_clp ?? 0,
       taxDocs,
       reschedules,

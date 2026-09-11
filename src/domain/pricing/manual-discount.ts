@@ -66,6 +66,42 @@ function targetLabel(quote: DiscountableQuote, target: DiscountTarget): string {
   return quote.addonLines.find((a) => a.key === target.key)?.name ?? "";
 }
 
+/**
+ * Arrastra a una RE-cotización una concesión ya otorgada, en pesos.
+ *
+ * El reagendamiento vuelve a cotizar el horario nuevo con el motor, que solo
+ * conoce el price book: cualquier descuento que decidió una persona no tiene
+ * parámetro donde viajar y se evapora, así que un movimiento al mismo precio le
+ * cobraba al cliente exactamente el descuento que se le había regalado. Acá la
+ * concesión se re-aplica como el monto que fue, no como el porcentaje que la
+ * originó: el pedido guarda sus pesos, no la intención (objetivo/modo/valor).
+ *
+ * Consecuencia buscada: un "20% de la sala" NO crece si el horario nuevo es más
+ * caro. La concesión se pactó en pesos y en pesos se mantiene.
+ *
+ * Se capa contra el total nuevo para no producir un cobro negativo cuando el
+ * horario destino es más barato que la concesión misma; el sobrante vuelve al
+ * cliente por la vía de reembolso que ya tiene el reagendamiento hacia abajo.
+ */
+export function carryConcession(
+  quote: DiscountableQuote,
+  amount: number,
+  description: string,
+): ManualDiscount | null {
+  const capped = Math.min(Math.max(0, Math.round(amount)), quote.total);
+  if (capped <= 0) return null;
+
+  const cashTotal = quote.total - capped;
+  const cashNet = cashTotal === 0 ? 0 : Math.round((cashTotal * quote.net) / quote.total);
+  return {
+    amount: capped,
+    description: description.trim() || "Descuento mantenido",
+    cashTotal,
+    cashNet,
+    cashTax: cashTotal - cashNet,
+  };
+}
+
 export function applyManualDiscount(
   quote: DiscountableQuote,
   input: ManualDiscountInput,
