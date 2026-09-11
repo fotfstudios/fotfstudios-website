@@ -211,16 +211,14 @@ describe("escrituras del directorio (RPC de la migración)", () => {
     );
   });
 
-  // Fix round 2, hallazgo CRÍTICO: `update_customer_contact` llama a
-  // `customer_sync_snapshots`, que copia los campos de la ficha —NULLs
-  // incluidos— sobre cada pedido y reserva del cliente. `validateProfile` manda
-  // null por cada campo vacío del formulario y en prod las tres fichas tienen
-  // `name`/`phone` en NULL, así que el camino destructivo era el DEFAULT:
-  // guardar el perfil con un campo en blanco habría borrado el otro dato en
-  // todo el historial (pagado incluido) — justo el dato que el backfill de PR3
-  // lee. Este caso FALLA si alguien vuelve a apuntar el guardado de perfil a
-  // `updateContact`: la reserva y el pedido perderían el nombre.
-  it("el guardado de perfil con un campo en blanco NO borra el otro dato en las reservas del cliente", async () => {
+  // Las DOS mitades del sync no destructivo, en un solo caso: un campo en blanco
+  // NO borra el dato del historial (el defecto crítico que encontró la revisión
+  // de PR2, cuando `customer_sync_snapshots` copiaba los NULLs de la ficha sobre
+  // reservas pagadas), y un campo con valor SÍ se propaga (que es la razón de
+  // existir de este camino y lo que `updateNamePhone` no podía hacer).
+  // Falla si alguien revierte el `coalesce` de la migración de PR3, o si vuelve
+  // a apuntar el guardado de perfil a una escritura que no propaga.
+  it("guardar el perfil conserva lo que quedó en blanco y propaga lo que sí tiene valor", async () => {
     const id = await customer({
       email: "perfil@repo.cl",
       name: "Nombre Del Historial",
@@ -242,8 +240,8 @@ describe("escrituras del directorio (RPC de la migración)", () => {
     // La ficha sí se actualiza…
     expect(await repo.getProfile(id)).toMatchObject({ name: null, phone: "+56922222222" });
 
-    // …y el historial NO se toca: ni el nombre (que se habría perdido) ni el
-    // teléfono (que se habría propagado). La propagación llega en PR3.
+    // …y en el historial: el nombre SOBREVIVE (la ficha lo tiene en null y el
+    // coalesce se queda con el del pedido) mientras el teléfono nuevo SÍ baja.
     const snap = await pg.query<{ customer_name: string | null; customer_phone: string | null }>(
       `select customer_name, customer_phone from reservations where id = $1
        union all
@@ -253,7 +251,7 @@ describe("escrituras del directorio (RPC de la migración)", () => {
     expect(snap.rows).toHaveLength(2);
     for (const row of snap.rows) {
       expect(row.customer_name).toBe("Nombre Del Historial");
-      expect(row.customer_phone).toBe("+56911111111");
+      expect(row.customer_phone).toBe("+56922222222");
     }
   });
 

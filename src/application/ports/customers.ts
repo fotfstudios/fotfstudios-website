@@ -50,25 +50,16 @@ export interface CustomerRepository {
   /** Login → ficha (rpc `ensure_customer_for_user`). Un email tomado NO lanza: devuelve email_conflict. */
   ensureForAuthUser(userId: string, email: string): Promise<EnsureCustomerResult>;
   /**
-   * Escritura ACOTADA para `/cuenta/perfil`: solo `name` y `phone` en la fila
-   * de `customers`, por el id de la FICHA (nunca el de `auth.users`). No toca
-   * el email ni propaga nada a `orders`/`reservations`.
+   * Edición de contacto (rpc `update_customer_contact`): escribe la ficha,
+   * propaga el snapshot a sus reservas y pedidos, y otorga los retro si hay
+   * email. Camino ÚNICO de edición: lo usan `/cuenta/perfil` y el editor del
+   * admin, así que los dos escritores no pueden divergir.
    *
-   * Existe porque `update_customer_contact` (abajo) es hoy DESTRUCTIVO para
-   * este caso: escribe la ficha y después `customer_sync_snapshots` copia sus
-   * campos —NULLs incluidos— sobre cada pedido y reserva del cliente. Como
-   * `validateProfile` manda null por cada campo vacío del formulario, el
-   * primero que guarde su perfil con un campo en blanco borraría el otro dato
-   * en todo su historial, incluidas reservas pagadas y confirmadas — y
-   * justamente los datos que el backfill de PR3 lee para poblar el directorio.
-   */
-  updateNamePhone(customerId: string, d: { name: string | null; phone: string | null }): Promise<void>;
-  /**
-   * Edición de contacto (rpc `update_customer_contact`): propaga el snapshot y
-   * da retro. **Todavía sin consumidor**: es el camino correcto para el editor
-   * del admin en PR5, cuando PR3 haya hecho `customer_sync_snapshots` no
-   * destructivo (`coalesce` de nombre y teléfono, email autoritativo). Hasta
-   * entonces `/cuenta/perfil` usa `updateNamePhone`; ver el comentario de ahí.
+   * Fue destructivo hasta la migración de PR3: `customer_sync_snapshots` copiaba
+   * los campos de la ficha —NULLs incluidos— sobre todo el historial. Ahora
+   * nombre y teléfono se coalescean contra lo que ya tenía el pedido y solo el
+   * email sigue siendo autoritativo, que es lo que mantiene resolviendo el join
+   * `lower(orders.customer_email) = customers.email` de las funciones de puntos.
    */
   updateContact(
     customerId: string,

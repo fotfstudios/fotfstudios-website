@@ -20,8 +20,8 @@ describe("permissions", () => {
     expect(hasPermission({ app_role: "staff" }, "reservations.view")).toBe(false);
   });
 
-  it("el catálogo tiene 13 permisos por acción", () => {
-    expect(PERMISSION_KEYS).toHaveLength(13);
+  it("el catálogo tiene 14 permisos por acción", () => {
+    expect(PERMISSION_KEYS).toHaveLength(14);
     expect(PERMISSION_KEYS).toContain("reservations.reschedule");
     expect(PERMISSION_KEYS).toContain("applications.manage");
   });
@@ -32,6 +32,7 @@ describe("permissions", () => {
   it("el curso aporta dos permisos y son independientes entre sí", () => {
     expect(PERMISSION_KEYS).toContain("course.manage");
     expect(PERMISSION_KEYS).toContain("course.billing");
+    expect(PERMISSION_KEYS).toContain("customers.manage");
 
     const soloGestion = { app_role: "staff", app_permissions: ["course.manage"] };
     expect(hasPermission(soloGestion, "course.manage")).toBe(true);
