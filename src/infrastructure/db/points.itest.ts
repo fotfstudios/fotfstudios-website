@@ -537,3 +537,53 @@ describe("paridad SQL ↔ dominio y ownership", () => {
     expect(other?.name).toBeNull(); // el update de A no tocó a B
   });
 });
+
+/**
+ * La fórmula de brecha del retro, sobre un estado construido a mano.
+ *
+ * Defensa en profundidad, no un camino alcanzable con los flujos de hoy: desde
+ * PR3 todo pedido con email válido gana al pagar con ref ''. Pero el ledger
+ * permite un pedido con earn bajo OTRA ref y ninguna con '', y ahí el chequeo de
+ * existencia que usaba la versión vieja no veía nada y otorgaba el 5% completo
+ * encima. Medido antes del arreglo: 1.000 extra sobre un earn de 1.000.
+ */
+describe("retro — brecha contra lo ya asentado", () => {
+  const CUST = "e0000000-0000-4000-a000-0000000003f1";
+  const EMAIL = "brecha@e.cl";
+
+  it("no vuelve a otorgar si el pedido ya ganó bajo otra ref", async () => {
+    await pg.query("insert into customers (id, email, name) values ($1,$2,'Brecha')", [CUST, EMAIL]);
+    const o = await pg.query<{ id: string }>(
+      `insert into orders (status, currency, amount_clp, net_clp, tax_clp, customer_email)
+         values ('paid','CLP',20000,16807,3193,$1) returning id`,
+      [EMAIL],
+    );
+    // Como lo asienta apply_reschedule_charge: ref 'reschedule:{id}', nunca ''.
+    await pg.query("select apply_points($1,$2,'earn',1000,'reschedule:x')", [CUST, o.rows[0].id]);
+
+    expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [CUST])).rows[0].n).toBe(0);
+    const total = await pg.query<{ s: string }>(
+      "select coalesce(sum(amount),0)::text s from points_ledger where order_id=$1",
+      [o.rows[0].id],
+    );
+    expect(Number(total.rows[0].s)).toBe(1000); // el earn previo, sin duplicar
+  });
+
+  it("otorga solo la BRECHA cuando lo asentado es menor que el 5%", async () => {
+    await pg.query("insert into customers (id, email, name) values ($1,$2,'Brecha')", [CUST, EMAIL]);
+    const o = await pg.query<{ id: string }>(
+      `insert into orders (status, currency, amount_clp, net_clp, tax_clp, customer_email)
+         values ('paid','CLP',20000,16807,3193,$1) returning id`,
+      [EMAIL],
+    );
+    await pg.query("select apply_points($1,$2,'earn',400,'reschedule:x')", [CUST, o.rows[0].id]);
+
+    // 5% de 20.000 = 1.000; ya hay 400 → faltan 600.
+    expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [CUST])).rows[0].n).toBe(600);
+    const total = await pg.query<{ s: string }>(
+      "select coalesce(sum(amount),0)::text s from points_ledger where order_id=$1",
+      [o.rows[0].id],
+    );
+    expect(Number(total.rows[0].s)).toBe(1000);
+  });
+});

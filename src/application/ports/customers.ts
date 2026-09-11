@@ -1,3 +1,4 @@
+import type { ClientesListQuery } from "@/src/domain/admin/clientes-list";
 export type PointsEntryKind = "earn" | "earn_revoke" | "redeem" | "redeem_release" | "redeem_restore" | "adjust";
 
 export interface CustomerProfile {
@@ -61,6 +62,13 @@ export interface CustomerRepository {
   findByPhoneDigits(digits: string): Promise<CustomerProfile | null>;
   /** Alta desde el admin. Lanza el sentinela `email_taken` si el email ya es de otra ficha. */
   create(d: { name: string; email: string | null; phone: string | null }): Promise<CustomerProfile>;
+  /**
+   * Lista paginada de /admin/clientes. `search()` no sirve: es de límite 8, sin
+   * count ni offset, y devuelve [] para términos cortos a propósito. Esta sí
+   * acepta `q` vacío (= todo el directorio, paginado) porque la lista es la
+   * pantalla para eso. Devuelve el mismo shape que `listBookings`.
+   */
+  list(query: ClientesListQuery): Promise<{ rows: CustomerProfile[]; total: number; grandTotal: number }>;
   /**
    * Edición de contacto (rpc `update_customer_contact`): escribe la ficha,
    * propaga el snapshot a sus reservas y pedidos, y otorga los retro si hay

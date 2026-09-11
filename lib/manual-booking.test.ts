@@ -219,7 +219,8 @@ describe("validateManualBooking — canje de puntos", () => {
   const conFicha = { ...base, customerId: UUID, walkInName: "" };
 
   it("sin pointsToRedeem el canje queda en 0", () => {
-    expect(validateManualBooking(conFicha).ok && validateManualBooking(conFicha).value?.pointsToRedeem).toBe(0);
+    const r = validateManualBooking(conFicha);
+    expect(r.ok && r.value.pointsToRedeem).toBe(0);
   });
 
   it("acepta un entero positivo con ficha", () => {

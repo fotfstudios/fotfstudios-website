@@ -1,4 +1,5 @@
-import type { CustomerProfile, CustomerRepository } from "@/src/application/ports/customers";
+import type { CustomerBooking, CustomerProfile, CustomerRepository, PointsMovement } from "@/src/application/ports/customers";
+import type { ClientesListQuery } from "@/src/domain/admin/clientes-list";
 import { normalizePhone, phoneDigits } from "@/src/domain/contact/contact";
 import {
   CUSTOMER_GENERIC_DB_ERROR,
@@ -50,6 +51,48 @@ export class CustomerDirectoryService {
   /** La ficha elegida, para re-leerla en el servidor antes de escribir nada. */
   get(id: string): Promise<CustomerProfile | null> {
     return this.repo.getProfile(id);
+  }
+
+  /**
+   * Reservas de una ficha: las vinculadas por id MÁS las huérfanas que llevan su
+   * email (historial anterior al directorio que el backfill no alcanzó a unir).
+   */
+  bookings(c: Pick<CustomerProfile, "id" | "email">): Promise<CustomerBooking[]> {
+    return this.repo.bookingsForCustomer(c.id, c.email);
+  }
+
+  /** Lista paginada de /admin/clientes. */
+  list(query: ClientesListQuery): Promise<{ rows: CustomerProfile[]; total: number; grandTotal: number }> {
+    return this.repo.list(query);
+  }
+
+  /**
+   * Movimientos de puntos de una ficha, por id. `CustomerService.movementsByUser`
+   * resuelve SOLO por la sesión del titular, a propósito; el admin llega por id.
+   */
+  movements(id: string, limit = 10): Promise<PointsMovement[]> {
+    return this.repo.movements(id, limit);
+  }
+
+  /**
+   * Edición desde /admin/clientes. Un solo camino de escritura, el mismo que
+   * usa /cuenta/perfil: `update_customer_contact` propaga el snapshot a las
+   * reservas y pedidos del cliente y otorga los retro si hay email.
+   *
+   * NO duplica reglas: la RPC ya rechaza cambiarle el email a un titular de
+   * cuenta (`customer_has_account`), dejar sin email a quien tiene puntos o
+   * historial con él (`customer_email_in_use`) y un email sin forma
+   * (`customer_email_invalid`). Acá solo se parsea la entrada y se traduce.
+   */
+  async update(id: string, raw: unknown): Promise<Result<void, string>> {
+    const parsed = parseCustomerInput(raw);
+    if (!parsed.ok) return err(parsed.error);
+    try {
+      await this.repo.updateContact(id, parsed.value);
+      return ok(undefined);
+    } catch (e) {
+      return err(legible(e));
+    }
   }
 
   /**

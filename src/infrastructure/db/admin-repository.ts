@@ -97,6 +97,10 @@ export interface AdminBookingDetail extends AdminBooking {
   mpPreferenceId: string | null;
   mpRefundId: string | null;
   paymentSnapshot: PaymentSnapshot | null;
+  /** El dueño confirmó que el PIN está en la cerradura. Condición para enviarlo. */
+  accessLoadedAt: string | null;
+  /** El dueño confirmó que lo borró de la cerradura. */
+  accessRemovedAt: string | null;
 }
 
 /** Categorías del timeline (leyenda de colores) — espejo de booking_events.category. */
@@ -147,7 +151,10 @@ export interface DashboardData {
   weekOccupancyPct: number;
   pendingBoletas: number;
   pendingPayments: number;
-  accessToSend: number;
+  /** PIN generado que el dueño aún no cargó en la cerradura (sesión futura). */
+  accessToLoad: number;
+  /** PIN que sigue en la cerradura después de la sesión. */
+  accessToRemove: number;
   today: AdminBooking[];
   upcoming: AdminBooking[];
   boletas: PendingBoleta[];
@@ -513,7 +520,8 @@ export class SupabaseAdminRepository {
       weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
       pendingBoletas: boletas.length,
       pendingPayments: pendingPay.count ?? 0,
-      accessToSend: vendidas.filter((b) => b.status === "confirmed" && !b.accessCode).length,
+      accessToLoad: await this.accessToLoadCount(),
+      accessToRemove: await this.accessToRemoveCount(),
       today,
       upcoming: vendidas.filter((b) => !isToday(b)).slice(0, 12),
       boletas,
@@ -529,15 +537,18 @@ export class SupabaseAdminRepository {
    * propio contador en su sección.
    */
   async porHacerCount(): Promise<number> {
-    const [b, p] = await Promise.all([
+    const [b, p, load, remove] = await Promise.all([
       this.db.from("tax_documents").select("id", { count: "exact", head: true }).eq("status", "pendiente"),
       this.db
         .from("orders")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending_payment")
         .eq("kind", "booking"),
+      // Los dos pasos manuales del PIN: cargarlo en la Yale y sacarlo después.
+      this.accessToLoadCount(),
+      this.accessToRemoveCount(),
     ]);
-    return (b.count ?? 0) + (p.count ?? 0);
+    return (b.count ?? 0) + (p.count ?? 0) + load + remove;
   }
 
   /** Ocupación de la semana: horas reservadas ÷ horas de apertura (0–100). */
@@ -565,10 +576,12 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
+      access_loaded_at: string | null;
+      access_removed_at: string | null;
       orders:
         | (NonNullable<ResRow["orders"]> & {
             points_redeemed_clp: number | null;
@@ -642,6 +655,8 @@ export class SupabaseAdminRepository {
       mpPreferenceId: row.orders?.mp_preference_id ?? null,
       mpRefundId: row.orders?.mp_refund_id ?? null,
       paymentSnapshot: row.orders?.payment_snapshot ?? null,
+      accessLoadedAt: row.access_loaded_at ?? null,
+      accessRemovedAt: row.access_removed_at ?? null,
     };
   }
 
@@ -882,12 +897,146 @@ export class SupabaseAdminRepository {
     }
   }
 
+  /**
+   * Código tipeado a mano (override). Deja el ciclo en "generado, sin cargar":
+   * un código nuevo tiene que volver a cargarse en la cerradura antes de mandarse.
+   */
   async markAccess(reservationId: string, code: string): Promise<void> {
     const { error } = await this.db
       .from("reservations")
-      .update({ access_code: code, access_sent_at: new Date().toISOString() })
+      .update({ access_code: code, access_loaded_at: null, access_sent_at: null, access_removed_at: null })
       .eq("id", reservationId);
     if (error) throw new Error(error.message);
+  }
+
+  /** Genera un PIN nuevo (RPC `generate_access_code`) y reinicia el ciclo. */
+  async regenerateAccessCode(reservationId: string): Promise<string> {
+    const { data: code, error: genError } = await this.db.rpc("generate_access_code");
+    if (genError || !code) throw new Error(genError?.message ?? "No se pudo generar el código.");
+    await this.markAccess(reservationId, code);
+    return code;
+  }
+
+  /** El dueño confirmó que el PIN está en la Yale. Desde acá el cron puede mandarlo. */
+  async markAccessLoaded(reservationId: string): Promise<void> {
+    const { error } = await this.db
+      .from("reservations")
+      .update({ access_loaded_at: new Date().toISOString() })
+      .eq("id", reservationId)
+      .not("access_code", "is", null);
+    if (error) throw new Error(error.message);
+  }
+
+  /** El dueño confirmó que lo borró de la cerradura: cierra el ciclo. */
+  async markAccessRemoved(reservationId: string): Promise<void> {
+    const { error } = await this.db
+      .from("reservations")
+      .update({ access_removed_at: new Date().toISOString() })
+      .eq("id", reservationId)
+      .not("access_code", "is", null);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Barrido del cron, primera mitad: toda reserva de sala confirmada sin código
+   * recibe uno. Devuelve cuántas. Se genera acá y no en confirm_payment para no
+   * tocar el camino de plata.
+   */
+  async assignMissingAccessCodes(): Promise<number> {
+    const { data, error } = await this.db
+      .from("reservations")
+      .select("id")
+      .eq("kind", "booking")
+      .eq("status", "confirmed")
+      .is("access_code", null)
+      .gte("ends_at", new Date().toISOString());
+    if (error) throw new Error(error.message);
+    let n = 0;
+    for (const r of data ?? []) {
+      const { data: code, error: genError } = await this.db.rpc("generate_access_code");
+      if (genError || !code) continue;
+      const { error: upError } = await this.db
+        .from("reservations")
+        .update({ access_code: code })
+        .eq("id", r.id)
+        .is("access_code", null); // carrera con otra corrida del cron: el primero gana
+      if (!upError) n++;
+    }
+    return n;
+  }
+
+  /**
+   * Barrido del cron, segunda mitad: reservas cuyo PIN hay que mandar YA. Las
+   * cuatro condiciones, todas: confirmada, con código, CARGADO en la cerradura,
+   * y empieza dentro de la ventana. Sin `access_loaded_at` no se manda nunca,
+   * porque el cliente recibiría un código que no abre.
+   */
+  async accessCodesDue(windowMinutes: number): Promise<
+    { id: string; code: string; startsAt: string; customerName: string | null; customerEmail: string | null }[]
+  > {
+    const now = new Date();
+    const until = new Date(now.getTime() + windowMinutes * 60_000);
+    const { data, error } = await this.db
+      .from("reservations")
+      .select("id, access_code, starts_at, customer_name, customer_email")
+      .eq("kind", "booking")
+      .eq("status", "confirmed")
+      .not("access_code", "is", null)
+      .not("access_loaded_at", "is", null)
+      .is("access_sent_at", null)
+      .gte("starts_at", now.toISOString())
+      .lte("starts_at", until.toISOString());
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      code: r.access_code as string,
+      startsAt: r.starts_at,
+      customerName: r.customer_name,
+      customerEmail: r.customer_email,
+    }));
+  }
+
+  /** Marca el envío. Solo si aún no estaba marcado: dos corridas del cron no mandan dos veces. */
+  async markAccessSent(reservationId: string): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("reservations")
+      .update({ access_sent_at: new Date().toISOString() })
+      .eq("id", reservationId)
+      .is("access_sent_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  /** Suelta el reclamo de envío cuando el correo falló, para que la próxima corrida reintente. */
+  async releaseAccessSent(reservationId: string): Promise<void> {
+    const { error } = await this.db.from("reservations").update({ access_sent_at: null }).eq("id", reservationId);
+    if (error) throw new Error(error.message);
+  }
+
+  /** PIN generado y sin cargar, para una sesión que todavía no terminó. */
+  async accessToLoadCount(): Promise<number> {
+    const { count } = await this.db
+      .from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "booking")
+      .eq("status", "confirmed")
+      .not("access_code", "is", null)
+      .is("access_loaded_at", null)
+      .gte("ends_at", new Date().toISOString());
+    return count ?? 0;
+  }
+
+  /** Códigos que siguen en la cerradura después de la sesión: la mitad del ciclo que nadie ve. */
+  async accessToRemoveCount(): Promise<number> {
+    const { count } = await this.db
+      .from("reservations")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "booking")
+      .not("access_code", "is", null)
+      .is("access_removed_at", null)
+      .lt("ends_at", new Date().toISOString());
+    return count ?? 0;
   }
 
   async createBlock(resourceId: string, startsAt: string, endsAt: string): Promise<void> {

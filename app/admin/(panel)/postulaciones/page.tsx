@@ -2,10 +2,10 @@ import { Button } from "@/components/admin/ui/Button";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { applicationRepository } from "@/src/composition";
-import { parsePostulacionesSearchParams } from "@/src/domain/admin/postulaciones-list";
+import { parsePostulacionesSearchParams, postulacionesHref } from "@/src/domain/admin/postulaciones-list";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { ApplicationsTable } from "./_components/ApplicationsTable";
-import { Pagination } from "./_components/Pagination";
+import { Pagination } from "@/components/admin/ui/Pagination";
 import { Tabs } from "./_components/Tabs";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +56,7 @@ export default async function PostulacionesPage({
             ) : (
               <>
                 <ApplicationsTable rows={list.rows} />
-                <Pagination query={query} total={list.total} />
+                <Pagination query={query} total={list.total} href={(p) => postulacionesHref(query, { page: p })} />
               </>
             )}
           </div>

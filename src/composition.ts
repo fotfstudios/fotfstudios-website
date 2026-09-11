@@ -24,6 +24,7 @@ import { RescheduleService } from "@/src/application/admin/reschedule-service";
 import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { CustomerService } from "@/src/application/customers/customer-service";
 import { CustomerDirectoryService } from "@/src/application/customers/customer-directory-service";
+import { AccessCodeService } from "@/src/application/access/access-code-service";
 import { SupabaseCustomerRepository } from "@/src/infrastructure/db/customer-repository";
 import { SupabaseMemberRepository } from "@/src/infrastructure/db/member-repository";
 import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
@@ -260,6 +261,14 @@ export function customerService(client: SupabaseClient<Database> = db()): Custom
  */
 export function customerDirectory(client: SupabaseClient<Database> = db()): CustomerDirectoryService {
   return new CustomerDirectoryService(new SupabaseCustomerRepository(client));
+}
+
+/**
+ * PIN de la cerradura: genera los que faltan y manda los que están por empezar
+ * (y ya cargados en la Yale). Lo dispara pg_cron cada 5 min vía /api/cron/access-codes.
+ */
+export function accessCodeService(client: SupabaseClient<Database> = db()): AccessCodeService {
+  return new AccessCodeService(new SupabaseAdminRepository(client), notificationService(client));
 }
 
 /**

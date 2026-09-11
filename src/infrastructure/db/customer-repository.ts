@@ -8,6 +8,8 @@ import type {
   PointsMovement,
 } from "@/src/application/ports/customers";
 import { escapeIlike } from "@/src/domain/admin/reservas-list";
+import { clientesOrdenSpec, type ClientesListQuery } from "@/src/domain/admin/clientes-list";
+import { customerSearchNeedle } from "@/src/domain/customers/customer-input";
 import { CUSTOMER_GENERIC_DB_ERROR, customerDbErrorCode, isEnsureEmailConflict } from "@/src/domain/customers/customer-input";
 import type { Database } from "./database.types";
 
@@ -192,6 +194,45 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       .limit(limit);
     if (error) throwDbError(error);
     return (data ?? []).map(toProfile);
+  }
+
+  /**
+   * Lista paginada: datos y conteos en una sola pasada, como `listBookings`.
+   * `total` respeta la búsqueda; `grandTotal` no (distingue "sin clientes" de
+   * "sin resultados"). Orden estable con desempate por `id`. Con `q` vacío
+   * lista todo: acá el "vuelco del directorio" es la función, no un accidente.
+   */
+  async list(query: ClientesListQuery): Promise<{ rows: CustomerProfile[]; total: number; grandTotal: number }> {
+    const from = (query.page - 1) * query.perPage;
+    const orden = clientesOrdenSpec(query.orden);
+    const needle = query.q ? customerSearchNeedle(query.q) : null;
+
+    const orFilter =
+      needle && (needle.text.trim() || needle.digits)
+        ? [
+            ...(needle.text.trim() ? [`name_norm.ilike.%${needle.text}%`, `email.ilike.%${needle.text}%`] : []),
+            ...(needle.digits ? [`phone_digits.ilike.%${needle.digits}%`] : []),
+          ].join(",")
+        : null;
+    const filtered = <T>(b: T & { or(f: string): T }): T => (orFilter ? b.or(orFilter) : b);
+
+    // La página de datos NO pide count: con count, un offset fuera de rango
+    // devuelve 416 en vez de []. Los conteos van aparte, como en listBookings.
+    const [page, matching, all] = await Promise.all([
+      filtered(this.db.from("customers").select(PROFILE_COLS))
+        .order(orden.column, { ascending: orden.ascending, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + query.perPage - 1),
+      filtered(this.db.from("customers").select("id", { count: "exact", head: true })),
+      this.db.from("customers").select("id", { count: "exact", head: true }),
+    ]);
+    if (page.error) throwDbError(page.error);
+    if (matching.error) throwDbError(matching.error);
+    return {
+      rows: (page.data ?? []).map(toProfile),
+      total: matching.count ?? 0,
+      grandTotal: all.count ?? 0,
+    };
   }
 
   async findByEmail(email: string): Promise<CustomerProfile | null> {

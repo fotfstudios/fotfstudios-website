@@ -11,7 +11,7 @@ type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
 function groups(
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean },
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean },
   porHacer: number,
   solicitudes: number,
 ): Group[] {
@@ -28,6 +28,9 @@ function groups(
     { href: "/admin/reservas/nueva", label: "Nueva reserva", icon: "add" },
     { href: "/admin/bloqueos", label: "Bloqueos", icon: "block" },
   ];
+  // Clientes va junto a Reservas (es su directorio), pero solo con el permiso:
+  // sin él la sección da 403 y un enlace muerto en el menú es peor que ninguno.
+  if (show.customers) operacion.splice(3, 0, { href: "/admin/clientes", label: "Clientes", icon: "members" });
   // Curso antes que Postulaciones: el curso es dinero de clientes, postulaciones
   // es contratación. Operación está ordenada por cercanía al ingreso.
   if (show.course) operacion.push({ href: "/admin/curso", label: "Curso", icon: "curso", badge: solicitudes });
@@ -101,7 +104,7 @@ export function Sidebar({
   porHacer = 0,
   solicitudes = 0,
 }: {
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean };
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean };
   porHacer?: number;
   solicitudes?: number;
 }) {
