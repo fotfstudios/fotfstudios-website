@@ -17,6 +17,7 @@ import {
   type OpeningHourRow,
 } from "@/src/domain/analytics/metrics";
 import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
+import { CUSTOMER_GENERIC_DB_ERROR, customerDbErrorCode } from "@/src/domain/customers/customer-input";
 import { snapshotQuote } from "./pricing-snapshot";
 import type { Database, Json } from "./database.types";
 
@@ -42,6 +43,8 @@ export interface AdminBooking {
   cancelledAt: string | null;
   refundedAt: string | null;
   refundedAmount: number | null;
+  /** Ficha vinculada (directorio). null = walk-in solo-nombre o historial sin vincular. */
+  customerId: string | null;
 }
 
 /** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
@@ -109,7 +112,19 @@ export interface BookingTimelineEvent {
   category: BookingTimelineCategory;
   amountClp: number | null;
   paymentRef: string | null;
-  detail: { old_starts_at?: string; new_starts_at?: string; folio?: string | null } | null;
+  detail: {
+    old_starts_at?: string;
+    new_starts_at?: string;
+    folio?: string | null;
+    /** `customer_changed`: quién era y quién es, y los puntos que se movieron. */
+    from_customer_id?: string | null;
+    from_name?: string | null;
+    from_email?: string | null;
+    to_customer_id?: string;
+    to_name?: string | null;
+    to_email?: string | null;
+    points_moved?: number;
+  } | null;
   occurredAt: string;
 }
 
@@ -177,6 +192,7 @@ type ResRow = {
   cancelled_at: string | null;
   notes: string | null;
   order_id: string | null;
+  customer_id: string | null;
   orders: {
     amount_clp: number;
     status: string;
@@ -187,7 +203,7 @@ type ResRow = {
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
 
 /** Subconjunto estructural del query builder de PostgREST que usan los filtros de la lista. */
 interface ReservasFilterable {
@@ -219,6 +235,7 @@ const map = (r: ResRow): AdminBooking => ({
   cancelledAt: r.cancelled_at,
   refundedAt: r.orders?.refunded_at ?? null,
   refundedAmount: r.orders?.refunded_amount_clp ?? null,
+  customerId: r.customer_id ?? null,
 });
 
 export class SupabaseAdminRepository {
@@ -559,7 +576,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
@@ -855,6 +872,29 @@ export class SupabaseAdminRepository {
       .update({ status: "emitida", folio, pdf_url: pdfUrl, emitted_at: new Date().toISOString() })
       .eq("id", docId);
     if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Cambia el cliente de una reserva vigente (rpc `assign_booking_customer`).
+   * TODO lo hace la RPC en una transacción: reescribe el snapshot de la reserva,
+   * del pedido y de los pedidos delta, mueve el earn neto entre fichas con un
+   * par de `adjust`, otorga el retro si el pedido nunca ganó, y registra el
+   * evento `customer_changed`. Acá no se reimplementa nada: solo se traducen
+   * sus cinco sentinelas a copy con el mapa del dominio.
+   *
+   * Reasignar a la MISMA ficha es un no-op silencioso de la RPC (sin evento,
+   * sin ledger): no es un error y no hay que tratarlo como tal.
+   */
+  async assignCustomer(reservationId: string, customerId: string, actor: string | null): Promise<void> {
+    const { error } = await this.db.rpc("assign_booking_customer", {
+      p_reservation: reservationId,
+      p_customer: customerId,
+      p_created_by: actor ?? undefined,
+    });
+    if (error) {
+      const sentinel = customerDbErrorCode(error.code, null, error.message);
+      throw new Error(sentinel === "unknown" ? CUSTOMER_GENERIC_DB_ERROR : sentinel, { cause: error.message });
+    }
   }
 
   /**

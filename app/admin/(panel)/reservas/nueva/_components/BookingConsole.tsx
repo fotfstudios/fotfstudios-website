@@ -23,13 +23,8 @@ import {
 import { overlaps } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { nowMinuteInTz } from "@/src/domain/scheduling/time";
-import {
-  createCustomerAction,
-  createManualBookingAction,
-  getDayConsoleAction,
-  lookupCustomerPhoneAction,
-  searchCustomersAction,
-} from "../actions";
+import { createManualBookingAction, getDayConsoleAction } from "../actions";
+import { createCustomerAction, lookupCustomerPhoneAction, searchCustomersAction } from "../../_actions/customers";
 import type { DayConsoleData, ManualBookingResult } from "../types";
 import { AddonPicker, type CatalogAddon } from "./AddonPicker";
 import { AdminCalendar } from "./AdminCalendar";
