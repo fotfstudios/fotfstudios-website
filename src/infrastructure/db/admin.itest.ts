@@ -232,6 +232,127 @@ describe("admin actions", () => {
     expect((await repo.getBooking(id))?.notes).toBe("Cortesía — Cumpleaños · Incluye: Grabación de audio");
   });
 
+  // PR3: la cortesía no pasa por create_checkout, así que replica su semántica a
+  // mano — mismo escritor de invitados (upsert_guest_customer), mismo invariante
+  // de snapshot desde la ficha. Sin esto, agendar una cortesía con email dejaba
+  // una reserva huérfana que el directorio nunca veía.
+  it("cortesía con email: crea la ficha del invitado, la vincula y arma el snapshot desde ella", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-03", 600, 1, tz);
+    const id = await repo.createCourtesyBooking(resourceId, startsAt, endsAt, {
+      name: "  Invitada Cortesía  ",
+      email: " Cortesia@Dir.CL ",
+      phone: "+56 9 7777 6666",
+    });
+
+    const c = (
+      await pg.query<{ id: string; name: string; phone: string }>(
+        "select id, name, phone from customers where email='cortesia@dir.cl'",
+      )
+    ).rows[0];
+    expect(c).toMatchObject({ name: "Invitada Cortesía", phone: "+56 9 7777 6666" });
+
+    const r = await pg.query<{
+      customer_id: string | null;
+      customer_name: string | null;
+      customer_email: string | null;
+      customer_phone: string | null;
+    }>("select customer_id, customer_name, customer_email, customer_phone from reservations where id=$1", [id]);
+    expect(r.rows[0]).toEqual({
+      customer_id: c.id,
+      customer_name: "Invitada Cortesía",
+      customer_email: "cortesia@dir.cl",
+      customer_phone: "+56 9 7777 6666",
+    });
+  });
+
+  it("cortesía con customerId: la ficha manda y el email tipeado no la pisa", async () => {
+    const c = (
+      await pg.query<{ id: string }>(
+        "insert into customers (name, email, phone) values ('Ficha Elegida', 'elegida@dir.cl', '+56 9 1212 1212') returning id",
+      )
+    ).rows[0].id;
+    const { startsAt, endsAt } = rangeFor("2099-06-04", 600, 1, tz);
+    const id = await repo.createCourtesyBooking(
+      resourceId,
+      startsAt,
+      endsAt,
+      { name: "Tipeado", email: "tipeado@dir.cl", phone: undefined },
+      undefined,
+      c,
+    );
+
+    const r = await pg.query<{
+      customer_id: string | null;
+      customer_name: string | null;
+      customer_email: string | null;
+      customer_phone: string | null;
+    }>("select customer_id, customer_name, customer_email, customer_phone from reservations where id=$1", [id]);
+    expect(r.rows[0]).toEqual({
+      customer_id: c,
+      customer_name: "Ficha Elegida",
+      customer_email: "elegida@dir.cl",
+      customer_phone: "+56 9 1212 1212",
+    });
+    expect(
+      Number((await pg.query<{ n: string }>("select count(*)::text n from customers where email='tipeado@dir.cl'")).rows[0].n),
+    ).toBe(0);
+  });
+
+  it("cortesía solo con nombre (walk-in) o con email inválido: sin ficha y sin vínculo", async () => {
+    const a = rangeFor("2099-06-05", 600, 1, tz);
+    const soloNombre = await repo.createCourtesyBooking(resourceId, a.startsAt, a.endsAt, { name: "Walk In" });
+    const b = rangeFor("2099-06-06", 600, 1, tz);
+    const emailMalo = await repo.createCourtesyBooking(resourceId, b.startsAt, b.endsAt, {
+      name: "Basura",
+      email: "a@b",
+    });
+
+    const rows = await pg.query<{ customer_id: string | null; customer_email: string | null }>(
+      "select customer_id, customer_email from reservations where id = any($1::uuid[]) order by starts_at",
+      [[soloNombre, emailMalo]],
+    );
+    expect(rows.rows).toEqual([
+      { customer_id: null, customer_email: null },
+      { customer_id: null, customer_email: "a@b" },
+    ]);
+    expect(Number((await pg.query<{ n: string }>("select count(*)::text n from customers")).rows[0].n)).toBe(0);
+  });
+
+  it("cortesía con un customerId que ya no existe → customer_not_found", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-07", 600, 1, tz);
+    await expect(
+      repo.createCourtesyBooking(
+        resourceId,
+        startsAt,
+        endsAt,
+        { name: "X" },
+        undefined,
+        "e0000000-0000-4000-a000-0000000000fc",
+      ),
+    ).rejects.toThrow("customer_not_found");
+  });
+
+  // Fix round 1 (Finding 1): sin ficha (walk-in, sin email) el nombre y el teléfono tipeados
+  // deben normalizarse EXACTAMENTE igual que create_checkout
+  // (supabase/migrations/20260909130000_customer_directory_activate.sql:106-109): nombre
+  // recortado y truncado a 80, teléfono solo si su longitud recortada cae entre 6 y 40.
+  it("cortesía sin ficha: nombre largo y teléfono corto se normalizan IGUAL que create_checkout", async () => {
+    const { startsAt, endsAt } = rangeFor("2099-06-08", 600, 1, tz);
+    const longName = "N".repeat(120);
+    const id = await repo.createCourtesyBooking(resourceId, startsAt, endsAt, {
+      name: `  ${longName}  `,
+      phone: " 123 ",
+    });
+
+    const r = await pg.query<{ customer_name: string | null; customer_phone: string | null }>(
+      "select customer_name, customer_phone from reservations where id=$1",
+      [id],
+    );
+    expect(r.rows[0].customer_name).toBe(longName.slice(0, 80));
+    expect(r.rows[0].customer_name?.length).toBe(80);
+    expect(r.rows[0].customer_phone).toBeNull();
+  });
+
   it("confirmOffline devuelve 'confirmed'; cancelUnpaidOrder libera hold + cancela la orden", async () => {
     const ok = await book(960);
     if (!ok.ok) return;

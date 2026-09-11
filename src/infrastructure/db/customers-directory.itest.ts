@@ -5,6 +5,8 @@
  * cada escenario con puntos: customers.points_balance === sum(points_ledger).
  * Requiere Supabase local.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -413,6 +415,89 @@ describe("backfill_customers_from_bookings (definido en PR1, se ejecuta en PR3)"
   });
 });
 
+describe("customer_sync_snapshots (no destructivo desde PR3)", () => {
+  const sync = (id: string, oldEmail: string | null) =>
+    pg.query("select customer_sync_snapshots($1, $2)", [id, oldEmail]);
+
+  // El defecto que PR3 arregla: en prod las tres fichas tienen name y phone en
+  // NULL mientras 13 reservas llevan nombre y 5 llevan teléfono. La versión
+  // vieja copiaba los NULL encima y borraba el contacto del historial.
+  it("una ficha sin nombre ni teléfono NO borra el nombre ni el teléfono del historial", async () => {
+    const c = await customer({ name: null, email: "vacia@dir.cl", phone: null });
+    const linked = await booking({
+      name: "Nombre Del Historial",
+      email: "vacia@dir.cl",
+      phone: "+56 9 1111 1111",
+      customerId: c,
+    });
+    const orphan = await booking({ name: "Huérfana", email: "VACIA@dir.cl", phone: "+56 9 2222 2222" });
+
+    await sync(c, "vacia@dir.cl");
+
+    expect(await snapshot("orders", linked.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Nombre Del Historial",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 1111 1111",
+    });
+    expect(await snapshot("reservations", linked.reservationId)).toEqual({
+      customer_id: c,
+      customer_name: "Nombre Del Historial",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 1111 1111",
+    });
+    // El huérfano se adopta y su email se canoniza, pero conserva su contacto.
+    expect(await snapshot("orders", orphan.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Huérfana",
+      customer_email: "vacia@dir.cl",
+      customer_phone: "+56 9 2222 2222",
+    });
+  });
+
+  it("cuando la ficha SÍ tiene nombre y teléfono, siguen ganando los de la ficha", async () => {
+    const c = await customer({ name: "Ficha", email: "manda@dir.cl", phone: "+56 9 3333 3333" });
+    const b = await booking({ name: "Viejo", email: "manda@dir.cl", phone: "+56 9 4444 4444", customerId: c });
+
+    await sync(c, "manda@dir.cl");
+
+    const esperado = {
+      customer_id: c,
+      customer_name: "Ficha",
+      customer_email: "manda@dir.cl",
+      customer_phone: "+56 9 3333 3333",
+    };
+    expect(await snapshot("orders", b.orderId)).toEqual(esperado);
+    // La MISMA aserción sobre la reserva: el brazo de `reservations` tiene su propio
+    // coalesce, y sin este caso (ficha CON nombre y CON teléfono, snapshot con otros dos)
+    // se podía invertir `coalesce(c.phone, r.customer_phone)` sin que nada se pusiera rojo
+    // — todos los demás escenarios de reservas tienen la ficha o el snapshot en blanco, y
+    // por simétricos no distinguen la dirección.
+    expect(await snapshot("reservations", b.reservationId)).toEqual(esperado);
+  });
+
+  // El email NO se coalescea: las ocho funciones de puntos resuelven al cliente
+  // por c.email = lower(o.customer_email). Si el snapshot pudiera quedarse con
+  // el email viejo, el claw-back de mark_refunded revocaría a nadie.
+  it("el email de la ficha SIEMPRE manda, incluso sobre un snapshot que traía otro", async () => {
+    const c = await customer({ name: null, email: "nuevo@dir.cl", phone: null });
+    const b = await booking({ name: "Con Nombre", email: "viejo@dir.cl", phone: null, customerId: c });
+
+    await sync(c, "viejo@dir.cl");
+
+    expect(await snapshot("orders", b.orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Con Nombre",
+      customer_email: "nuevo@dir.cl",
+      customer_phone: null,
+    });
+  });
+
+  it("una ficha inexistente sigue levantando customer_not_found", async () => {
+    await expect(sync("e0000000-0000-4000-a000-0000000000fe", null)).rejects.toThrow("customer_not_found");
+  });
+});
+
 describe("update_customer_contact (edición desde /admin/clientes y /cuenta/perfil)", () => {
   const update = (id: string, name: string | null, email: string | null, phone: string | null) =>
     pg.query("select update_customer_contact($1, $2, $3, $4)", [id, name, email, phone]);
@@ -728,5 +813,334 @@ describe("assign_booking_customer (cambiar cliente)", () => {
     expect(await balance(Y)).toBe(649); // sin la fórmula de brecha serían 1298
     await expectBalanceConsistent(X);
     await expectBalanceConsistent(Y);
+  });
+});
+
+describe("activación PR3: backfill + retro (exactamente lo que corre la migración)", () => {
+  const backfill = async () =>
+    (await pg.query<{ n: number }>("select backfill_customers_from_bookings() n")).rows[0].n;
+
+  /** El bloque de la migración, textual: retro para toda ficha con email. */
+  const retroAll = () =>
+    pg.query(`do $$ declare r record; begin
+                for r in select id from customers where email is not null loop
+                  perform award_retro_points(r.id);
+                end loop;
+              end $$;`);
+
+  it("crea las fichas faltantes, vincula todo, otorga el retro — y correrlo de nuevo no cambia nada", async () => {
+    // Pagó como invitado sin ficha → confirm_payment no otorgó nada en vivo.
+    const paid = await booking({ name: "Matías Rojas", email: "MiXeD@Case.cl", phone: "+56 9 8123 4567" });
+    await pay(paid.orderId, "act1");
+    const pending = await booking({ name: "Ignacio", email: "ignacio@case.cl", phone: null });
+    // La forma exacta de prod: ficha existente con nombre y teléfono vacíos.
+    const existing = await customer({ name: null, email: "existe@case.cl", phone: null });
+    const existingBooking = await booking({
+      name: "Existe Con Nombre",
+      email: "existe@case.cl",
+      phone: "+56 9 9999 9999",
+    });
+
+    expect(await count("points_ledger")).toBe(0);
+    expect(await backfill()).toBe(2); // mixed@case.cl e ignacio@case.cl (existe@case.cl ya tenía ficha)
+    await retroAll();
+
+    const mixed = (await pg.query<{ id: string }>("select id from customers where email='mixed@case.cl'")).rows[0].id;
+    expect(await balance(mixed)).toBe(499); // floor(0.05 · 9990)
+    await expectBalanceConsistent(mixed);
+
+    // La ficha vacía preexistente absorbe nombre y teléfono del historial (solo NULLs rellenados).
+    expect((await pg.query("select name, phone from customers where id=$1", [existing])).rows[0]).toEqual({
+      name: "Existe Con Nombre",
+      phone: "+56 9 9999 9999",
+    });
+
+    // Todo lo que tiene email queda vinculado (en prod: 0 pedidos sin vincular).
+    expect(await count("orders where customer_id is null and customer_email is not null")).toBe(0);
+    expect(await count("reservations where kind='booking' and customer_id is null and customer_email is not null")).toBe(0);
+    expect((await snapshot("orders", existingBooking.orderId)).customer_id).toBe(existing);
+    expect((await snapshot("orders", pending.orderId)).customer_id).not.toBeNull();
+    expect((await snapshot("orders", paid.orderId)).customer_id).toBe(mixed);
+    // El vínculo escribe customer_id pero NO reescribe el email del snapshot: el pedido
+    // conserva su mayúscula/minúscula original aunque la ficha ya sea lower(email) — inocuo
+    // porque los joins de puntos siempre comparan lower(o.customer_email) = c.email.
+    expect((await snapshot("orders", paid.orderId)).customer_email).toBe("MiXeD@Case.cl");
+
+    // Idempotencia DESPUÉS de la activación: ni fichas nuevas ni puntos nuevos.
+    const fichas = await count("customers");
+    const asientos = await count("points_ledger");
+    expect(await backfill()).toBe(0);
+    await retroAll();
+    expect(await count("customers")).toBe(fichas);
+    expect(await count("points_ledger")).toBe(asientos);
+    expect(await balance(mixed)).toBe(499);
+    await expectBalanceConsistent(mixed);
+  });
+
+  it("una ficha solo-teléfono no recibe retro y el backfill no la toca", async () => {
+    const pia = await customer({ name: "Pía Contreras", email: null, phone: "+56912345678" });
+    const b = await booking({ name: "Otra", email: "otra@case.cl", phone: null });
+    await pay(b.orderId, "act2");
+
+    expect(await backfill()).toBe(1);
+    await retroAll();
+
+    expect(await balance(pia)).toBe(0);
+    expect((await pg.query("select name, email, phone from customers where id=$1", [pia])).rows[0]).toEqual({
+      name: "Pía Contreras",
+      email: null,
+      phone: "+56912345678",
+    });
+  });
+
+  it("la migración sigue invocando el backfill y el retro (no solo la copia de este archivo)", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260909130000_customer_directory_activate.sql"),
+      "utf8",
+    );
+    // Las dos líneas de invocación REAL, textuales — no solo el nombre de la función, que un
+    // comentario (p. ej. explicando por qué se capturan los retornos) también contiene y dejaría
+    // pasar aunque la llamada real se cayera de la migración.
+    expect(sql).toContain("select backfill_customers_from_bookings() into v_new;");
+    expect(sql).toContain("v_pts := v_pts + award_retro_points(r.id);");
+  });
+});
+
+describe("PR3: create_checkout crea/vincula la ficha", () => {
+  const reservationOf = async (orderId: string) =>
+    (await pg.query<{ id: string }>("select id from reservations where order_id=$1", [orderId])).rows[0].id;
+
+  /**
+   * create_checkout directo (sin supabase-js), con la firma de 15 parámetros. Devuelve el
+   * orderId. `amount` (default 9990, el precio de una hora) se parametriza porque la guarda
+   * de email depende de si el pedido COBRA: un pedido de $0 no puede ganar puntos y por eso
+   * sigue permitido contra una ficha solo-teléfono.
+   */
+  let hour = 0;
+  const checkout = async (opts: {
+    slot?: number;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    customerId?: string | null;
+    amount?: number;
+  }): Promise<string> => {
+    hour += 1;
+    const starts = new Date(Date.now() + (24 * 30 + (opts.slot ?? hour)) * 3_600_000);
+    const ends = new Date(starts.getTime() + 3_600_000);
+    const amount = opts.amount ?? 9990;
+    const net = Math.round(amount / 1.19);
+    const { rows } = await pg.query<{ id: string }>(
+      `select create_checkout($1, $2, $3, $8::int, $9::int, $10::int, 'CLP',
+              jsonb_build_object('name', $4::text, 'email', $5::text, 'phone', $6::text),
+              '{}'::jsonb, '[]'::jsonb, interval '10 minutes', $7::uuid, 0, null, null) id`,
+      [
+        resourceId,
+        starts.toISOString(),
+        ends.toISOString(),
+        opts.name ?? null,
+        opts.email ?? null,
+        opts.phone ?? null,
+        opts.customerId ?? null,
+        amount,
+        net,
+        amount - net,
+      ],
+    );
+    return rows[0].id;
+  };
+
+  it("p_customer_id que ya no existe → customer_not_found (la carrera entre elegir y guardar)", async () => {
+    await expect(
+      checkout({ email: "x@dir.cl", customerId: "e0000000-0000-4000-a000-0000000000fd" }),
+    ).rejects.toThrow("customer_not_found");
+  });
+
+  // Ficha SOLO-TELÉFONO: legal (customers_contact_required se conforma con el teléfono) y
+  // hoy sin caller, pero el picker de PR5 podrá elegirla. Sin la guarda, el pedido quedaba
+  // con customer_id puesto y customer_email vacío: las ocho funciones de puntos resuelven al
+  // cliente por c.email = lower(o.customer_email), así que esa reserva no ganaría NUNCA y un
+  // reembolso no revocaría nada — el FK y la join discrepando, justo lo que el invariante
+  // central de este PR prohíbe. Espejo de customer_assign_needs_email (PR1).
+  it("ficha solo-teléfono: el pedido que cobra se rechaza (customer_checkout_needs_email); el de $0 pasa", async () => {
+    const pia = await customer({ name: "Pía Contreras", email: null, phone: "+56912345678" });
+
+    await expect(checkout({ name: "Pía Contreras", customerId: pia })).rejects.toThrow(
+      "customer_checkout_needs_email",
+    );
+    // La transacción entera se revierte: ni reserva ni pedido a medio vincular.
+    expect(await count("orders")).toBe(0);
+    expect(await count("reservations")).toBe(0);
+
+    // $0 no gana nada (floor(0.05 · 0) = 0): no hay puntos que perder, así que se permite.
+    const orderId = await checkout({ name: "Pía Contreras", customerId: pia, amount: 0 });
+    const esperado = {
+      customer_id: pia,
+      customer_name: "Pía Contreras",
+      customer_email: null,
+      customer_phone: "+56912345678",
+    };
+    expect(await snapshot("orders", orderId)).toEqual(esperado);
+    expect(await snapshot("reservations", await reservationOf(orderId))).toEqual(esperado);
+  });
+
+  it("con p_customer_id: vincula y arma el snapshot desde la ficha (el titular conserva nombre y email)", async () => {
+    const c = await customer({ name: "Titular", email: "titular@dir.cl", phone: null, authUserId: U_HOLDER });
+    const orderId = await checkout({
+      name: "Otro Nombre",
+      email: "otro@dir.cl",
+      phone: "+56 9 1111 1111",
+      customerId: c,
+    });
+
+    const esperado = {
+      customer_id: c,
+      customer_name: "Titular",
+      customer_email: "titular@dir.cl",
+      customer_phone: "+56 9 1111 1111", // la ficha no tenía teléfono → lo tipeado llena el hueco
+    };
+    expect(await snapshot("orders", orderId)).toEqual(esperado);
+    expect(await snapshot("reservations", await reservationOf(orderId))).toEqual(esperado);
+  });
+
+  it("invitado nuevo: la ficha se crea en la MISMA transacción y el email queda en minúsculas", async () => {
+    const orderId = await checkout({ name: "  Nueva Invitada  ", email: " Nueva@Dir.CL ", phone: "+56 9 2222 2222" });
+
+    const c = (
+      await pg.query<{ id: string; name: string; phone: string }>(
+        "select id, name, phone from customers where email='nueva@dir.cl'",
+      )
+    ).rows[0];
+    expect(c).toMatchObject({ name: "Nueva Invitada", phone: "+56 9 2222 2222" });
+    expect(await snapshot("orders", orderId)).toEqual({
+      customer_id: c.id,
+      customer_name: "Nueva Invitada",
+      customer_email: "nueva@dir.cl",
+      customer_phone: "+56 9 2222 2222",
+    });
+  });
+
+  it("invitado que vuelve: el teléfono nuevo tipeado gana en la ficha y viaja al snapshot", async () => {
+    const c = await customer({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 0000 0000" });
+    const orderId = await checkout({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 3333 3333" });
+
+    expect((await pg.query("select phone from customers where id=$1", [c])).rows[0].phone).toBe("+56 9 3333 3333");
+    expect((await snapshot("orders", orderId)).customer_phone).toBe("+56 9 3333 3333");
+    expect((await snapshot("orders", orderId)).customer_id).toBe(c);
+  });
+
+  it("email sin forma válida: reserva igual, sin ficha y sin vínculo (snapshot con lo tipeado, en minúsculas)", async () => {
+    const orderId = await checkout({ name: "Basura", email: "A@B", phone: "+56 9 4444 4444" });
+
+    expect(await count("customers")).toBe(0);
+    expect(await snapshot("orders", orderId)).toEqual({
+      customer_id: null,
+      customer_name: "Basura",
+      customer_email: "a@b",
+      customer_phone: "+56 9 4444 4444",
+    });
+  });
+
+  it("slot_taken revierte también la ficha del invitado (una sola transacción)", async () => {
+    await checkout({ slot: 90, name: "Primero", email: "primero@dir.cl" });
+    await expect(checkout({ slot: 90, name: "Segundo", email: "segundo@dir.cl" })).rejects.toMatchObject({
+      code: "23P01",
+    });
+    expect(await count("customers where email='segundo@dir.cl'")).toBe(0);
+    expect(await count("customers where email='primero@dir.cl'")).toBe(1);
+  });
+
+  it("nombre de 120 caracteres y teléfono de 3 dígitos: se clampean como en upsert_guest_customer", async () => {
+    const orderId = await checkout({ name: "N".repeat(120), email: "clamp@dir.cl", phone: "123" });
+    expect(await snapshot("orders", orderId)).toMatchObject({
+      customer_name: "N".repeat(80),
+      customer_phone: null,
+    });
+  });
+
+  // FIX ROUND 1 (deadlock): guarda determinista del mecanismo del que depende el fix, sin
+  // depender de una carrera real. Antes de este fix, dos create_checkout concurrentes para
+  // EL MISMO cliente con p_points > 0 deadlockeaban ~35-40 de cada 40 pares (medido con un
+  // harness de dos conexiones fuera de este archivo — ver task-3-report.md § Fix round 1):
+  // cada uno sostiene el FOR KEY SHARE que Postgres exige para el FK de reservations/
+  // orders.customer_id y luego pide FOR UPDATE del bloque de canje, que SÍ conflictúa con
+  // FOR KEY SHARE — ciclo. El fix bajó ese lock a FOR NO KEY UPDATE, que por diseño de
+  // Postgres NO conflictúa con FOR KEY SHARE (deja pasar el insert de la otra conexión) pero
+  // SÍ conflictúa con otro FOR NO KEY UPDATE (dos canjes sobre el mismo cliente siguen
+  // serializando, uno espera al otro, sin ciclo). Este test reproduce esas dos propiedades
+  // con locks explícitos y `pg_stat_activity` — determinista: no hay dos resultados posibles
+  // por azar, solo una secuencia de estados que se espera con polling acotado, no una carrera.
+  // No reemplaza al harness (que sí ejercita la función real de punta a punta bajo carga);
+  // documenta y protege el mecanismo de bloqueo del que el fix depende.
+  it("FOR KEY SHARE (el insert del FK) no bloquea FOR NO KEY UPDATE (el lock del canje); dos FOR NO KEY UPDATE sí serializan sin deadlock", async () => {
+    const c = await customer({ name: "Lock", email: "lock@dir.cl", phone: null });
+    await pg.query("select apply_points($1, null, 'adjust', 1000, 'seed-lock')", [c]);
+
+    const pid2 = (await pg2.query<{ pid: number }>("select pg_backend_pid() pid")).rows[0].pid;
+    await pg.query("begin");
+    await pg2.query("begin");
+    try {
+      // Ambas conexiones toman el lock que un INSERT con customer_id tomaría por el FK —
+      // compatible entre sí, ninguna espera a la otra.
+      await pg.query("select 1 from customers where id=$1 for key share", [c]);
+      await pg2.query("select 1 from customers where id=$1 for key share", [c]);
+
+      // pg pide el lock REAL del bloque de canje (FOR NO KEY UPDATE): debe entrar de
+      // inmediato porque NO conflictúa con el FOR KEY SHARE que pg2 sostiene.
+      await pg.query("select points_balance from customers where id=$1 for no key update", [c]);
+
+      // pg2 pide el MISMO lock: con pg ya sosteniéndolo, pg2 debe BLOQUEARSE (no deadlockear:
+      // pg no espera nada de pg2 en este punto, así que no hay ciclo posible).
+      const pending = pg2.query<{ points_balance: number }>(
+        "select points_balance from customers where id=$1 for no key update",
+        [c],
+      );
+      let waiting = false;
+      for (let i = 0; i < 60 && !waiting; i++) {
+        const r = await pg.query<{ wait_event_type: string | null }>(
+          "select wait_event_type from pg_stat_activity where pid=$1",
+          [pid2],
+        );
+        if (r.rows[0]?.wait_event_type === "Lock") waiting = true;
+        else await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(waiting).toBe(true); // pg2 espera un lock — no deadlockeó, no fue rechazada
+
+      // Al soltar pg, pg2 debe completar limpio (no "deadlock detected").
+      await pg.query("commit");
+      const r2 = await pending;
+      expect(r2.rows[0].points_balance).toBe(1000);
+      await pg2.query("commit");
+    } finally {
+      await pg.query("rollback").catch(() => {});
+      await pg2.query("rollback").catch(() => {});
+    }
+  }, 10_000);
+});
+
+describe("PR3: create_reschedule_charge copia el vínculo al pedido delta", () => {
+  it("el pedido delta hereda customer_id junto al snapshot de contacto", async () => {
+    const c = await customer({ name: "Delta", email: "delta@dir.cl", phone: "+56 9 5555 5555" });
+    const b = await booking({
+      name: "Delta",
+      email: "delta@dir.cl",
+      phone: "+56 9 5555 5555",
+      customerId: c,
+    });
+    await pay(b.orderId, "dch1"); // paga y confirma la reserva
+
+    const starts = new Date(Date.now() + 24 * 40 * 3_600_000);
+    const ends = new Date(starts.getTime() + 3_600_000);
+    const { rows } = await pg.query<{ delta_order_id: string }>(
+      "select * from create_reschedule_charge($1, $2, $3, '{}'::jsonb, '[]'::jsonb, 2000, 1681, 319, null)",
+      [b.reservationId, starts.toISOString(), ends.toISOString()],
+    );
+
+    expect(await snapshot("orders", rows[0].delta_order_id)).toEqual({
+      customer_id: c,
+      customer_name: "Delta",
+      customer_email: "delta@dir.cl",
+      customer_phone: "+56 9 5555 5555",
+    });
   });
 });

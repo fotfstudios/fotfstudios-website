@@ -56,15 +56,36 @@ estar vinculada (`ensure_customer_for_user` al refrescar el email de auth,
 `update_customer_contact`): si los pedidos pagados se quedaran con el email viejo, el claw-back
 de `mark_refunded` / `reschedule_down` / `apply_reschedule_charge` resolvería a nadie (los
 puntos quedarían) o — si otra ficha tomara ese email — al cliente equivocado. Ambas pasan por el
-helper privado **`customer_sync_snapshots(p_customer uuid, p_old_email text)`** (PR1): relee la
-ficha y reescribe `customer_id/name/email/phone` en los pedidos/reservas vinculados
-(`customer_id = p_customer`) y en los huérfanos (`customer_id is null`) cuyo
-`lower(customer_email)` sea el email viejo o el actual.
+helper privado **`customer_sync_snapshots(p_customer uuid, p_old_email text)`** (definido en PR1,
+**cuerpo reescrito en PR3**): relee la ficha y reescribe `customer_id/name/email/phone` en los
+pedidos/reservas vinculados (`customer_id = p_customer`) y en los huérfanos
+(`customer_id is null`) cuyo `lower(customer_email)` sea el email viejo o el actual.
+
+**No es destructivo desde PR3.** El `email` de la ficha sigue siendo **autoritativo** (se copia
+verbatim: las ocho funciones de puntos resuelven al cliente por `c.email = lower(o.customer_email)`
+y un snapshot con el email viejo haría que el claw-back revoque a nadie —o al cliente equivocado—),
+pero **`name` y `phone` se COALESCEAN** contra lo que ya tenía el pedido/reserva:
+`customer_name = coalesce(c.name, o.customer_name)`, `customer_phone = coalesce(c.phone,
+o.customer_phone)`. La versión de PR1 copiaba los NULL de la ficha encima del snapshot, y la ficha
+suele ser la fuente **más pobre** (medido en prod el 2026-09-10: las 3 fichas tienen `name` y
+`phone` vacíos mientras 13 reservas llevan nombre y 5 llevan teléfono), así que borraba el contacto
+de reservas pagadas y confirmadas. Por eso el arreglo va **primero** en la migración de PR3, antes
+del backfill y antes de cualquier escritor nuevo. `assign_booking_customer` es la excepción
+deliberada: inlinea su propio `update` y **pisa** el snapshot, porque reasignar es cambiar de dueño.
 
 Corolario (crítico #6): la edición de perfil en `/cuenta` pasa por el **mismo** camino que la
 edición del admin (`update_customer_contact`), así los dos escritores de `customers` nunca
 derivan: cambiar el teléfono en `/cuenta/perfil` actualiza el snapshot de la reserva próxima
 que el staff usa para WhatsApp.
+
+Ese corolario se cumple **en PR4**, no en PR3. PR2 dejó un escritor angosto provisorio
+(`CustomerRepository.updateNamePhone`: solo `name`/`phone` en la fila de `customers`, sin
+propagar) porque el sync todavía era destructivo. PR3 arregla el sync, pero **no** re-apunta
+`/cuenta/perfil`: en el push de PR3 el código sale a Vercel mientras el job `migrate` de prod
+espera aprobación de un revisor, así que habría una ventana con el código nuevo llamando al
+`customer_sync_snapshots` viejo (destructivo). Por la regla de la cadena, PR4 se mergea recién
+cuando el `migrate` de PR3 está aprobado y verde: ahí el re-apunte es seguro y `updateNamePhone`
+se elimina del puerto y del adaptador.
 
 ## Esquema y migraciones
 
@@ -889,7 +910,8 @@ aprobación; **PR N+1 se mergea solo después de aprobado el `migrate` de PR N**
    `app/auth/callback/route.ts`, `app/reservar/page.tsx`, `app/api/bookings/route.ts`,
    fixtures de `points.itest.ts` y `reschedule.itest.ts`.
 3. **`feat(db): activar vínculo cliente ↔ reserva`** —
-   `supabase/migrations/20260909130000_customer_directory_activate.sql` (backfill + retro,
+   `supabase/migrations/20260909130000_customer_directory_activate.sql` (**`customer_sync_snapshots`
+   no destructivo — precondición, va primero**, backfill + retro,
    `create_checkout`, `create_reschedule_charge`), `src/infrastructure/db/admin-repository.ts`
    (`createCourtesyBooking(…, customerId?)` + `upsert_guest_customer`),
    `src/application/checkout/checkout-service.ts` (`customer_not_found`),
@@ -897,8 +919,13 @@ aprobación; **PR N+1 se mergea solo después de aprobado el `migrate` de PR N**
    (comentario), `points.itest.ts` ("sin perfil"), casos de checkout en
    `customers-directory.itest.ts` (los cleanup strings ya vienen de PR1). El código depende
    solo de columnas/funciones de PR1.
-4. **`feat(rbac): customers.manage`** — `supabase/migrations/20260909140000_customers_permission.sql`,
-   `src/domain/auth/permissions.ts`, `permissions.test.ts`. Sin nav.
+4. **`feat(rbac): customers.manage` + `/cuenta/perfil` por `update_customer_contact`** —
+   `supabase/migrations/20260909140000_customers_permission.sql`,
+   `src/domain/auth/permissions.ts`, `permissions.test.ts` (sin nav); y el re-apunte del guardado
+   de perfil que PR3 difirió por la ventana de deploy: `src/application/ports/customers.ts` y
+   `src/infrastructure/db/customer-repository.ts` (se elimina `updateNamePhone`),
+   `src/application/customers/customer-service.ts` (+test), `customer-repository.itest.ts`.
+   Se mergea recién con el `migrate` de PR3 aprobado y verde.
 5. **`feat(admin): elegir o crear cliente en la consola`** —
    `components/admin/customers/{CustomerPicker,NuevoClienteForm,CustomerSummary}.tsx`,
    `components/admin/ui/Dialog.tsx`, `src/application/customers/customer-directory-service.ts`

@@ -124,6 +124,10 @@ describe("customerDbErrorCode / customerDbErrorMessage", () => {
       "customer_assign_needs_email",
       "Ese cliente no tiene email; agrégalo antes de reasignar una reserva pagada.",
     ],
+    [
+      "customer_checkout_needs_email",
+      "Ese cliente no tiene email; agrégalo antes de cobrarle una reserva.",
+    ],
   ])("traduce el literal %s de la RPC", (literal, sentence) => {
     expect(customerDbErrorMessage("P0001", null, literal)).toBe(sentence);
     // Un Error relanzado por el adaptador llega sin code: el literal basta.

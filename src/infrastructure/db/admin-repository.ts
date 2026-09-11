@@ -845,14 +845,108 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.code === "23P01" ? "overlap" : error.message);
   }
 
-  /** Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). Devuelve el id. */
+  /**
+   * Reserva de cortesía: confirmada, sin pedido ni boleta (comp gratis). Devuelve el id.
+   *
+   * INVARIANTE (spec §"Invariante central"): quien escribe customer_id escribe también el
+   * snapshot DESDE la ficha. La cortesía no pasa por create_checkout, así que replica su
+   * semántica a mano: con `customerId` manda la ficha; sin id pero con email, la resuelve el
+   * MISMO escritor de invitados que usa el checkout (`upsert_guest_customer`), que devuelve
+   * null cuando el email no pasa la puerta de forma → la reserva queda sin vincular.
+   *
+   * Son dos o tres sentencias (rpc + opcional select + insert): un `slot_taken` en el insert
+   * deja la ficha creada. Es dato válido de directorio, no un huérfano — decisión explícita de
+   * la spec.
+   *
+   * OJO (fix round 2): `upsert_guest_customer` no solo CREA. Sobre una ficha de invitado que
+   * ya existe también PISA nombre y teléfono con lo tipeado (para el checkout eso es lo
+   * correcto: lo recién escrito es la verdad más fresca para WhatsApp/MP). Así que una
+   * cortesía que después falla por `slot_taken` no deja "solo una ficha nueva": si el email
+   * ya era de un cliente real, le deja el contacto REESCRITO, y eso no se revierte. Un typo
+   * en el nombre o un teléfono viejo quedan en el directorio aunque la reserva nunca exista.
+   * Un titular de cuenta (`auth_user_id` no nulo) está a salvo: conserva nombre y email, y
+   * solo se le rellena un teléfono vacío.
+   *
+   * LOCKS sobre `customers` (fix round 2, Finding 2 — corrige la consecuencia escrita en el fix
+   * round 1: esa versión decía que reordenar el insert de `reservations` antes del rpc armaba
+   * un ciclo KEY SHARE → NO KEY UPDATE. Eso es FALSO: verificado en vivo con dos conexiones
+   * — una sostiene `FOR KEY SHARE` 8s mientras la otra pide `FOR NO KEY UPDATE` sobre la MISMA
+   * fila, y viceversa; en ambas direcciones la segunda entra en 3-4ms, sin esperar nada. Los dos
+   * modos son COMPATIBLES entre sí — no conflictan, no hay ciclo posible solo por reordenar
+   * estas dos sentencias. Ver report § Fix round 2 para la evidencia completa.):
+   *
+   * El upsert de `upsert_guest_customer` SÍ toma el lock más fuerte que existe sobre la fila
+   * del cliente, `FOR NO KEY UPDATE` (el `on conflict do update` solo toca columnas que no son
+   * key, igual que el bloque de canje de `create_checkout` tras el fix round 1 de la Task 3) —
+   * el mismo lock, no uno distinto, así que cortesía y el canje SÍ compiten por la fila. Es
+   * seguro porque ese `FOR NO KEY UPDATE` vive en SU PROPIA sentencia autocommit (el rpc), y
+   * para cuando el insert de `reservations` toma el `FOR KEY SHARE` implícito de la FK
+   * (sentencia aparte, autocommit también), el `FOR NO KEY UPDATE` del rpc ya se soltó — nunca
+   * están sostenidos a la vez (aunque, como se verificó arriba, tampoco importaría si lo
+   * estuvieran: son compatibles).
+   *
+   * Los dos peligros REALES sobre esta fila (no el que se escribió en el fix round 1):
+   * 1. El ciclo de una sola fila es sostener `FOR KEY SHARE` (por la FK) y DESPUÉS pedir
+   *    `FOR UPDATE` — no `NO KEY UPDATE` — sobre esa MISMA fila. Es exactamente el ciclo que el
+   *    fix round 1 de la Task 3 cerró bajando el lock del canje de `FOR UPDATE` a `FOR NO KEY
+   *    UPDATE`; por eso ningún escritor de este camino puede volver a pedir `FOR UPDATE` sobre
+   *    `customers`.
+   * 2. El peligro ordinario multi-fila: dos cortesías que tocan DOS fichas distintas en orden
+   *    opuesto (p.ej. cortesía A vincula la 1 y luego la 2; cortesía B vincula la 2 y luego la
+   *    1) deadlockean igual que cualquier transacción multi-fila sin orden fijo, sin importar
+   *    el modo de lock que usen.
+   */
   async createCourtesyBooking(
     resourceId: string,
     startsAt: string,
     endsAt: string,
     customer: { name?: string; email?: string; phone?: string },
     notes?: string,
+    customerId?: string,
   ): Promise<string> {
+    let linkedId: string | null = customerId ?? null;
+
+    if (linkedId === null && customer.email) {
+      const { data: guestId, error: guestErr } = await this.db.rpc("upsert_guest_customer", {
+        // El generador tipa los text params como `string` y el retorno como no-nulo; la
+        // función SQL acepta NULL y devuelve NULL si el email no pasa la puerta. Los casts
+        // documentan el gap, no cambian runtime.
+        p_name: (customer.name ?? null) as unknown as string,
+        p_email: customer.email,
+        p_phone: (customer.phone ?? null) as unknown as string,
+      });
+      if (guestErr) throw new Error(guestErr.message);
+      linkedId = (guestId as string | null) ?? null;
+    }
+
+    // Fix round 1 (Finding 1): nombre, email y teléfono se normalizan IGUAL que create_checkout
+    // (supabase/migrations/20260909130000_customer_directory_activate.sql:106-109 —
+    // `nullif(left(trim(name), 80), '')`, `nullif(lower(trim(email)), '')`, y el teléfono solo
+    // si `char_length(trim(phone))` cae entre 6 y 40). Sin esto, un teléfono de 3 dígitos
+    // quedaba como "123" por cortesía y como NULL por checkout, y un nombre de 120 caracteres
+    // quedaba entero por cortesía y truncado a 80 por checkout — misma ficha, dos snapshots.
+    // Si upsert_guest_customer rechaza el email por forma, la reserva queda sin vincular pero
+    // con los TRES campos en la MISMA grafía que habría guardado el checkout público. También
+    // alimenta los fallbacks de abajo (`rec.name ?? snapName`, `rec.phone ?? snapPhone`), que
+    // heredan la normalización por construcción.
+    let snapName = customer.name?.trim().slice(0, 80) || null;
+    let snapEmail = customer.email?.trim().toLowerCase() || null;
+    const phoneTrimmed = customer.phone?.trim();
+    let snapPhone = phoneTrimmed && phoneTrimmed.length >= 6 && phoneTrimmed.length <= 40 ? phoneTrimmed : null;
+
+    if (linkedId !== null) {
+      const { data: rec, error: recErr } = await this.db
+        .from("customers")
+        .select("name, email, phone")
+        .eq("id", linkedId)
+        .maybeSingle();
+      if (recErr) throw new Error(recErr.message);
+      if (!rec) throw new Error("customer_not_found");
+      snapName = rec.name ?? snapName;
+      snapEmail = rec.email;
+      snapPhone = rec.phone ?? snapPhone;
+    }
+
     const { data, error } = await this.db
       .from("reservations")
       .insert({
@@ -861,9 +955,10 @@ export class SupabaseAdminRepository {
         status: "confirmed",
         starts_at: startsAt,
         ends_at: endsAt,
-        customer_name: customer.name ?? null,
-        customer_email: customer.email ?? null,
-        customer_phone: customer.phone ?? null,
+        customer_name: snapName,
+        customer_email: snapEmail,
+        customer_phone: snapPhone,
+        customer_id: linkedId,
         notes: notes ? `Cortesía — ${notes}` : "Cortesía",
       })
       .select("id")

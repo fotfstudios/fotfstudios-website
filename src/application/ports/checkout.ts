@@ -21,7 +21,16 @@ export interface CreateCheckoutParams {
   customer: Customer;
   snapshot: Quote;
   lines: CheckoutLine[];
-  customerId?: string; // cuenta del cliente (canje de puntos)
+  /**
+   * Ficha del directorio a la que se vincula la reserva (`customers.id`, NUNCA
+   * `auth.users.id`). Desde PR3 la DB exige que exista: si no, `create_checkout`
+   * levanta `customer_not_found` y el servicio devuelve ese mismo código. Y si el
+   * pedido cobra (`amount > 0`), la ficha además tiene que tener email —una ficha
+   * solo-teléfono no puede ganar ni devolver puntos, porque los puntos resuelven
+   * al cliente por el email del snapshot—: `customer_checkout_needs_email`. Sigue
+   * siendo además el row lock del canje de puntos.
+   */
+  customerId?: string;
   pointsRedeemed?: number;
   /** Consentimiento T&C: 'customer' (clic en /reservar) | 'staff' (atestiguado por el dueño). NULL = sin registro. */
   termsSource?: "customer" | "staff";

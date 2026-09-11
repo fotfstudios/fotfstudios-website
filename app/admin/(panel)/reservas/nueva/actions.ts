@@ -5,6 +5,7 @@ import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
 import { adminRepository, checkoutService, notificationService, pricingService } from "@/src/composition";
 import { TERMS_VERSION } from "@/lib/site";
+import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
@@ -20,6 +21,11 @@ const checkoutErrorMessage = (code: string): string => {
   // El motor de descuentos ya devuelve una frase para el staff (es la única
   // validación que necesita el quote del server para decidirse).
   if (code.startsWith("discount:")) return code.slice("discount:".length);
+  // Fix round 1 (Finding 3): la frase vive en customer-input.ts (pinneada por su test); se
+  // importa en vez de duplicarla para que las dos copias no puedan desalinearse.
+  // customer_checkout_needs_email: ficha solo-teléfono en un pedido que cobra (fix round 2).
+  if (code === "customer_not_found" || code === "customer_checkout_needs_email")
+    return customerDbErrorMessage(null, null, code) ?? "No se pudo crear la reserva.";
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";
@@ -74,6 +80,12 @@ export async function createManualBookingAction(
         );
       }
       // Best-effort: el email nunca voltea una reserva ya creada.
+      // OJO (PR3): esto manda el email/nombre TIPEADOS, mientras el snapshot de la reserva ya
+      // salió de la ficha (`createCourtesyBooking` lee `customers` después del upsert). Pueden
+      // diferir: una ficha con cuenta conserva SU nombre, y la ficha puede traer otro email si
+      // se pasó `customerId`. Es a propósito — el aviso va a la dirección que el staff escribió—,
+      // pero cuando PR5 conecte el picker hay que decidirlo explícito: la action ya devolverá
+      // `customer: { name, phone }` del servidor y ese es el dato que debería alimentar el aviso.
       await notificationService()
         .notifyCourtesy({ email: customer.email ?? null, name: customer.name ?? null, startsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));

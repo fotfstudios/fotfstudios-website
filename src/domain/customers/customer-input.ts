@@ -110,6 +110,10 @@ const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
   customer_assign_inactive: "Solo se puede cambiar el cliente de una reserva vigente.",
   customer_assign_points_order: "Esta reserva usó Puntos FOTF y no se puede reasignar; cancélala y vuelve a crearla.",
   customer_assign_needs_email: "Ese cliente no tiene email; agrégalo antes de reasignar una reserva pagada.",
+  // Espejo del anterior, del lado del checkout: una ficha solo-teléfono no puede quedar
+  // vinculada a un pedido que cobra (los puntos resuelven al cliente por el email del
+  // snapshot, así que esa reserva no ganaría ni devolvería nada). Un pedido de $0 sí pasa.
+  customer_checkout_needs_email: "Ese cliente no tiene email; agrégalo antes de cobrarle una reserva.",
 };
 
 /**
