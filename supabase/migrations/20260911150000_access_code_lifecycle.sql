@@ -74,6 +74,13 @@ $$;
 --
 -- Sin los dos secretos la función es un no-op: así en local y en un proyecto
 -- recién creado el job no falla cada 5 minutos, simplemente no hace nada.
+--
+-- pg_net NO viene instalado en un proyecto hosted (staging y prod lo tienen
+-- disponible pero no creado; el stack local del CLI sí lo trae, por eso no se
+-- notó). plpgsql resuelve `net.http_post` recién al ejecutar, así que sin esta
+-- línea la migración pasa igual y el job falla cada 5 minutos con
+-- `schema "net" does not exist`. Mismo esquema en el que lo deja el dashboard.
+create extension if not exists pg_net with schema extensions;
 create or replace function run_access_code_cron()
 returns void language plpgsql security definer
 set search_path = public, pg_temp as $$
