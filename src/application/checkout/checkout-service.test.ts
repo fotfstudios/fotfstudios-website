@@ -210,6 +210,21 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
     if (!r.ok) expect(r.error).toBe("customer_checkout_needs_email");
   });
 
+  // Dos checkouts del mismo slot en el mismo instante pueden deadlockear al verificar
+  // reservations_no_overlap (40P01 en vez de 23P01). El adaptador ya reintentó una vez;
+  // si vuelve a pasar, el cliente tiene que ver "horario tomado", no el texto de Postgres.
+  it("deadlock repetido (raise de la DB) → slot_taken, nunca checkout_failed crudo", async () => {
+    const repo: CheckoutRepository = {
+      createCheckout: vi.fn().mockRejectedValue(new Error("deadlock detected")),
+    };
+    const svc = new CheckoutService(pricedPricing(), repo);
+
+    const r = await svc.createBooking(input);
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("slot_taken");
+  });
+
   it("sin puntos: sin línea de canje y pointsApplied 0", async () => {
     const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
     const svc = new CheckoutService(pricedPricing(), repo);

@@ -10,11 +10,15 @@ import type {
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
 import { snapshotQuote } from "./pricing-snapshot";
+import { retryOnDeadlock } from "./rpc-retry";
 import type { Database, Json } from "./database.types";
 
 /** Traduce los errores de las RPC de reagendamiento a mensajes es-CL para el admin. */
 function rescheduleError(message: string): string {
   if (/exclusion|23P01|overlap|reservations_no_overlap/i.test(message)) return "Ese horario ya está tomado.";
+  // Segundo 40P01 seguido (el primero ya se reintentó en el adaptador): el slot sigue en
+  // disputa con otra transacción; para el admin es lo mismo que tomado.
+  if (/deadlock|40P01/i.test(message)) return "Ese horario ya está tomado.";
   if (/reschedule_not_active|reschedule_not_eligible/i.test(message))
     return "Esta reserva ya no se puede reagendar (debe estar pagada y activa).";
   if (/reschedule_bad_delta/i.test(message)) return "El monto del reembolso no corresponde al cambio.";
@@ -74,40 +78,48 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   }
 
   async moveCourtesy(p: { reservationId: string; startsAt: string; endsAt: string; note: string | null }): Promise<void> {
-    const { error } = await this.db.rpc("reschedule_courtesy", {
-      p_reservation: p.reservationId,
-      p_starts: p.startsAt,
-      p_ends: p.endsAt,
-      p_note: p.note ?? undefined,
-    });
+    // Mueve el rango de la reserva → puede deadlockear contra otro escritor del mismo slot
+    // al verificar reservations_no_overlap; un reintento basta (rpc-retry.ts). Ídem abajo.
+    const { error } = await retryOnDeadlock(() =>
+      this.db.rpc("reschedule_courtesy", {
+        p_reservation: p.reservationId,
+        p_starts: p.startsAt,
+        p_ends: p.endsAt,
+        p_note: p.note ?? undefined,
+      }),
+    );
     if (error) throw new Error(rescheduleError(error.message));
   }
 
   async moveEqual(p: RescheduleMoveParams): Promise<void> {
-    const { error } = await this.db.rpc("reschedule_move", {
-      p_reservation: p.reservationId,
-      p_starts: p.startsAt,
-      p_ends: p.endsAt,
-      p_snapshot: p.snapshot as unknown as Json,
-      p_lines: p.lines as unknown as Json,
-      p_note: p.note ?? undefined,
-    });
+    const { error } = await retryOnDeadlock(() =>
+      this.db.rpc("reschedule_move", {
+        p_reservation: p.reservationId,
+        p_starts: p.startsAt,
+        p_ends: p.endsAt,
+        p_snapshot: p.snapshot as unknown as Json,
+        p_lines: p.lines as unknown as Json,
+        p_note: p.note ?? undefined,
+      }),
+    );
     if (error) throw new Error(rescheduleError(error.message));
   }
 
   async settleDown(p: RescheduleSettleDownParams): Promise<void> {
-    const { error } = await this.db.rpc("reschedule_down", {
-      p_reservation: p.reservationId,
-      p_starts: p.startsAt,
-      p_ends: p.endsAt,
-      p_snapshot: p.snapshot as unknown as Json,
-      p_lines: p.lines as unknown as Json,
-      // El SQL (`reschedule_down`, p_refund_id text) acepta NULL vía coalesce; el
-      // typegen de Supabase no modela nullabilidad de argumentos de función.
-      p_refund_id: p.refundId as string,
-      p_refund_amount: p.refundAmount,
-      p_note: p.note ?? undefined,
-    });
+    const { error } = await retryOnDeadlock(() =>
+      this.db.rpc("reschedule_down", {
+        p_reservation: p.reservationId,
+        p_starts: p.startsAt,
+        p_ends: p.endsAt,
+        p_snapshot: p.snapshot as unknown as Json,
+        p_lines: p.lines as unknown as Json,
+        // El SQL (`reschedule_down`, p_refund_id text) acepta NULL vía coalesce; el
+        // typegen de Supabase no modela nullabilidad de argumentos de función.
+        p_refund_id: p.refundId as string,
+        p_refund_amount: p.refundAmount,
+        p_note: p.note ?? undefined,
+      }),
+    );
     if (error) throw new Error(rescheduleError(error.message));
   }
 
@@ -153,7 +165,11 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   }
 
   async applyCharge(deltaOrderId: string, paymentId: string): Promise<"applied" | "slot_taken" | "noop"> {
-    const { data, error } = await this.db.rpc("apply_reschedule_charge", { p_delta_order: deltaOrderId, p_payment_id: paymentId });
+    // También mueve el rango (tras el pago del delta); la reintenta el webhook de MP igual,
+    // pero acá se resuelve sin esperar ese ciclo.
+    const { data, error } = await retryOnDeadlock(() =>
+      this.db.rpc("apply_reschedule_charge", { p_delta_order: deltaOrderId, p_payment_id: paymentId }),
+    );
     if (error) throw new Error(rescheduleError(error.message));
     return (data ?? "noop") as "applied" | "slot_taken" | "noop";
   }

@@ -2,13 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CheckoutRepository, CreateCheckoutParams } from "@/src/application/ports/checkout";
 import type { Json } from "./database.types";
 import type { Database } from "./database.types";
+import { retryOnDeadlock } from "./rpc-retry";
 
 /** Llama a la función transaccional create_checkout (hold + pedido + líneas). */
 export class SupabaseCheckoutRepository implements CheckoutRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
   async createCheckout(p: CreateCheckoutParams): Promise<string> {
-    const { data, error } = await this.db.rpc("create_checkout", {
+    // Reintento único ante 40P01: dos checkouts del MISMO slot en el mismo instante pueden
+    // deadlockear al verificar reservations_no_overlap (ver rpc-retry.ts). La función es una
+    // sentencia, así que abortar y volver a llamar no deja nada a medias.
+    const { data, error } = await retryOnDeadlock(() =>
+      this.db.rpc("create_checkout", {
       p_resource: p.resourceId,
       p_starts: p.startsAt,
       p_ends: p.endsAt,
@@ -26,7 +31,8 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       p_points: p.pointsRedeemed ?? 0,
       p_terms_version: p.termsVersion,
       p_terms_source: p.termsSource,
-    });
+    }),
+    );
     if (error) throw new Error(error.message);
     return data as string;
   }
