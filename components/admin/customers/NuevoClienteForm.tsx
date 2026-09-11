@@ -16,6 +16,8 @@ export interface NuevoClienteFormProps {
   prefill?: { name?: string; email?: string; phone?: string };
   onCreated: (c: CustomerProfile) => void;
   onCancel: () => void;
+  /** Texto del CTA. En la consola se crea Y se selecciona; en el directorio solo se crea. */
+  submitLabel?: string;
 }
 
 /**
@@ -27,7 +29,14 @@ export interface NuevoClienteFormProps {
  * (la ficha creada, o la que ya existía) para seleccionarla — `ActionForm` solo
  * sabe de éxito y error.
  */
-export function NuevoClienteForm({ create, lookupPhone, prefill, onCreated, onCancel }: NuevoClienteFormProps) {
+export function NuevoClienteForm({
+  create,
+  lookupPhone,
+  prefill,
+  onCreated,
+  onCancel,
+  submitLabel = "Crear y seleccionar",
+}: NuevoClienteFormProps) {
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
   const [phone, setPhone] = useState(prefill?.phone ?? "");
@@ -114,7 +123,7 @@ export function NuevoClienteForm({ create, lookupPhone, prefill, onCreated, onCa
           Cancelar
         </button>
         <button type="button" className={btn("primary", "sm")} onClick={submit} disabled={pending}>
-          {pending ? "Creando…" : "Crear y seleccionar"}
+          {pending ? "Creando…" : submitLabel}
         </button>
       </div>
     </div>

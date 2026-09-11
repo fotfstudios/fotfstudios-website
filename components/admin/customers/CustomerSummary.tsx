@@ -35,9 +35,15 @@ export function CustomerSummary({ customer, onChange, onClear, canManageCustomer
         <button type="button" className={btn("ghost", "sm")} onClick={onClear}>
           Quitar
         </button>
+        {/* Pestaña nueva: desde la consola, navegar en la misma tira la reserva a medio armar. */}
         {canManageCustomers && (
-          <Link href={`/admin/clientes/${customer.id}`} className="label-sm text-bone-mute underline">
-            Ver ficha →
+          <Link
+            href={`/admin/clientes/${customer.id}`}
+            target="_blank"
+            rel="noopener"
+            className="label-sm text-bone-mute underline"
+          >
+            Ver ficha ↗
           </Link>
         )}
       </div>

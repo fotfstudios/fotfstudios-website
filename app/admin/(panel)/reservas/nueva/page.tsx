@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
-import { adminRepository, availabilityService, pricingService } from "@/src/composition";
+import { adminRepository, availabilityService, customerDirectory, pricingService } from "@/src/composition";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
@@ -17,10 +17,13 @@ const HORIZON_DAYS = 180;
 export default async function NuevaReserva({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string; h?: string }>;
+  searchParams: Promise<{ d?: string; h?: string; c?: string }>;
 }) {
-  const { d, h } = await searchParams;
+  const { d, h, c } = await searchParams;
   const resource = await adminRepository().defaultResource();
+  // ?c=<uuid>: llega desde "Nueva reserva" en la ficha del cliente. Se re-lee
+  // en el servidor (nunca se confía en el id suelto) y si no existe se ignora.
+  const initialCustomer = c && /^[0-9a-f-]{36}$/i.test(c) ? await customerDirectory().get(c) : null;
   // Solo para decidir si el resumen ofrece "Ver ficha →"; /admin/clientes exige
   // este mismo permiso, así que sin él el enlace llevaría a un 403.
   const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
@@ -64,7 +67,7 @@ export default async function NuevaReserva({
       <BookingConsole
         // El prefill vive en useState: la key fuerza remount cuando cambia
         // (soft navigation al mismo segmento con otro ?d=&h= no re-monta sola).
-        key={`${initialDate}:${initialStartMinute ?? ""}`}
+        key={`${initialDate}:${initialStartMinute ?? ""}:${initialCustomer?.id ?? ""}`}
         resourceId={resource.id}
         tz={resource.timezone}
         today={today}
@@ -76,7 +79,8 @@ export default async function NuevaReserva({
         initialDay={initialDay}
         addons={catalog?.addons ?? []}
         canManageCustomers={canManageCustomers}
-      volumeDiscounts={catalog?.volumeDiscounts ?? []}
+        initialCustomer={initialCustomer}
+        volumeDiscounts={catalog?.volumeDiscounts ?? []}
       />
     </>
   );

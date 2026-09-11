@@ -1,10 +1,10 @@
 import { Button } from "@/components/admin/ui/Button";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
-import { parseSolicitudesSearchParams } from "@/src/domain/admin/curso-solicitudes-list";
+import { parseSolicitudesSearchParams, solicitudesHref } from "@/src/domain/admin/curso-solicitudes-list";
 import { courseRepository } from "@/src/composition";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { Pagination } from "./_components/Pagination";
+import { Pagination } from "@/components/admin/ui/Pagination";
 import { SolicitudesTable } from "./_components/SolicitudesTable";
 import { Tabs } from "./_components/Tabs";
 
@@ -59,7 +59,7 @@ export default async function SolicitudesPage({
           ) : (
             <div className="mt-6">
               <SolicitudesTable rows={list.rows} />
-              <Pagination query={query} total={list.total} />
+              <Pagination query={query} total={list.total} href={(p) => solicitudesHref(query, { page: p })} />
             </div>
           )}
         </>

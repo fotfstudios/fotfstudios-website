@@ -132,3 +132,71 @@ describe("CustomerDirectoryService.lookupPhone", () => {
     expect(repo.findByPhoneDigits).not.toHaveBeenCalled();
   });
 });
+
+describe("CustomerDirectoryService — /admin/clientes", () => {
+  const withRepo = (over: Partial<CustomerRepository> = {}) => {
+    const repo = fakeRepo({
+      list: vi.fn().mockResolvedValue({ rows: [MATIAS], total: 1, grandTotal: 1 }),
+      movements: vi.fn().mockResolvedValue([]),
+      bookingsForCustomer: vi.fn().mockResolvedValue([]),
+      updateContact: vi.fn().mockResolvedValue(undefined),
+      ...over,
+    });
+    return { svc: new CustomerDirectoryService(repo), repo };
+  };
+
+  it("list delega la consulta paginada tal cual", async () => {
+    const { svc: s, repo } = withRepo();
+    const query = { q: "ma", orden: "nombre" as const, page: 2, perPage: 25 };
+    expect(await s.list(query)).toEqual({ rows: [MATIAS], total: 1, grandTotal: 1 });
+    expect(repo.list).toHaveBeenCalledWith(query);
+  });
+
+  it("movements pide por id de ficha, con límite 10 por defecto", async () => {
+    const { svc: s, repo } = withRepo();
+    await s.movements("cust-matias");
+    expect(repo.movements).toHaveBeenCalledWith("cust-matias", 10);
+  });
+
+  it("bookings usa id Y email: junta las vinculadas con las huérfanas del mismo email", async () => {
+    const { svc: s, repo } = withRepo();
+    await s.bookings(MATIAS);
+    expect(repo.bookingsForCustomer).toHaveBeenCalledWith("cust-matias", "matias.rojas@gmail.com");
+  });
+
+  it("update parsea y escribe por el camino único (update_customer_contact)", async () => {
+    const { svc: s, repo } = withRepo();
+    const r = await s.update("cust-matias", { name: "Matías R.", email: "MATIAS.ROJAS@gmail.com", phone: "+56 9 9888 7766" });
+    expect(r.ok).toBe(true);
+    expect(repo.updateContact).toHaveBeenCalledWith("cust-matias", {
+      name: "Matías R.",
+      email: "matias.rojas@gmail.com",
+      phone: "+56998887766",
+    });
+  });
+
+  it("update rechaza la entrada inválida ANTES de tocar la base", async () => {
+    const { svc: s, repo } = withRepo();
+    const r = await s.update("cust-matias", { name: "", email: "x@e.cl", phone: "" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("El nombre es obligatorio.");
+    expect(repo.updateContact).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Las reglas de negocio viven en la RPC y llegan como sentinelas; el servicio
+   * solo traduce. Cambiarle el email a un titular de cuenta es la que más
+   * importa: su email es su acceso.
+   */
+  it.each([
+    ["customer_has_account", "Este cliente tiene cuenta: su email es su acceso y no se puede cambiar desde el panel."],
+    ["customer_email_in_use", "Este cliente tiene puntos o reservas con ese email: no puede quedarse sin email."],
+    ["email_taken", "Ese email ya pertenece a otro cliente."],
+    ["deadlock detected", "No pudimos completar la operación. Intenta de nuevo."],
+  ])("update traduce el sentinela %s", async (sentinel, phrase) => {
+    const { svc: s } = withRepo({ updateContact: vi.fn().mockRejectedValue(new Error(sentinel)) });
+    const r = await s.update("cust-matias", { name: "Matías", email: "otro@e.cl", phone: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe(phrase);
+  });
+});
