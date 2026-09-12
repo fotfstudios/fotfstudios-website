@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Big_Shoulders, JetBrains_Mono, Fraunces } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import CustomCursor from "@/components/CustomCursor";
-import PublicChrome from "@/components/PublicChrome";
 import { buildConsentDefaultScript } from "@/lib/consent";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -84,15 +82,21 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        {/* Google Consent Mode v2 — defaults antes de GTM */}
+        {/*
+          Google Consent Mode v2 — defaults antes de cualquier tag.
+          INVARIANTE (nadie la vigila): el Script beforeInteractive solo funciona en ESTE
+          root layout — Next drena self.__next_s una sola vez antes de hidratar, y un
+          Script así en un layout de grupo puede no correr nunca, en silencio. Ni tsc,
+          ni "eslint ." (la regla de @next salta todo app/), ni vitest, ni el build lo
+          detectan; solo lib/chrome-contract.test.ts afirma que el atributo vive aquí y
+          en ningún otro .tsx. El loader de GTM, el banner de consentimiento y Vercel
+          Analytics viven en components/PublicChrome.tsx (marketing, booking, cuenta y
+          la 404) — nunca bajo /admin. Aquí solo queda lo que debe ser global.
+        */}
         <Script id="consent-default" strategy="beforeInteractive">
           {buildConsentDefaultScript()}
         </Script>
-
-        <div className="scroll-meter" aria-hidden />
-        <CustomCursor />
         {children}
-        <PublicChrome />
         <SpeedInsights />
       </body>
     </html>
