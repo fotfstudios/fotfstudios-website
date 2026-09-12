@@ -101,30 +101,8 @@ export async function regenerateAccessCodeAction(_prev: ActionResult | null, fd:
   });
 }
 
-/**
- * El dueño confirma que el PIN está en la cerradura. Es la ÚNICA señal de que el
- * código es real: la app no habla con Yale. Desde acá el cron puede mandarlo.
- */
-export async function markAccessLoadedAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("reservations.access");
-    const reservationId = str(fd, "reservationId");
-    await adminRepository().markAccessLoaded(reservationId);
-    revalidatePath(`/admin/reservas/${reservationId}`);
-    revalidatePath("/admin");
-  });
-}
-
-/** El dueño confirma que borró el PIN de la cerradura: cierra el ciclo. */
-export async function markAccessRemovedAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("reservations.access");
-    const reservationId = str(fd, "reservationId");
-    await adminRepository().markAccessRemoved(reservationId);
-    revalidatePath(`/admin/reservas/${reservationId}`);
-    revalidatePath("/admin");
-  });
-}
+// "Cargado" y "quitado" viven en app/admin/(panel)/cerradura/actions.ts: la página de
+// la cerradura es su dueña y la ficha las importa de ahí.
 
 /** Disponibilidad + ocupación del día para el picker de reagendamiento (excluye la propia reserva). */
 export async function getRescheduleDayAction(reservationId: string, date: string): Promise<ActionDataResult<DayConsoleData>> {

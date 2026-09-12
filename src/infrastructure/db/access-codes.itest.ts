@@ -201,6 +201,33 @@ describe("el ciclo del dueño", () => {
     expect(await repo.accessToLoadCount()).toBe(1);
   });
 
+  it("las listas de /admin/cerradura usan los MISMOS predicados que los conteos, y ordenan por inicio", async () => {
+    // por cargar: dos futuras sin cargar (la de 60 min antes que la de 180), una cargada,
+    // una terminada, una held y una de curso: solo las dos primeras.
+    // (slots de 60 min separados ≥ 60 min: reservations_no_overlap es una exclusion constraint)
+    const soon = await booking({ startsInMin: 60, code: "482917" });
+    const later = await booking({ startsInMin: 300, code: "555666" });
+    await booking({ startsInMin: 180, code: "111222", loaded: true });
+    await booking({ startsInMin: -120, code: "333444" });
+    await booking({ startsInMin: 420, code: "777888", status: "held" });
+    await booking({ startsInMin: 540, code: "999000", kind: "curso" });
+    // por quitar: dos terminadas con código sin quitar (la más vieja primero), una ya quitada
+    const oldest = await booking({ startsInMin: -600, code: "121212" });
+    const recent = await booking({ startsInMin: -240, code: "343434", loaded: true, sent: true });
+    await booking({ startsInMin: -360, code: "565656", removed: true });
+
+    const toLoad = await repo.accessToLoad();
+    expect(toLoad.map((r) => r.id)).toEqual([soon, later]);
+    expect(toLoad).toHaveLength(await repo.accessToLoadCount());
+    expect(toLoad[0]).toMatchObject({ accessCode: "482917", customerName: "Ana", customerEmail: "ana@e.cl" });
+
+    const toRemove = await repo.accessToRemove();
+    // la de -120 también terminó con código y sin quitar: entra acá, entre las dos
+    expect(toRemove.map((r) => r.id)).toEqual([oldest, recent, expect.any(String)]);
+    expect(toRemove).toHaveLength(await repo.accessToRemoveCount());
+    expect(toRemove.every((r) => /^\d+$/.test(r.accessCode))).toBe(true);
+  });
+
   it("marcar cargado deja access_loaded_at", async () => {
     const id = await booking({ startsInMin: 60, code: "482917" });
     await repo.markAccessLoaded(id);
