@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
 import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
-import { CURSO } from "../_content";
+import { CURSO } from "@/lib/curso-content";
 import { whatsappLink } from "@/lib/site";
 
 // Se lee el estado real del pedido en cada visita: el `?status` que agrega Mercado

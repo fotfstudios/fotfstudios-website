@@ -1,6 +1,6 @@
 import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
-import { PARA_QUIEN, NO_ES, NO_ES_NOTA } from "../_content";
+import { PARA_QUIEN, NO_ES, NO_ES_NOTA } from "@/lib/curso-content";
 
 /**
  * The "no es" column is deliberate scope-setting, not a disclaimer — same card

@@ -3,7 +3,7 @@ import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import Magnetic from "../Magnetic";
 import { formatCLP } from "@/lib/pricing";
-import { CURSO, PRECIOS } from "@/app/curso-dj/_content";
+import { CURSO, PRECIOS } from "@/lib/curso-content";
 
 /**
  * Home cross-sell for the course. The CTA routes to /curso-dj — the landing

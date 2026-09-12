@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GuideSection, guideJsonLd } from "../_components/Prose";
 import { formatCLP, RATES } from "@/lib/pricing";
-import { PRECIOS } from "@/app/curso-dj/_content";
+import { PRECIOS } from "@/lib/curso-content";
 
 const DESCRIPTION =
   "Qué determina el precio de un curso de DJ en Chile, cómo comparar programas — y nuestros precios publicados, sin 'desde' ni formularios de contacto.";

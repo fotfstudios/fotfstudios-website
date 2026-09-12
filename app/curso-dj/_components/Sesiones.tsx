@@ -1,6 +1,6 @@
 import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
-import { SESIONES } from "../_content";
+import { SESIONES } from "@/lib/curso-content";
 
 export default function Sesiones() {
   return (

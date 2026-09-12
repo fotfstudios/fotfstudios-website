@@ -3,7 +3,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
 import { SITE, SITE_URL } from "@/lib/site";
-import { FAQ, PRECIOS } from "./_content";
+import { FAQ, PRECIOS } from "@/lib/curso-content";
 import CursoHero from "./_components/CursoHero";
 import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
