@@ -6,10 +6,9 @@ import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDateTime } from "@/components/admin/format";
 import {
   markAccessAction,
-  markAccessLoadedAction,
-  markAccessRemovedAction,
   regenerateAccessCodeAction,
 } from "../actions";
+import { markAccessLoadedAction, markAccessRemovedAction } from "../../../cerradura/actions";
 
 export interface AccessCodeCardProps {
   reservationId: string;

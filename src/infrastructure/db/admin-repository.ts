@@ -145,6 +145,17 @@ export interface ReservasKpis {
   ingresos30d: number;
 }
 
+/** Una fila de /admin/cerradura: lo justo para cargar o quitar un PIN sin abrir la ficha. */
+export interface AccessWorkRow {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  /** Nunca null acá: las dos listas filtran por código presente. */
+  accessCode: string;
+}
+
 export interface DashboardData {
   todaySessions: number;
   weekRevenue: number;
@@ -214,6 +225,23 @@ interface ReservasFilterable {
   neq(column: string, value: string): this;
   in(column: string, values: string[]): this;
 }
+
+const ACCESS_WORK_SELECT = "id, starts_at, ends_at, customer_name, customer_email, access_code";
+const accessWorkRow = (r: {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  access_code: string | null;
+}): AccessWorkRow => ({
+  id: r.id,
+  startsAt: r.starts_at,
+  endsAt: r.ends_at,
+  customerName: r.customer_name,
+  customerEmail: r.customer_email,
+  accessCode: r.access_code ?? "",
+});
 
 const map = (r: ResRow): AdminBooking => ({
   id: r.id,
@@ -1012,6 +1040,43 @@ export class SupabaseAdminRepository {
   async releaseAccessSent(reservationId: string): Promise<void> {
     const { error } = await this.db.from("reservations").update({ access_sent_at: null }).eq("id", reservationId);
     if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Las dos listas de /admin/cerradura. Mismos predicados que los conteos de abajo
+   * (por eso viven juntos): el número de "Por hacer" y la lista tienen que coincidir.
+   * "Por cargar" ordena por inicio ascendente (lo más urgente primero); "por quitar"
+   * también ascendente, o sea el más viejo primero — es el que lleva más tiempo
+   * abriendo la puerta sin dueño. Tope de 100: el dueño nunca debería acumular más
+   * y, si pasa, el panel igual muestra el conteo real.
+   */
+  async accessToLoad(): Promise<AccessWorkRow[]> {
+    const { data, error } = await this.db
+      .from("reservations")
+      .select(ACCESS_WORK_SELECT)
+      .eq("kind", "booking")
+      .eq("status", "confirmed")
+      .not("access_code", "is", null)
+      .is("access_loaded_at", null)
+      .gte("ends_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(accessWorkRow);
+  }
+
+  async accessToRemove(): Promise<AccessWorkRow[]> {
+    const { data, error } = await this.db
+      .from("reservations")
+      .select(ACCESS_WORK_SELECT)
+      .eq("kind", "booking")
+      .not("access_code", "is", null)
+      .is("access_removed_at", null)
+      .lt("ends_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(accessWorkRow);
   }
 
   /** PIN generado y sin cargar, para una sesión que todavía no terminó. */
