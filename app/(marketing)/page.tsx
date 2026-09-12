@@ -13,6 +13,8 @@ import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 import { SITE, SITE_URL, PRICING } from "@/lib/site";
 
+// Sin `title` a propósito: al vivir bajo (marketing), el `title.template` del root
+// ("%s · FOTF Studios") YA aplica a esta página — un `title` aquí saldría con sufijo.
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };

@@ -2,6 +2,16 @@
 
 _Date 2026-08-18 · full code sweep + published-container fetch + live beacon verification · read-only except the `GTM_ID` guard comment shipped alongside this doc_
 
+> **Addendum 2026-09-12 — B1 superseded by a code-level split.** The GTM loader (+ noscript),
+> `ConsentBanner` and Vercel `<Analytics/>` now live in `components/PublicChrome.tsx`, mounted by
+> `app/(marketing)/layout.tsx`, `app/(booking)/layout.tsx`, `app/cuenta/layout.tsx` and
+> `app/not-found.tsx` — and nowhere under `app/admin`. `/admin/*` (18 routes, not 11) therefore
+> loads no `gtm.js` at all; the container-side blocking trigger proposed in B1 is no longer needed
+> for `/admin`. **`/cuenta/*` keeps GTM by decision**: customers are public traffic and
+> `whatsapp_click` fires from `/cuenta/reservas`. Do **not** add the `^/(admin|cuenta)` trigger; if
+> staff use of `/cuenta` ever pollutes GA4, prefer an internal-traffic filter. Line references to
+> `app/layout.tsx` below predate the split (`lib/chrome-contract.test.ts` pins the new layout).
+
 ## Executive summary
 
 The measurement **baseline is live and was verified end-to-end**: GA4 `G-5K07LY6W3N` is served through GTM container `GTM-WCC3V22R` (single loader, Consent Mode v2 gated), pageviews flow — including SPA route changes — and `whatsapp_click` (params `source`, `page`) arrives and is marked as a key event. Verification was empirical: live `/g/collect` beacons with HTTP 204 and the GA4 Realtime key-event card populating on a test click.
