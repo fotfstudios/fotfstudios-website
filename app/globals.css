@@ -37,10 +37,6 @@
     color-scheme: dark;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
-
   body {
     background-color: var(--color-ink);
     color: var(--color-bone);
@@ -352,6 +348,15 @@ html.has-cursor a,
 html.has-cursor button,
 html.has-cursor [role="button"] {
   cursor: none;
+}
+
+/* Scroll suave solo en marketing. Solo el root layout pinta <html>, así que la regla
+   se engancha al marcador data-surface que monta app/(marketing)/layout.tsx. Va SIN
+   @layer a propósito: una regla en capa perdería contra cualquier declaración sin
+   capa, y la versión anterior (dentro de @layer base) se eliminó en vez de
+   sobreescribirse. El override de prefers-reduced-motion de abajo sigue ganando. */
+html:has([data-surface="marketing"]) {
+  scroll-behavior: smooth;
 }
 
 /* Drift sutil ligado al scroll (progresivo, se ignora donde no hay soporte) */
