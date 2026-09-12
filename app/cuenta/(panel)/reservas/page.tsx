@@ -24,7 +24,7 @@ export default async function CuentaReservas() {
 
   return (
     <main className="space-y-8">
-      <PageHeader kicker="Mi cuenta" title="Tus reservas" editorial="Tu historial en la sala." />
+      <PageHeader kicker="Mi cuenta" title="Tus reservas" />
 
       {upcoming.length === 0 && past.length === 0 ? (
         <EmptyState

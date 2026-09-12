@@ -27,7 +27,7 @@ export default async function CerraduraPage() {
 
   return (
     <>
-      <PageHeader kicker="Operación" title="Cerradura" editorial="Cada PIN, en su momento, y después afuera." />
+      <PageHeader kicker="Operación" title="Cerradura" />
 
       <div id="cargar" className="mt-8 scroll-mt-8">
         <Card title={`Por cargar${toLoad.length ? ` · ${toLoad.length}` : ""}`}>

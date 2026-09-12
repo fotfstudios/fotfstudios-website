@@ -31,7 +31,7 @@ export default async function GeneracionesPage() {
 
   return (
     <>
-      <PageHeader kicker="Curso" title="Generaciones" editorial="Cada cohorte, su precio y sus cupos." />
+      <PageHeader kicker="Curso" title="Generaciones" />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
         <Card title="Nueva generación">

@@ -34,7 +34,6 @@ export default async function CuentaResumen() {
       <PageHeader
         kicker="Mi cuenta"
         title="Tus puntos"
-        editorial="Cada sesión suma."
         action={
           <Button href="/reservar" icon="points">
             Usar en una reserva

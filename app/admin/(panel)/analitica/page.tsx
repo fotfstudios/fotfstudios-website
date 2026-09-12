@@ -109,7 +109,6 @@ export default async function AnaliticaPage({
       <PageHeader
         kicker="Análisis"
         title="Analíticas"
-        editorial="Los números de la cabina, sin vueltas."
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-3">

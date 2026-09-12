@@ -281,3 +281,17 @@ describe("app/globals.css", () => {
     expect(css).toMatch(/prefers-reduced-motion: reduce\)[\s\S]*?scroll-behavior: auto !important;/);
   });
 });
+
+describe("de-marketing (D6): PageHeader sin línea editorial", () => {
+  it("PageHeader y su skeleton ya no conocen editorial", () => {
+    expect(read("components/admin/ui/PageHeader.tsx")).not.toContain("editorial");
+    const skeletons = read("components/admin/ui/skeletons.tsx");
+    expect(skeletons).not.toContain("editorial");
+    expect(skeletons).not.toContain('<Skeleton className="mt-3 h-4 w-48" />');
+  });
+
+  it("ningún call site pasa editorial=", () => {
+    expect(filesContaining("app", "editorial=")).toEqual([]);
+    expect(filesContaining("components", "editorial=")).toEqual([]);
+  });
+});

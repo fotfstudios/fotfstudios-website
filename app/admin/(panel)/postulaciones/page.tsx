@@ -26,7 +26,6 @@ export default async function PostulacionesPage({
       <PageHeader
         kicker="Operación"
         title="Postulaciones"
-        editorial="DJs que quieren sumarse al equipo."
       />
 
       {grandTotal === 0 ? (

@@ -33,7 +33,6 @@ export default async function AdminHome() {
       <PageHeader
         kicker="Panel"
         title="Hoy"
-        editorial="El pulso del día, claro."
         action={
           <Button href="/admin/reservas/nueva" icon="add">
             Nueva reserva

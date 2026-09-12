@@ -21,7 +21,7 @@ export default async function BloqueosPage() {
 
   return (
     <>
-      <PageHeader kicker="Operación" title="Bloqueos" editorial="Mantención, uso personal o feriados." />
+      <PageHeader kicker="Operación" title="Bloqueos" />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
         <Card title="Bloquear un horario">

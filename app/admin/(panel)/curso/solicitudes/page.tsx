@@ -26,7 +26,6 @@ export default async function SolicitudesPage({
       <PageHeader
         kicker="Curso"
         title="Solicitudes"
-        editorial="Quién quiere el cupo."
         action={
           <Button href="/curso-dj" icon="external" variant="secondary">
             Ver la página

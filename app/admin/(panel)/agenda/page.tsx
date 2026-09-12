@@ -110,7 +110,6 @@ export default async function AgendaPage({
       <PageHeader
         kicker="Operación"
         title="Agenda"
-        editorial="El calendario de la cabina."
         action={
           <Button href={`/admin/reservas/nueva?d=${q.date < today ? today : q.date}`} size="sm" icon="add">
             Nueva reserva

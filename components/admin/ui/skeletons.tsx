@@ -1,14 +1,13 @@
 import { DataTable, Td, Th, Tr } from "./DataTable";
 import { Skeleton } from "./Skeleton";
 
-/** Encabezado (kicker · título · línea editorial) en skeleton, calcado de `PageHeader`. */
+/** Encabezado (kicker · título) en skeleton, calcado de `PageHeader`. */
 export function SkeletonPageHeader({ action = false }: { action?: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <Skeleton className="h-3 w-20" />
         <Skeleton className="mt-3 h-10 w-56 md:h-12 md:w-72" />
-        <Skeleton className="mt-3 h-4 w-48" />
       </div>
       {action && <Skeleton className="h-10 w-36" />}
     </div>
