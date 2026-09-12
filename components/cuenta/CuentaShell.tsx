@@ -44,7 +44,7 @@ export default function CuentaShell({ balance, children }: { balance: number; ch
           <CuentaTabs />
         </div>
       </header>
-      <main className="booth-glow min-h-screen">
+      <main className="min-h-screen">
         <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8 sm:py-14">{children}</div>
       </main>
     </Toaster>

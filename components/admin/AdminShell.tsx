@@ -26,9 +26,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
     <Toaster>
       <Sidebar show={show} porHacer={porHacer} solicitudes={solicitudes} />
       <main className="min-h-screen lg:pl-60">
-        <div className="booth-glow">
-          <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">{children}</div>
-        </div>
+        <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">{children}</div>
       </main>
     </Toaster>
   );

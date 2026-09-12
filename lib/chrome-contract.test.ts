@@ -295,3 +295,11 @@ describe("de-marketing (D6): PageHeader sin línea editorial", () => {
     expect(filesContaining("components", "editorial=")).toEqual([]);
   });
 });
+
+describe("de-marketing (D6): booth-glow solo en marketing", () => {
+  it("booth-glow queda solo en CursoHero y la utilidad sigue definida en globals.css", () => {
+    expect(filesContaining("app", "booth-glow")).toEqual(["app/(marketing)/curso-dj/_components/CursoHero.tsx"]);
+    expect(filesContaining("components", "booth-glow")).toEqual([]);
+    expect(read("app/globals.css")).toContain(".booth-glow {");
+  });
+});
