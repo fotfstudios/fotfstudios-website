@@ -106,7 +106,7 @@ describe("app/admin/** y components/admin/**", () => {
   it("no referencian PublicChrome, cursor, medidor, GTM, banner ni Analytics", () => {
     const files = [...tsxUnder("app/admin"), ...tsxUnder("components/admin")];
     expect(files.length).toBeGreaterThan(0);
-    const tokens = ["PublicChrome", ...MARKETING_ONLY, GTM_LOADER, BANNER, ANALYTICS, "@vercel/analytics", "googletagmanager.com"];
+    const tokens = ["PublicChrome", ...MARKETING_ONLY, GTM_LOADER, BANNER, ANALYTICS, "@vercel/analytics", "googletagmanager.com", "@next/third-parties", "gtmId", "gtag("];
     const offenders = files.filter((f) => {
       const src = read(f);
       return tokens.some((t) => src.includes(t));
@@ -122,25 +122,29 @@ describe("app/admin/** y components/admin/**", () => {
 
 describe("dueños únicos (app/ + components/)", () => {
   const all = [...tsxUnder("app"), ...tsxUnder("components")];
-  const owners = (needle: string) => all.filter((f) => read(f).includes(needle));
+  const owners = (needle: string | RegExp) =>
+    all.filter((f) => {
+      const src = read(f);
+      return typeof needle === "string" ? src.includes(needle) : needle.test(src);
+    });
 
   it('strategy="beforeInteractive" solo en app/layout.tsx', () => {
     expect(owners(BEFORE_INTERACTIVE)).toEqual(["app/layout.tsx"]);
   });
 
   it("gtm-init, <ConsentBanner /> y <Analytics /> solo en components/PublicChrome.tsx", () => {
-    for (const needle of [GTM_LOADER, "<ConsentBanner />", "<Analytics />"]) {
-      expect(owners(needle), needle).toEqual(["components/PublicChrome.tsx"]);
+    for (const needle of [GTM_LOADER, /<ConsentBanner\s*\/>/, /<Analytics\s*\/>/]) {
+      expect(owners(needle), String(needle)).toEqual(["components/PublicChrome.tsx"]);
     }
   });
 
   it("<CustomCursor /> y el scroll-meter solo en app/(marketing)/layout.tsx", () => {
-    expect(owners("<CustomCursor />")).toEqual(["app/(marketing)/layout.tsx"]);
+    expect(owners(/<CustomCursor\s*\/>/)).toEqual(["app/(marketing)/layout.tsx"]);
     expect(owners(METER)).toEqual(["app/(marketing)/layout.tsx"]);
   });
 
   it("<PublicChrome /> exactamente en (marketing), (booking), cuenta y not-found", () => {
-    expect(owners("<PublicChrome />")).toEqual([
+    expect(owners(/<PublicChrome\s*\/>/)).toEqual([
       "app/(booking)/layout.tsx",
       "app/(marketing)/layout.tsx",
       "app/cuenta/layout.tsx",

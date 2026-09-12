@@ -4,7 +4,7 @@ import { Skeleton } from "./Skeleton";
 /** Encabezado (kicker · título) en skeleton, calcado de `PageHeader`. */
 export function SkeletonPageHeader({ action = false }: { action?: boolean }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-wrap items-end justify-between gap-4 border-b hairline pb-6">
       <div>
         <Skeleton className="h-3 w-20" />
         <Skeleton className="mt-3 h-10 w-56 md:h-12 md:w-72" />

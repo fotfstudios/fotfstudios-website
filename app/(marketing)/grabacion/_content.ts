@@ -1,4 +1,4 @@
-/** Grabación landing — single edit point (mirrors app/curso-dj/_content.ts). */
+/** Grabación landing — single edit point (mirrors lib/curso-content.ts). */
 export const GRABACION = {
   waMessage:
     "Hola *FOTF Studios*. Quiero agendar una *Sesión de Grabación* de mi set.",
