@@ -18,7 +18,7 @@ export default async function CuentaPerfil() {
 
   return (
     <main className="space-y-8">
-      <PageHeader kicker="Mi cuenta" title="Tu perfil" editorial="Para que reservar sea un solo clic." />
+      <PageHeader kicker="Mi cuenta" title="Tu perfil" />
 
       <Card>
         <ActionForm action={updateProfileAction} success="Perfil actualizado" className="max-w-md space-y-4">

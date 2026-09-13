@@ -1,4 +1,4 @@
-import { FAQ } from "../_content";
+import { FAQ } from "@/lib/curso-content";
 
 /**
  * Native <details>/<summary> — server-rendered and keyboard-operable with no

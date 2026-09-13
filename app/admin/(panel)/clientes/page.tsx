@@ -40,7 +40,6 @@ export default async function ClientesPage({
       <PageHeader
         kicker="Operación"
         title="Clientes"
-        editorial="Quién viene, qué tiene, cómo ubicarlo."
         action={<NuevoClienteButton />}
       />
 

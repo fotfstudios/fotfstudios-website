@@ -68,7 +68,6 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
       <PageHeader
         kicker={`${inscripcion.generationCode} · ${inscripcion.plan === "duo" ? "En dúo" : "Individual"}`}
         title={inscripcion.studentName}
-        editorial="Curso de Iniciación DJ."
         action={<StatusPill status={inscripcion.status} />}
       />
 

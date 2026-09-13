@@ -29,7 +29,7 @@ export default async function NuevaReserva({
   const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
 
   const header = (
-    <PageHeader kicker="Operación" title="Reserva manual" editorial="Walk-in, teléfono o WhatsApp." />
+    <PageHeader kicker="Operación" title="Reserva manual" />
   );
 
   if (!resource) {

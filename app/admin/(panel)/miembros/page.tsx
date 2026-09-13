@@ -25,7 +25,6 @@ export default async function MiembrosPage() {
       <PageHeader
         kicker="Configuración"
         title="Miembros"
-        editorial="Quién entra al panel, y con qué rol."
         action={<InviteMemberButton roles={roles} />}
       />
 

@@ -49,7 +49,6 @@ export default async function CursoPage() {
       <PageHeader
         kicker="Operación"
         title="Curso"
-        editorial="Una generación a la vez, seis cupos."
         action={
           <>
             {generacion && (

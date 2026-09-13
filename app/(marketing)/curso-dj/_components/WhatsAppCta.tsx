@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import SharedWhatsAppCta from "@/components/WhatsAppCta";
-import { CURSO } from "../_content";
+import { CURSO } from "@/lib/curso-content";
 
 /**
  * Especialización local del CTA compartido: mismo mensaje wa.me y `page`

@@ -4,7 +4,7 @@ import { track } from "@vercel/analytics";
  * Eventos de medición del sitio público. Único punto que habla con GTM
  * (dataLayer) y Vercel Analytics — los componentes no empujan a mano.
  * GA4 recibe estos eventos vía el contenedor GTM (ver comentario en
- * app/layout.tsx); cada evento nuevo necesita su trigger + etiqueta ahí.
+ * components/PublicChrome.tsx); cada evento nuevo necesita su trigger + etiqueta ahí.
  * `window.dataLayer` está declarado globalmente en components/ConsentBanner.tsx.
  */
 

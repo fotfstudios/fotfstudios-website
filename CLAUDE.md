@@ -70,17 +70,42 @@ en vivo ni la base Supabase remota real.
   equipo so the gallery never repeats images. Drop files in `public/photos/` (prefix-named:
   `hero-*`, `cabina-*`, `equipo-xdj/djm/vm70-*`) and rebuild — auto-discovered.
 - `components/` — sections in `components/sections/`; shared (`Logo`, `BrandImage`, `Nav`,
-  `Footer`, motion: `MaskText`/`CustomCursor`/`Magnetic`/`Ticker`/`ParallaxImage`).
-- `app/` — `layout.tsx` (metadata), `page.tsx` (composition + JSON-LD), and metadata routes:
-  `sitemap.ts`, `robots.ts`, `opengraph-image.tsx`, `twitter-image.tsx`, `apple-icon.tsx`,
-  `manifest.ts`, `icon.svg`. OG fonts live in `app/_fonts/` (Big Shoulders, JetBrains Mono).
+  `Footer`, motion: `MaskText`/`Magnetic`/`Ticker`/`ParallaxImage`). `CustomCursor` is
+  marketing-only (mounted by `app/(marketing)/layout.tsx`, never by the root).
+  `components/PublicChrome.tsx` is the one place that mounts GTM (noscript + `gtm-init`) +
+  `ConsentBanner` + Vercel `<Analytics/>`.
+- `lib/curso-content.ts` — Curso DJ copy/prices (`CURSO`, `PRECIOS`, `FAQ`…). Lives in `lib/`
+  because the home section, a guide and `app/admin/(panel)/curso/generaciones` read it too —
+  never import across `app/` trees (`@/app/...` from `components/` is a smell).
+- `app/` — four **surfaces**, each owning its chrome in exactly one file (route groups never
+  change URLs). `lib/chrome-contract.test.ts` pins this; keep it green.
+  - `app/layout.tsx` (root): `<html>`/`<body>`, fonts, metadata/viewport, `globals.css`, the
+    Consent Mode `consent-default` Script and `<SpeedInsights/>`. **`beforeInteractive` only
+    works in this file** — nothing in lint or build enforces it (the @next rule skips `app/`);
+    only the contract test does. No other chrome here.
+  - `app/(marketing)/`: home `page.tsx` (composition + JSON-LD; it must NOT export a `title` —
+    root `title.template` applies to it), `curso-dj/` (+ `pago/`, OG pair), `grabacion/`,
+    `unete/`, `privacidad/`, `terminos/` and the nested `(guias)/` group. `layout.tsx` mounts
+    `CustomCursor`, the `.scroll-meter` div (`data-surface="marketing"`, which also scopes smooth
+    scroll via `html:has(...)` in `globals.css`) and `PublicChrome`. It returns a fragment and
+    never mounts `Nav`/`Footer` — pages and `(guias)/layout.tsx` own those.
+  - `app/(booking)/`: `reservar/`, `reserva/`. `layout.tsx` mounts `PublicChrome` only.
+  - `app/cuenta/`: `layout.tsx` mounts `PublicChrome` only, above `login/` and `(panel)/`.
+    `/cuenta` keeps GTM by decision (it fires `whatsapp_click`; EEA visitors need the banner).
+  - `app/admin/`: **no chrome at all** — no `PublicChrome`, no cursor, no GTM, no banner. Never
+    add `app/admin/layout.tsx` or `app/admin/error.tsx` (`app/error.tsx` is `/admin/login`'s boundary).
+  Root-only metadata routes stay at `app/`: `sitemap.ts`, `robots.ts`, `opengraph-image.tsx`,
+  `twitter-image.tsx`, `apple-icon.tsx`, `manifest.ts`, `icon.svg`. OG fonts live in
+  `app/_fonts/` (Big Shoulders, JetBrains Mono), read `process.cwd()`-relative — don't move them.
 - `public/photos/` (real photos), `public/logo/` (brand SVGs, transparent).
 - Colocation: single-use UI lives in the segment's `_components/`; shared admin UI in
   `components/admin/` (design system: `components/admin/ui/`). Server actions are segment-local
   (`<segment>/actions.ts`, `"use server"` + `requirePermission`) — no global actions file.
 - Route errors/404: `app/error.tsx` + `app/global-error.tsx` + `app/not-found.tsx` (public,
-  brand-styled) and `app/admin/(panel)/error.tsx` + `not-found.tsx` (inside the shell). Never
-  render raw `error.message`; show `error.digest` only.
+  brand-styled; both render with the root layout only — no group chrome — so `not-found.tsx`
+  mounts `PublicChrome` itself and hard 404s, including unmatched `/admin/*` URLs, keep
+  GTM/consent, while `error.tsx` renders un-chromed) and `app/admin/(panel)/error.tsx` +
+  `not-found.tsx` (inside the shell). Never render raw `error.message`; show `error.digest` only.
 
 ## Brand guardrails (Manual de Marca)
 

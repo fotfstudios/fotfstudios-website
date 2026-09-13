@@ -8,7 +8,7 @@ import { MeterCell } from "@/components/admin/ui/MeterCell";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { PRECIOS, CURSO } from "@/app/curso-dj/_content";
+import { PRECIOS, CURSO } from "@/lib/curso-content";
 import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -25,13 +25,13 @@ export default async function GeneracionesPage() {
 
   const generaciones = await courseRepository().listGenerations();
   // La generación anterior es el mejor default para la próxima; si no hay ninguna,
-  // los números que hoy vive la landing en _content.ts.
+  // los números que hoy vive la landing en lib/curso-content.ts.
   const base = generaciones[0];
   const precios = base?.prices ?? PRECIOS;
 
   return (
     <>
-      <PageHeader kicker="Curso" title="Generaciones" editorial="Cada cohorte, su precio y sus cupos." />
+      <PageHeader kicker="Curso" title="Generaciones" />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
         <Card title="Nueva generación">

@@ -51,7 +51,7 @@ function LoginForm() {
   };
 
   return (
-    <main className="booth-glow flex min-h-screen items-center justify-center px-6">
+    <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-sm border hairline bg-ink/40 p-8">
         <div className="flex items-center gap-2.5">
           <Logo variant="mini" color="gold" height={26} />

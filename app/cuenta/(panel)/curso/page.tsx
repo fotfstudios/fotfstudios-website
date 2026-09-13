@@ -24,7 +24,6 @@ export default async function CuentaCurso() {
       <PageHeader
         kicker="Mi cuenta"
         title="Tu curso"
-        editorial="Cuatro sesiones, una cabina."
         action={
           <Button href="/curso-dj" icon="external" variant="secondary">
             Ver el curso

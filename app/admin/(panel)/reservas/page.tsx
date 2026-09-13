@@ -35,7 +35,6 @@ export default async function ReservasPage({
       <PageHeader
         kicker="Operación"
         title="Reservas"
-        editorial="Todo lo que pasa por la sala."
         action={
           <Button href="/admin/reservas/nueva" icon="add">
             Nueva reserva

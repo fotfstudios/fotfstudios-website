@@ -60,7 +60,7 @@ export default async function RolesPage() {
 
   return (
     <>
-      <PageHeader kicker="Configuración" title="Roles" editorial="Lo que cada quien puede hacer." />
+      <PageHeader kicker="Configuración" title="Roles" />
 
       <div className="mt-8 flex flex-col gap-4">
         {roles.map((role) => (

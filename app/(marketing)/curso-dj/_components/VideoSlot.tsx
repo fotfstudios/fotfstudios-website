@@ -1,8 +1,8 @@
-import { CURSO } from "../_content";
+import { CURSO } from "@/lib/curso-content";
 
 /**
  * Slot for the student final-set video, swapped via CURSO.videoSrc in
- * _content.ts. While null it renders an honest "coming soon" frame — never a
+ * lib/curso-content.ts. While null it renders an honest "coming soon" frame — never a
  * fake thumbnail.
  */
 export default function VideoSlot() {

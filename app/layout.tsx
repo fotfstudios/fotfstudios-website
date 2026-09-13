@@ -1,10 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Big_Shoulders, JetBrains_Mono, Fraunces } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import CustomCursor from "@/components/CustomCursor";
-import ConsentBanner from "@/components/ConsentBanner";
 import { buildConsentDefaultScript } from "@/lib/consent";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -31,9 +28,6 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
   display: "swap",
 });
-
-// GA4 (G-5K07LY6W3N) se sirve vía este contenedor GTM — no agregar gtag.js aparte (duplicaría la medición).
-const GTM_ID = "GTM-WCC3V22R";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -88,35 +82,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        {/* Google Consent Mode v2 — defaults antes de GTM */}
+        {/*
+          Google Consent Mode v2 — defaults antes de cualquier tag.
+          INVARIANTE (nadie la vigila): el Script beforeInteractive solo funciona en ESTE
+          root layout — Next drena self.__next_s una sola vez antes de hidratar, y un
+          Script así en un layout de grupo puede no correr nunca, en silencio. Ni tsc,
+          ni "eslint ." (la regla de @next salta todo app/), ni vitest, ni el build lo
+          detectan; solo lib/chrome-contract.test.ts afirma que el atributo vive aquí y
+          en ningún otro .tsx. El loader de GTM, el banner de consentimiento y Vercel
+          Analytics viven en components/PublicChrome.tsx (marketing, booking, cuenta y
+          la 404) — nunca bajo /admin. Aquí solo queda lo que debe ser global.
+        */}
         <Script id="consent-default" strategy="beforeInteractive">
           {buildConsentDefaultScript()}
         </Script>
-        {/* Google Tag Manager (noscript) */}
-        <noscript>
-          <iframe
-            src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-            height="0"
-            width="0"
-            style={{ display: "none", visibility: "hidden" }}
-            title="Google Tag Manager"
-          />
-        </noscript>
-        {/* Google Tag Manager */}
-        <Script id="gtm-init" strategy="afterInteractive">
-          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${GTM_ID}');`}
-        </Script>
-
-        <div className="scroll-meter" aria-hidden />
-        <CustomCursor />
         {children}
-        <Analytics />
         <SpeedInsights />
-        <ConsentBanner />
       </body>
     </html>
   );

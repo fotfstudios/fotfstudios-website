@@ -2,7 +2,7 @@ import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
 import Magnetic from "@/components/Magnetic";
 import { formatCLP } from "@/lib/pricing";
-import { PRECIOS } from "../_content";
+import { PRECIOS } from "@/lib/curso-content";
 import WhatsAppCta from "./WhatsAppCta";
 
 /** The low-friction entry point — a full section by design, not a footnote. */

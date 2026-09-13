@@ -51,15 +51,22 @@ Toda la motion se inspira en el ritmo de la marca (four-on-the-floor, ecualizado
 - **Revelado cinético** ([MaskText.tsx](components/MaskText.tsx)): los titulares suben
   línea por línea desde una máscara limpia.
 - **Cursor de cabina** ([CustomCursor.tsx](components/CustomCursor.tsx)): punto + aro que
-  crece sobre elementos interactivos. Solo en puntero fino (desktop).
+  crece sobre elementos interactivos. Solo en puntero fino (desktop) y solo en las páginas
+  de marketing (`app/(marketing)/layout.tsx`) — /reservar, /cuenta y /admin usan el cursor
+  del sistema.
 - **Botones magnéticos** ([Magnetic.tsx](components/Magnetic.tsx)) en los CTA principales.
 - **Cinta de transmisión** ([Ticker.tsx](components/Ticker.tsx)): marquee de datos en mono.
 - **Parallax del Hero** ([ParallaxImage.tsx](components/ParallaxImage.tsx)): la foto deriva
   apenas con el cursor.
-- **Medidor de scroll** (CSS scroll-driven, sin JS) y **grano analógico** animado.
+- **Medidor de scroll** (CSS scroll-driven, sin JS; solo marketing, igual que el scroll suave) y **grano analógico** animado.
 
 En táctil o con «menos movimiento» activado, cursor/parallax/magnético se desactivan y
 los textos aparecen sin animación.
+
+Cursor, medidor y scroll suave (`html:has([data-surface="marketing"])` en `globals.css`) los
+monta `app/(marketing)/layout.tsx`. La medición (GTM, banner de cookies, Vercel Analytics) es
+`components/PublicChrome.tsx` y sí acompaña a reservas y `/cuenta` — nunca a `/admin`. El modelo
+de superficies está en `CLAUDE.md` → *Where things live*.
 
 ## Pendiente antes de publicar
 

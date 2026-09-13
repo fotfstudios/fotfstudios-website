@@ -1,7 +1,7 @@
 import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
 import { formatCLP, PACK_EGRESADO } from "@/lib/pricing";
-import { CURSO, PRECIOS, INCLUYE } from "../_content";
+import { CURSO, PRECIOS, INCLUYE } from "@/lib/curso-content";
 
 export default function Precios() {
   return (
