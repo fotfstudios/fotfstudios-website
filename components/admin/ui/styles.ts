@@ -10,9 +10,11 @@ const VARIANT: Record<BtnVariant, string> = {
   ghost: "text-bone-quiet hover:text-gold",
 };
 
+// md mide ≥ 44px (WCAG 2.5.5 / lo que un pulgar acierta): las CTA primarias del
+// cliente medían 38px en teléfono.
 const SIZE: Record<BtnSize, string> = {
   sm: "px-3 py-1.5 label-sm",
-  md: "px-5 py-2.5 label",
+  md: "px-5 py-2.5 min-h-11 label",
 };
 
 export function btn(variant: BtnVariant = "primary", size: BtnSize = "md"): string {

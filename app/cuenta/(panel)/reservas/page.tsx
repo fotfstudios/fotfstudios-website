@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Button } from "@/components/admin/ui/Button";
-import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
-import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { fmtDate, fmtTimeRange } from "@/components/admin/format";
-import { formatCLP } from "@/lib/pricing";
+import BookingList from "@/components/cuenta/BookingList";
 import WhatsAppCta from "@/components/WhatsAppCta";
-import type { CustomerBooking } from "@/src/application/ports/customers";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 
@@ -45,7 +40,7 @@ export default async function CuentaReservas() {
                 action={<Button href="/reservar" size="sm">Reservar</Button>}
               />
             ) : (
-              <BookingsTable caption="Próximas reservas" rows={upcoming} withLink />
+              <BookingList label="Próximas reservas" rows={upcoming} withLink />
             )}
             <p className="label-sm text-bone-quiet">
               ¿Necesitas cambiar una reserva?{" "}
@@ -63,7 +58,7 @@ export default async function CuentaReservas() {
           {past.length > 0 && (
             <section className="space-y-3">
               <h2 className="label text-bone-quiet">Pasadas</h2>
-              <BookingsTable caption="Reservas pasadas" rows={past.slice(0, PAST_SHOWN)} />
+              <BookingList label="Reservas pasadas" rows={past.slice(0, PAST_SHOWN)} />
               {past.length > PAST_SHOWN && (
                 <p className="label-sm text-bone-quiet">Se muestran las últimas {PAST_SHOWN}.</p>
               )}
@@ -75,59 +70,3 @@ export default async function CuentaReservas() {
   );
 }
 
-function BookingsTable({
-  caption,
-  rows,
-  withLink,
-}: {
-  caption: string;
-  rows: CustomerBooking[];
-  withLink?: boolean;
-}) {
-  return (
-    <DataTable
-      caption={caption}
-      head={
-        <>
-          <Th>Fecha</Th>
-          <Th>Horario</Th>
-          <Th>Estado</Th>
-          <Th right>Total</Th>
-          {withLink && <Th />}
-        </>
-      }
-      minWidthClassName="min-w-[32rem]"
-    >
-      {rows.map((b) => {
-        const total = (b.amountClp ?? 0) + b.pointsRedeemedClp;
-        return (
-          <Tr key={b.id} muted={b.status === "cancelled" || b.status === "expired"}>
-            <Td>{fmtDate(b.startsAt)}</Td>
-            <Td>{fmtTimeRange(b.startsAt, b.endsAt)}</Td>
-            <Td>
-              <StatusPill status={b.orderStatus === "pending_payment" ? "pending_payment" : b.status} />
-            </Td>
-            <Td right>
-              <span className="font-mono">{b.orderId ? formatCLP(total) : "—"}</span>
-              {b.pointsRedeemedClp > 0 && (
-                <span className="label-sm block text-bone-quiet">con puntos</span>
-              )}
-            </Td>
-            {withLink && (
-              <Td right>
-                {b.orderId && (
-                  <Link
-                    href={`/reserva/estado?b=${b.orderId}`}
-                    className="label-sm text-bone-dim transition-colors hover:text-gold"
-                  >
-                    Ver estado →
-                  </Link>
-                )}
-              </Td>
-            )}
-          </Tr>
-        );
-      })}
-    </DataTable>
-  );
-}
