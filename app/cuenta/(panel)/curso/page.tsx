@@ -22,12 +22,15 @@ export default async function CuentaCurso() {
   return (
     <main className="space-y-8">
       <PageHeader
-        kicker="Mi cuenta"
         title="Tu curso"
+        // Sin inscripción, la única CTA es la del estado vacío (dos botones al
+        // mismo /curso-dj en una pantalla era ruido).
         action={
-          <Button href="/curso-dj" icon="external" variant="secondary">
-            Ver el curso
-          </Button>
+          cursos.length > 0 ? (
+            <Button href="/curso-dj" icon="external" variant="secondary">
+              Ver el curso
+            </Button>
+          ) : undefined
         }
       />
 

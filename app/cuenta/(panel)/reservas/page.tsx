@@ -7,7 +7,7 @@ import WhatsAppCta from "@/components/WhatsAppCta";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 
-export const metadata: Metadata = { title: "Mis reservas — FOTF Studios", robots: { index: false } };
+export const metadata: Metadata = { title: "Mis reservas", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const PAST_SHOWN = 20;
@@ -19,7 +19,7 @@ export default async function CuentaReservas() {
 
   return (
     <main className="space-y-8">
-      <PageHeader kicker="Mi cuenta" title="Tus reservas" />
+      <PageHeader title="Tus reservas" />
 
       {upcoming.length === 0 && past.length === 0 ? (
         <EmptyState
