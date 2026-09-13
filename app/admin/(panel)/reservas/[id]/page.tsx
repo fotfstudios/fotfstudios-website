@@ -162,7 +162,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
       <header className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b hairline pb-6">
         <div>
-          <h1 className="font-display text-bone" style={{ fontSize: "clamp(1.8rem,5vw,2.8rem)" }}>
+          <h1 className="font-display text-3xl text-bone sm:text-4xl">
             {fmtDateTime(b.startsAt)}
           </h1>
           <p className="mt-2 flex items-center gap-2">

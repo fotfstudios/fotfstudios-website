@@ -116,7 +116,12 @@ en vivo ni la base Supabase remota real.
   `border-ink-edge` (3.3:1), never the hairline. `lib/admin-a11y-contract.test.ts` enforces
   both, plus native `<dialog>` modals, `th scope`, and persistent error toasts.
 - **Type:** Big Shoulders (display, headlines), JetBrains Mono (labels/`.label`, tracked
-  uppercase), Fraunces Italic (one editorial line per section).
+  uppercase), Fraunces Italic (one editorial line per section — marketing only).
+- **Tool-surface type (admin + cuenta):** the shells set `data-surface="tool"`, which steps
+  the letra menuda up in `globals.css` (`.label` 12px, `.label-sm` 11px, 0.14em) — never
+  edit the base `.label` classes for the admin. Table headers, form labels and KPI labels
+  use `.label`; pills/badges `.label-sm`. App headings are fixed rem (`text-3xl sm:text-4xl`),
+  never `clamp()`. Enforced by `lib/admin-a11y-contract.test.ts`.
 - **Voice:** Spanish (Chile), precise and direct. Exact gear models: 2× Pioneer XDJ-1000MK2,
   Pioneer DJM-450, 2× **Pioneer DJ VM-50**. Say "aislada acústicamente" (not "insonorizada").
 - **Photography:** low-key, real black, single light source; every photo over text needs a scrim.

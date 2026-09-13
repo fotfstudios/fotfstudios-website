@@ -24,10 +24,14 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
   };
   return (
     <Toaster>
-      <Sidebar show={show} porHacer={porHacer} solicitudes={solicitudes} />
-      <main className="min-h-screen lg:pl-60">
-        <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">{children}</div>
-      </main>
+      {/* data-surface="tool": sube un paso la escala de .label/.label-sm (globals.css) en
+          todo el panel, sidebar incluido. `contents` no añade caja al layout. */}
+      <div data-surface="tool" className="contents">
+        <Sidebar show={show} porHacer={porHacer} solicitudes={solicitudes} />
+        <main className="min-h-screen lg:pl-60">
+          <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">{children}</div>
+        </main>
+      </div>
     </Toaster>
   );
 }

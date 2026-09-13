@@ -48,7 +48,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         <span className="text-bone-dim">{customerLabel(c)}</span>
       </nav>
       <header className="mt-4 border-b hairline pb-6">
-        <h1 className="font-display text-bone" style={{ fontSize: "clamp(1.8rem, 5vw, 2.8rem)" }}>
+        <h1 className="font-display text-3xl text-bone sm:text-4xl">
           {customerLabel(c)}
         </h1>
         <p className="mt-2 font-mono text-xs text-bone-dim">

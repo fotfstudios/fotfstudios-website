@@ -17,7 +17,7 @@ export function PageHeader({
     <header className="flex flex-wrap items-end justify-between gap-4 border-b hairline pb-6">
       <div>
         {kicker && <p className="label-sm text-gold">{kicker}</p>}
-        <h1 className="font-display mt-2 text-bone" style={{ fontSize: "clamp(2rem,5vw,3.25rem)" }}>
+        <h1 className="font-display mt-2 text-3xl text-bone sm:text-4xl">
           {title}
         </h1>
       </div>

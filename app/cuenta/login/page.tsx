@@ -51,14 +51,14 @@ function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <main data-surface="tool" className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-sm border hairline bg-ink/40 p-8">
         <div className="flex items-center gap-2.5">
           <Logo variant="mini" color="gold" height={26} />
           <span className="label text-bone-quiet">Mi cuenta</span>
         </div>
 
-        <h1 className="font-display mt-6 text-bone" style={{ fontSize: "clamp(1.8rem,5vw,2.4rem)" }}>
+        <h1 className="font-display mt-6 text-3xl text-bone">
           Entra o crea tu cuenta
         </h1>
 
@@ -81,7 +81,7 @@ function LoginForm() {
               {callbackFailed && (
                 <p className="label-sm text-sirena">No pudimos iniciar tu sesión con ese enlace. Pide uno nuevo.</p>
               )}
-              <label className="label-sm text-bone-quiet">
+              <label className="label text-bone-quiet">
                 Correo
                 <input
                   type="email"

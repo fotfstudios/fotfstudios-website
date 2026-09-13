@@ -24,7 +24,7 @@ export function DataTable({
 
 export function Th({ children, right }: { children?: ReactNode; right?: boolean }) {
   return (
-    <th scope="col" className={`label-sm px-4 py-3 font-medium text-bone-quiet ${right ? "text-right" : "text-left"}`}>
+    <th scope="col" className={`label px-4 py-3 font-medium text-bone-quiet ${right ? "text-right" : "text-left"}`}>
       {children}
     </th>
   );
