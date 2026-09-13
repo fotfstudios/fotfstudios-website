@@ -114,7 +114,7 @@ export function DiscountPicker({
             </p>
           ) : (
             amount !== null && (
-              <p className="label-sm text-bone-mute">
+              <p className="label-sm text-bone-quiet">
                 Se descontarán <span className="font-mono text-gold">{formatCLP(amount)}</span>.
               </p>
             )

@@ -41,7 +41,7 @@ export function Practica({
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 border-t hairline py-3 first:border-0 first:pt-0">
               <span className="font-mono text-sm text-bone-dim">
                 {r.startsAt ? fmtDateTime(r.startsAt) : "—"}
-                <span className="ml-2 text-bone-mute">
+                <span className="ml-2 text-bone-quiet">
                   {r.hours} {r.hours === 1 ? "hora" : "horas"}
                 </span>
               </span>
@@ -89,7 +89,7 @@ export function Practica({
           </div>
         </ActionForm>
       ) : (
-        <p className="mt-5 border-t hairline pt-4 label-sm text-bone-mute">
+        <p className="mt-5 border-t hairline pt-4 label-sm text-bone-quiet">
           {total === 0 ? "Esta inscripción no incluye horas de práctica." : "Ya usó todas sus horas."}
         </p>
       )}

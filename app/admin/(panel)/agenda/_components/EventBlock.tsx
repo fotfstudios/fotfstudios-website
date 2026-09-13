@@ -82,9 +82,9 @@ export function EventBlock({
             </span>
             <span className="truncate text-sm text-bone">{title}</span>
             {b.customerPhone && (
-              <span className="hidden shrink-0 font-mono text-xs text-bone-mute lg:inline">{b.customerPhone}</span>
+              <span className="hidden shrink-0 font-mono text-xs text-bone-quiet lg:inline">{b.customerPhone}</span>
             )}
-            {b.notes && <Icon name="doc" size={14} className="shrink-0 self-center text-bone-mute" />}
+            {b.notes && <Icon name="doc" size={14} className="shrink-0 self-center text-bone-quiet" />}
           </span>
           <span className="flex shrink-0 items-center gap-3">
             {b.amount != null && (

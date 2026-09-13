@@ -46,12 +46,12 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
         const waDigits = r.phone.replace(/\D/g, "");
         return (
           <Tr key={r.id} muted={r.status === "descartada"}>
-            <Td className="whitespace-nowrap font-mono text-bone-mute">{fmtDate(r.createdAt)}</Td>
+            <Td className="whitespace-nowrap font-mono text-bone-quiet">{fmtDate(r.createdAt)}</Td>
             <Td className="text-bone">
               {r.name}
               {r.message && (
                 <details className="mt-1">
-                  <summary className="label-sm cursor-pointer text-bone-mute hover:text-gold">
+                  <summary className="label-sm cursor-pointer text-bone-quiet hover:text-gold">
                     Ver mensaje
                   </summary>
                   <p className="mt-2 max-w-md whitespace-pre-wrap border-l border-ink-line pl-3 text-sm text-bone-dim">
@@ -69,14 +69,14 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
                 href={`https://wa.me/${waDigits}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="label-sm text-bone-mute hover:text-gold"
+                className="label-sm text-bone-quiet hover:text-gold"
               >
                 {r.phone}
               </a>
             </Td>
             <Td className="text-bone-dim">
               {LEAD_PLAN_LABELS[r.plan]}
-              <span className="block label-sm text-bone-mute">{EXPERIENCE_LABELS[r.experience]}</span>
+              <span className="block label-sm text-bone-quiet">{EXPERIENCE_LABELS[r.experience]}</span>
             </Td>
             <Td className="max-w-[16rem] text-bone-dim">{r.availability}</Td>
             <Td>

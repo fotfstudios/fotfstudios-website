@@ -52,7 +52,7 @@ export default async function BloqueosPage() {
         </Card>
 
         <div>
-          <h2 className="mb-3 label text-bone-mute">Bloqueos próximos</h2>
+          <h2 className="mb-3 label text-bone-quiet">Bloqueos próximos</h2>
           {blocks.length === 0 ? (
             <EmptyState icon="block" title="Sin bloqueos" hint="Los horarios bloqueados aparecerán acá y no se podrán reservar." />
           ) : (
@@ -67,7 +67,7 @@ export default async function BloqueosPage() {
               {blocks.map((b) => (
                 <Tr key={b.id}>
                   <Td className="font-mono text-bone">
-                    {fmtDateTime(b.startsAt)} <span className="text-bone-mute">→</span> {fmtDateTime(b.endsAt)}
+                    {fmtDateTime(b.startsAt)} <span className="text-bone-quiet">→</span> {fmtDateTime(b.endsAt)}
                   </Td>
                   <Td right>
                     <ConfirmForm

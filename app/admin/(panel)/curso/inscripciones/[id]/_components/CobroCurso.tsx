@@ -36,7 +36,7 @@ export function CobroCurso({
     return (
       <Card title="Cobro">
         <p className="font-display text-3xl text-gold">{formatCLP(totalClp)}</p>
-        <p className="mt-2 label-sm text-bone-mute">
+        <p className="mt-2 label-sm text-bone-quiet">
           Pagado{paidMethod ? ` por ${METHOD_LABEL[paidMethod] ?? paidMethod}` : ""}
           {paidAt ? ` · ${paidAt}` : ""}
         </p>
@@ -47,7 +47,7 @@ export function CobroCurso({
   if (status !== "reservada") {
     return (
       <Card title="Cobro">
-        <p className="text-sm text-bone-mute">Sin cobro pendiente.</p>
+        <p className="text-sm text-bone-quiet">Sin cobro pendiente.</p>
       </Card>
     );
   }
@@ -55,7 +55,7 @@ export function CobroCurso({
   return (
     <Card title="Cobro pendiente">
       <p className="font-display text-3xl text-bone">{formatCLP(totalClp)}</p>
-      <p className="mt-2 mb-5 label-sm text-bone-mute">Registra el pago cuando lo recibas.</p>
+      <p className="mt-2 mb-5 label-sm text-bone-quiet">Registra el pago cuando lo recibas.</p>
       <ActionForm action={markCoursePaidAction} success="Pago registrado." className="flex flex-col gap-4">
         <input type="hidden" name="enrollmentId" value={enrollmentId} />
         <Field label="Método">
@@ -72,7 +72,7 @@ export function CobroCurso({
       </ActionForm>
 
       <div className="mt-5 border-t hairline pt-5">
-        <p className="label-sm mb-3 text-bone-mute">O que pague online</p>
+        <p className="label-sm mb-3 text-bone-quiet">O que pague online</p>
         <LinkDePago enrollmentId={enrollmentId} waDigits={waDigits} />
       </div>
     </Card>

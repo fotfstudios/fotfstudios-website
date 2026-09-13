@@ -335,7 +335,7 @@ function ReschedulePicker({
           <span>{done.message}</span>
         </p>
         {done.detail && <p className="text-sm leading-relaxed text-bone-dim">{done.detail}</p>}
-        <p className="label-sm text-bone-mute">El cambio quedó registrado en la actividad de la reserva.</p>
+        <p className="label-sm text-bone-quiet">El cambio quedó registrado en la actividad de la reserva.</p>
         <div className="flex justify-end pt-1">
           <button type="button" onClick={finish} className={btn("primary", "sm")}>
             Listo
@@ -362,7 +362,7 @@ function ReschedulePicker({
             Enviar por WhatsApp
           </a>
         ) : (
-          <p className="label-sm text-bone-mute">Sin teléfono del cliente para WhatsApp; copia el link manualmente.</p>
+          <p className="label-sm text-bone-quiet">Sin teléfono del cliente para WhatsApp; copia el link manualmente.</p>
         )}
         <div className="flex justify-end pt-1">
           <button type="button" onClick={finish} className={btn("secondary", "sm")}>
@@ -388,13 +388,13 @@ function ReschedulePicker({
         />
         <div className="flex flex-col gap-4">
           <div>
-            <span className="label-sm text-bone-mute">Duración</span>
+            <span className="label-sm text-bone-quiet">Duración</span>
             <div className="mt-2">
               <DurationStepper duration={duration} maxDuration={maxDuration} volumeDiscounts={volumeDiscounts} onChange={setDuration} />
             </div>
           </div>
           <div>
-            <span className="label-sm text-bone-mute">Horarios</span>
+            <span className="label-sm text-bone-quiet">Horarios</span>
             <div className="mt-2">
               {loadingDay ? (
                 <div className="grid grid-cols-2 gap-1.5">
@@ -410,11 +410,11 @@ function ReschedulePicker({
                   </button>
                 </div>
               ) : avail?.closed && !isCourtesy ? (
-                <p className="label-sm py-6 text-bone-mute">Cerrado ese día.</p>
+                <p className="label-sm py-6 text-bone-quiet">Cerrado ese día.</p>
               ) : (
                 <>
                   {avail?.closed && (
-                    <p className="label-sm mb-2 text-bone-mute">Cerrado ese día — una cortesía puede ir fuera de horario.</p>
+                    <p className="label-sm mb-2 text-bone-quiet">Cerrado ese día — una cortesía puede ir fuera de horario.</p>
                   )}
                   <SlotGrid slots={slots} outOfHours={oohSlots} selected={selectedStart} onSelect={setStart} />
                 </>
@@ -445,7 +445,7 @@ function ReschedulePicker({
                   {selectedOoh && <span className="text-sirena"> Fuera del horario de apertura.</span>}
                 </span>
               ) : quoting ? (
-                <span className="text-bone-mute">Calculando…</span>
+                <span className="text-bone-quiet">Calculando…</span>
               ) : delta?.kind === "equal" ? (
                 <span className="text-bone-dim">Mismo precio — se moverá de inmediato.</span>
               ) : delta?.kind === "refund" ? (
@@ -459,20 +459,20 @@ function ReschedulePicker({
                   reserva se mueve cuando el cliente pague.
                 </span>
               ) : (
-                <span className="text-bone-mute">—</span>
+                <span className="text-bone-quiet">—</span>
               )}
             </div>
             {/* La concesión se mantiene: sin esta línea el staff no tiene cómo
                 saber por qué el total nuevo no coincide con la tarifa de lista. */}
             {!isCourtesy && !quoting && carried > 0 && (
-              <div className="mt-1 label-sm text-bone-mute">
+              <div className="mt-1 label-sm text-bone-quiet">
                 Se mantiene el descuento de <strong className="text-bone-dim">{formatCLP(carried)}</strong>
                 {concessionLabel ? ` (${concessionLabel})` : ""}.
               </div>
             )}
           </>
         ) : (
-          <p className="label-sm text-bone-mute">Elige un nuevo día y horario.</p>
+          <p className="label-sm text-bone-quiet">Elige un nuevo día y horario.</p>
         )}
       </div>
 

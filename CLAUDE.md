@@ -111,6 +111,10 @@ en vivo ni la base Supabase remota real.
 
 - **Palette:** Ink `#0a0a0a` · Bone `#f5f2ec` · Gold `#e8c94a` · Sirena `#ff4d1d`.
   Gold is the everyday color on Ink. **Sirena is for urgency only — never decorative.**
+- **Tool-surface text (admin + cuenta):** secondary text is `bone-quiet` (`#8c8880`, AA on
+  Ink); `bone-mute` (3.8:1) is marketing small print / decorative only. Form controls use
+  `border-ink-edge` (3.3:1), never the hairline. `lib/admin-a11y-contract.test.ts` enforces
+  both, plus native `<dialog>` modals, `th scope`, and persistent error toasts.
 - **Type:** Big Shoulders (display, headlines), JetBrains Mono (labels/`.label`, tracked
   uppercase), Fraunces Italic (one editorial line per section).
 - **Voice:** Spanish (Chile), precise and direct. Exact gear models: 2× Pioneer XDJ-1000MK2,

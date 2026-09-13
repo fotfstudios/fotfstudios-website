@@ -482,7 +482,7 @@ export default function BookingConsole({
             />
             <div className="flex flex-col gap-5">
               <div>
-                <span className="label-sm text-bone-mute">Duración</span>
+                <span className="label-sm text-bone-quiet">Duración</span>
                 <div className="mt-2">
                   <DurationStepper
                     duration={duration}
@@ -493,7 +493,7 @@ export default function BookingConsole({
                 </div>
               </div>
               <div>
-                <span className="label-sm text-bone-mute">Horarios</span>
+                <span className="label-sm text-bone-quiet">Horarios</span>
                 <div className="mt-2">
                   {loadingDay ? (
                     <div className="grid grid-cols-2 gap-1.5">
@@ -504,7 +504,7 @@ export default function BookingConsole({
                   ) : dayError ? (
                     retryDay
                   ) : avail?.closed && !isCortesia ? (
-                    <p className="label-sm py-6 text-bone-mute">
+                    <p className="label-sm py-6 text-bone-quiet">
                       Cerrado ese día. Solo una cortesía puede registrarse fuera de horario.
                     </p>
                   ) : (
@@ -527,7 +527,7 @@ export default function BookingConsole({
             retryDay
           ) : (
             <>
-              {avail?.closed && <p className="label-sm mb-3 text-bone-mute">Cerrado ese día.</p>}
+              {avail?.closed && <p className="label-sm mb-3 text-bone-quiet">Cerrado ese día.</p>}
               <DayStrip
                 open={open}
                 close={close}
@@ -615,7 +615,7 @@ export default function BookingConsole({
                 ) : (
                   <button
                     type="button"
-                    className="self-start label-sm text-bone-mute underline"
+                    className="self-start label-sm text-bone-quiet underline"
                     onClick={() => setWalkInOpen(true)}
                   >
                     Solo nombre (sin ficha)
@@ -687,7 +687,7 @@ export default function BookingConsole({
       {selectedStart !== null && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t hairline bg-ink/95 px-4 py-3 backdrop-blur lg:hidden">
           <div>
-            <div className="label-sm text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</div>
+            <div className="label-sm text-bone-quiet">{isCortesia ? "Valor cortesía" : "Total"}</div>
             <div className="font-display text-xl text-bone">
               {displayTotal !== null ? formatCLP(displayTotal) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
             </div>

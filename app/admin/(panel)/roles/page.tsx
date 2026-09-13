@@ -30,7 +30,7 @@ function PermGrid({ perms, checked, disabled }: { perms: PermissionView[]; check
     <div className="flex flex-col gap-4">
       {grouped(perms).map((g) => (
         <fieldset key={g.title}>
-          <legend className="label-sm text-bone-mute">{g.title}</legend>
+          <legend className="label-sm text-bone-quiet">{g.title}</legend>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {g.items.map((p) => (
               <label key={p.key} className="flex items-center gap-2.5 text-sm text-bone-dim">
@@ -68,7 +68,7 @@ export default async function RolesPage() {
             <header className="flex items-center justify-between gap-4 border-b hairline px-5 py-3.5">
               <h3 className="font-display text-xl text-bone">{role.name}</h3>
               {role.isSystem ? (
-                <span className="label-sm text-bone-mute">Sistema · todos los permisos</span>
+                <span className="label-sm text-bone-quiet">Sistema · todos los permisos</span>
               ) : (
                 <ConfirmForm
                   action={deleteRoleAction}
@@ -98,7 +98,7 @@ export default async function RolesPage() {
         ))}
       </div>
 
-      <h2 className="mt-10 mb-3 label text-bone-mute">Nuevo rol</h2>
+      <h2 className="mt-10 mb-3 label text-bone-quiet">Nuevo rol</h2>
       <Card>
         <ActionForm action={createRoleAction} success="Rol creado." resetOnSuccess className="flex flex-col gap-5">
           <Field label="Nombre">

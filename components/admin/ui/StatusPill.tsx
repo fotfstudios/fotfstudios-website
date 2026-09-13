@@ -49,7 +49,7 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
 const TONE: Record<Tone, string> = {
   gold: "text-gold",
   dim: "text-bone-dim",
-  mute: "text-bone-mute",
+  mute: "text-bone-quiet",
   sirena: "text-sirena",
 };
 const DOT: Record<Tone, string> = {

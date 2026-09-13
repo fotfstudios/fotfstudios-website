@@ -16,12 +16,12 @@ export function Stat({
 }) {
   return (
     <div className="border hairline bg-ink/40 p-5">
-      <p className="label-sm text-bone-mute">{label}</p>
+      <p className="label-sm text-bone-quiet">{label}</p>
       <p className={`font-display mt-2 text-4xl ${accent ? "text-gold" : "text-bone"}`}>{value}</p>
       {delta != null && (
         <p className={`label-sm mt-2 ${delta.pct >= 0 ? "text-gold" : "text-bone-dim"}`}>
           {delta.pct >= 0 ? "▲" : "▼"} {Math.abs(delta.pct).toFixed(Math.abs(delta.pct) < 10 ? 1 : 0)}%
-          <span className="text-bone-mute"> vs anterior</span>
+          <span className="text-bone-quiet"> vs anterior</span>
         </p>
       )}
     </div>

@@ -100,7 +100,7 @@ export default async function GeneracionesPage() {
                 <Tr key={g.id} muted={g.status === "cerrada" || g.status === "cancelada"}>
                   <Td className="whitespace-nowrap">
                     <span className="font-mono text-bone">{g.code}</span>
-                    <span className="ml-2 label-sm text-bone-mute">{g.name}</span>
+                    <span className="ml-2 label-sm text-bone-quiet">{g.name}</span>
                   </Td>
                   <Td>
                     <StatusPill status={g.status} />

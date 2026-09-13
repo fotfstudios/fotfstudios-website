@@ -70,7 +70,7 @@ export default async function MiembrosPage() {
                 <Td>
                   <StatusPill status={m.status} />
                 </Td>
-                <Td className="whitespace-nowrap font-mono text-xs text-bone-mute">{fmtDateTime(m.createdAt)}</Td>
+                <Td className="whitespace-nowrap font-mono text-xs text-bone-quiet">{fmtDateTime(m.createdAt)}</Td>
                 <Td right>
                   {m.status === "active" ? (
                     <ConfirmForm
@@ -98,7 +98,7 @@ export default async function MiembrosPage() {
         )}
       </div>
 
-      <p className="mt-4 text-xs text-bone-mute">
+      <p className="mt-4 text-xs text-bone-quiet">
         Un cambio de rol se aplica cuando el miembro vuelve a iniciar sesión.
       </p>
     </>

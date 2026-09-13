@@ -59,7 +59,7 @@ export function AdminCalendar({
 
       <div className="mb-2 grid grid-cols-7 gap-1">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="label-sm py-1 text-center text-bone-mute">{d}</div>
+          <div key={d} className="label-sm py-1 text-center text-bone-quiet">{d}</div>
         ))}
       </div>
 
@@ -88,9 +88,9 @@ export function AdminCalendar({
                   className={[
                     "relative flex aspect-square items-center justify-center font-mono text-sm transition-colors",
                     "outline-none focus-visible:ring-1 focus-visible:ring-gold",
-                    !cell.inMonth ? "text-bone-mute/30" : "",
+                    !cell.inMonth ? "text-bone-quiet/30" : "",
                     isSelected ? "bg-gold text-ink" : "",
-                    !isSelected && cell.inMonth && dim ? "text-bone-mute/40 hover:bg-ink-soft" : "",
+                    !isSelected && cell.inMonth && dim ? "text-bone-quiet/40 hover:bg-ink-soft" : "",
                     !isSelected && cell.inMonth && !dim ? "text-bone hover:bg-ink-soft hover:text-gold" : "",
                     isToday && !isSelected ? "ring-1 ring-inset ring-gold/50" : "",
                   ].join(" ")}
@@ -108,7 +108,7 @@ export function AdminCalendar({
       </div>
 
       {!loading && (
-        <p className="label-sm mt-4 flex items-center gap-3 text-bone-mute">
+        <p className="label-sm mt-4 flex items-center gap-3 text-bone-quiet">
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="size-1 rounded-full bg-sirena" /> Pocos horarios
           </span>

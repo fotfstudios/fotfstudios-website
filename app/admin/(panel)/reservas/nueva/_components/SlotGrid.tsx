@@ -31,7 +31,7 @@ export function SlotGrid({
         <SlotButton key={s.minute} slot={s} selected={selected === s.minute} onSelect={onSelect} />
       ))}
       {outOfHours.length > 0 && (
-        <p className="label-sm col-span-2 mt-2 text-bone-mute">Fuera de horario</p>
+        <p className="label-sm col-span-2 mt-2 text-bone-quiet">Fuera de horario</p>
       )}
       {outOfHours.map((s) => (
         <SlotButton key={`ooh-${s.minute}`} slot={s} selected={selected === s.minute} onSelect={onSelect} />
@@ -52,7 +52,7 @@ function SlotButton({
   const cls = selected
     ? "border-gold bg-gold text-ink"
     : slot.disabled
-      ? "hairline text-bone-mute/40"
+      ? "hairline text-bone-quiet/40"
       : slot.warn
         ? "border-sirena/40 text-bone-dim hover:border-sirena"
         : "hairline text-bone-dim hover:border-gold hover:text-gold";

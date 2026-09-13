@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Logo from "@/components/Logo";
 import SignOutButton from "@/components/admin/SignOutButton";
 import { Icon, type IconName } from "./icons";
@@ -65,7 +65,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
     <nav className="flex flex-col gap-7">
       {data.map((g) => (
         <div key={g.title}>
-          <p className="label-sm px-3 text-bone-mute/70">{g.title}</p>
+          <p className="label-sm px-3 text-bone-quiet">{g.title}</p>
           <ul className="mt-2 flex flex-col gap-0.5">
             {g.items.map((it) => {
               const on = it.href === active;
@@ -84,7 +84,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
                         on ? "opacity-100" : "opacity-0"
                       }`}
                     />
-                    <Icon name={it.icon} size={17} className={on ? "text-gold" : "text-bone-mute group-hover:text-bone-dim"} />
+                    <Icon name={it.icon} size={17} className={on ? "text-gold" : "text-bone-quiet group-hover:text-bone-dim"} />
                     {it.label}
                     {it.badge ? (
                       <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-gold px-1.5 font-mono text-[10px] font-bold text-ink">
@@ -113,13 +113,34 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const drawer = useRef<HTMLDialogElement>(null);
   const data = groups(show, porHacer, solicitudes);
   const active = activeHref(pathname, data.flatMap((g) => g.items));
+
+  // El drawer es un <dialog> siempre montado: showModal()/close() siguen a `open`.
+  // Al cerrar con close() el navegador devuelve el foco al botón del menú.
+  useEffect(() => {
+    const el = drawer.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    else if (!open && el.open) el.close();
+  }, [open]);
+
+  // Si el viewport pasa a desktop con el drawer abierto, lg:hidden lo oculta pero
+  // seguiría siendo modal (página inerte): se cierra.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => {
+      if (mq.matches) setOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const Brand = (
     <Link href="/admin" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
       <Logo variant="mini" color="gold" height={26} />
-      <span className="label text-bone-mute">Admin</span>
+      <span className="label text-bone-quiet">Admin</span>
     </Link>
   );
 
@@ -148,25 +169,36 @@ export function Sidebar({
           <Icon name="menu" size={22} />
         </button>
       </div>
-      {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button type="button" aria-label="Cerrar menú" className="absolute inset-0 bg-ink/80 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative flex h-full w-72 max-w-[80%] flex-col border-r hairline bg-ink">
-            <div className="flex items-center justify-between border-b hairline px-5 py-4">
-              {Brand}
-              <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-bone-mute hover:text-gold">
-                <Icon name="close" size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-6">
-              <NavList data={data} active={active} onNavigate={() => setOpen(false)} />
-            </div>
-            <div className="border-t hairline px-3 py-4">
-              <SignOutButton />
-            </div>
+      {/* Drawer: <dialog> modal (foco atrapado, Escape, fondo inerte). Un click en el
+          scrim llega con el <dialog> como target; el panel interior cubre el resto. */}
+      <dialog
+        ref={drawer}
+        aria-label="Menú"
+        onCancel={(e) => {
+          e.preventDefault();
+          setOpen(false);
+        }}
+        onClose={() => setOpen(false)}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setOpen(false);
+        }}
+        className="m-0 h-full max-h-none w-72 max-w-[80%] border-r hairline bg-ink p-0 text-bone backdrop:bg-ink/80 backdrop:backdrop-blur-sm lg:hidden"
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex items-center justify-between border-b hairline px-5 py-4">
+            {Brand}
+            <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-bone-quiet hover:text-gold">
+              <Icon name="close" size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-6">
+            <NavList data={data} active={active} onNavigate={() => setOpen(false)} />
+          </div>
+          <div className="border-t hairline px-3 py-4">
+            <SignOutButton />
           </div>
         </div>
-      )}
+      </dialog>
     </>
   );
 }

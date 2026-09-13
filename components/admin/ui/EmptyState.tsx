@@ -24,9 +24,9 @@ export function EmptyState({
     <div className={`flex flex-col items-center justify-center border hairline text-center ${compact ? "px-4 py-10" : "px-6 py-16"}`}>
       {icon &&
         (compact ? (
-          <Icon name={icon} size={18} className="text-bone-mute" />
+          <Icon name={icon} size={18} className="text-bone-quiet" />
         ) : (
-          <span className="flex h-12 w-12 items-center justify-center border hairline text-bone-mute">
+          <span className="flex h-12 w-12 items-center justify-center border hairline text-bone-quiet">
             <Icon name={icon} size={22} />
           </span>
         ))}

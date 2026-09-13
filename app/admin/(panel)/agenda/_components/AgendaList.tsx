@@ -23,7 +23,7 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
               aria-current={isToday ? "date" : undefined}
               className={`flex items-baseline gap-2 border-b hairline px-3 py-2 ${isToday ? "bg-gold/10" : "bg-ink/40"}`}
             >
-              <span className={`label-sm ${isToday ? "text-gold" : "text-bone-mute"}`}>{cap(dt.toFormat("ccc"))}</span>
+              <span className={`label-sm ${isToday ? "text-gold" : "text-bone-quiet"}`}>{cap(dt.toFormat("ccc"))}</span>
               <span className={`font-display text-lg ${isToday ? "text-gold" : "text-bone"}`}>{dt.day}</span>
             </header>
             <div className="flex flex-col gap-1.5 p-2">
@@ -49,7 +49,7 @@ export function AgendaList({ days, tz, today }: { days: GridDay[]; tz: string; t
               {!isPast && (
                 <Link
                   href={`/admin/reservas/nueva?d=${d.date}`}
-                  className="label-sm block px-2.5 py-2 text-bone-mute/60 transition-colors hover:bg-ink-soft hover:text-gold"
+                  className="label-sm block px-2.5 py-2 text-bone-quiet transition-colors hover:bg-ink-soft hover:text-gold"
                 >
                   + Crear reserva
                 </Link>

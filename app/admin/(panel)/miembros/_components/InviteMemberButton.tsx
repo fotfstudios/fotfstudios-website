@@ -40,7 +40,7 @@ export function InviteMemberButton({ roles }: { roles: { id: string; name: strin
                 ))}
               </Select>
             </Field>
-            <p className="text-xs leading-relaxed text-bone-mute">
+            <p className="text-xs leading-relaxed text-bone-quiet">
               Le llegará un correo con un enlace para entrar. Solo personas invitadas pueden acceder.
             </p>
             <div className="flex justify-end gap-3 pt-1">

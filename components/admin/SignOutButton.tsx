@@ -7,7 +7,7 @@ import { Icon } from "./ui/icons";
 /** Cierra la sesión y vuelve al login del área (`redirectTo`). */
 export default function SignOutButton({
   redirectTo = "/admin/login",
-  className = "flex w-full items-center gap-3 px-3 py-2.5 label text-bone-mute transition-colors hover:text-gold",
+  className = "flex w-full items-center gap-3 px-3 py-2.5 label text-bone-quiet transition-colors hover:text-gold",
   label = "Salir",
 }: {
   redirectTo?: string;

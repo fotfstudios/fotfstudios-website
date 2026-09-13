@@ -28,7 +28,7 @@ export function AddonPicker({
     <div className="flex flex-col gap-5">
       {recording.length > 0 && (
         <div>
-          <span className="label-sm text-bone-mute">Grabación (elige una)</span>
+          <span className="label-sm text-bone-quiet">Grabación (elige una)</span>
           <div className="mt-2.5 space-y-1.5">
             <OptionButton active={rec === "none"} onClick={() => onRec("none")} label="Sin grabación" />
             {recording.map((a) => (
@@ -46,7 +46,7 @@ export function AddonPicker({
 
       {hourly.length > 0 && (
         <div>
-          <span className="label-sm text-bone-mute">Guía</span>
+          <span className="label-sm text-bone-quiet">Guía</span>
           <div className="mt-2.5 space-y-1.5">
             {hourly.map((a) => (
               <OptionButton

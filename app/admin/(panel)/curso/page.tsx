@@ -117,7 +117,7 @@ export default async function CursoPage() {
                 pct={generacion.seats > 0 ? (generacion.seatsTaken / generacion.seats) * 100 : 0}
                 label={`${generacion.seatsTaken} de ${generacion.seats} cupos · quedan ${generacion.seatsLeft}`}
               />
-              <p className="mt-4 label-sm text-bone-mute">
+              <p className="mt-4 label-sm text-bone-quiet">
                 {generacion.enrollDeadline ? `Cierra el ${fmtDate(generacion.enrollDeadline)}` : "Sin plazo de cierre"}
                 {generacion.startsOn ? ` · parte el ${fmtDate(generacion.startsOn)}` : ""}
               </p>
@@ -154,7 +154,7 @@ export default async function CursoPage() {
                   {creditos.slice(0, 5).map((c) => (
                     <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className="text-sm text-bone-dim">{c.email}</span>
-                      <span className="label-sm text-bone-mute">
+                      <span className="label-sm text-bone-quiet">
                         {c.consumedOrderId
                           ? "Usado"
                           : new Date(c.expiresAt) < new Date()
@@ -169,7 +169,7 @@ export default async function CursoPage() {
           </div>
 
           <div className="mt-10">
-            <h2 className="label mb-3 text-bone-mute">Inscritos</h2>
+            <h2 className="label mb-3 text-bone-quiet">Inscritos</h2>
             {vivos.length === 0 ? (
               <EmptyState
                 size="compact"
@@ -194,7 +194,7 @@ export default async function CursoPage() {
               >
                 {vivos.map((i) => (
                   <Tr key={i.id}>
-                    <Td className="font-mono text-bone-mute">{i.seatNo}</Td>
+                    <Td className="font-mono text-bone-quiet">{i.seatNo}</Td>
                     <Td className="text-bone">{i.studentName}</Td>
                     <Td>
                       <a href={`mailto:${i.studentEmail}`} className="label-sm text-gold hover:text-bone">
@@ -212,7 +212,7 @@ export default async function CursoPage() {
                       <Link
                         href={`/admin/curso/inscripciones/${i.id}`}
                         aria-label={`Ver inscripción de ${i.studentName}`}
-                        className="inline-flex text-bone-mute transition-colors hover:text-gold"
+                        className="inline-flex text-bone-quiet transition-colors hover:text-gold"
                       >
                         <Icon name="chevron" size={18} />
                       </Link>
@@ -225,7 +225,7 @@ export default async function CursoPage() {
 
           <div className="mt-10">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="label text-bone-mute">Sesiones</h2>
+              <h2 className="label text-bone-quiet">Sesiones</h2>
               <Link href="/admin/curso/generaciones" className="label-sm text-gold transition-colors hover:text-bone">
                 Agendar
               </Link>
@@ -252,7 +252,7 @@ export default async function CursoPage() {
               >
                 {sesiones.map((s) => (
                   <Tr key={s.id} muted={s.status !== "agendada"}>
-                    <Td className="font-mono text-bone-mute">{s.n}</Td>
+                    <Td className="font-mono text-bone-quiet">{s.n}</Td>
                     <Td className="text-bone">{s.title}</Td>
                     <Td className="whitespace-nowrap font-mono text-bone-dim">
                       {s.startsAt ? fmtDateTime(s.startsAt) : "—"}

@@ -56,7 +56,7 @@ export default async function CuentaResumen() {
         />
       ) : (
         <section className="space-y-3">
-          <h2 className="label text-bone-mute">Historial</h2>
+          <h2 className="label text-bone-quiet">Historial</h2>
           <DataTable head={<HistoryHead />} minWidthClassName="min-w-[30rem]">
             {movements.slice(0, SHOWN).map((m) => (
               <Tr key={m.id}>
@@ -70,7 +70,7 @@ export default async function CuentaResumen() {
                       Reserva →
                     </Link>
                   ) : (
-                    <span className="text-bone-mute">—</span>
+                    <span className="text-bone-quiet">—</span>
                   )}
                 </Td>
                 <Td>
@@ -85,7 +85,7 @@ export default async function CuentaResumen() {
             ))}
           </DataTable>
           {movements.length > SHOWN && (
-            <p className="label-sm text-bone-mute">Se muestran los últimos {SHOWN} movimientos.</p>
+            <p className="label-sm text-bone-quiet">Se muestran los últimos {SHOWN} movimientos.</p>
           )}
         </section>
       )}

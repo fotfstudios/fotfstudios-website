@@ -34,7 +34,7 @@ export function MonthView({
     <div>
       <div className="mb-2 grid grid-cols-7">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="label-sm py-1 text-center text-bone-mute">
+          <div key={d} className="label-sm py-1 text-center text-bone-quiet">
             {d}
           </div>
         ))}
@@ -67,7 +67,7 @@ export function MonthView({
                   />
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute right-1.5 bottom-1 z-0 hidden label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100 md:block"
+                    className="pointer-events-none absolute right-1.5 bottom-1 z-0 hidden label-sm text-bone-quiet opacity-0 transition-opacity group-hover:opacity-100 md:block"
                   >
                     +
                   </span>
@@ -79,7 +79,7 @@ export function MonthView({
                 aria-label={`Ver día, ${dt.toFormat("cccc d 'de' LLLL")}${isToday ? ", hoy" : ""}`}
                 aria-current={isToday ? "date" : undefined}
                 className={`relative z-10 self-start font-display text-base leading-none outline-none transition-colors hover:text-gold focus-visible:ring-1 focus-visible:ring-gold ${
-                  isToday ? "text-gold" : cell.inMonth ? "text-bone" : "text-bone-mute/30"
+                  isToday ? "text-gold" : cell.inMonth ? "text-bone" : "text-bone-quiet/30"
                 }`}
               >
                 {dt.day}
@@ -107,7 +107,7 @@ export function MonthView({
                   <Link
                     href={dayHref}
                     aria-label={`+${hiddenCount} más, ${dayLabel}`}
-                    className="label-sm px-1 text-bone-mute transition-colors hover:text-gold"
+                    className="label-sm px-1 text-bone-quiet transition-colors hover:text-gold"
                   >
                     +{hiddenCount} más
                   </Link>
@@ -120,7 +120,7 @@ export function MonthView({
                   {events.slice(0, 3).map((e) => (
                     <span key={e.id} className={`size-1.5 rounded-full ${DOT_CLS[toneOf(e)]}`} />
                   ))}
-                  {events.length > 3 && <span className="label-sm text-bone-mute">+{events.length - 3}</span>}
+                  {events.length > 3 && <span className="label-sm text-bone-quiet">+{events.length - 3}</span>}
                 </div>
               )}
             </div>

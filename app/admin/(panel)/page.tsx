@@ -58,12 +58,12 @@ export default async function AdminHome() {
                     className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-ink-soft"
                   >
                     <span className="flex items-center gap-3">
-                      <Icon name={p.icon} size={16} className="text-bone-mute" />
+                      <Icon name={p.icon} size={16} className="text-bone-quiet" />
                       <span className="text-sm text-bone">{p.label}</span>
                     </span>
                     <span className="flex items-center gap-3">
                       <span className="font-display text-lg text-gold">{p.n}</span>
-                      <Icon name="chevron" size={16} className="text-bone-mute" />
+                      <Icon name="chevron" size={16} className="text-bone-quiet" />
                     </span>
                   </Link>
                 </li>
@@ -93,7 +93,7 @@ export default async function AdminHome() {
                 <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div>
                     <p className="text-sm text-bone">{doc.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
-                    <p className="label-sm mt-0.5 text-bone-mute">
+                    <p className="label-sm mt-0.5 text-bone-quiet">
                       Neto {formatCLP(doc.neto)} · IVA {formatCLP(doc.iva)}
                     </p>
                   </div>
@@ -121,7 +121,7 @@ export default async function AdminHome() {
                 </li>
               ))}
             </ul>
-            <p className="mt-4 text-xs text-bone-mute">Emítelas en el portal del SII y registra el folio en cada ficha.</p>
+            <p className="mt-4 text-xs text-bone-quiet">Emítelas en el portal del SII y registra el folio en cada ficha.</p>
           </Card>
         </div>
       )}
@@ -133,7 +133,7 @@ function Section({ title, href, children }: { title: string; href?: string; chil
   return (
     <div className="mt-10">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="label text-bone-mute">{title}</h2>
+        <h2 className="label text-bone-quiet">{title}</h2>
         {href && (
           <Link href={href} className="label-sm text-gold transition-colors hover:text-bone">
             Ver todas
@@ -173,7 +173,7 @@ function BookingsTable({ rows }: { rows: AdminBooking[] }) {
             <Link
               href={`/admin/reservas/${b.id}`}
               aria-label="Ver reserva"
-              className="inline-flex text-bone-mute transition-colors hover:text-gold"
+              className="inline-flex text-bone-quiet transition-colors hover:text-gold"
             >
               <Icon name="chevron" size={18} />
             </Link>

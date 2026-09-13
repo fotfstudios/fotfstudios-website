@@ -31,10 +31,10 @@ export function Tabs({
             href={postulacionesHref(query, { estado: tab })}
             aria-current={active ? "page" : undefined}
             className={`label-sm -mb-px border-b-2 px-3 py-2 transition-colors ${
-              active ? "border-gold text-gold" : "border-transparent text-bone-mute hover:text-bone"
+              active ? "border-gold text-gold" : "border-transparent text-bone-quiet hover:text-bone"
             }`}
           >
-            {LABEL[tab]} <span className={active ? "text-gold/70" : "text-bone-mute/60"}>{counts[tab]}</span>
+            {LABEL[tab]} <span className={active ? "text-gold/70" : "text-bone-quiet"}>{counts[tab]}</span>
           </Link>
         );
       })}

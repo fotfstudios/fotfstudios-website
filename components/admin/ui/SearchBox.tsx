@@ -66,7 +66,7 @@ export function SearchBox({
         name="search"
         size={14}
         className={`pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 ${
-          pending ? "animate-pulse text-gold" : "text-bone-mute"
+          pending ? "animate-pulse text-gold" : "text-bone-quiet"
         }`}
       />
       <input

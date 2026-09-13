@@ -25,7 +25,7 @@ export function CopyButton({ value, label = "Copiado" }: { value: string; label?
       onClick={copy}
       aria-label="Copiar"
       title="Copiar"
-      className="text-bone-mute transition-colors hover:text-gold"
+      className="text-bone-quiet transition-colors hover:text-gold"
     >
       <Icon name="copy" size={14} />
     </button>

@@ -47,7 +47,7 @@ export function DayStrip({
           </div>
           <div className="mt-1 grid gap-px" style={cols}>
             {hours.map((m) => (
-              <span key={m} className="label-sm text-center text-bone-mute">
+              <span key={m} className="label-sm text-center text-bone-quiet">
                 {String(Math.floor(m / 60)).padStart(2, "0")}
               </span>
             ))}
@@ -56,7 +56,7 @@ export function DayStrip({
       )}
 
       {sorted.length === 0 ? (
-        <p className="label-sm mt-4 text-bone-mute">Día libre. Sin reservas.</p>
+        <p className="label-sm mt-4 text-bone-quiet">Día libre. Sin reservas.</p>
       ) : (
         <ul className="mt-3">
           {sorted.map((o) => (

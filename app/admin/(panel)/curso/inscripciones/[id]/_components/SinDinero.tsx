@@ -63,7 +63,7 @@ export function SinDinero({
                   ))}
                 </Select>
               </Field>
-              <p className="label-sm text-bone-mute">
+              <p className="label-sm text-bone-quiet">
                 {studentName} conserva lo pagado y su estado. No paga diferencia si esa generación
                 cambió de precio.
               </p>
@@ -95,7 +95,7 @@ export function SinDinero({
             <Field label="WhatsApp" hint="Opcional.">
               <Input name="phone" maxLength={40} />
             </Field>
-            <p className="label-sm text-bone-mute">
+            <p className="label-sm text-bone-quiet">
               Cambia quién asiste, no quién pagó: la boleta sigue a nombre de {studentName}.
             </p>
             <div>

@@ -49,12 +49,12 @@ export function ApplicationsTable({ rows }: { rows: ApplicationRow[] }) {
         const waDigits = r.phone.replace(/\D/g, "");
         return (
           <Tr key={r.id}>
-            <Td className="whitespace-nowrap label-sm text-bone-mute">{fmtDate(r.createdAt)}</Td>
+            <Td className="whitespace-nowrap label-sm text-bone-quiet">{fmtDate(r.createdAt)}</Td>
 
             <Td>
               <p className="text-bone">{r.name}</p>
               <details className="mt-1">
-                <summary className="label-sm cursor-pointer text-bone-mute transition-colors hover:text-gold">
+                <summary className="label-sm cursor-pointer text-bone-quiet transition-colors hover:text-gold">
                   Ver mensaje
                 </summary>
                 <p className="mt-2 max-w-md whitespace-pre-wrap text-sm text-bone-dim">{r.pitch}</p>
@@ -77,7 +77,7 @@ export function ApplicationsTable({ rows }: { rows: ApplicationRow[] }) {
 
             <Td className="label-sm">
               <p className="text-bone-dim">{SESSION_FORMAT_LABELS[r.format]}</p>
-              <p className="mt-1 text-bone-mute">{r.availability}</p>
+              <p className="mt-1 text-bone-quiet">{r.availability}</p>
             </Td>
 
             <Td className="label-sm">
@@ -89,8 +89,8 @@ export function ApplicationsTable({ rows }: { rows: ApplicationRow[] }) {
               >
                 Set <Icon name="external" size={13} />
               </a>
-              {r.instagram && <p className="mt-1 text-bone-mute">@{r.instagram}</p>}
-              {r.genres && <p className="mt-0.5 text-bone-mute">{r.genres}</p>}
+              {r.instagram && <p className="mt-1 text-bone-quiet">@{r.instagram}</p>}
+              {r.genres && <p className="mt-0.5 text-bone-quiet">{r.genres}</p>}
             </Td>
 
             <Td>

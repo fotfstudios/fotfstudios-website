@@ -46,7 +46,7 @@ export function AccessCodeCard(p: AccessCodeCardProps) {
     <Card title="Acceso">
       {s === "none" && (
         <>
-          <p className="label-sm text-bone-mute">
+          <p className="label-sm text-bone-quiet">
             {confirmed
               ? "El PIN se genera solo en minutos. Si lo necesitas ya, genera uno ahora."
               : "El PIN se genera cuando la reserva quede confirmada."}
@@ -93,7 +93,7 @@ export function AccessCodeCard(p: AccessCodeCardProps) {
       )}
 
       {s === "sent" && (
-        <p className="mt-3 label-sm text-bone-mute">Enviado {p.accessSentAt ? fmtDateTime(p.accessSentAt) : ""}.</p>
+        <p className="mt-3 label-sm text-bone-quiet">Enviado {p.accessSentAt ? fmtDateTime(p.accessSentAt) : ""}.</p>
       )}
 
       {s === "to_remove" && (
@@ -111,13 +111,13 @@ export function AccessCodeCard(p: AccessCodeCardProps) {
       )}
 
       {s === "removed" && (
-        <p className="mt-3 label-sm text-bone-mute">Quitado {p.accessRemovedAt ? fmtDateTime(p.accessRemovedAt) : ""}.</p>
+        <p className="mt-3 label-sm text-bone-quiet">Quitado {p.accessRemovedAt ? fmtDateTime(p.accessRemovedAt) : ""}.</p>
       )}
 
       {/* Corrección manual: otro PIN (generado o tipeado). Reinicia el ciclo. */}
       {(s === "generated" || s === "loaded") && (
         <details className="mt-4">
-          <summary className="cursor-pointer label-sm text-bone-mute">Cambiar el PIN</summary>
+          <summary className="cursor-pointer label-sm text-bone-quiet">Cambiar el PIN</summary>
           <div className="mt-3 flex flex-col gap-3">
             <ActionForm action={regenerateAccessCodeAction} success="PIN nuevo generado. Vuelve a cargarlo.">
               <input type="hidden" name="reservationId" value={p.reservationId} />

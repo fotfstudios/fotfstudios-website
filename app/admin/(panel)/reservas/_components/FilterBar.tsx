@@ -42,10 +42,10 @@ export function FilterBar({
               href={reservasHref(query, { estado: t.key })}
               aria-current={active ? "page" : undefined}
               className={`label-sm -mb-px border-b-2 px-3 py-2 transition-colors ${
-                active ? "border-gold text-gold" : "border-transparent text-bone-mute hover:text-bone"
+                active ? "border-gold text-gold" : "border-transparent text-bone-quiet hover:text-bone"
               }`}
             >
-              {t.label} <span className={active ? "text-gold/70" : "text-bone-mute/60"}>{counts[t.key]}</span>
+              {t.label} <span className={active ? "text-gold/70" : "text-bone-quiet"}>{counts[t.key]}</span>
             </Link>
           );
         })}
