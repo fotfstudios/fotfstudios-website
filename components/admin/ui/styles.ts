@@ -25,7 +25,10 @@ export function btn(variant: BtnVariant = "primary", size: BtnSize = "md"): stri
   ].join(" ");
 }
 
-/** Input/select/textarea del admin. */
+/**
+ * Input/select/textarea del admin. Borde ink-edge (3.3:1) y no hairline (1.2:1): el
+ * límite de un control de formulario tiene que verse sin hover ni foco (WCAG 1.4.11).
+ */
 export const inputCls =
-  "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors " +
+  "w-full border border-ink-edge bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors " +
   "placeholder:text-bone-quiet hover:border-gold/60 focus-visible:border-gold";

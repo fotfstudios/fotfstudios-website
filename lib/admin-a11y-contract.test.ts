@@ -93,8 +93,9 @@ describe("inputs (components/admin/ui/styles.ts)", () => {
     expect(inputCls).not.toContain("hairline");
   });
 
-  it("conservan el foco visible en gold", () => {
+  it("conservan el foco visible en gold y el placeholder legible", () => {
     expect(inputCls).toContain("focus-visible:border-gold");
+    expect(inputCls).toContain("placeholder:text-bone-quiet");
   });
 });
 
