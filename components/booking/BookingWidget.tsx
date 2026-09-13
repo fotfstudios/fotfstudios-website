@@ -11,8 +11,8 @@ import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/av
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { accountEnabled } from "@/lib/flags";
+import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
-import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
 import Calendar from "./Calendar";
 import TimeSlots from "./TimeSlots";
 import Skeleton from "./Skeleton";
@@ -88,14 +88,11 @@ export default function BookingWidget({
   const [usePoints, setUsePoints] = useState(false);
   const [pointsInput, setPointsInput] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  // Login en línea (código OTP): entrar sin salir del flujo de reserva.
+  // Login en línea (código OTP): entrar sin salir del flujo de reserva. El correo
+  // es el mismo campo de la reserva (bk-email): un solo lugar donde escribirlo.
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginStep, setLoginStep] = useState<"email" | "code">("email");
-  const [loginEmail, setLoginEmail] = useState("");
   const [loginCode, setLoginCode] = useState("");
-  const [loginBusy, setLoginBusy] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginVerified, setLoginVerified] = useState(false);
+  const login = useOtpLogin();
   const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
 
   // Al llegar la sesión (tras verificar el código → router.refresh() re-resuelve
@@ -110,48 +107,17 @@ export default function BookingWidget({
     setLoginOpen(false);
   }
 
-  // Paso 1: pide el código de verificación al correo (sin emailRedirectTo → no navega).
-  const sendLoginCode = useCallback(async () => {
-    if (!loginEmail) return;
-    setLoginBusy(true);
-    setLoginError(null);
-    const supabase = createAuthBrowserClient();
-    // shouldCreateUser:true — entrar y crear cuenta son el mismo gesto.
-    const { error } = await supabase.auth.signInWithOtp({
-      email: loginEmail,
-      options: { shouldCreateUser: true },
-    });
-    setLoginBusy(false);
-    if (error) {
-      setLoginError(
-        error.status === 429
-          ? "Demasiados intentos. Espera unos minutos."
-          : "No pudimos enviar el código. Revisa el correo e inténtalo de nuevo.",
-      );
-      return;
-    }
-    setLoginStep("code");
-  }, [loginEmail]);
+  // Paso 1: pide el código al correo de la reserva (sin emailRedirectTo → el
+  // enlace del correo no vuelve aquí; el código sí, sin salir del flujo).
+  const sendLoginCode = useCallback(() => login.send(email), [login, email]);
 
-  // Paso 2: verifica el código → establece sesión en el browser → refresh server.
+  // Paso 2: verifica el código → sesión en el browser → refresh del server. En
+  // éxito el hook deja busy en true a propósito: el estado de carga puentea sin
+  // corte hasta que llega `customer` (el server re-resuelve prefill + puntos) y
+  // el ajuste en render cierra el panel. El widget no se desmonta → estado intacto.
   const verifyLoginCode = useCallback(async () => {
-    const token = loginCode.trim();
-    if (!token) return;
-    setLoginBusy(true);
-    setLoginError(null);
-    const supabase = createAuthBrowserClient();
-    const { error } = await supabase.auth.verifyOtp({ email: loginEmail, token, type: "email" });
-    if (error) {
-      setLoginBusy(false);
-      setLoginError("Código inválido o expirado. Pide uno nuevo.");
-      return;
-    }
-    // Éxito: NO reseteamos loginBusy — el estado de carga puentea sin corte hasta
-    // que llega `customer` (el server component re-resuelve prefill + puntos) y el
-    // ajuste en render cierra el panel. El widget no se desmonta → estado intacto.
-    setLoginVerified(true);
-    router.refresh();
-  }, [loginEmail, loginCode, router]);
+    if (await login.verify(loginCode)) router.refresh();
+  }, [login, loginCode, router]);
 
   // Disponibilidad del mes visible (pinta el calendario). Degrada a {} si falla.
   useEffect(() => {
@@ -619,56 +585,49 @@ export default function BookingWidget({
                 />
               </div>
               {customer ? (
-                <>
-                  {loginVerified && (
-                    <p className="label-sm mt-2 text-gold">✓ ¡Sesión iniciada! Ya puedes usar tus puntos.</p>
-                  )}
-                  <p className="mt-2 text-xs text-bone-quiet">Sesión iniciada como {customer.email}.</p>
-                </>
+                <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
+                  Sesión iniciada como {customer.email}. Ya puedes usar tus puntos.
+                </p>
               ) : (
                 accountEnabled() &&
                 (loginOpen ? (
-                  <div className="mt-3 border hairline p-4">
-                    {/* Los dos pasos tienen la misma forma (span, div → label, input,
-                        button): sin key React reutiliza el MISMO <input> y solo le
-                        cambia los atributos, así que el campo del código nunca se
-                        monta y su autoFocus no corre. */}
-                    {loginStep === "email" ? (
+                  // Sin tarjeta anidada: el panel es una sección del bloque "Tus
+                  // datos", y el correo es el campo de arriba (bk-email).
+                  <div className="mt-4 border-t hairline pt-4">
+                    {/* Los dos pasos van con key: tienen la misma forma y sin key
+                        React reutilizaría el MISMO <input>, así que el del código
+                        nunca se montaría y su autoFocus no correría. */}
+                    {login.state.step === "email" ? (
                       <Fragment key="email">
-                        <span className="block text-xs leading-relaxed text-bone-quiet">
-                          Te enviamos un código de verificación a tu correo — sin salir de aquí.
-                        </span>
-                        <div className="mt-3 space-y-2">
-                          <label htmlFor="bk-login-email" className="sr-only">
-                            Correo
-                          </label>
-                          <input
-                            id="bk-login-email"
-                            type="email"
-                            inputMode="email"
-                            autoComplete="email"
-                            placeholder="tu@correo.cl"
-                            value={loginEmail}
-                            onChange={(e) => setLoginEmail(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && void sendLoginCode()}
-                            className={inputCls}
-                          />
+                        <p className="text-xs leading-relaxed text-bone-quiet">
+                          Te enviamos un código a{" "}
+                          {email.trim() ? <strong className="text-bone">{email.trim()}</strong> : "tu correo"} — sin
+                          salir de aquí.
+                        </p>
+                        <div className="mt-3 flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => void sendLoginCode()}
-                            disabled={loginBusy || !loginEmail}
-                            className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
+                            disabled={login.state.busy || !email.trim()}
+                            className="bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
                           >
-                            {loginBusy ? "Enviando…" : "Enviar código"}
+                            {login.state.busy ? "Enviando…" : "Enviar código"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLoginOpen(false)}
+                            className="label-sm text-bone-quiet transition-colors hover:text-gold"
+                          >
+                            Cancelar
                           </button>
                         </div>
                       </Fragment>
                     ) : (
                       <Fragment key="code">
-                        <span className="block text-xs leading-relaxed text-bone-quiet">
+                        <p className="text-xs leading-relaxed text-bone-quiet">
                           Escribe el código que enviamos a{" "}
-                          <strong className="text-bone">{loginEmail}</strong>.
-                        </span>
+                          <strong className="text-bone">{login.state.sentTo}</strong>.
+                        </p>
                         <div className="mt-3 space-y-2">
                           <label htmlFor="bk-login-code" className="sr-only">
                             Código de verificación
@@ -692,23 +651,40 @@ export default function BookingWidget({
                           <button
                             type="button"
                             onClick={() => void verifyLoginCode()}
-                            disabled={loginBusy || !loginCode.trim()}
+                            disabled={login.state.busy || !loginCode.trim()}
                             className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
                           >
-                            {loginVerified ? "Iniciando sesión…" : loginBusy ? "Verificando…" : "Verificar"}
+                            {login.state.verified ? "Iniciando sesión…" : login.state.busy ? "Verificando…" : "Verificar"}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void sendLoginCode()}
-                            disabled={loginBusy}
-                            className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
-                          >
-                            Reenviar código
-                          </button>
+                          <div className="flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => void login.resend()}
+                              disabled={login.state.busy}
+                              className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
+                            >
+                              Reenviar código
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLoginCode("");
+                                login.changeEmail();
+                              }}
+                              disabled={login.state.busy}
+                              className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
+                            >
+                              Cambiar correo
+                            </button>
+                          </div>
                         </div>
                       </Fragment>
                     )}
-                    {loginError && <p className="mt-2 label-sm text-sirena">{loginError}</p>}
+                    {login.state.error && (
+                      <p role="alert" className="mt-2 text-xs leading-relaxed text-sirena">
+                        {login.state.error}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
@@ -716,10 +692,11 @@ export default function BookingWidget({
                     <button
                       type="button"
                       onClick={() => {
-                        setLoginError(null);
-                        setLoginStep("email");
-                        setLoginEmail(email);
+                        setLoginCode("");
+                        login.changeEmail();
                         setLoginOpen(true);
+                        // El correo se escribe arriba: si está vacío, llevamos el foco ahí.
+                        if (!email.trim()) document.getElementById("bk-email")?.focus();
                       }}
                       className="text-gold transition-opacity hover:opacity-80"
                     >
