@@ -19,19 +19,22 @@ export default function CuentaTabs() {
 
   return (
     <nav className="flex gap-6 overflow-x-auto" aria-label="Secciones de mi cuenta">
-      {TABS.map((t) => (
-        <Link
-          key={t.href}
-          href={t.href}
-          className={`label whitespace-nowrap border-b-2 pb-2.5 transition-colors ${
-            isActive(t.href)
-              ? "border-gold text-gold"
-              : "border-transparent text-bone-dim hover:text-bone"
-          }`}
-        >
-          {t.label}
-        </Link>
-      ))}
+      {TABS.map((t) => {
+        const active = isActive(t.href);
+        return (
+          <Link
+            key={t.href}
+            href={t.href}
+            // El color solo no basta para saber cuál está activa (WCAG 1.4.1).
+            aria-current={active ? "page" : undefined}
+            className={`label whitespace-nowrap border-b-2 pb-2.5 transition-colors ${
+              active ? "border-gold text-gold" : "border-transparent text-bone-dim hover:text-bone"
+            }`}
+          >
+            {t.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

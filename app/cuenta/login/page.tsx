@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
@@ -20,6 +20,13 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [busy, setBusy] = useState(false);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+
+  // Al enviar, el formulario (y el botón que tenía el foco) se desmonta: sin esto el
+  // foco cae a <body> y un lector de pantalla no se entera de que el enlace salió.
+  useEffect(() => {
+    if (status !== "idle") statusRef.current?.focus();
+  }, [status]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,16 +69,24 @@ function LoginForm() {
           Entra o crea tu cuenta
         </h1>
 
-        {status === "sent" ? (
-          <p className="mt-5 text-sm leading-relaxed text-bone-dim">
-            Te enviamos un enlace de acceso a <strong className="text-bone">{email}</strong>. Revisa tu correo — y el
-            spam, por si acaso.
-          </p>
-        ) : status === "ratelimited" ? (
-          <p className="mt-5 text-sm leading-relaxed text-bone-dim">
-            Demasiados intentos. Espera unos minutos antes de pedir otro enlace de acceso.
-          </p>
-        ) : (
+        {/* Región de estado presente desde el primer render (vacía en idle): una live
+            region que nace junto con su texto no se anuncia (WCAG 4.1.3). */}
+        <p
+          ref={statusRef}
+          role="status"
+          tabIndex={-1}
+          className={`text-sm leading-relaxed text-bone-dim outline-none ${status === "idle" ? "" : "mt-5"}`}
+        >
+          {status === "sent" && (
+            <>
+              Te enviamos un enlace de acceso a <strong className="text-bone">{email}</strong>. Revisa tu correo
+              — y el spam, por si acaso.
+            </>
+          )}
+          {status === "ratelimited" && "Demasiados intentos. Espera unos minutos antes de pedir otro enlace de acceso."}
+        </p>
+
+        {status === "idle" && (
           <>
             <p className="mt-4 text-sm leading-relaxed text-bone-dim">
               Te enviamos un enlace de acceso a tu correo. Si aún no tienes cuenta,{" "}
@@ -86,6 +101,8 @@ function LoginForm() {
                 <input
                   type="email"
                   required
+                  autoComplete="email"
+                  inputMode="email"
                   placeholder="tu@correo.cl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

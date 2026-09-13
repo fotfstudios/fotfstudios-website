@@ -1,18 +1,25 @@
 import type { ReactNode } from "react";
 
-/** Tabla de datos: borde hairline, cabecera mono, filas con hover. Scroll en móvil. */
+/**
+ * Tabla de datos: borde hairline, cabecera mono, filas con hover. Scroll en móvil.
+ * `caption` le da nombre accesible (sr-only): con dos tablas en una página, el lector
+ * de pantalla anuncia "tabla, tabla" sin ella.
+ */
 export function DataTable({
   head,
   children,
+  caption,
   minWidthClassName = "min-w-[34rem]",
 }: {
   head: ReactNode;
   children: ReactNode;
+  caption?: string;
   minWidthClassName?: string;
 }) {
   return (
     <div className="overflow-x-auto border hairline">
       <table className={`w-full ${minWidthClassName} text-sm`}>
+        {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr className="border-b hairline bg-ink/60">{head}</tr>
         </thead>

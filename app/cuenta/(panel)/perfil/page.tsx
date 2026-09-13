@@ -26,10 +26,10 @@ export default async function CuentaPerfil() {
             <Input value={session.email} disabled />
           </Field>
           <Field label="Nombre">
-            <Input name="name" defaultValue={profile?.name ?? ""} maxLength={80} placeholder="Tu nombre" />
+            <Input name="name" autoComplete="name" defaultValue={profile?.name ?? ""} maxLength={80} placeholder="Tu nombre" />
           </Field>
           <Field label="Teléfono">
-            <Input name="phone" type="tel" defaultValue={profile?.phone ?? ""} placeholder="+56 9 …" />
+            <Input name="phone" type="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} placeholder="+56 9 …" />
           </Field>
           <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
         </ActionForm>
