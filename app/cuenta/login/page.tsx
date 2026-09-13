@@ -10,10 +10,11 @@ import { safeNext } from "@/src/domain/auth/callback-redirect";
 import { resolveAuthOrigin } from "@/lib/site";
 
 /**
- * Acceso de clientes: código de 6 dígitos que se escribe aquí mismo (el correo
- * de Supabase lo trae en grande) y, como vía secundaria, el enlace del mismo
- * correo, que vuelve por /auth/callback. Mismo gesto que el login en línea del
- * widget de reserva (useOtpLogin); entrar y crear cuenta son lo mismo.
+ * Acceso de clientes: el código del correo se escribe aquí mismo (Supabase lo
+ * manda en grande; su largo es otp_length del proyecto — prod usa 8 — y el
+ * cliente no lo asume) y, como vía secundaria, el enlace del mismo correo, que
+ * vuelve por /auth/callback. Mismo gesto que el login en línea del widget de
+ * reserva (useOtpLogin); entrar y crear cuenta son lo mismo.
  */
 function LoginForm() {
   const router = useRouter();
@@ -119,8 +120,7 @@ function LoginForm() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
-                  maxLength={6}
-                  placeholder="6 dígitos"
+                  placeholder="Código del correo"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   className={`${inputCls} mt-1.5 tracking-[0.3em]`}

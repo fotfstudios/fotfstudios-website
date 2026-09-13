@@ -641,8 +641,7 @@ export default function BookingWidget({
                             // esto el teclado del teléfono se cierra y hay que volver
                             // a tocar el campo.
                             autoFocus
-                            maxLength={6}
-                            placeholder="Código de 6 dígitos"
+                            placeholder="Código del correo"
                             value={loginCode}
                             onChange={(e) => setLoginCode(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && void verifyLoginCode()}
