@@ -149,7 +149,7 @@ export default async function AnaliticaPage({
         </div>
       ) : (
         <>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Ingresos" value={formatCLP(s.revenue.total)} delta={delta(s.revenue.deltaPct)} />
             <Stat label="Ocupación" value={fmtPct(s.occupancy.pct)} delta={delta(s.occupancy.deltaPct)} />
             <Stat label="Sesiones pagadas" value={String(s.sessions.paid)} delta={delta(s.sessions.deltaPct)} />

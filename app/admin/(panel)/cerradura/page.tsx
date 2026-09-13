@@ -116,7 +116,7 @@ function PinList({
                 {button}
               </SubmitButton>
             </ActionForm>
-            <Link href={`/admin/reservas/${r.id}`} className="label-sm text-gold transition-colors hover:text-bone">
+            <Link href={`/admin/reservas/${r.id}`} className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone">
               Ficha →
             </Link>
           </div>

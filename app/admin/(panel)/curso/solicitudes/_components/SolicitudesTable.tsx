@@ -61,15 +61,14 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
               )}
             </Td>
             <Td>
-              <a href={`mailto:${r.email}`} className="label-sm text-gold hover:text-bone">
+              <a href={`mailto:${r.email}`} className="label-sm block py-1 text-gold hover:text-bone">
                 {r.email}
               </a>
-              <br />
               <a
                 href={`https://wa.me/${waDigits}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="label-sm text-bone-quiet hover:text-gold"
+                className="label-sm block py-1 text-bone-quiet hover:text-gold"
               >
                 {r.phone}
               </a>

@@ -40,7 +40,7 @@ export default async function AdminHome() {
         }
       />
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Sesiones de hoy" value={String(d.todaySessions)} />
         <Stat label="Ingresos de la semana" value={formatCLP(d.weekRevenue)} />
         <Stat label="Ocupación de la semana" value={`${d.weekOccupancyPct}%`} />
@@ -105,14 +105,14 @@ export default async function AdminHome() {
                     {doc.enrollmentId ? (
                       <Link
                         href={`/admin/curso/inscripciones/${doc.enrollmentId}`}
-                        className="label-sm text-gold transition-colors hover:text-bone"
+                        className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone"
                       >
                         Ir a la inscripción
                       </Link>
                     ) : doc.reservationId ? (
                       <Link
                         href={`/admin/reservas/${doc.reservationId}`}
-                        className="label-sm text-gold transition-colors hover:text-bone"
+                        className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone"
                       >
                         Ir a la reserva
                       </Link>
@@ -135,7 +135,7 @@ function Section({ title, href, children }: { title: string; href?: string; chil
       <div className="mb-3 flex items-center justify-between">
         <h2 className="label text-bone-quiet">{title}</h2>
         {href && (
-          <Link href={href} className="label-sm text-gold transition-colors hover:text-bone">
+          <Link href={href} className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone">
             Ver todas
           </Link>
         )}
@@ -160,7 +160,7 @@ function BookingsTable({ rows }: { rows: AdminBooking[] }) {
       }
     >
       {rows.map((b) => (
-        <Tr key={b.id}>
+        <Tr key={b.id} className="group relative focus-within:bg-ink-soft">
           <Td className="whitespace-nowrap font-mono text-bone">{fmtDateTime(b.startsAt)}</Td>
           <Td className="text-bone-dim">{b.customerName ?? b.customerEmail ?? "—"}</Td>
           <Td>
@@ -170,10 +170,12 @@ function BookingsTable({ rows }: { rows: AdminBooking[] }) {
             {b.amount ? formatCLP(b.amount) : "—"}
           </Td>
           <Td right>
+            {/* Enlace "estirado": el ::after cubre toda la fila (Tr es relative), así
+                la fila entera es el objetivo táctil — mismo patrón que BookingsTable. */}
             <Link
               href={`/admin/reservas/${b.id}`}
-              aria-label="Ver reserva"
-              className="inline-flex text-bone-quiet transition-colors hover:text-gold"
+              aria-label={`Ver reserva de ${b.customerName ?? b.customerEmail ?? "cliente"} — ${fmtDateTime(b.startsAt)}`}
+              className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
             >
               <Icon name="chevron" size={18} />
             </Link>
