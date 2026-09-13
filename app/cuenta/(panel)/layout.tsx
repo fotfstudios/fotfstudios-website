@@ -7,7 +7,12 @@ import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 import EmailConflict from "./_components/EmailConflict";
 
-export const metadata: Metadata = { title: "Mi cuenta — FOTF Studios", robots: { index: false } };
+// Un layout con `title` string corta el template de la raíz para sus hijos (por
+// eso /cuenta/reservas salía sin sufijo y /cuenta con el sufijo dos veces).
+export const metadata: Metadata = {
+  title: { default: "Mi cuenta", template: "%s · FOTF Studios" },
+  robots: { index: false },
+};
 
 /**
  * Grupo autenticado de /cuenta: exige sesión (defensa además del middleware),

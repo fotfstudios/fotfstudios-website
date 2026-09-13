@@ -174,3 +174,49 @@ describe("layout de teléfono del área de clientes", () => {
     expect(read("components/admin/ui/styles.ts")).toMatch(/md: "[^"]*min-h-11/);
   });
 });
+
+describe("resumen: la próxima sesión es la protagonista", () => {
+  const src = read("app/cuenta/(panel)/page.tsx");
+
+  it("carga las reservas y pinta la próxima sesión antes que el historial", () => {
+    expect(src).toMatch(/\.bookings\(session\.email\)/);
+    const hero = src.indexOf("<NextSession");
+    expect(hero).toBeGreaterThan(0);
+    expect(hero).toBeLessThan(src.indexOf("Historial"));
+    expect(read("app/cuenta/(panel)/_components/NextSession.tsx")).toContain("Tu próxima sesión");
+  });
+
+  it("sin fila de KPI tiles (Stat): el saldo es una línea, no tres tarjetas iguales", () => {
+    // "Disponibles 4.498 · Ganados 4.498 · Canjeados 0" era el dashboard del admin
+    // trasplantado: 260px de tarjetas en el teléfono antes de cualquier acción.
+    expect(src).not.toMatch(/<Stat\b/);
+  });
+
+  it("el saldo se lee como recompensa: vale $X en tu próxima hora", () => {
+    expect(src).toMatch(/en tu próxima hora/);
+  });
+});
+
+describe("copy sin repetir y detalles", () => {
+  const CURSO = "app/cuenta/(panel)/curso/page.tsx";
+
+  it("las páginas del cliente no repiten 'Mi cuenta' como kicker (el header ya lo dice)", () => {
+    for (const f of ["app/cuenta/(panel)/page.tsx", "app/cuenta/(panel)/reservas/page.tsx", CURSO, PERFIL]) {
+      expect(read(f), f).not.toMatch(/kicker="Mi cuenta"/);
+    }
+  });
+
+  it("curso: una sola CTA a /curso-dj cuando no hay inscripción", () => {
+    expect(read(CURSO)).toMatch(/action=\{\s*cursos\.length > 0/);
+  });
+
+  it("los títulos no duplican el sufijo de marca (lo pone el template)", () => {
+    for (const f of ["app/cuenta/(panel)/layout.tsx", "app/cuenta/(panel)/reservas/page.tsx", PERFIL]) {
+      expect(read(f), f).not.toMatch(/title: "[^"]*— FOTF Studios"/);
+    }
+  });
+
+  it("las tabs tienen foco visible en gold", () => {
+    expect(read("components/cuenta/CuentaTabs.tsx")).toContain("focus-visible:ring-gold");
+  });
+});

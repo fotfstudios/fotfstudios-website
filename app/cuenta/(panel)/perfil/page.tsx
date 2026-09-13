@@ -8,7 +8,7 @@ import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 import { updateProfileAction } from "./actions";
 
-export const metadata: Metadata = { title: "Mi perfil — FOTF Studios", robots: { index: false } };
+export const metadata: Metadata = { title: "Mi perfil", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 /** Perfil: nombre/teléfono editables (prefill de futuras reservas); el email es la identidad. */
@@ -18,7 +18,7 @@ export default async function CuentaPerfil() {
 
   return (
     <main className="space-y-8">
-      <PageHeader kicker="Mi cuenta" title="Tu perfil" />
+      <PageHeader title="Tu perfil" />
 
       <Card>
         <ActionForm action={updateProfileAction} success="Perfil actualizado" className="max-w-md space-y-4">
