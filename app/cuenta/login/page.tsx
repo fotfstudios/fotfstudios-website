@@ -1,61 +1,53 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
 import { btn, inputCls } from "@/components/admin/ui/styles";
+import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import { safeNext } from "@/src/domain/auth/callback-redirect";
-import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
 import { resolveAuthOrigin } from "@/lib/site";
 
-type Status = "idle" | "sent" | "ratelimited";
-
+/**
+ * Acceso de clientes: código de 6 dígitos que se escribe aquí mismo (el correo
+ * de Supabase lo trae en grande) y, como vía secundaria, el enlace del mismo
+ * correo, que vuelve por /auth/callback. Mismo gesto que el login en línea del
+ * widget de reserva (useOtpLogin); entrar y crear cuenta son lo mismo.
+ */
 function LoginForm() {
+  const router = useRouter();
   const params = useSearchParams();
   const callbackFailed = params.get("error") === "auth";
   // `next` permite volver al flujo de origen (p. ej. /reservar); el callback
   // re-valida contra la misma allow-list, esto es solo UX.
   const next = safeNext(params.get("next")) ?? "/cuenta";
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [busy, setBusy] = useState(false);
-  const statusRef = useRef<HTMLParagraphElement>(null);
+  const [code, setCode] = useState("");
 
-  // Al enviar, el formulario (y el botón que tenía el foco) se desmonta: sin esto el
-  // foco cae a <body> y un lector de pantalla no se entera de que el enlace salió.
-  useEffect(() => {
-    if (status !== "idle") statusRef.current?.focus();
-  }, [status]);
+  // Host del enlace: canónico en el dominio de prod; el origen actual en preview
+  // (*.vercel.app) y local, para volver al mismo deployment y canjear el código
+  // contra su propia DB (staging/local). Ver resolveAuthOrigin.
+  const { state, send, verify, resend, changeEmail } = useOtpLogin({
+    emailRedirectTo: `${resolveAuthOrigin()}/auth/callback?next=${encodeURIComponent(next)}`,
+  });
 
-  const submit = async (e: React.FormEvent) => {
+  const submitEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
-    const supabase = createAuthBrowserClient();
-    // Host del enlace: canónico en el dominio de prod; el origen actual en
-    // preview (*.vercel.app) y local, para volver al mismo deployment y canjear
-    // el código contra su propia DB (staging/local). Ver resolveAuthOrigin.
-    const origin = resolveAuthOrigin();
-    // shouldCreateUser:true — entrar y crear cuenta son el mismo gesto: el primer
-    // enlace de acceso crea el usuario si no existe.
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        shouldCreateUser: true,
-      },
-    });
-    setBusy(false);
-    if (error) {
-      console.warn("[cuenta-login]", error.message);
-      if (error.status === 429) {
-        setStatus("ratelimited");
-        return;
-      }
-    }
-    // Mensaje genérico siempre: no revelar si el correo ya tenía cuenta.
-    setStatus("sent");
+    await send(email);
   };
+
+  const submitCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // La sesión ya quedó en el browser; el middleware deja pasar a `next` y
+    // refresh hace que el server la vea.
+    if (await verify(code)) {
+      router.replace(next);
+      router.refresh();
+    }
+  };
+
+  const sentTo = state.step === "code" ? state.sentTo : null;
 
   return (
     <main data-surface="tool" className="flex min-h-screen items-center justify-center px-6">
@@ -65,36 +57,33 @@ function LoginForm() {
           <span className="label text-bone-quiet">Mi cuenta</span>
         </div>
 
-        <h1 className="font-display mt-6 text-3xl text-bone">
-          Entra o crea tu cuenta
-        </h1>
+        <h1 className="font-display mt-6 text-3xl text-bone">Entra o crea tu cuenta</h1>
 
-        {/* Región de estado presente desde el primer render (vacía en idle): una live
-            region que nace junto con su texto no se anuncia (WCAG 4.1.3). */}
-        <p
-          ref={statusRef}
-          role="status"
-          tabIndex={-1}
-          className={`text-sm leading-relaxed text-bone-dim outline-none ${status === "idle" ? "" : "mt-5"}`}
-        >
-          {status === "sent" && (
+        {/* Región de estado presente desde el primer render (vacía hasta enviar):
+            una live region que nace junto con su texto no se anuncia (WCAG 4.1.3). */}
+        <p role="status" className={`text-sm leading-relaxed text-bone-dim ${sentTo ? "mt-4" : ""}`}>
+          {sentTo && (
             <>
-              Te enviamos un enlace de acceso a <strong className="text-bone">{email}</strong>. Revisa tu correo
-              — y el spam, por si acaso.
+              Te enviamos un código a <strong className="text-bone">{sentTo}</strong>. Revisa tu correo — y el
+              spam, por si acaso.
             </>
           )}
-          {status === "ratelimited" && "Demasiados intentos. Espera unos minutos antes de pedir otro enlace de acceso."}
         </p>
 
-        {status === "idle" && (
-          <>
+        {/* Los pasos van con key: tienen la misma forma (p, form → label, input,
+            button) y sin key React reutilizaría el mismo <input>, así que el del
+            código nunca se montaría y su autoFocus no correría. */}
+        {state.step === "email" ? (
+          <Fragment key="email">
             <p className="mt-4 text-sm leading-relaxed text-bone-dim">
-              Te enviamos un enlace de acceso a tu correo. Si aún no tienes cuenta,{" "}
+              Te enviamos un código a tu correo. Si aún no tienes cuenta,{" "}
               <strong className="text-bone">te la creamos al entrar</strong> — sin contraseñas.
             </p>
-            <form onSubmit={submit} className="mt-5 flex flex-col gap-3">
+            <form onSubmit={submitEmail} className="mt-5 flex flex-col gap-3">
               {callbackFailed && (
-                <p className="label-sm text-sirena">No pudimos iniciar tu sesión con ese enlace. Pide uno nuevo.</p>
+                <p role="alert" className="text-xs leading-relaxed text-sirena">
+                  No pudimos iniciar tu sesión con ese enlace. Pide un código nuevo.
+                </p>
               )}
               <label className="label text-bone-quiet">
                 Correo
@@ -109,11 +98,73 @@ function LoginForm() {
                   className={`${inputCls} mt-1.5`}
                 />
               </label>
-              <button type="submit" disabled={busy} className={`${btn("primary", "md")} mt-1 w-full`}>
-                {busy ? "Enviando…" : "Enviar enlace de acceso"}
+              {state.error && (
+                <p role="alert" className="text-xs leading-relaxed text-sirena">
+                  {state.error}
+                </p>
+              )}
+              <button type="submit" disabled={state.busy} className={`${btn("primary", "md")} mt-1 w-full`}>
+                {state.busy ? "Enviando…" : "Enviar código"}
               </button>
             </form>
-          </>
+          </Fragment>
+        ) : (
+          <Fragment key="code">
+            <form onSubmit={submitCode} className="mt-5 flex flex-col gap-3">
+              <label className="label text-bone-quiet">
+                Código
+                <input
+                  type="text"
+                  required
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={6}
+                  placeholder="6 dígitos"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className={`${inputCls} mt-1.5 tracking-[0.3em]`}
+                />
+              </label>
+              {state.error && (
+                <p role="alert" className="text-xs leading-relaxed text-sirena">
+                  {state.error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={state.busy || !code.trim()}
+                className={`${btn("primary", "md")} mt-1 w-full`}
+              >
+                {state.verified ? "Entrando…" : state.busy ? "Verificando…" : "Entrar"}
+              </button>
+              {/* A 375px los dos rótulos no caben en una fila (261px útiles): apilados. */}
+              <div className="-mx-3 flex flex-col items-start sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => void resend()}
+                  disabled={state.busy}
+                  className={`${btn("ghost", "sm")} whitespace-nowrap`}
+                >
+                  Reenviar código
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCode("");
+                    changeEmail();
+                  }}
+                  disabled={state.busy}
+                  className={`${btn("ghost", "sm")} whitespace-nowrap`}
+                >
+                  Cambiar correo
+                </button>
+              </div>
+            </form>
+            <p className="mt-5 text-xs leading-relaxed text-bone-quiet">
+              También puedes abrir el enlace del correo: te deja dentro igual.
+            </p>
+          </Fragment>
         )}
 
         <p className="label-sm mt-6">

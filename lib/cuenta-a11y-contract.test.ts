@@ -50,14 +50,47 @@ describe("inputs de identidad declaran su propósito (autocomplete)", () => {
   });
 });
 
-describe("login por enlace (/cuenta/login)", () => {
+describe("login por código (/cuenta/login)", () => {
   const src = read(LOGIN);
 
-  it("el mensaje de 'enlace enviado' vive en una región role=status enfocable", () => {
-    // Existe desde el primer render (una live region creada junto con su texto no
-    // se anuncia) y recibe el foco tras enviar: el botón que lo tenía desaparece.
-    expect(src).toMatch(/role="status"[^>]*tabIndex=\{-1\}|tabIndex=\{-1\}[^>]*role="status"/);
-    expect(src).toContain(".focus()");
+  it("el 'código enviado' se anuncia en una región role=status presente desde el primer render", () => {
+    // Una live region creada junto con su texto no se anuncia: existe siempre.
+    expect(src).toContain('role="status"');
+  });
+
+  it("pide el código en la misma página: campo de 6 dígitos con one-time-code y foco al montar", () => {
+    const tag = inputTag(src, 'autoComplete="one-time-code"');
+    expect(tag).toContain('inputMode="numeric"');
+    expect(tag).toContain("maxLength={6}");
+    expect(tag).toContain("autoFocus");
+    // Los pasos van con key: misma forma JSX → React reutilizaría el <input>.
+    expect(src).toMatch(/<Fragment key="email">[\s\S]*<Fragment key="code">/);
+  });
+
+  it("el enlace del correo sigue siendo la vía secundaria y hay salida si el correo estaba mal", () => {
+    expect(src).toContain("emailRedirectTo");
+    expect(src).toMatch(/enlace del correo/i);
+    expect(src).toMatch(/Cambiar correo/);
+    expect(src).toMatch(/Reenviar/);
+  });
+});
+
+describe("un solo gesto de acceso (login + widget)", () => {
+  it("las dos superficies usan el mismo hook useOtpLogin", () => {
+    for (const f of [LOGIN, WIDGET]) expect(read(f), f).toMatch(/from "@\/components\/cuenta\/useOtpLogin"/);
+  });
+
+  it("el widget tiene UN solo campo de correo: el de la reserva (no hay bk-login-email)", () => {
+    const src = read(WIDGET);
+    expect(src).not.toContain("bk-login-email");
+    expect(src).not.toContain("loginEmail");
+  });
+
+  it("el panel del código no es una tarjeta anidada ni repite el mensaje de éxito", () => {
+    const src = read(WIDGET);
+    expect(src).not.toContain('className="mt-3 border hairline p-4"');
+    expect(src).not.toContain("¡Sesión iniciada!");
+    expect(src).toContain("Sesión iniciada como");
   });
 });
 
