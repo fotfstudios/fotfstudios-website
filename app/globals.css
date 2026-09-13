@@ -354,12 +354,12 @@
   height: 38px;
   margin: -19px 0 0 -19px;
   border: 1px solid var(--color-bone);
-  transition: width 0.25s ease, height 0.25s ease, margin 0.25s ease, opacity 0.25s ease;
+  /* El crecimiento es `scale` (propiedad independiente: compone con el translate
+     inline del JS) y no width/height/margin: solo compositor, sin layout ni paint. */
+  transition: scale 0.25s ease, opacity 0.25s ease;
 }
 .cursor-ring[data-active="true"] {
-  width: 64px;
-  height: 64px;
-  margin: -32px 0 0 -32px;
+  scale: 1.684; /* 38px → 64px */
 }
 html.has-cursor,
 html.has-cursor a,
