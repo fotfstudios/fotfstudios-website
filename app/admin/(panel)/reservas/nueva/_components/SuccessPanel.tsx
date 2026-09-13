@@ -32,7 +32,7 @@ export function SuccessPanel({
       <dl className="mt-6 flex flex-col gap-2.5 border-t hairline pt-5 text-left">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between gap-3">
-            <dt className="label-sm text-bone-mute">{r.label}</dt>
+            <dt className="label-sm text-bone-quiet">{r.label}</dt>
             <dd className="font-mono text-sm text-bone">{r.value}</dd>
           </div>
         ))}
@@ -59,7 +59,7 @@ export function SuccessPanel({
         </button>
       </div>
 
-      {noPhone && <p className="label-sm mt-4 text-bone-mute">Sin teléfono — no hay WhatsApp que enviar.</p>}
+      {noPhone && <p className="label-sm mt-4 text-bone-quiet">Sin teléfono — no hay WhatsApp que enviar.</p>}
     </div>
   );
 }

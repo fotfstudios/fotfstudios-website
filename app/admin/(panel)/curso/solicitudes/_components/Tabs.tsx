@@ -30,10 +30,10 @@ export function Tabs({
             key={tab}
             href={solicitudesHref(query, { estado: tab })}
             aria-current={on ? "page" : undefined}
-            className={`label-sm transition-colors ${on ? "text-gold" : "text-bone-mute hover:text-bone"}`}
+            className={`label-sm transition-colors ${on ? "text-gold" : "text-bone-quiet hover:text-bone"}`}
           >
             {LABEL[tab]}
-            <span className="ml-2 font-mono text-bone-mute/70">{counts[tab]}</span>
+            <span className="ml-2 font-mono text-bone-quiet">{counts[tab]}</span>
           </Link>
         );
       })}

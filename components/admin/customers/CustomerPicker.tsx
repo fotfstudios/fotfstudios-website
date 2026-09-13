@@ -167,13 +167,13 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-bone-mute">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-bone-quiet">
           <Icon name="search" className="h-4 w-4" />
         </span>
       </div>
 
       {status && (
-        <p aria-live="polite" className="mt-2 label-sm text-bone-mute">
+        <p aria-live="polite" className="mt-2 label-sm text-bone-quiet">
           {status}
           {state === "error" && (
             <button type="button" className="ml-2 underline" onClick={() => run(q.trim())}>
@@ -204,7 +204,7 @@ export function CustomerPicker({ search, onSelect, onCreateNew, maxRows = 6 }: C
               </div>
               <div className="flex items-center gap-2 font-mono text-xs text-bone-dim">
                 <span className="truncate">{[c.email, c.phone].filter(Boolean).join(" · ") || "Sin contacto"}</span>
-                {c.authUserId && <span className="shrink-0 label-sm text-bone-mute">Con cuenta</span>}
+                {c.authUserId && <span className="shrink-0 label-sm text-bone-quiet">Con cuenta</span>}
               </div>
             </li>
           ))}

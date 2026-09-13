@@ -63,7 +63,7 @@ export function BookingsTable({
       <Fragment key={b.id}>
         {header && (
           <tr className="border-b hairline bg-ink/50">
-            <td colSpan={5} className="label-sm px-4 py-2 text-bone-mute">
+            <td colSpan={5} className="label-sm px-4 py-2 text-bone-quiet">
               {BUCKET_LABEL[header]}
               {exactCounts ? ` · ${bucketCounts[header]}` : ""}
             </td>
@@ -108,11 +108,11 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
     <Tr muted={isBlock} className="group relative focus-within:bg-ink-soft">
       <Td className="whitespace-nowrap">
         <div className="font-mono text-bone">{fmtDate(b.startsAt)}</div>
-        <div className="mt-0.5 font-mono text-xs text-bone-mute">{fmtTimeRange(b.startsAt, b.endsAt)}</div>
+        <div className="mt-0.5 font-mono text-xs text-bone-quiet">{fmtTimeRange(b.startsAt, b.endsAt)}</div>
       </Td>
       <Td>
         {isBlock ? (
-          <span className="label-sm inline-flex items-center gap-1.5 text-bone-mute">
+          <span className="label-sm inline-flex items-center gap-1.5 text-bone-quiet">
             <Icon name="block" size={13} /> Bloqueo
           </span>
         ) : (
@@ -122,22 +122,22 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
               {isCourtesy && <span className="label-sm shrink-0 text-gold">Cortesía</span>}
             </div>
             {secondary && (
-              <div className="mt-0.5 max-w-64 truncate font-mono text-xs text-bone-mute">{secondary}</div>
+              <div className="mt-0.5 max-w-64 truncate font-mono text-xs text-bone-quiet">{secondary}</div>
             )}
           </>
         )}
       </Td>
       <Td>
         <StatusPill status={b.status} />
-        {isRefunded && <div className="label-sm mt-1 text-bone-mute">Reembolsada</div>}
+        {isRefunded && <div className="label-sm mt-1 text-bone-quiet">Reembolsada</div>}
         {overdue && <div className="label-sm mt-1 text-sirena">Pago vencido</div>}
       </Td>
       <Td right className="whitespace-nowrap">
-        <div className={`font-mono ${isRefunded ? "text-bone-mute" : "text-bone"}`}>
+        <div className={`font-mono ${isRefunded ? "text-bone-quiet" : "text-bone"}`}>
           {b.amount ? formatCLP(b.amount) : "—"}
         </div>
         {b.refundedAmount ? (
-          <div className="mt-0.5 font-mono text-xs text-bone-mute">−{formatCLP(b.refundedAmount)}</div>
+          <div className="mt-0.5 font-mono text-xs text-bone-quiet">−{formatCLP(b.refundedAmount)}</div>
         ) : null}
       </Td>
       <Td right>
@@ -148,7 +148,7 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
               ? `Ver bloqueo — ${fmtDateTime(b.startsAt)}`
               : `Ver reserva de ${name} — ${fmtDateTime(b.startsAt)}`
           }
-          className="inline-flex text-bone-mute outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
+          className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
         >
           <Icon name="chevron" size={18} />
         </Link>

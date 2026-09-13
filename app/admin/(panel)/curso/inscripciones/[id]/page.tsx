@@ -123,7 +123,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
                   <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div>
                       <p className="text-sm text-bone">{doc.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
-                      <p className="label-sm mt-0.5 text-bone-mute">
+                      <p className="label-sm mt-0.5 text-bone-quiet">
                         Neto {formatCLP(doc.neto)} · IVA {formatCLP(doc.iva)}
                       </p>
                     </div>
@@ -134,7 +134,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-xs text-bone-mute">
+              <p className="mt-4 text-xs text-bone-quiet">
                 Emítelas en el portal del SII y registra el folio desde la reserva correspondiente.
               </p>
             </Card>
@@ -209,7 +209,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
 function Dato({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3">
-      <dt className="label-sm w-28 shrink-0 text-bone-mute">{label}</dt>
+      <dt className="label-sm w-28 shrink-0 text-bone-quiet">{label}</dt>
       <dd className="flex items-center gap-2 text-sm text-bone-dim">{children}</dd>
     </div>
   );

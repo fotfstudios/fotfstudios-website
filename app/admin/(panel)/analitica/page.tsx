@@ -136,7 +136,7 @@ export default async function AnaliticaPage({
             <span className={`${pill(false)} pointer-events-none opacity-30`}>›</span>
           )}
         </div>
-        <span className="ml-auto label-sm text-bone-mute">{range.title}</span>
+        <span className="ml-auto label-sm text-bone-quiet">{range.title}</span>
       </div>
 
       {noData ? (
@@ -163,7 +163,7 @@ export default async function AnaliticaPage({
                 format={formatCLP}
                 ariaLabel={`Ingresos por ${range.bucket === "week" ? "semana" : "día"}, ${range.title}: total ${formatCLP(s.revenue.total)}`}
               />
-              <p className="label-sm mt-3 text-bone-mute">
+              <p className="label-sm mt-3 text-bone-quiet">
                 Comisiones MP (solo pagos online): {formatCLP(s.revenue.mpFees)} · Reembolsado:{" "}
                 {formatCLP(s.revenue.refundedTotal)}
               </p>
@@ -177,7 +177,7 @@ export default async function AnaliticaPage({
                 format={fmtPct}
                 ariaLabel={`Ocupación por día de semana, ${range.title}: promedio ${fmtPct(s.occupancy.pct)}`}
               />
-              <p className="label-sm mt-3 text-bone-mute">
+              <p className="label-sm mt-3 text-bone-quiet">
                 {Math.round(s.occupancy.bookedMinutes / 60)} h reservadas de{" "}
                 {Math.round(s.occupancy.openMinutes / 60)} h abiertas (horario real, con excepciones).
               </p>
@@ -194,7 +194,7 @@ export default async function AnaliticaPage({
                     ["Cortesías", s.funnel.courtesy, "text-bone-dim"],
                     ["Canceladas (sin reembolso)", s.funnel.cancelled, "text-bone-dim"],
                     ["Reembolsadas", s.funnel.refunded, "text-bone-dim"],
-                    ["Holds vencidos sin pago", s.funnel.expiredHolds, "text-bone-mute"],
+                    ["Holds vencidos sin pago", s.funnel.expiredHolds, "text-bone-quiet"],
                   ] as const
                 ).map(([label, n, tone]) => (
                   <li key={label} className="flex items-center justify-between border-b hairline px-5 py-3 last:border-b-0">

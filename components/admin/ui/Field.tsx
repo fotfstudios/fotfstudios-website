@@ -5,9 +5,9 @@ import { inputCls } from "./styles";
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="label-sm text-bone-mute">{label}</span>
+      <span className="label-sm text-bone-quiet">{label}</span>
       <div className="mt-1.5">{children}</div>
-      {hint && <span className="mt-1.5 block text-xs text-bone-mute">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-xs text-bone-quiet">{hint}</span>}
     </label>
   );
 }

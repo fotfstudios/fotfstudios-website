@@ -41,10 +41,10 @@ export default function EmailConflict() {
         }
       />
       <div className="mt-8 flex items-center justify-center gap-4">
-        <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
+        <Link href="/" className="label-sm text-bone-quiet transition-colors hover:text-gold">
           ← Volver al inicio
         </Link>
-        <span className="text-bone-mute" aria-hidden="true">
+        <span className="text-bone-quiet" aria-hidden="true">
           ·
         </span>
         {/* Escape real del loop: cierra la sesión ANTES de ir a /cuenta/login
@@ -52,7 +52,7 @@ export default function EmailConflict() {
         <SignOutButton
           redirectTo="/cuenta/login"
           label="Entrar con otro correo"
-          className="label-sm flex items-center gap-1.5 text-bone-mute transition-colors hover:text-gold"
+          className="label-sm flex items-center gap-1.5 text-bone-quiet transition-colors hover:text-gold"
         />
       </div>
     </main>

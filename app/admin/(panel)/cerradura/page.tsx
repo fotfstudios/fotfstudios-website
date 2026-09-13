@@ -42,7 +42,7 @@ export default async function CerraduraPage() {
                 button="Ya está cargado"
                 variant="primary"
               />
-              <p className="mt-4 text-xs text-bone-mute">
+              <p className="mt-4 text-xs text-bone-quiet">
                 Cárgalo en la app de Yale y recién entonces márcalo: el correo al cliente sale 10 minutos antes de la
                 sesión <strong className="text-bone-dim">solo si está marcado</strong>.
               </p>
@@ -65,7 +65,7 @@ export default async function CerraduraPage() {
                 variant="secondary"
                 past
               />
-              <p className="mt-4 text-xs text-bone-mute">
+              <p className="mt-4 text-xs text-bone-quiet">
                 Estos códigos siguen abriendo la puerta. Bórralos en la app de Yale y márcalos acá.
               </p>
             </>
@@ -102,7 +102,7 @@ function PinList({
         <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-3 first:pt-0 last:pb-0">
           <div className="min-w-0">
             <p className="text-sm text-bone">{r.customerName ?? "Sin nombre"}</p>
-            <p className="label-sm mt-0.5 text-bone-mute">
+            <p className="label-sm mt-0.5 text-bone-quiet">
               {past ? "Terminó" : "Empieza"} {fmtDateTime(past ? r.endsAt : r.startsAt)}
               {!past && !r.customerEmail && <span className="text-sirena"> · sin email: compártelo por WhatsApp</span>}
             </p>

@@ -26,7 +26,7 @@ export default function PanelError({
           </button>
         }
       />
-      {error.digest && <p className="label-sm text-center text-bone-mute">Ref: {error.digest}</p>}
+      {error.digest && <p className="label-sm text-center text-bone-quiet">Ref: {error.digest}</p>}
     </div>
   );
 }

@@ -76,14 +76,14 @@ export function CambiarClienteDialog(p: CambiarClienteDialogProps) {
         Cambiar cliente
       </button>
       {p.usedPoints && (
-        <p className="mt-1 label-sm text-bone-mute">Usó puntos: no se puede reasignar.</p>
+        <p className="mt-1 label-sm text-bone-quiet">Usó puntos: no se puede reasignar.</p>
       )}
 
       {open && (
         <Dialog title="Cambiar cliente" onClose={close}>
           {step === "pick" && (
             <>
-              <p className="label-sm mb-3 text-bone-mute">
+              <p className="label-sm mb-3 text-bone-quiet">
                 Hoy figura <span className="text-bone-dim">{p.currentLabel}</span>.
               </p>
               <CustomerPicker
@@ -129,7 +129,7 @@ export function CambiarClienteDialog(p: CambiarClienteDialogProps) {
               </div>
 
               {sameCustomer ? (
-                <p className="label-sm text-bone-mute">Es el mismo cliente que ya figura. No hay nada que cambiar.</p>
+                <p className="label-sm text-bone-quiet">Es el mismo cliente que ya figura. No hay nada que cambiar.</p>
               ) : (
                 <div className="label-sm space-y-1 text-bone-dim">
                   <p>Se actualizarán el nombre, el email y el teléfono de la reserva y de su pedido.</p>

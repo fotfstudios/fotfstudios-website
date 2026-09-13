@@ -65,7 +65,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
     <nav className="flex flex-col gap-7">
       {data.map((g) => (
         <div key={g.title}>
-          <p className="label-sm px-3 text-bone-mute/70">{g.title}</p>
+          <p className="label-sm px-3 text-bone-quiet">{g.title}</p>
           <ul className="mt-2 flex flex-col gap-0.5">
             {g.items.map((it) => {
               const on = it.href === active;
@@ -84,7 +84,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
                         on ? "opacity-100" : "opacity-0"
                       }`}
                     />
-                    <Icon name={it.icon} size={17} className={on ? "text-gold" : "text-bone-mute group-hover:text-bone-dim"} />
+                    <Icon name={it.icon} size={17} className={on ? "text-gold" : "text-bone-quiet group-hover:text-bone-dim"} />
                     {it.label}
                     {it.badge ? (
                       <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-gold px-1.5 font-mono text-[10px] font-bold text-ink">
@@ -119,7 +119,7 @@ export function Sidebar({
   const Brand = (
     <Link href="/admin" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
       <Logo variant="mini" color="gold" height={26} />
-      <span className="label text-bone-mute">Admin</span>
+      <span className="label text-bone-quiet">Admin</span>
     </Link>
   );
 
@@ -154,7 +154,7 @@ export function Sidebar({
           <div className="relative flex h-full w-72 max-w-[80%] flex-col border-r hairline bg-ink">
             <div className="flex items-center justify-between border-b hairline px-5 py-4">
               {Brand}
-              <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-bone-mute hover:text-gold">
+              <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-bone-quiet hover:text-gold">
                 <Icon name="close" size={20} />
               </button>
             </div>

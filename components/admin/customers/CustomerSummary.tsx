@@ -26,7 +26,7 @@ export function CustomerSummary({ customer, onChange, onClear, canManageCustomer
         )}
       </div>
       <p className="mt-0.5 font-mono text-xs text-bone-dim">{contacto || "Sin contacto"}</p>
-      {customer.authUserId && <p className="mt-0.5 label-sm text-bone-mute">Con cuenta</p>}
+      {customer.authUserId && <p className="mt-0.5 label-sm text-bone-quiet">Con cuenta</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" className={btn("secondary", "sm")} onClick={onChange}>
@@ -41,7 +41,7 @@ export function CustomerSummary({ customer, onChange, onClear, canManageCustomer
             href={`/admin/clientes/${customer.id}`}
             target="_blank"
             rel="noopener"
-            className="label-sm text-bone-mute underline"
+            className="label-sm text-bone-quiet underline"
           >
             Ver ficha ↗
           </Link>

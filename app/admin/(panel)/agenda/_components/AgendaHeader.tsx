@@ -39,7 +39,7 @@ export function AgendaHeader({ query, today }: { query: AgendaQuery; today: stri
       </nav>
 
       <div className="flex items-center gap-4">
-        <span className="label text-bone-mute">{rangeLabel(query)}</span>
+        <span className="label text-bone-quiet">{rangeLabel(query)}</span>
         <div className="flex items-center gap-1">
           <NavBtn href={agendaHref(query, { date: shiftAnchor(query, -1) }, today)} aria={`${UNIT[query.view]} anterior`}>
             <Icon name="chevron" size={16} className="rotate-180" />

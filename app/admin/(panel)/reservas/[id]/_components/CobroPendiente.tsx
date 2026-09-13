@@ -64,7 +64,7 @@ export function CobroPendiente({
       <ActionForm action={markPaidOfflineAction} success="Pago registrado.">
         <input type="hidden" name="reservationId" value={reservationId} />
         <input type="hidden" name="method" value={method} />
-        <span className="label-sm text-bone-mute">Marcar pagado</span>
+        <span className="label-sm text-bone-quiet">Marcar pagado</span>
         <div role="radiogroup" aria-label="Método de pago" className="mt-2 grid grid-cols-2 border hairline">
           {METHODS.map((m, i) => (
             <button
@@ -87,7 +87,7 @@ export function CobroPendiente({
       </ActionForm>
 
       <div className="border-t hairline pt-5">
-        <span className="label-sm text-bone-mute">Link de pago</span>
+        <span className="label-sm text-bone-quiet">Link de pago</span>
         {link ? (
           <div className="mt-2.5 flex flex-col gap-2.5">
             <p className="text-sm leading-relaxed text-bone-dim">
@@ -102,7 +102,7 @@ export function CobroPendiente({
               </a>
             ) : (
               <div className="flex items-center gap-2">
-                <p className="label-sm text-bone-mute">Sin teléfono del cliente; copia el link.</p>
+                <p className="label-sm text-bone-quiet">Sin teléfono del cliente; copia el link.</p>
                 <CopyButton value={link.initPoint} />
               </div>
             )}

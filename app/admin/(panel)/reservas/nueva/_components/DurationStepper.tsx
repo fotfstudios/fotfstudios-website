@@ -39,7 +39,7 @@ export function DurationStepper({
         </button>
       </div>
       {volumeDiscounts.length > 0 && (
-        <p className="label-sm mt-2.5 text-bone-mute">
+        <p className="label-sm mt-2.5 text-bone-quiet">
           Ahorra:{" "}
           {volumeDiscounts.map((v, i) => (
             <span key={v.minHours}>

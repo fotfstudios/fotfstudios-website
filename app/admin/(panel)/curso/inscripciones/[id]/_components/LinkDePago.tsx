@@ -44,7 +44,7 @@ export function LinkDePago({ enrollmentId, waDigits }: { enrollmentId: string; w
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="label-sm text-bone-mute">Link enviado por email. Vence en 72 h.</p>
+      <p className="label-sm text-bone-quiet">Link enviado por email. Vence en 72 h.</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button href={initPoint} size="sm" icon="external" variant="secondary">
           Abrir link

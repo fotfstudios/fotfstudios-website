@@ -152,11 +152,11 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <nav className="flex items-center gap-2 label-sm text-bone-mute">
+      <nav className="flex items-center gap-2 label-sm text-bone-quiet">
         <Link href="/admin/reservas" className="transition-colors hover:text-gold">
           Reservas
         </Link>
-        <Icon name="chevron" size={12} className="text-bone-mute/50" />
+        <Icon name="chevron" size={12} className="text-bone-quiet/50" />
         <span className="text-bone-dim">{fmtDate(b.startsAt)}</span>
       </nav>
 
@@ -167,7 +167,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           </h1>
           <p className="mt-2 flex items-center gap-2">
             <StatusPill status={b.status} />
-            {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-mute"><Icon name="block" size={13} /> Bloqueo</span>}
+            {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-quiet"><Icon name="block" size={13} /> Bloqueo</span>}
             {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
           </p>
         </div>
@@ -254,7 +254,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                     href={`/admin/clientes/${b.customerId}`}
                     target="_blank"
                     rel="noopener"
-                    className="label-sm text-bone-mute underline hover:text-gold"
+                    className="label-sm text-bone-quiet underline hover:text-gold"
                   >
                     Ver ficha ↗
                   </Link>
@@ -264,7 +264,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               <p className="text-bone">{b.customerName ?? "Sin nombre"}</p>
               <p className="mt-0.5 text-sm text-bone-dim">{b.customerEmail ?? "Sin email"}</p>
               {!b.customerId && (
-                <p className="mt-0.5 label-sm text-bone-mute">Sin ficha en el directorio.</p>
+                <p className="mt-0.5 label-sm text-bone-quiet">Sin ficha en el directorio.</p>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 {b.customerPhone && (
@@ -294,7 +294,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             <p className="font-display text-3xl text-bone">{b.amount ? formatCLP(b.amount) : "—"}</p>
             {b.orderStatus && (
               <div className="mt-3 flex items-center justify-between">
-                <span className="label-sm text-bone-mute">Pedido</span>
+                <span className="label-sm text-bone-quiet">Pedido</span>
                 <StatusPill status={b.orderStatus} />
               </div>
             )}
@@ -448,7 +448,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                       </span>
                     </div>
                     {a.detail && <p className="mt-0.5 text-xs leading-relaxed text-bone-dim">{a.detail}</p>}
-                    <p className="label-sm mt-0.5 text-bone-mute">{a.at ? fmtDateTimeSec(a.at) : "—"}</p>
+                    <p className="label-sm mt-0.5 text-bone-quiet">{a.at ? fmtDateTimeSec(a.at) : "—"}</p>
                   </div>
                 </li>
               ))}
@@ -487,7 +487,7 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
 function MpRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="label-sm text-bone-mute">{label}</span>
+      <span className="label-sm text-bone-quiet">{label}</span>
       <span className="text-sm text-bone">{value}</span>
     </div>
   );
@@ -496,7 +496,7 @@ function MpRow({ label, value }: { label: string; value: string }) {
 function MpIdRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="label-sm text-bone-mute">{label}</span>
+      <span className="label-sm text-bone-quiet">{label}</span>
       <span className="flex items-center gap-2 font-mono text-xs text-bone-dim">
         <span className="max-w-44 truncate">{value}</span>
         <CopyButton value={value} />

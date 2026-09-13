@@ -19,7 +19,7 @@ export default function CuentaShell({ balance, children }: { balance: number; ch
             <Link href="/" aria-label="Volver al sitio" className="shrink-0">
               <Logo variant="mini" color="gold" height={24} />
             </Link>
-            <Link href="/cuenta" className="label text-bone-mute transition-colors hover:text-bone">
+            <Link href="/cuenta" className="label text-bone-quiet transition-colors hover:text-bone">
               Mi cuenta
             </Link>
             <div className="flex-1" />
@@ -38,7 +38,7 @@ export default function CuentaShell({ balance, children }: { balance: number; ch
             </Link>
             <SignOutButton
               redirectTo="/cuenta/login"
-              className="label-sm flex items-center gap-1.5 px-1 py-2 text-bone-mute transition-colors hover:text-gold"
+              className="label-sm flex items-center gap-1.5 px-1 py-2 text-bone-quiet transition-colors hover:text-gold"
             />
           </div>
           <CuentaTabs />

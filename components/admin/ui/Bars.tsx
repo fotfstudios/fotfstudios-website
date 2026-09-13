@@ -78,7 +78,7 @@ export function Bars({
                 x={x + barW / 2}
                 y={H - 7}
                 textAnchor="middle"
-                fill="var(--color-bone-mute)"
+                fill="var(--color-bone-quiet)"
                 style={{ font: "10px ui-monospace, monospace" }}
               >
                 {d.label}

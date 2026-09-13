@@ -98,7 +98,7 @@ export function InscribirDialog({
 
             {plan === "duo" && (
               <>
-                <p className="label-sm text-bone-mute">La segunda persona del dúo</p>
+                <p className="label-sm text-bone-quiet">La segunda persona del dúo</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Nombre">
                     <Input name="name2" required maxLength={80} />
@@ -125,9 +125,9 @@ export function InscribirDialog({
                 </p>
               </>
             )}
-            <p className="label-sm text-bone-mute">
+            <p className="label-sm text-bone-quiet">
               Total del pedido: <span className="text-gold">{formatCLP(total)}</span>
-              {descuento > 0 && <span className="ml-2 text-bone-mute/70">(de {formatCLP(bruto)})</span>} · queda
+              {descuento > 0 && <span className="ml-2 text-bone-quiet">(de {formatCLP(bruto)})</span>} · queda
               pendiente de pago.
             </p>
 

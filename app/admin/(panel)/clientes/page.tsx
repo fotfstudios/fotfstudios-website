@@ -68,7 +68,7 @@ export default async function ClientesPage({
                   href={clientesHref(query, { orden: o })}
                   aria-current={query.orden === o ? "true" : undefined}
                   className={`label-sm px-3 py-1.5 transition-colors ${
-                    query.orden === o ? "text-gold" : "text-bone-mute hover:text-bone"
+                    query.orden === o ? "text-gold" : "text-bone-quiet hover:text-bone"
                   }`}
                 >
                   {ORDEN_LABEL[o]}
@@ -119,7 +119,7 @@ export default async function ClientesPage({
                         </span>
                       </Td>
                       <Td right>
-                        <span className={`font-mono ${c.pointsBalance > 0 ? "text-gold" : "text-bone-mute"}`}>
+                        <span className={`font-mono ${c.pointsBalance > 0 ? "text-gold" : "text-bone-quiet"}`}>
                           {fmtPts(c.pointsBalance)}
                         </span>
                       </Td>
@@ -127,7 +127,7 @@ export default async function ClientesPage({
                         {c.authUserId ? (
                           <span className="label-sm text-bone-dim">Con cuenta</span>
                         ) : (
-                          <span className="label-sm text-bone-mute">—</span>
+                          <span className="label-sm text-bone-quiet">—</span>
                         )}
                       </Td>
                       <Td>

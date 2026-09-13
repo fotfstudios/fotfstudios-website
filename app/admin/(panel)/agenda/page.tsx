@@ -119,7 +119,7 @@ export default async function AgendaPage({
       <div className="mt-8">
         <AgendaHeader query={q} today={today} />
         {bookings.length === 0 ? (
-          <p className="mb-3 label-sm text-bone-mute">{EMPTY[q.view]}</p>
+          <p className="mb-3 label-sm text-bone-quiet">{EMPTY[q.view]}</p>
         ) : (
           <p className="sr-only">
             {nReservas} {nReservas === 1 ? "reserva" : "reservas"}

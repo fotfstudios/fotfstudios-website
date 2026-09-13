@@ -115,7 +115,7 @@ export function CobroCard({
   const total = afterDiscount === null ? null : afterDiscount - (points?.applied ?? 0);
   return (
     <Card title="Cobro" className="lg:sticky lg:top-8">
-      <span className="label text-bone-mute">{isCortesia ? "Valor cortesía" : "Total"}</span>
+      <span className="label text-bone-quiet">{isCortesia ? "Valor cortesía" : "Total"}</span>
       {quote && total !== null ? (
         <div className={`mt-2 font-display text-5xl ${isCortesia ? "text-bone-dim" : "text-bone"}`}>
           {formatCLP(total)}
@@ -125,11 +125,11 @@ export function CobroCard({
       ) : quoteError && hasSelection ? (
         <div className="mt-2 font-display text-5xl text-bone-dim">—</div>
       ) : (
-        <p className="mt-3 label-sm text-bone-mute">Selecciona un horario para ver el total.</p>
+        <p className="mt-3 label-sm text-bone-quiet">Selecciona un horario para ver el total.</p>
       )}
       {selectionLabel && <p className="mt-2 label-sm text-gold">{selectionLabel}</p>}
       {quoteError && hasSelection && (
-        <p className={`mt-2 label-sm ${isCortesia ? "text-bone-mute" : "text-sirena"}`}>
+        <p className={`mt-2 label-sm ${isCortesia ? "text-bone-quiet" : "text-sirena"}`}>
           {isCortesia ? "Sin tarifa para este horario." : "No se pudo calcular el total."}
         </p>
       )}
@@ -206,7 +206,7 @@ export function CobroCard({
       {points && (
         <div className="mt-6 border-t hairline pt-5">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="label-sm text-bone-mute">Puntos FOTF</span>
+            <span className="label-sm text-bone-quiet">Puntos FOTF</span>
             <span className="label-sm text-bone-dim">Saldo: {fmtPts(points.balance)}</span>
           </div>
           <div className="mt-2.5 flex items-center gap-2">
@@ -223,14 +223,14 @@ export function CobroCard({
               Usar todo
             </button>
           </div>
-          <p className="mt-2 label-sm text-bone-mute">
+          <p className="mt-2 label-sm text-bone-quiet">
             1 punto = $1. Máximo para esta reserva: {fmtPts(points.max)}.
           </p>
         </div>
       )}
 
       <div className="mt-6 border-t hairline pt-5">
-        <span className="label-sm text-bone-mute">Método de pago</span>
+        <span className="label-sm text-bone-quiet">Método de pago</span>
         <div role="radiogroup" aria-label="Método de pago" className="mt-2.5 grid grid-cols-4 border hairline">
           {METHODS.map((m, i) => (
             <button
@@ -282,7 +282,7 @@ export function CobroCard({
           </>
         )}
       </button>
-      <p className="label-sm mt-3 text-center text-bone-mute">
+      <p className="label-sm mt-3 text-center text-bone-quiet">
         {isCortesia
           ? "Sin cobro ni boleta."
           : isPendiente

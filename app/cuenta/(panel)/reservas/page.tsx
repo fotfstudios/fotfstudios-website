@@ -36,7 +36,7 @@ export default async function CuentaReservas() {
       ) : (
         <>
           <section className="space-y-3">
-            <h2 className="label text-bone-mute">Próximas</h2>
+            <h2 className="label text-bone-quiet">Próximas</h2>
             {upcoming.length === 0 ? (
               <EmptyState
                 size="compact"
@@ -47,7 +47,7 @@ export default async function CuentaReservas() {
             ) : (
               <BookingsTable rows={upcoming} withLink />
             )}
-            <p className="label-sm text-bone-mute">
+            <p className="label-sm text-bone-quiet">
               ¿Necesitas cambiar una reserva?{" "}
               <WhatsAppCta
                 source="cuenta-reservas"
@@ -62,10 +62,10 @@ export default async function CuentaReservas() {
 
           {past.length > 0 && (
             <section className="space-y-3">
-              <h2 className="label text-bone-mute">Pasadas</h2>
+              <h2 className="label text-bone-quiet">Pasadas</h2>
               <BookingsTable rows={past.slice(0, PAST_SHOWN)} />
               {past.length > PAST_SHOWN && (
-                <p className="label-sm text-bone-mute">Se muestran las últimas {PAST_SHOWN}.</p>
+                <p className="label-sm text-bone-quiet">Se muestran las últimas {PAST_SHOWN}.</p>
               )}
             </section>
           )}
@@ -101,7 +101,7 @@ function BookingsTable({ rows, withLink }: { rows: CustomerBooking[]; withLink?:
             <Td right>
               <span className="font-mono">{b.orderId ? formatCLP(total) : "—"}</span>
               {b.pointsRedeemedClp > 0 && (
-                <span className="label-sm block text-bone-mute">con puntos</span>
+                <span className="label-sm block text-bone-quiet">con puntos</span>
               )}
             </Td>
             {withLink && (

@@ -40,7 +40,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <nav aria-label="Migas" className="label-sm flex items-center gap-2 text-bone-mute">
+      <nav aria-label="Migas" className="label-sm flex items-center gap-2 text-bone-quiet">
         <Link href="/admin/clientes" className="hover:text-gold">
           Clientes
         </Link>
@@ -53,8 +53,8 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         </h1>
         <p className="mt-2 font-mono text-xs text-bone-dim">
           {[c.email, c.phone].filter(Boolean).join(" · ") || "Sin contacto"}
-          {hasAccount && <span className="ml-3 label-sm text-bone-mute">Con cuenta</span>}
-          <span className="ml-3 label-sm text-bone-mute">Desde {fmtDate(c.createdAt)}</span>
+          {hasAccount && <span className="ml-3 label-sm text-bone-quiet">Con cuenta</span>}
+          <span className="ml-3 label-sm text-bone-quiet">Desde {fmtDate(c.createdAt)}</span>
         </p>
       </header>
 
@@ -91,7 +91,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               <Field label="Teléfono" hint="Opcional si hay email. +56 9 …">
                 <Input name="phone" type="tel" defaultValue={c.phone ?? ""} maxLength={CUSTOMER_CAPS.phone} autoComplete="off" />
               </Field>
-              <p className="label-sm text-bone-mute">
+              <p className="label-sm text-bone-quiet">
                 Al guardar, el nombre y el teléfono se actualizan también en sus reservas y pedidos.
               </p>
               <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
@@ -137,7 +137,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               </DataTable>
             )}
             {upcoming.length > 0 && (
-              <p className="mt-3 label-sm text-bone-mute">
+              <p className="mt-3 label-sm text-bone-quiet">
                 {upcoming.length === 1 ? "1 reserva vigente" : `${upcoming.length} reservas vigentes`}
               </p>
             )}
@@ -148,7 +148,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
           <Card title="Puntos FOTF">
             <Stat label="Disponibles" value={`${fmtPts(c.pointsBalance)} pts`} accent={c.pointsBalance > 0} />
             {!c.email && (
-              <p className="mt-3 label-sm text-bone-mute">Los puntos se acumulan por email. Agrega uno para que sume.</p>
+              <p className="mt-3 label-sm text-bone-quiet">Los puntos se acumulan por email. Agrega uno para que sume.</p>
             )}
             {movements.length > 0 && (
               <ul className="mt-4 flex flex-col divide-y divide-bone/10">
@@ -156,7 +156,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
                   <li key={m.id} className="flex items-center justify-between gap-3 py-2">
                     <div className="flex flex-col">
                       <StatusPill status={m.kind} />
-                      <span className="label-sm mt-1 text-bone-mute">{fmtDate(m.createdAt)}</span>
+                      <span className="label-sm mt-1 text-bone-quiet">{fmtDate(m.createdAt)}</span>
                     </div>
                     <span className={`font-mono ${m.amount > 0 ? "text-gold" : "text-bone-dim"}`}>{fmtPtsSigned(m.amount)}</span>
                   </li>
@@ -164,7 +164,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               </ul>
             )}
             {movements.length > MOVEMENTS_SHOWN && (
-              <p className="mt-2 label-sm text-bone-mute">Se muestran los últimos {MOVEMENTS_SHOWN} movimientos.</p>
+              <p className="mt-2 label-sm text-bone-quiet">Se muestran los últimos {MOVEMENTS_SHOWN} movimientos.</p>
             )}
           </Card>
         </aside>

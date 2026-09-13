@@ -87,7 +87,7 @@ export function CancelBookingDialog({
                   />
                   <span className="flex-1">
                     {o.label}
-                    {o.detail && <span className="mt-0.5 block label-sm text-bone-mute">{o.detail}</span>}
+                    {o.detail && <span className="mt-0.5 block label-sm text-bone-quiet">{o.detail}</span>}
                   </span>
                 </label>
               ))}
@@ -114,7 +114,7 @@ export function CancelBookingDialog({
               </p>
             )}
 
-            <p className="text-xs leading-relaxed text-bone-mute">
+            <p className="text-xs leading-relaxed text-bone-quiet">
               El monto según política se recalcula al confirmar. Se liberará el horario y se
               avisará al cliente por email. Esta acción no se puede deshacer.
             </p>

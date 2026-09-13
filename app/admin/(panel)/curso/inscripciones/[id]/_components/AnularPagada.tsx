@@ -50,11 +50,11 @@ export function AnularPagada({
             <input type="hidden" name="enrollmentId" value={enrollmentId} />
 
             <div className="border hairline bg-ink-soft/50 px-4 py-3">
-              <p className="label-sm text-bone-mute">Según los términos</p>
+              <p className="label-sm text-bone-quiet">Según los términos</p>
               <p className="mt-1 text-sm text-bone">{policyLabel}</p>
               <p className="mt-1 label-sm text-gold">Corresponde: {sugerido}</p>
               {remedies.length > 0 && (
-                <p className="mt-2 label-sm text-bone-mute">
+                <p className="mt-2 label-sm text-bone-quiet">
                   Alternativas sin dinero: {remedies.join(" · ")}
                 </p>
               )}
@@ -75,7 +75,7 @@ export function AnularPagada({
               </Field>
             )}
 
-            <p className="label-sm text-bone-mute">
+            <p className="label-sm text-bone-quiet">
               El cupo vuelve al inventario solo si se devuelve el total. Le avisamos por email.
             </p>
 

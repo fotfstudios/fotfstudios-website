@@ -89,7 +89,7 @@ export function TimeGrid({
                 aria-label={`Ver día, ${dt.toFormat("cccc d 'de' LLLL")}`}
                 className="group outline-none focus-visible:ring-1 focus-visible:ring-gold"
               >
-                <span className={`label-sm block ${isToday ? "text-gold" : "text-bone-mute"}`}>
+                <span className={`label-sm block ${isToday ? "text-gold" : "text-bone-quiet"}`}>
                   {cap(dt.toFormat("ccc"))}
                 </span>
                 <span
@@ -104,7 +104,7 @@ export function TimeGrid({
                 <Link
                   href={`/admin/reservas/nueva?d=${d.date}`}
                   aria-label={`Crear reserva, ${dt.toFormat("cccc d 'de' LLLL")}`}
-                  className="label-sm px-1 py-0.5 text-bone-mute/60 outline-none transition-colors hover:text-gold focus-visible:ring-1 focus-visible:ring-gold"
+                  className="label-sm px-1 py-0.5 text-bone-quiet outline-none transition-colors hover:text-gold focus-visible:ring-1 focus-visible:ring-gold"
                 >
                   +
                 </Link>
@@ -119,7 +119,7 @@ export function TimeGrid({
         {hourStarts.slice(1).map((m) => (
           <span
             key={m}
-            className="label-sm absolute right-2 -translate-y-1/2 text-bone-mute"
+            className="label-sm absolute right-2 -translate-y-1/2 text-bone-quiet"
             style={{ top: ((m - axisStart) / 60) * hourPx }}
           >
             {String(m / 60).padStart(2, "0")}
@@ -160,7 +160,7 @@ export function TimeGrid({
                   }`}
                   style={{ top: i * hourPx, height: hourPx }}
                 >
-                  <span className="pointer-events-none absolute top-0.5 right-1.5 label-sm text-bone-mute opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="pointer-events-none absolute top-0.5 right-1.5 label-sm text-bone-quiet opacity-0 transition-opacity group-hover:opacity-100">
                     +
                   </span>
                 </Link>
