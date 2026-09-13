@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { DateTime } from "luxon";
 import { formatCLP } from "@/src/domain/money/money";
@@ -381,7 +381,7 @@ export default function BookingWidget({
             </div>
           </Field>
           {volumeDiscounts.length > 0 && (
-            <p className="label-sm mt-3 text-bone-mute">
+            <p className="label-sm mt-3 text-bone-quiet">
               Ahorra:{" "}
               {volumeDiscounts.map((v, i) => (
                 <span key={v.minHours}>
@@ -408,7 +408,7 @@ export default function BookingWidget({
             onMonth={setMonth}
           />
           <div className="border hairline p-4 md:min-h-[20rem] md:p-5">
-            <span className="label-sm mb-4 block text-bone-mute">Selecciona un horario</span>
+            <span className="label-sm mb-4 block text-bone-quiet">Selecciona un horario</span>
             <TimeSlots
               hasDate={selected !== null}
               loading={loadingAvail}
@@ -426,7 +426,7 @@ export default function BookingWidget({
       {/* DERECHA: resumen → desglose → tus datos → pago */}
       <div className="grain relative overflow-hidden border hairline bg-ink lg:sticky lg:top-28">
         <div className="relative p-6 md:p-8">
-          <span className="label text-bone-mute">{pointsApplied > 0 ? "Total a pagar" : "Total"}</span>
+          <span className="label text-bone-quiet">{pointsApplied > 0 ? "Total a pagar" : "Total"}</span>
           {quote ? (
             <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
               {formatCLP(payable ?? quote.total)}
@@ -434,7 +434,7 @@ export default function BookingWidget({
           ) : quoting ? (
             <Skeleton className="mt-3 h-12 w-44 md:h-14" />
           ) : (
-            <p className="mt-3 label-sm text-bone-mute">Selecciona un horario para ver el total.</p>
+            <p className="mt-3 label-sm text-bone-quiet">Selecciona un horario para ver el total.</p>
           )}
           {selected !== null && selectedStart !== null && (
             <p className="mt-1 label-sm text-gold">
@@ -488,7 +488,7 @@ export default function BookingWidget({
           {/* Mejora la sesión: grabación (elige una) + guía por hora (opcional). */}
           {recordingAddons.length > 0 && (
             <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-mute">¿Grabamos tu sesión?</span>
+              <span className="label-sm text-bone-quiet">¿Grabamos tu sesión?</span>
               <p className="font-editorial mt-1 text-sm text-bone-dim">Llévate tu set listo para publicar.</p>
               <div className="mt-3 space-y-1.5">
                 <RecOption active={rec === "none"} onClick={() => setRec("none")} label="Sin grabación" />
@@ -507,7 +507,7 @@ export default function BookingWidget({
 
           {hourlyAddons.length > 0 && (
             <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-mute">¿Sumas un guía?</span>
+              <span className="label-sm text-bone-quiet">¿Sumas un guía?</span>
               <p className="font-editorial mt-1 text-sm text-bone-dim">Un DJ te acompaña durante toda la sesión.</p>
               <div className="mt-3 space-y-1.5">
                 {hourlyAddons.map((a) => (
@@ -528,7 +528,7 @@ export default function BookingWidget({
           {/* Tus puntos (solo con sesión y saldo) */}
           {customer && customer.points > 0 && quote && selectedStart !== null && (
             <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-mute">Tus puntos</span>
+              <span className="label-sm text-bone-quiet">Tus puntos</span>
               <p className="mt-1 text-sm text-bone-dim">
                 Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en puntos.
               </p>
@@ -576,7 +576,7 @@ export default function BookingWidget({
           {/* Tus datos (aparecen al elegir horario, junto al botón de pago) */}
           {selectedStart !== null && (
             <div className="rise mt-6 border-t hairline pt-5">
-              <span className="label-sm mb-3 block text-bone-mute">Tus datos</span>
+              <span className="label-sm mb-3 block text-bone-quiet">Tus datos</span>
               <div className="space-y-2">
                 <label htmlFor="bk-name" className="sr-only">
                   Nombre (opcional)
@@ -584,6 +584,7 @@ export default function BookingWidget({
                 <input
                   id="bk-name"
                   type="text"
+                  autoComplete="name"
                   placeholder="Nombre (opcional)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -596,6 +597,8 @@ export default function BookingWidget({
                   id="bk-email"
                   type="email"
                   required
+                  autoComplete="email"
+                  inputMode="email"
                   placeholder="Email *"
                   value={email}
                   disabled={!!customer}
@@ -608,6 +611,7 @@ export default function BookingWidget({
                 <input
                   id="bk-phone"
                   type="tel"
+                  autoComplete="tel"
                   placeholder="Teléfono (opcional)"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -619,15 +623,19 @@ export default function BookingWidget({
                   {loginVerified && (
                     <p className="label-sm mt-2 text-gold">✓ ¡Sesión iniciada! Ya puedes usar tus puntos.</p>
                   )}
-                  <p className="label-sm mt-2 text-bone-mute">Sesión iniciada como {customer.email}.</p>
+                  <p className="mt-2 text-xs text-bone-quiet">Sesión iniciada como {customer.email}.</p>
                 </>
               ) : (
                 accountEnabled() &&
                 (loginOpen ? (
                   <div className="mt-3 border hairline p-4">
+                    {/* Los dos pasos tienen la misma forma (span, div → label, input,
+                        button): sin key React reutiliza el MISMO <input> y solo le
+                        cambia los atributos, así que el campo del código nunca se
+                        monta y su autoFocus no corre. */}
                     {loginStep === "email" ? (
-                      <>
-                        <span className="label-sm block text-bone-mute">
+                      <Fragment key="email">
+                        <span className="block text-xs leading-relaxed text-bone-quiet">
                           Te enviamos un código de verificación a tu correo — sin salir de aquí.
                         </span>
                         <div className="mt-3 space-y-2">
@@ -654,10 +662,10 @@ export default function BookingWidget({
                             {loginBusy ? "Enviando…" : "Enviar código"}
                           </button>
                         </div>
-                      </>
+                      </Fragment>
                     ) : (
-                      <>
-                        <span className="label-sm block text-bone-mute">
+                      <Fragment key="code">
+                        <span className="block text-xs leading-relaxed text-bone-quiet">
                           Escribe el código que enviamos a{" "}
                           <strong className="text-bone">{loginEmail}</strong>.
                         </span>
@@ -670,6 +678,11 @@ export default function BookingWidget({
                             type="text"
                             inputMode="numeric"
                             autoComplete="one-time-code"
+                            // Al cambiar de paso el input anterior se desmonta: sin
+                            // esto el teclado del teléfono se cierra y hay que volver
+                            // a tocar el campo.
+                            autoFocus
+                            maxLength={6}
                             placeholder="Código de 6 dígitos"
                             value={loginCode}
                             onChange={(e) => setLoginCode(e.target.value)}
@@ -688,17 +701,17 @@ export default function BookingWidget({
                             type="button"
                             onClick={() => void sendLoginCode()}
                             disabled={loginBusy}
-                            className="label-sm text-bone-mute transition-colors hover:text-gold disabled:opacity-40"
+                            className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
                           >
                             Reenviar código
                           </button>
                         </div>
-                      </>
+                      </Fragment>
                     )}
                     {loginError && <p className="mt-2 label-sm text-sirena">{loginError}</p>}
                   </div>
                 ) : (
-                  <p className="label-sm mt-2 text-bone-mute">
+                  <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
                     ¿Tienes cuenta?{" "}
                     <button
                       type="button"
@@ -785,9 +798,9 @@ export default function BookingWidget({
           ) : selectedStart !== null && !acceptedTerms ? (
             <p className="mt-3 text-center label-sm text-gold">Acepta los términos para continuar</p>
           ) : fullPoints ? (
-            <p className="mt-3 text-center label-sm text-bone-mute">Tu reserva queda confirmada al instante</p>
+            <p className="mt-3 text-center label-sm text-bone-quiet">Tu reserva queda confirmada al instante</p>
           ) : (
-            <p className="mt-3 text-center label-sm text-bone-mute">IVA incluido · pago seguro con Mercado Pago</p>
+            <p className="mt-3 text-center label-sm text-bone-quiet">IVA incluido · pago seguro con Mercado Pago</p>
           )}
         </div>
       </div>
@@ -796,7 +809,7 @@ export default function BookingWidget({
       {selectedStart !== null && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t hairline bg-ink/95 px-4 py-3 backdrop-blur lg:hidden">
           <div>
-            <div className="label-sm text-bone-mute">Total</div>
+            <div className="label-sm text-bone-quiet">Total</div>
             <div className="font-display text-xl text-bone">
               {quote ? formatCLP(payable ?? quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
             </div>
@@ -835,7 +848,7 @@ export default function BookingWidget({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="label-sm mb-3 block text-bone-mute">{label}</label>
+      <label className="label-sm mb-3 block text-bone-quiet">{label}</label>
       {children}
     </div>
   );

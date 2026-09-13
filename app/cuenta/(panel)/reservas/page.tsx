@@ -45,7 +45,7 @@ export default async function CuentaReservas() {
                 action={<Button href="/reservar" size="sm">Reservar</Button>}
               />
             ) : (
-              <BookingsTable rows={upcoming} withLink />
+              <BookingsTable caption="Próximas reservas" rows={upcoming} withLink />
             )}
             <p className="label-sm text-bone-quiet">
               ¿Necesitas cambiar una reserva?{" "}
@@ -63,7 +63,7 @@ export default async function CuentaReservas() {
           {past.length > 0 && (
             <section className="space-y-3">
               <h2 className="label text-bone-quiet">Pasadas</h2>
-              <BookingsTable rows={past.slice(0, PAST_SHOWN)} />
+              <BookingsTable caption="Reservas pasadas" rows={past.slice(0, PAST_SHOWN)} />
               {past.length > PAST_SHOWN && (
                 <p className="label-sm text-bone-quiet">Se muestran las últimas {PAST_SHOWN}.</p>
               )}
@@ -75,9 +75,18 @@ export default async function CuentaReservas() {
   );
 }
 
-function BookingsTable({ rows, withLink }: { rows: CustomerBooking[]; withLink?: boolean }) {
+function BookingsTable({
+  caption,
+  rows,
+  withLink,
+}: {
+  caption: string;
+  rows: CustomerBooking[];
+  withLink?: boolean;
+}) {
   return (
     <DataTable
+      caption={caption}
       head={
         <>
           <Th>Fecha</Th>

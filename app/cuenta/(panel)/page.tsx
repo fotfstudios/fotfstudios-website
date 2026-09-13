@@ -57,7 +57,7 @@ export default async function CuentaResumen() {
       ) : (
         <section className="space-y-3">
           <h2 className="label text-bone-quiet">Historial</h2>
-          <DataTable head={<HistoryHead />} minWidthClassName="min-w-[30rem]">
+          <DataTable caption="Historial de puntos" head={<HistoryHead />} minWidthClassName="min-w-[30rem]">
             {movements.slice(0, SHOWN).map((m) => (
               <Tr key={m.id}>
                 <Td>{fmtDate(m.createdAt)}</Td>
