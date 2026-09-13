@@ -58,10 +58,9 @@ describe("login por código (/cuenta/login)", () => {
     expect(src).toContain('role="status"');
   });
 
-  it("pide el código en la misma página: campo de 6 dígitos con one-time-code y foco al montar", () => {
+  it("pide el código en la misma página: campo one-time-code con foco al montar", () => {
     const tag = inputTag(src, 'autoComplete="one-time-code"');
     expect(tag).toContain('inputMode="numeric"');
-    expect(tag).toContain("maxLength={6}");
     expect(tag).toContain("autoFocus");
     // Los pasos van con key: misma forma JSX → React reutilizaría el <input>.
     expect(src).toMatch(/<Fragment key="email">[\s\S]*<Fragment key="code">/);
@@ -72,6 +71,25 @@ describe("login por código (/cuenta/login)", () => {
     expect(src).toMatch(/enlace del correo/i);
     expect(src).toMatch(/Cambiar correo/);
     expect(src).toMatch(/Reenviar/);
+  });
+});
+
+describe("el largo del código lo decide Supabase (otp_length), no el cliente", () => {
+  // Prod manda 8 dígitos (ajuste del dashboard); local mandaba 6. Un maxLength o un
+  // "6 dígitos" en el cliente convierte esa diferencia en un login imposible:
+  // el navegador rechaza el 7.º dígito y verifyOtp recibe un código truncado.
+  it("ningún campo de código lleva maxLength ni promete un número de dígitos", () => {
+    for (const f of [LOGIN, WIDGET]) {
+      const code = inputTag(read(f), 'autoComplete="one-time-code"');
+      expect(code, f).not.toMatch(/maxLength=/);
+      expect(read(f), f).not.toMatch(/\d+ dígitos/);
+    }
+  });
+
+  it("config.toml local usa el mismo otp_length que prod (8)", () => {
+    const toml = read("supabase/config.toml");
+    const email = toml.slice(toml.indexOf("[auth.email]"), toml.indexOf("[auth.email.smtp]"));
+    expect(email).toMatch(/^otp_length = 8$/m);
   });
 });
 
@@ -97,10 +115,8 @@ describe("un solo gesto de acceso (login + widget)", () => {
 describe("widget de reserva — acceso con código", () => {
   const src = read(WIDGET);
 
-  it("el campo del código se enfoca solo y acepta 6 dígitos", () => {
-    const tag = inputTag(src, 'id="bk-login-code"');
-    expect(tag).toContain("autoFocus");
-    expect(tag).toContain("maxLength={6}");
+  it("el campo del código se enfoca solo", () => {
+    expect(inputTag(src, 'id="bk-login-code"')).toContain("autoFocus");
   });
 
   it("no escribe texto con bone-mute (3.78:1 sobre ink falla AA)", () => {
