@@ -10,8 +10,14 @@
   --color-ink: #0a0a0a;
   --color-ink-soft: #121212;
   --color-ink-line: #1e1d1a;
+  /* Borde de controles de formulario: 3.3:1 sobre Ink (WCAG 1.4.11). El hairline
+     (1.2:1) es para separar, no para delimitar un input. */
+  --color-ink-edge: #65625c;
   --color-bone: #f5f2ec;
   --color-bone-dim: #b9b5ab;
+  /* Texto secundario legible en admin/cuenta: 5.6:1 sobre Ink, 5.3:1 sobre Ink-soft
+     (AA). bone-mute (3.8:1) queda para lo decorativo/deshabilitado y para marketing. */
+  --color-bone-quiet: #8c8880;
   --color-bone-mute: #6f6c64;
   --color-gold: #e8c94a;
   --color-gold-deep: #b89a2e;
