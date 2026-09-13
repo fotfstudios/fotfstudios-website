@@ -75,7 +75,7 @@ function NavList({ data, active, onNavigate }: { data: Group[]; active: string; 
                     href={it.href}
                     onClick={onNavigate}
                     aria-current={on ? "page" : undefined}
-                    className={`group relative flex items-center gap-3 px-3 py-2.5 label transition-colors ${
+                    className={`group relative flex items-center gap-3 px-3 py-3 label transition-colors lg:py-2.5 ${
                       on ? "text-gold" : "text-bone-dim hover:text-bone"
                     }`}
                   >
@@ -164,7 +164,7 @@ export function Sidebar({
           type="button"
           aria-label="Abrir menú"
           onClick={() => setOpen(true)}
-          className="text-bone-dim transition-colors hover:text-gold"
+          className="-m-3 p-3 text-bone-dim transition-colors hover:text-gold"
         >
           <Icon name="menu" size={22} />
         </button>
@@ -187,7 +187,7 @@ export function Sidebar({
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b hairline px-5 py-4">
             {Brand}
-            <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-bone-quiet hover:text-gold">
+            <button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)} className="-m-3 p-3 text-bone-quiet hover:text-gold">
               <Icon name="close" size={20} />
             </button>
           </div>

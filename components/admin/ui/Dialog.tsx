@@ -44,7 +44,7 @@ export function Dialog({ title, children, onClose }: { title: string; children: 
         <h3 id={titleId} className="label text-bone">
           {title}
         </h3>
-        <button type="button" onClick={onClose} aria-label="Cerrar" className="text-bone-quiet transition-colors hover:text-gold">
+        <button type="button" onClick={onClose} aria-label="Cerrar" className="-m-3 p-3 text-bone-quiet transition-colors hover:text-gold">
           <Icon name="close" size={18} />
         </button>
       </div>

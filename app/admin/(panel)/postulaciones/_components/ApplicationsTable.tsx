@@ -27,7 +27,8 @@ const TRANSITIONS: Record<ApplicationStatus, { to: ApplicationStatus; label: str
 const fmtDate = (iso: string) =>
   DateTime.fromISO(iso).setZone("America/Santiago").setLocale("es").toFormat("d LLL yyyy, HH:mm");
 
-const linkCls = "text-gold transition-colors hover:text-gold-deep";
+// py-1: dos enlaces apilados de 15 px no dan objetivo táctil; con el padding llegan a ~24.
+const linkCls = "py-1 text-gold transition-colors hover:text-gold-deep";
 
 export function ApplicationsTable({ rows }: { rows: ApplicationRow[] }) {
   return (

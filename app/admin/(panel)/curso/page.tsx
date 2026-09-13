@@ -97,7 +97,7 @@ export default async function CursoPage() {
         </div>
       ) : (
         <>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Cupos tomados" value={`${generacion.seatsTaken} / ${generacion.seats}`} accent={generacion.seatsLeft === 0} />
             <Stat label="Por pagar" value={String(porPagar)} accent={porPagar > 0} />
             <Stat label="Recaudado" value={formatCLP(recaudado)} />
@@ -193,11 +193,15 @@ export default async function CursoPage() {
                 }
               >
                 {vivos.map((i) => (
-                  <Tr key={i.id}>
+                  <Tr key={i.id} className="group relative focus-within:bg-ink-soft">
                     <Td className="font-mono text-bone-quiet">{i.seatNo}</Td>
                     <Td className="text-bone">{i.studentName}</Td>
                     <Td>
-                      <a href={`mailto:${i.studentEmail}`} className="label-sm text-gold hover:text-bone">
+                      {/* relative z-10: queda por encima del enlace estirado de la fila */}
+                      <a
+                        href={`mailto:${i.studentEmail}`}
+                        className="label-sm relative z-10 -my-1 inline-block py-1 text-gold hover:text-bone"
+                      >
                         {i.studentEmail}
                       </a>
                     </Td>
@@ -212,7 +216,7 @@ export default async function CursoPage() {
                       <Link
                         href={`/admin/curso/inscripciones/${i.id}`}
                         aria-label={`Ver inscripción de ${i.studentName}`}
-                        className="inline-flex text-bone-quiet transition-colors hover:text-gold"
+                        className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
                       >
                         <Icon name="chevron" size={18} />
                       </Link>
@@ -226,7 +230,7 @@ export default async function CursoPage() {
           <div className="mt-10">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="label text-bone-quiet">Sesiones</h2>
-              <Link href="/admin/curso/generaciones" className="label-sm text-gold transition-colors hover:text-bone">
+              <Link href="/admin/curso/generaciones" className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone">
                 Agendar
               </Link>
             </div>
