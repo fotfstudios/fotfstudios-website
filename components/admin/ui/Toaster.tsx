@@ -22,14 +22,18 @@ function emit(): void {
   for (const fn of subscribers) fn();
 }
 
+function dismiss(id: number): void {
+  toasts = toasts.filter((t) => t.id !== id);
+  emit();
+}
+
 const push: Push = ({ tone, message }) => {
   const id = Date.now() + Math.random();
   toasts = [...toasts, { id, tone, message }];
   emit();
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== id);
-    emit();
-  }, 4200);
+  // Solo el éxito se auto-oculta: un error que desaparece a los 4 s se pierde si no
+  // se estaba mirando (WCAG 2.2.1); queda hasta que se cierre con la X.
+  if (tone === "ok") setTimeout(() => dismiss(id), 4200);
 };
 
 function subscribe(fn: () => void): () => void {
@@ -58,7 +62,7 @@ export function Toaster({ children }: { children: ReactNode }) {
         {items.map((t) => (
           <div
             key={t.id}
-            role="status"
+            role={t.tone === "error" ? "alert" : "status"}
             className={`pointer-events-auto flex items-start gap-2.5 border bg-ink px-4 py-3 text-sm shadow-lg ${
               t.tone === "error" ? "border-sirena/50 text-sirena" : "border-gold/40 text-bone"
             }`}
@@ -66,7 +70,17 @@ export function Toaster({ children }: { children: ReactNode }) {
             <span className={t.tone === "error" ? "text-sirena" : "text-gold"}>
               <Icon name={t.tone === "error" ? "alert" : "check"} size={16} />
             </span>
-            <span className="leading-snug">{t.message}</span>
+            <span className="flex-1 leading-snug">{t.message}</span>
+            {t.tone === "error" && (
+              <button
+                type="button"
+                onClick={() => dismiss(t.id)}
+                aria-label="Cerrar"
+                className="-m-2 p-2 text-sirena/70 transition-colors hover:text-sirena"
+              >
+                <Icon name="close" size={14} />
+              </button>
+            )}
           </div>
         ))}
       </div>
