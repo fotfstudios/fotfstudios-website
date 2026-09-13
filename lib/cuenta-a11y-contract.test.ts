@@ -131,9 +131,46 @@ describe("navegación y controles del área de clientes", () => {
     expect(inputCls).toMatch(/disabled:(text|border|bg)-/);
   });
 
-  it("las tablas del cliente tienen nombre accesible (caption)", () => {
+  it("DataTable acepta caption (nombre accesible sr-only)", () => {
     expect(read("components/admin/ui/DataTable.tsx")).toContain("<caption");
-    expect(read("app/cuenta/(panel)/page.tsx")).toMatch(/<DataTable[^>]*caption=/);
-    expect(read("app/cuenta/(panel)/reservas/page.tsx")).toMatch(/<DataTable[^>]*caption=/);
+  });
+});
+
+describe("layout de teléfono del área de clientes", () => {
+  const RESERVAS = "app/cuenta/(panel)/reservas/page.tsx";
+  const RESUMEN = "app/cuenta/(panel)/page.tsx";
+
+  it("reservas e historial son listas con nombre accesible, no tablas con scroll lateral", () => {
+    // A 375px la tabla de reservas medía 512px en 333px: "Ver estado →" y el total
+    // quedaban fuera de pantalla sin ninguna pista de que se podía arrastrar.
+    for (const f of [RESERVAS, RESUMEN]) {
+      expect(read(f), f).not.toMatch(/from "@\/components\/admin\/ui\/DataTable"/);
+      expect(read(f), f).not.toContain("min-w-[");
+    }
+    expect(read("components/cuenta/BookingList.tsx")).toMatch(/<ul[^>]*aria-label=/);
+    expect(read("components/cuenta/MovementList.tsx")).toMatch(/<ul[^>]*aria-label=/);
+  });
+
+  it("la fila de una reserva es un enlace estirado con nombre accesible (mismo patrón que el admin)", () => {
+    const src = read("components/cuenta/BookingList.tsx");
+    expect(src).toContain("after:absolute after:inset-0");
+    expect(src).toMatch(/aria-label=\{`Ver estado/);
+  });
+
+  it("el shell: CTA Reservar visible en teléfono y objetivos táctiles de 40px+", () => {
+    const src = read("components/cuenta/CuentaShell.tsx");
+    expect(src).not.toContain("hidden sm:inline-block");
+    // Logo (24×24), chip de puntos (27px) y Salir (33px) medían por debajo de 40px.
+    const controls = src.match(/<(?:Link|SignOutButton)\b[^>]*>/gs) ?? [];
+    const small = controls.filter((c) => !/min-h-10|min-h-11|py-2\.5|h-10/.test(c));
+    expect(small, "controles del header sin alto táctil").toEqual([]);
+  });
+
+  it("las tabs miden 44px de alto (py-3 + label)", () => {
+    expect(read("components/cuenta/CuentaTabs.tsx")).toMatch(/className=\{`label[^`]*py-3/);
+  });
+
+  it("btn md mide ≥ 44px (min-h-11): las CTA primarias del cliente medían 38px", () => {
+    expect(read("components/admin/ui/styles.ts")).toMatch(/md: "[^"]*min-h-11/);
   });
 });

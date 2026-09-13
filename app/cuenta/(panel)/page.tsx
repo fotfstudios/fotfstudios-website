@@ -1,12 +1,9 @@
-import Link from "next/link";
 import { Button } from "@/components/admin/ui/Button";
-import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Stat } from "@/components/admin/ui/Stat";
-import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { fmtDate } from "@/components/admin/format";
-import { fmtPts, fmtPtsSigned } from "@/components/cuenta/format";
+import { fmtPts } from "@/components/cuenta/format";
+import MovementList from "@/components/cuenta/MovementList";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 
@@ -57,33 +54,7 @@ export default async function CuentaResumen() {
       ) : (
         <section className="space-y-3">
           <h2 className="label text-bone-quiet">Historial</h2>
-          <DataTable caption="Historial de puntos" head={<HistoryHead />} minWidthClassName="min-w-[30rem]">
-            {movements.slice(0, SHOWN).map((m) => (
-              <Tr key={m.id}>
-                <Td>{fmtDate(m.createdAt)}</Td>
-                <Td>
-                  {m.orderId ? (
-                    <Link
-                      href={`/reserva/estado?b=${m.orderId}`}
-                      className="text-bone-dim transition-colors hover:text-gold"
-                    >
-                      Reserva →
-                    </Link>
-                  ) : (
-                    <span className="text-bone-quiet">—</span>
-                  )}
-                </Td>
-                <Td>
-                  <StatusPill status={m.kind} />
-                </Td>
-                <Td right>
-                  <span className={`font-mono ${m.amount > 0 ? "text-gold" : "text-bone-dim"}`}>
-                    {fmtPtsSigned(m.amount)}
-                  </span>
-                </Td>
-              </Tr>
-            ))}
-          </DataTable>
+          <MovementList label="Historial de puntos" rows={movements.slice(0, SHOWN)} />
           {movements.length > SHOWN && (
             <p className="label-sm text-bone-quiet">Se muestran los últimos {SHOWN} movimientos.</p>
           )}
@@ -93,13 +64,3 @@ export default async function CuentaResumen() {
   );
 }
 
-function HistoryHead() {
-  return (
-    <>
-      <Th>Fecha</Th>
-      <Th>Detalle</Th>
-      <Th>Movimiento</Th>
-      <Th right>Puntos</Th>
-    </>
-  );
-}

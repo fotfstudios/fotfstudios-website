@@ -27,7 +27,7 @@ export default function CuentaTabs() {
             href={t.href}
             // El color solo no basta para saber cuál está activa (WCAG 1.4.1).
             aria-current={active ? "page" : undefined}
-            className={`label whitespace-nowrap border-b-2 pb-2.5 transition-colors ${
+            className={`label whitespace-nowrap border-b-2 py-3 transition-colors ${
               active ? "border-gold text-gold" : "border-transparent text-bone-dim hover:text-bone"
             }`}
           >
