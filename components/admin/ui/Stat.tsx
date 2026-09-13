@@ -16,7 +16,7 @@ export function Stat({
 }) {
   return (
     <div className="border hairline bg-ink/40 p-4 sm:p-5">
-      <p className="label-sm text-bone-quiet">{label}</p>
+      <p className="label text-bone-quiet">{label}</p>
       <p className={`font-display mt-2 text-3xl sm:text-4xl ${accent ? "text-gold" : "text-bone"}`}>{value}</p>
       {delta != null && (
         <p className={`label-sm mt-2 ${delta.pct >= 0 ? "text-gold" : "text-bone-dim"}`}>

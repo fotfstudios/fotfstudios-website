@@ -7,7 +7,7 @@ export function SkeletonPageHeader({ action = false }: { action?: boolean }) {
     <div className="flex flex-wrap items-end justify-between gap-4 border-b hairline pb-6">
       <div>
         <Skeleton className="h-3 w-20" />
-        <Skeleton className="mt-3 h-10 w-56 md:h-12 md:w-72" />
+        <Skeleton className="mt-3 h-7 w-56 sm:h-8 sm:w-72" />
       </div>
       {action && <Skeleton className="h-10 w-36" />}
     </div>

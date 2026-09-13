@@ -108,6 +108,18 @@
     font-weight: 500;
   }
 
+  /* Superficies-herramienta (admin, cuenta): la letra menuda es texto de trabajo
+     (cabeceras de tabla, etiquetas, botones), no un detalle editorial, así que sube un
+     paso y afloja el tracking. Marketing conserva 11/10 px con 0.18em. */
+  [data-surface="tool"] .label {
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+  }
+  [data-surface="tool"] .label-sm {
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+  }
+
   /* Grano sutil permitido (dirección de arte) — ahora con vida analógica */
   .grain::before {
     content: "";

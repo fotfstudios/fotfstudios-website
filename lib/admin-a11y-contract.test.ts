@@ -115,6 +115,49 @@ describe("modales", () => {
   });
 });
 
+describe("escala tipográfica de las superficies-herramienta", () => {
+  const css = read("app/globals.css");
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rem = (selector: string): number => {
+    const m = css.match(new RegExp(`${escapeRegExp(selector)}\\s*\\{[^}]*font-size:\\s*([0-9.]+)rem`));
+    expect(m, `regla ${selector} con font-size en rem`).not.toBeNull();
+    return Number(m![1]);
+  };
+
+  it("dentro de [data-surface=tool] la letra menuda sube un paso: label ≥ 12px, label-sm ≥ 11px", () => {
+    expect(rem('[data-surface="tool"] .label')).toBeGreaterThanOrEqual(0.75);
+    expect(rem('[data-surface="tool"] .label-sm')).toBeGreaterThanOrEqual(0.6875);
+    // …sin tocar la escala de marketing.
+    expect(rem(".label")).toBe(0.6875);
+    expect(rem(".label-sm")).toBe(0.625);
+  });
+
+  it("los shells de admin y cuenta (y sus logins) marcan data-surface=tool", () => {
+    for (const f of [
+      "components/admin/AdminShell.tsx",
+      "components/cuenta/CuentaShell.tsx",
+      "app/admin/login/page.tsx",
+      "app/cuenta/login/page.tsx",
+    ]) {
+      expect(read(f), f).toContain('data-surface="tool"');
+    }
+  });
+
+  it("los títulos de la UI de app son fijos (rem), no fluidos (clamp)", () => {
+    const offenders: string[] = [];
+    for (const dir of TOOL_DIRS) {
+      for (const f of tsxUnder(dir)) if (read(f).includes("clamp(")) offenders.push(f);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("cabeceras de tabla, etiquetas de formulario y KPI usan .label (12px), no .label-sm", () => {
+    expect(read("components/admin/ui/DataTable.tsx")).toMatch(/<th scope="col" className={`label /);
+    expect(read("components/admin/ui/Field.tsx")).toMatch(/<span className="label text-bone-quiet">\{label\}/);
+    expect(read("components/admin/ui/Stat.tsx")).toMatch(/<p className="label text-bone-quiet">\{label\}/);
+  });
+});
+
 describe("tablas y toasts", () => {
   it('Th lleva scope="col"', () => {
     expect(read("components/admin/ui/DataTable.tsx")).toContain('scope="col"');

@@ -13,6 +13,8 @@ import { fmtPts } from "./format";
 export default function CuentaShell({ balance, children }: { balance: number; children: ReactNode }) {
   return (
     <Toaster>
+      {/* data-surface="tool": misma escala de letra menuda que el admin (globals.css). */}
+      <div data-surface="tool" className="contents">
       <header className="sticky top-0 z-40 border-b hairline bg-ink/85 backdrop-blur-md">
         <div className="mx-auto max-w-4xl px-5 sm:px-8">
           <div className="flex items-center gap-3 py-3.5">
@@ -47,6 +49,7 @@ export default function CuentaShell({ balance, children }: { balance: number; ch
       <main className="min-h-screen">
         <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8 sm:py-14">{children}</div>
       </main>
+      </div>
     </Toaster>
   );
 }
