@@ -117,8 +117,9 @@ describe("modales", () => {
 
 describe("escala tipográfica de las superficies-herramienta", () => {
   const css = read("app/globals.css");
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const rem = (selector: string): number => {
-    const m = css.match(new RegExp(`${selector.replace(/[.[\]"]/g, "\\$&")}\\s*\\{[^}]*font-size:\\s*([0-9.]+)rem`));
+    const m = css.match(new RegExp(`${escapeRegExp(selector)}\\s*\\{[^}]*font-size:\\s*([0-9.]+)rem`));
     expect(m, `regla ${selector} con font-size en rem`).not.toBeNull();
     return Number(m![1]);
   };
