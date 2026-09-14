@@ -133,6 +133,58 @@ export function customerReminder(
   return { template: "customerReminder", subject: "Tu sesión en FOTF Studios se acerca", html, text };
 }
 
+/**
+ * Email al cliente: su pago se aprobó pero el horario ya no estaba reservado
+ * (`paid_no_hold`). Antes no recibía NADA — plata fuera, cero correo — mientras el
+ * dueño recibía la alerta. Reconoce el pago, dice la verdad y promete WhatsApp; no
+ * promete la sala ni dice "confirmada" (eso lo decide el dueño: devolver o reasignar).
+ */
+export function customerPaymentNoSlot(
+  v: { name: string | null; when: string; total: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu pago</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}recibimos tu pago de <strong style="color:#f5f2ec">${esc(v.total)}</strong> para el <strong style="color:#f5f2ec">${esc(v.when)}</strong>, pero ese horario ya no estaba disponible cuando llegó el pago.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Te escribimos por WhatsApp en breve para darte otro horario o devolverte el pago completo. Si prefieres, adelántate:</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Recibimos tu pago de ${v.total} para el ${v.when}, pero ese horario ya no estaba disponible cuando llegó el pago. Te escribimos por WhatsApp en breve para darte otro horario o devolverte el pago completo: ${ctx.whatsappUrl}`;
+  return { template: "customerPaymentNoSlot", subject: "Recibimos tu pago — te escribimos por WhatsApp", html, text };
+}
+
+/**
+ * Email al cliente: una reserva pendiente de pago (link de 72 h) venció y el horario
+ * se liberó. Antes recibía "Tu hora está tomada — falta el pago" y después silencio.
+ */
+export function customerHoldExpired(
+  v: { name: string | null; when: string },
+  ctx: { whatsappUrl: string; bookUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Se liberó tu hora</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}no recibimos el pago de tu reserva del <strong style="color:#f5f2ec">${esc(v.when)}</strong>, así que el horario volvió a quedar disponible para todos.</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">Si aún quieres la sesión, <a href="${esc(ctx.bookUrl)}" style="color:#e8c94a;font-weight:bold">reserva de nuevo</a> o escríbenos y te ayudamos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `No recibimos el pago de tu reserva del ${v.when}, así que el horario volvió a quedar disponible. Si aún quieres la sesión, reserva de nuevo: ${ctx.bookUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerHoldExpired", subject: "Se liberó tu hora en FOTF Studios", html, text };
+}
+
+/** Email al cliente: su sesión de CORTESÍA fue cancelada. Sin dinero de por medio. */
+export function customerCourtesyCancelled(
+  v: { name: string | null; when: string },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Sesión cancelada</h1>
+     <p style="color:#b9b5ab;margin:0 0 20px">${v.name ? `Hola ${esc(v.name)}, ` : ""}tu sesión del <strong style="color:#f5f2ec">${esc(v.when)}</strong> fue cancelada. Si quieres otro horario, escríbenos y lo vemos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu sesión del ${v.when} fue cancelada. Si quieres otro horario: ${ctx.whatsappUrl}`;
+  return { template: "customerCourtesyCancelled", subject: "Tu sesión en FOTF Studios fue cancelada", html, text };
+}
+
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
   v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null },

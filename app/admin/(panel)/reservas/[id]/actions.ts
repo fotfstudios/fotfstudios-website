@@ -47,7 +47,22 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
       });
     }
 
+    // Cortesía (sin pedido): se lee ANTES de cancelar para saber que estaba vigente y
+    // tener el email/horario en mano. Antes, cancelar una cortesía no mandaba nada.
+    const courtesy = !target ? await adminRepository().getBooking(id).catch(() => null) : null;
+
     const { alreadyProcessed } = await refundService().cancelBooking(id, { refundAmount });
+
+    if (courtesy && courtesy.kind === "booking" && courtesy.status === "confirmed") {
+      await notificationService()
+        .notifyCourtesyCancelled({
+          email: courtesy.customerEmail,
+          name: courtesy.customerName,
+          startsAt: courtesy.startsAt,
+          endsAt: courtesy.endsAt,
+        })
+        .catch((e) => console.error("[cancel:courtesy-email]", e));
+    }
 
     // Aviso al cliente (best-effort): solo si había un pedido PAGADO antes de
     // cancelar. Si el loopback del webhook ya lo asentó, ese camino ya avisó.
