@@ -15,6 +15,7 @@ const makeService = () => {
     siteUrl: "https://www.fotfstudios.cl",
     tz: "America/Santiago",
     address: "Los Chercanes 78a",
+    mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
     whatsappUrl: "https://wa.me/56962803298",
     termsUrl: "https://www.fotfstudios.cl/terminos",
     privacyUrl: "https://www.fotfstudios.cl/privacidad",
@@ -105,6 +106,7 @@ describe("notifyApplication", () => {
       ownerEmail,
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
@@ -219,6 +221,7 @@ describe("notifyOrder — reclama notified_at antes de mandar", () => {
       siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
@@ -517,6 +520,7 @@ describe("notifyOrder — la confirmación lleva la reserva al bolsillo (H8)", (
       siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
@@ -572,6 +576,7 @@ describe("estados que antes eran silencio (H6)", () => {
       siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
@@ -612,5 +617,45 @@ describe("estados que antes eran silencio (H6)", () => {
     expect(mailer.send).not.toHaveBeenCalled();
     expect(await service.notifyCourtesyCancelled({ email: "ana@e.cl", name: "Ana", startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T20:00:00Z" })).toBe(true);
     expect(mailer.send.mock.calls[0][0].html).toContain("14:00–16:00 h");
+  });
+});
+
+describe("calendario también en cortesía y reagendamiento", () => {
+  it("notifyCourtesy adjunta el .ics con uid por RESERVA y enlaza al calendario y a la cuenta", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourtesy({
+      email: "ana@e.cl",
+      name: "Ana",
+      reservationId: "77",
+      startsAt: "2999-07-12T18:00:00Z",
+      endsAt: "2999-07-12T20:00:00Z",
+      addonNames: [],
+    });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.attachments?.[0]?.filename).toBe("reserva-fotf.ics");
+    expect(msg.attachments?.[0]?.content).toContain("UID:fotf-r-77@fotfstudios.cl");
+    expect(msg.html).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
+    expect(msg.html).toContain("https://www.fotfstudios.cl/cuenta");
+  });
+
+  it("notifyReschedule adjunta el .ics con el MISMO uid que la confirmación (el calendario actualiza el evento)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o9",
+      kind: "booking",
+      email: "ana@e.cl",
+      name: "Ana",
+      amount: 9990,
+      currency: "CLP",
+      startsAt: "2999-07-13T18:00:00Z",
+      endsAt: "2999-07-13T20:00:00Z",
+      notifiedAt: "2999-01-01T00:00:00Z",
+      lines: [],
+    });
+    await service.notifyReschedule("o9", { refundAmount: 0 });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.attachments?.[0]?.content).toContain("UID:fotf-o9@fotfstudios.cl");
+    expect(msg.attachments?.[0]?.content).toContain("DTSTART:29990713T180000Z");
+    expect(msg.html).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
   });
 });

@@ -6,7 +6,8 @@ const links = {
   calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=x",
   accountUrl: "https://www.fotfstudios.cl/cuenta",
 };
-const confCtx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298", links };
+const MAPS = "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a";
+const confCtx = { address: "Los Chercanes 78a", mapsUrl: MAPS, whatsappUrl: "https://wa.me/56962803298", links };
 
 const view = {
   name: "Ana",
@@ -41,6 +42,19 @@ describe("email templates", () => {
     expect(m.html).toMatch(/Ver mi reserva/);
     expect(m.text).toContain("https://www.fotfstudios.cl/reserva/estado?b=o1");
     expect(m.text).toContain("https://www.fotfstudios.cl/cuenta");
+  });
+
+  it("la dirección es un link propio a Maps (Gmail no la auto-enlaza en azul sobre Ink)", () => {
+    const m = customerConfirmation(view, confCtx);
+    const href = `<a href="${MAPS.replaceAll("&", "&amp;")}"`; // & escapado en el atributo
+    expect(m.html).toContain(href);
+    const a = m.html.indexOf(href);
+    expect(m.html.slice(a, m.html.indexOf("</a>", a))).toContain(">Los Chercanes 78a");
+  });
+
+  it("sin nombre, la frase arranca con mayúscula; con nombre, saluda", () => {
+    expect(customerConfirmation({ ...view, name: null }, confCtx).html).toContain(">Tu sesión quedó reservada.");
+    expect(customerConfirmation(view, confCtx).html).toContain(">Hola Ana, tu sesión quedó reservada.");
   });
 
   it("aviso al dueño recuerda cargar el PIN en la cerradura y la boleta (ya no 'enviar el código')", () => {
@@ -96,10 +110,25 @@ describe("email templates", () => {
 describe("cortesía", () => {
   const ctx = {
     address: "Los Chercanes 78a",
+    mapsUrl: MAPS,
     whatsappUrl: "https://wa.me/56962803298",
     termsUrl: "https://www.fotfstudios.cl/terminos",
     privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    links: { calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=c", accountUrl: "https://www.fotfstudios.cl/cuenta" },
   };
+
+  it("lleva la sesión al calendario y a la cuenta, como la confirmación pagada", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
+    expect(m.html).toContain('href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;text=c"');
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/cuenta"');
+    expect(m.text).toContain("https://www.fotfstudios.cl/cuenta");
+  });
+
+  it("sin nombre, la frase arranca con mayúscula", () => {
+    const m = customerCourtesyConfirmation({ name: null, when: view.when, addonNames: [] }, ctx);
+    expect(m.html).toContain(">Tu sesión quedó reservada.");
+    expect(m.html).not.toContain(">tu sesión");
+  });
 
   it("confirma la sesión sin cobro: horario, dirección, WhatsApp y T&C", () => {
     const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
@@ -164,7 +193,7 @@ describe("cortesía", () => {
 });
 
 describe("código de acceso", () => {
-  const ctx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" };
+  const ctx = { address: "Los Chercanes 78a", mapsUrl: MAPS, whatsappUrl: "https://wa.me/56962803298" };
 
   it("incluye código, horario, dirección y WhatsApp", () => {
     const m = customerAccessCode({ name: "Ana", when: view.when, code: "1234#" }, ctx);
@@ -341,7 +370,7 @@ describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
 });
 
 describe("recordatorio de sesión (H9)", () => {
-  const ctx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298", statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1" };
+  const ctx = { address: "Los Chercanes 78a", mapsUrl: MAPS, whatsappUrl: "https://wa.me/56962803298", statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1" };
 
   it("dice cuándo, dónde, que el PIN llega por email 10 minutos antes, y enlaza a la reserva", () => {
     const m = customerReminder({ name: "Ana", when: "martes 15 de septiembre, 14:00–16:00 h" }, ctx);
