@@ -4,6 +4,7 @@ import type { BookingQuote, PricingService } from "@/src/application/pricing/pri
 import type { Quote } from "@/src/domain/pricing/types";
 import { ok } from "@/src/domain/shared/result";
 import { CheckoutService } from "./checkout-service";
+import { FirstBookingPromoService } from "./first-booking-promo";
 
 const EMPTY_QUOTE = {
   tierLines: [],
@@ -399,5 +400,148 @@ describe("CheckoutService.createBooking — descuento manual del admin", () => {
     const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
     expect(params.lines.some((l) => l.line_type === "discount")).toBe(false);
     expect(params.amount).toBe(30000);
+  });
+});
+
+// Promo de primera reserva: la decide un colaborador (FirstBookingPromoService)
+// y SOLO cuando el borde público opta con `opts.firstBookingPromo`. Acá se usa el
+// servicio real con un lector fake: lo que se prueba es el cableado del checkout.
+function promoWith(used: boolean): FirstBookingPromoService {
+  return new FirstBookingPromoService({ used: vi.fn().mockResolvedValue(used) });
+}
+
+describe("CheckoutService.createBooking — promo de primera reserva (checkout público)", () => {
+  it("correo nuevo + opts.firstBookingPromo → línea '20% sala · primera reserva' y monto rebajado", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking(input, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(26000);
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.lines).toContainEqual(
+      expect.objectContaining({
+        line_type: "discount",
+        description: "Descuento 20% sala · primera reserva",
+        subtotal_clp: -4000,
+      }),
+    );
+    expect(params.lines.reduce((s, l) => s + l.subtotal_clp, 0)).toBe(26000);
+    // El snapshot sigue siendo el quote del motor (sin promo), como con el descuento manual.
+    expect(params.snapshot.total).toBe(30000);
+  });
+
+  it("la promo se aplica ANTES del canje: los puntos se capan contra el total ya rebajado", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking(
+      { ...input, customerId: "cust-1", pointsToRedeem: 99000 },
+      { firstBookingPromo: true },
+    );
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.pointsApplied).toBe(26000); // capado al total post-promo, no a 30.000
+      expect(r.value.amount).toBe(0);
+    }
+  });
+
+  it("correo con reserva pagada → sin línea de promo", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(true));
+
+    await svc.createBooking(input, { firstBookingPromo: true });
+
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.lines.some((l) => l.line_type === "discount")).toBe(false);
+    expect(params.amount).toBe(30000);
+  });
+
+  it("sin opts.firstBookingPromo (consola del admin) → nunca aplica la promo aunque el correo sea nuevo", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const promo = promoWith(false);
+    const spy = vi.spyOn(promo, "discountFor");
+    const svc = new CheckoutService(discountablePricing(), repo, promo);
+
+    await svc.createBooking(input);
+
+    expect(spy).not.toHaveBeenCalled();
+    const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
+    expect(params.amount).toBe(30000);
+  });
+
+  it("el descuento manual del staff gana sobre la promo (nunca los dos)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const promo = promoWith(false);
+    const spy = vi.spyOn(promo, "discountFor");
+    const svc = new CheckoutService(discountablePricing(), repo, promo);
+
+    const r = await svc.createBooking(
+      { ...input, manualDiscount: { target: { kind: "addon", key: "audio" }, mode: "pct", value: 100, reason: "cortesía" } },
+      { firstBookingPromo: true },
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(20000); // solo el add-on regalado
+  });
+
+  it("sin colaborador de promo, opts.firstBookingPromo es inofensivo", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking(input, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.amount).toBe(30000);
+  });
+});
+
+// Guard "lo que ves es lo que pagas": el widget manda el total que mostró; si el
+// servidor calcula otro (elegibilidad de la promo cambió, price book nuevo), el
+// pedido no se crea y el cliente vuelve a ver el resumen — nunca paga a ciegas.
+describe("CheckoutService.createBooking — expectedAmount", () => {
+  it("coincide → crea el pedido", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking({ ...input, expectedAmount: 26000 }, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(true);
+    expect(repo.createCheckout).toHaveBeenCalled();
+  });
+
+  it("no coincide (la promo ya no aplica) → amount_changed y sin tocar la DB", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn() };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(true));
+
+    const r = await svc.createBooking({ ...input, expectedAmount: 26000 }, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("amount_changed");
+    expect(repo.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("se compara contra el efectivo tras puntos (lo que muestra el widget como total a pagar)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking(
+      { ...input, customerId: "cust-1", pointsToRedeem: 5000, expectedAmount: 21000 },
+      { firstBookingPromo: true },
+    );
+
+    expect(r.ok).toBe(true);
+  });
+
+  it("sin expectedAmount (consola del admin) no hay guard", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking(input);
+
+    expect(r.ok).toBe(true);
   });
 });

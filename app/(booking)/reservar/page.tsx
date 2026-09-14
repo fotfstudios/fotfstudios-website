@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import BookingWidget from "@/components/booking/BookingWidget";
 import { accountEnabled } from "@/lib/flags";
 import { bookingEnabled, customerService, db, pricingService } from "@/src/composition";
+import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,7 @@ export default async function ReservarPage() {
       </h1>
       <p className="font-editorial mt-4 max-w-xl text-xl text-bone-dim">
         Elige día, hora y duración. Pagas en línea y tu sesión queda reservada.
+        {FIRST_BOOKING_PROMO.enabled && <> Tu primera reserva lleva −{FIRST_BOOKING_PROMO.pct}% en la sala.</>}
       </p>
       <div className="mt-12">
         <BookingWidget

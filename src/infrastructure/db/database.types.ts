@@ -1668,6 +1668,7 @@ export type Database = {
         Returns: number
       }
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
+      first_booking_promo_used: { Args: { p_email: string }; Returns: boolean }
       generate_access_code: { Args: never; Returns: string }
       immutable_unaccent: { Args: { p_text: string }; Returns: string }
       log_booking_event: {

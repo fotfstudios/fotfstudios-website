@@ -14,6 +14,7 @@ import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-reposito
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
+import { FirstBookingPromoService } from "@/src/application/checkout/first-booking-promo";
 import { PaymentService } from "@/src/application/payment/payment-service";
 import { WebhookService, type WebhookResult } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
@@ -31,6 +32,7 @@ import { SupabaseInviter } from "@/src/infrastructure/auth/auth-admin";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 import { SupabaseCheckoutRepository } from "@/src/infrastructure/db/checkout-repository";
+import { SupabasePromoRepository } from "@/src/infrastructure/db/promo-repository";
 import type { Database } from "@/src/infrastructure/db/database.types";
 import { SupabaseNotificationRepository } from "@/src/infrastructure/db/notification-repository";
 import { SupabaseOrderRepository } from "@/src/infrastructure/db/order-repository";
@@ -53,10 +55,16 @@ export function pricingService(client: SupabaseClient<Database> = db()): Pricing
   return new PricingService(new SupabaseRatePlanRepository(client));
 }
 
+/** Promo de primera reserva: elegibilidad por correo (la aplica el checkout público; la previsualiza /api/promos). */
+export function firstBookingPromo(client: SupabaseClient<Database> = db()): FirstBookingPromoService {
+  return new FirstBookingPromoService(new SupabasePromoRepository(client));
+}
+
 export function checkoutService(client: SupabaseClient<Database> = db()): CheckoutService {
   return new CheckoutService(
     new PricingService(new SupabaseRatePlanRepository(client)),
     new SupabaseCheckoutRepository(client),
+    firstBookingPromo(client),
   );
 }
 

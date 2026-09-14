@@ -3,6 +3,7 @@ import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
 import { TIERS, RATES, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
+import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import WhatsAppCta from "../WhatsAppCta";
 
 const VOLUME_DISPLAY = [
@@ -24,6 +25,16 @@ export default function Precio() {
             Desde {formatCLP(TIERS[0].rate)}/hora. Mientras más horas, menor el valor.
           </p>
         </Reveal>
+        {FIRST_BOOKING_PROMO.enabled && (
+          <Reveal delay={160}>
+            <p className="mt-6 inline-flex items-baseline gap-3 border hairline px-5 py-3">
+              <span className="font-display text-2xl text-gold">−{FIRST_BOOKING_PROMO.pct}%</span>
+              <span className="label-sm text-bone-dim">
+                en la sala en tu primera reserva · se suma al descuento por volumen
+              </span>
+            </p>
+          </Reveal>
+        )}
 
         {/* Calculadora */}
         <Reveal delay={80} className="mt-12">

@@ -41,6 +41,7 @@ export async function POST(req: Request): Promise<Response> {
     customer?: { name?: string; email?: string; phone?: string };
     pointsToRedeem?: number;
     termsAccepted?: boolean;
+    expectedAmount?: number;
   };
 
   // `name` y `phone` son opcionales, pero si vienen tienen que ser strings: el
@@ -111,10 +112,20 @@ export async function POST(req: Request): Promise<Response> {
       pointsToRedeem: points,
       termsSource: "customer",
       termsVersion: TERMS_VERSION,
+      // Guard "lo que ves es lo que pagas" (409 si el total mostrado ya no es el real).
+      expectedAmount: typeof b.expectedAmount === "number" ? b.expectedAmount : undefined,
+    }, {
+      // Único borde que opta a la promo de primera reserva: el servicio la
+      // evalúa sobre el email que queda en el pedido (el de sesión si hubo canje).
+      firstBookingPromo: true,
     });
     if (!booking.ok) {
       const status =
-        booking.error === "slot_taken" ? 409 : booking.error === "points_session" ? 401 : 400;
+        booking.error === "slot_taken" || booking.error === "amount_changed"
+          ? 409
+          : booking.error === "points_session"
+            ? 401
+            : 400;
       return Response.json({ error: booking.error }, { status });
     }
 
