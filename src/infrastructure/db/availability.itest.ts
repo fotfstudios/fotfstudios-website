@@ -56,4 +56,39 @@ describe("AvailabilityService", () => {
     expect(r.value.closeMinute).toBe(1320); // 22:00
     expect(r.value.booked).toContainEqual({ start: 600, end: 660 });
   });
+
+  it("un hold vencido que el barrido aún no expiró no bloquea el horario (día y mes)", async () => {
+    const b = await checkout.createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 600,
+      durationHours: 1,
+      customer: { email: "a@e.cl" },
+    });
+    expect(b.ok).toBe(true);
+    // Vencido hace un minuto pero todavía `held`: la lectura debe mirar expires_at.
+    await pg.query("update reservations set expires_at = now() - interval '1 minute' where status='held'");
+
+    const day = await availability.getDayAvailability(resourceId, MON);
+    expect(day.ok).toBe(true);
+    if (!day.ok) return;
+    expect(day.value.booked).not.toContainEqual({ start: 600, end: 660 });
+
+    const month = await availability.getMonthAvailability(resourceId, MON.slice(0, 7));
+    expect(month.ok).toBe(true);
+    if (!month.ok) return;
+    expect(month.value.days[MON]).toBe("open");
+  });
+
+  it("un hold firme (expires_at null) sí bloquea", async () => {
+    const b = await checkout.createBooking(
+      { resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: "a@e.cl" } },
+      { firmHold: true },
+    );
+    expect(b.ok).toBe(true);
+    const day = await availability.getDayAvailability(resourceId, MON);
+    expect(day.ok).toBe(true);
+    if (!day.ok) return;
+    expect(day.value.booked).toContainEqual({ start: 600, end: 660 });
+  });
 });
