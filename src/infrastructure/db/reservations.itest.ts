@@ -71,4 +71,22 @@ describe("reservations (DB)", () => {
     );
     await expect(hold(OVERLAP[0], OVERLAP[1])).rejects.toThrow();
   });
+
+  it("los jobs de pg_cron expire-holds (cada minuto) y purge-cron-history (semanal) quedaron registrados", async () => {
+    const j = await client.query<{ jobname: string; schedule: string; command: string }>(
+      "select jobname, schedule, command from cron.job where jobname in ('expire-holds','purge-cron-history') order by jobname",
+    );
+    expect(j.rows.map((r) => r.jobname)).toEqual(["expire-holds", "purge-cron-history"]);
+    expect(j.rows[0].schedule).toBe("* * * * *");
+    expect(j.rows[0].command).toContain("public.expire_stale_holds()");
+    expect(j.rows[1].command).toContain("cron.job_run_details");
+  });
+
+  it("points_ledger admite un solo redeem_release por orden (índice parcial)", async () => {
+    const idx = await client.query<{ indexdef: string }>(
+      "select indexdef from pg_indexes where indexname='points_ledger_release_once'",
+    );
+    expect(idx.rows).toHaveLength(1);
+    expect(idx.rows[0].indexdef).toMatch(/UNIQUE INDEX .* \(order_id\) WHERE .*redeem_release/);
+  });
 });
