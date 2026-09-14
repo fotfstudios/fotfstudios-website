@@ -305,3 +305,20 @@ describe("reembolso de inscripción de curso (pagada)", () => {
     expect(m.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
   });
 });
+
+describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
+  it("customerConfirmation lleva template = 'customerConfirmation'", () => {
+    const m = customerConfirmation(view, { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" });
+    expect(m.template).toBe("customerConfirmation");
+  });
+
+  it("toda función exportada de templates.ts devuelve template con su nombre", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("./templates.ts", import.meta.url), "utf8");
+    const names = [...src.matchAll(/export function (\w+)\(/g)].map((m) => m[1]);
+    expect(names.length).toBeGreaterThan(10);
+    for (const name of names) {
+      expect(src, `${name} sin template`).toContain(`template: "${name}"`);
+    }
+  });
+});

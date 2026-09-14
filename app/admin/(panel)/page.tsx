@@ -9,7 +9,7 @@ import { Icon, type IconName } from "@/components/admin/ui/icons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Stat } from "@/components/admin/ui/Stat";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { adminRepository } from "@/src/composition";
+import { adminRepository, notificationLogRepository } from "@/src/composition";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 
@@ -17,7 +17,16 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Hoy — Admin", robots: { index: false } };
 
 export default async function AdminHome() {
-  const d = await adminRepository().dashboard();
+  // Correos que no salieron en 24 h: la única señal de una caída del proveedor
+  // (2026-07-10 pasó días sin que nadie lo viera). Best-effort: si la bitácora no
+  // responde, el panel igual carga.
+  const [d, correos] = await Promise.all([
+    adminRepository().dashboard(),
+    notificationLogRepository().recentFailures(24).catch((e) => {
+      console.error("[admin:correos]", e);
+      return [];
+    }),
+  ]);
 
   const pendientes = (
     [
@@ -25,6 +34,7 @@ export default async function AdminHome() {
       { n: d.pendingPayments, icon: "clock", label: "Pagos pendientes", href: "/admin/reservas" },
       { n: d.accessToLoad, icon: "lock", label: "PIN por cargar en la cerradura", href: "/admin/cerradura#cargar" },
       { n: d.accessToRemove, icon: "lock", label: "PIN por quitar de la cerradura", href: "/admin/cerradura#quitar" },
+      { n: correos.length, icon: "alert", label: "Correos que no salieron (24 h)", href: "#correos" },
     ] as { n: number; icon: IconName; label: string; href: string }[]
   ).filter((x) => x.n > 0);
 
@@ -84,6 +94,31 @@ export default async function AdminHome() {
           <BookingsTable rows={d.upcoming} />
         )}
       </Section>
+
+      {correos.length > 0 && (
+        <div id="correos" className="mt-10 scroll-mt-8">
+          <Card title="Correos que no salieron">
+            <ul className="divide-y divide-ink-line">
+              {correos.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-bone">
+                      {c.subject} <span className="text-bone-quiet">→ {c.recipient}</span>
+                    </p>
+                    {/* Sirena: urgencia real — un cliente no recibió lo que la app dice que mandó. */}
+                    <p className="label-sm mt-0.5 text-sirena">{c.error}</p>
+                  </div>
+                  <span className="label-sm text-bone-quiet">{fmtDateTime(c.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-bone-quiet">
+              Revisa el estado de Resend y la API key en Vercel; si el proveedor volvió, la confirmación de
+              una reserva pagada se reintenta sola con el cron diario. El resto hay que reenviarlo a mano.
+            </p>
+          </Card>
+        </div>
+      )}
 
       {d.boletas.length > 0 && (
         <div id="boletas" className="mt-10 scroll-mt-8">
