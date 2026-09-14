@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
+import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import {
@@ -839,8 +840,12 @@ export class SupabaseAdminRepository {
    * un link de pago de 72 h — el link no debe sobrevivir al cupo. Queda en el mismo estado
    * que una reserva manual pendiente: expire_abandoned_manual_holds lo barre a las 72 h si
    * nadie paga. Un hold ya vencido (aunque el barrido no lo haya marcado) NO se resucita.
+   *
+   * Cuando no hay nada que afirmar devuelve el estado EFECTIVO observado ('expired',
+   * 'confirmed', 'cancelled' — o 'held' si cambió entre las dos lecturas) para que la acción
+   * hable con precisión: "venció" no es lo mismo que "ya está pagada".
    */
-  async firmUpHold(reservationId: string): Promise<"firmed" | "already_firm" | "not_held"> {
+  async firmUpHold(reservationId: string): Promise<"firmed" | "already_firm" | ReservationStatus> {
     const { data: updated, error } = await this.db
       .from("reservations")
       .update({ expires_at: null })
@@ -857,7 +862,8 @@ export class SupabaseAdminRepository {
       .eq("id", reservationId)
       .single();
     if (selErr) throw new Error(selErr.message);
-    return r?.status === "held" && r.expires_at === null ? "already_firm" : "not_held";
+    if (r.status === "held" && r.expires_at === null) return "already_firm";
+    return effectiveReservationStatus(r.status, r.expires_at);
   }
 
   /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
