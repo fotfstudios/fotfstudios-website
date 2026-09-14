@@ -111,6 +111,28 @@ export function customerAccessCode(
   return { template: "customerAccessCode", subject: "Tu código de acceso — FOTF Studios", html, text };
 }
 
+/**
+ * Email al cliente: recordatorio de su sesión (sale hasta 24 h antes desde el cron de
+ * 5 min). Fecha completa, nunca "mañana": la ventana es ancha a propósito para que un
+ * cron caído no deje a nadie sin aviso. Repite la promesa de acceso (PIN por email 10
+ * min antes) porque este es el correo que el cliente relee camino a la sala.
+ */
+export function customerReminder(
+  v: { name: string | null; when: string },
+  ctx: { address: string; whatsappUrl: string; statusUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu sesión se acerca</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}te esperamos el <strong style="color:#f5f2ec">${esc(v.when)}</strong>.</p>
+     <p style="color:#b9b5ab;margin:0 0 16px">${esc(ctx.address)}</p>
+     <p style="color:#b9b5ab;margin:16px 0">Tu <strong style="color:#f5f2ec">código de acceso te llega por email 10 minutos antes</strong> (revisa spam). Entras solo, sin esperar a nadie. Trae tu música en USB.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.statusUrl)}" style="color:#e8c94a;font-weight:bold">Ver mi reserva</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Algo cambió? Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email 10 minutos antes (revisa spam). Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
+  return { template: "customerReminder", subject: "Tu sesión en FOTF Studios se acerca", html, text };
+}
+
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
   v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null },

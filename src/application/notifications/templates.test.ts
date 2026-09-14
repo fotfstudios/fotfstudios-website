@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, courseEnrollmentRefunded, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentRefunded, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -337,5 +337,32 @@ describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
     for (const name of names) {
       expect(src, `${name} sin template`).toContain(`template: "${name}"`);
     }
+  });
+});
+
+describe("recordatorio de sesión (H9)", () => {
+  const ctx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298", statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1" };
+
+  it("dice cuándo, dónde, que el PIN llega por email 10 minutos antes, y enlaza a la reserva", () => {
+    const m = customerReminder({ name: "Ana", when: "martes 15 de septiembre, 14:00–16:00 h" }, ctx);
+    expect(m.subject).toMatch(/mañana|tu sesión/i);
+    expect(m.html).toContain("martes 15 de septiembre, 14:00–16:00 h");
+    expect(m.html).toContain("Los Chercanes 78a");
+    expect(m.html).toMatch(/por email 10 minutos antes/);
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/reserva/estado?b=o1"');
+    expect(m.html).toContain("https://wa.me/56962803298");
+    expect(m.text).toContain("martes 15 de septiembre, 14:00–16:00 h");
+    expect(m.text).toContain("https://www.fotfstudios.cl/reserva/estado?b=o1");
+  });
+
+  it("no habla de dinero ni dice 'mañana' en el cuerpo (la ventana es ancha)", () => {
+    const m = customerReminder({ name: null, when: "martes 15 de septiembre, 14:00 h" }, ctx);
+    expect(m.html).not.toMatch(/\$|Total|IVA/);
+    expect(m.html).not.toMatch(/mañana/i);
+  });
+
+  it("escapa el nombre (anti-XSS)", () => {
+    const m = customerReminder({ name: "<b>Ana</b>", when: "x" }, ctx);
+    expect(m.html).not.toContain("<b>Ana</b>");
   });
 });

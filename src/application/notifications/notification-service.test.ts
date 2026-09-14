@@ -527,3 +527,28 @@ describe("notifyOrder — la confirmación lleva la reserva al bolsillo (H8)", (
     expect(base.mailer.send.mock.calls[1][0].attachments).toBeUndefined();
   });
 });
+
+describe("notifyReminder (H9)", () => {
+  it("manda el recordatorio con el horario en zona Santiago con rango y el link a la reserva", async () => {
+    const { service, mailer } = makeService();
+    expect(
+      await service.notifyReminder({
+        email: "ana@e.cl",
+        name: "Ana",
+        orderId: "o1",
+        startsAt: "2026-07-12T18:00:00Z",
+        endsAt: "2026-07-12T20:00:00Z",
+      }),
+    ).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.html).toContain("domingo 12 de julio, 14:00–16:00 h");
+    expect(msg.html).toContain("https://www.fotfstudios.cl/reserva/estado?b=o1");
+  });
+
+  it("sin orden (cortesía) enlaza a la cuenta en vez del recibo", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyReminder({ email: "ana@e.cl", name: null, orderId: null, startsAt: "2026-07-12T18:00:00Z", endsAt: "2026-07-12T20:00:00Z" });
+    expect(mailer.send.mock.calls[0][0].html).toContain("https://www.fotfstudios.cl/cuenta");
+  });
+});
