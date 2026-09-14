@@ -41,6 +41,8 @@ import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
 import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mailer";
 import { LoggedMailer } from "@/src/application/notifications/logged-mailer";
+import { ReminderService } from "@/src/application/reminders/reminder-service";
+import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
 import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 
@@ -287,6 +289,11 @@ export function customerDirectory(client: SupabaseClient<Database> = db()): Cust
  */
 export function accessCodeService(client: SupabaseClient<Database> = db()): AccessCodeService {
   return new AccessCodeService(new SupabaseAdminRepository(client), notificationService(client));
+}
+
+/** Recordatorio de sesión (hasta 24 h antes): mismo cron de 5 min que el PIN, mismo patrón de reclamo. */
+export function reminderService(client: SupabaseClient<Database> = db()): ReminderService {
+  return new ReminderService(new SupabaseReminderRepository(client), notificationService(client));
 }
 
 /**

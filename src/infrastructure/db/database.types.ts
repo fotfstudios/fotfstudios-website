@@ -1258,6 +1258,7 @@ export type Database = {
           kind: string
           notes: string | null
           order_id: string | null
+          reminder_sent_at: string | null
           resource_id: string
           starts_at: string
           status: Database["public"]["Enums"]["reservation_status"]
@@ -1279,6 +1280,7 @@ export type Database = {
           kind?: string
           notes?: string | null
           order_id?: string | null
+          reminder_sent_at?: string | null
           resource_id: string
           starts_at: string
           status?: Database["public"]["Enums"]["reservation_status"]
@@ -1300,6 +1302,7 @@ export type Database = {
           kind?: string
           notes?: string | null
           order_id?: string | null
+          reminder_sent_at?: string | null
           resource_id?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["reservation_status"]
