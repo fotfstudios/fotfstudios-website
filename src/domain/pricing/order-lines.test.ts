@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { concessionFromLines, engineAdjustFor, orderLinesFromQuote } from "./order-lines";
+import { concessionFromLines, engineAdjustFor, engineAdjustLine, orderLinesFromQuote } from "./order-lines";
 import type { Quote } from "./types";
 
 // net/tax no los usa el constructor de líneas (solo tierLines/addonLines/addonsTotal/total/volumePct).
@@ -92,6 +92,20 @@ describe("engineAdjustFor", () => {
     expect(engineAdjustFor(conDescuento)).toBe(-4000);
     const delMotor = orderLinesFromQuote(conDescuento).find((l) => l.line_type === "discount");
     expect(delMotor?.subtotal_clp).toBe(engineAdjustFor(conDescuento));
+  });
+});
+
+describe("engineAdjustLine", () => {
+  // conDescuento: sala 39.980 + audio+video 39.990 = 79.970 bruto; total 75.970 → −4.000 plegado
+  // (el test "es exactamente el monto de la línea que escribe el motor" ya fija engineAdjustFor = −4000).
+  it("es la MISMA línea que escribe orderLinesFromQuote (volumen + redondeo plegados)", () => {
+    const line = engineAdjustLine(conDescuento);
+    expect(line).toEqual({ description: "Descuento por volumen (10%)", amount: -4000 });
+    const written = orderLinesFromQuote(conDescuento).find((l) => l.line_type === "discount");
+    expect(written).toMatchObject({ description: "Descuento por volumen (10%)", subtotal_clp: -4000 });
+  });
+  it("sin descuento ni redondeo → null", () => {
+    expect(engineAdjustLine(base)).toBeNull();
   });
 });
 

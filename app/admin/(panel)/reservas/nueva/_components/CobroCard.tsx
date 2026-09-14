@@ -17,7 +17,7 @@ export interface QuoteView {
   roomSubtotal: number;
   tierLines: { key: string; hours: number; rate: number; subtotal: number }[];
   addonLines: { key: string; name: string; amount: number }[];
-  discount: number;
+  adjust: { description: string; amount: number } | null;
   volumePct: number;
 }
 
@@ -164,10 +164,13 @@ export function CobroCard({
               <span className="font-mono text-bone">{formatCLP(a.amount)}</span>
             </li>
           ))}
-          {quote.discount > 0 && (
+          {quote.adjust && (
             <li className="flex justify-between gap-3 text-gold">
-              <span>Descuento{quote.volumePct > 0 ? ` (${Math.round(quote.volumePct * 100)}%)` : ""}</span>
-              <span className="font-mono">−{formatCLP(quote.discount)}</span>
+              <span>{quote.adjust.description}</span>
+              <span className="font-mono">
+                {quote.adjust.amount < 0 ? "−" : "+"}
+                {formatCLP(Math.abs(quote.adjust.amount))}
+              </span>
             </li>
           )}
           {discount?.amount != null && discount.description && (

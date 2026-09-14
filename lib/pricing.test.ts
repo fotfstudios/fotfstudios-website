@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDED_RATE, quote, bookingMessage, ADDONS } from "./pricing";
+import { GUIDED_RATE, quote, bookingMessage, ADDONS, shownDiscount } from "./pricing";
 import { PACKS, PACK_EGRESADO, GUIDED_BLOCK, RECORDING_SESSIONS } from "./pricing";
 
 describe("guided (1:1) pricing — canonical flat rate", () => {
@@ -23,6 +23,15 @@ describe("guided (1:1) pricing — canonical flat rate", () => {
     const q = quote({ day: 1, start: 9, hours: 2, coachHours: 1 });
     const msg = bookingMessage({ day: 1, start: 9, hours: 2, coachHours: 1 }, q);
     expect(msg).toContain("$14.990");
+  });
+});
+
+describe("shownDiscount", () => {
+  it("shownDiscount hace que el desglose SUME el total redondeado", () => {
+    const q = quote({ day: 1, start: 9, hours: 2 }); // 2h valle: 19.980 − 10 % exacto 1.998 → total 17.980
+    expect(q.discount).toBe(1998);
+    expect(shownDiscount(q)).toBe(2000);
+    expect(q.roomSubtotal + q.coachSubtotal + q.addonsFlat - shownDiscount(q)).toBe(q.total);
   });
 });
 
