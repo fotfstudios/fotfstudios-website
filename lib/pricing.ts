@@ -276,6 +276,15 @@ export function quote(input: QuoteInput): Quote {
   };
 }
 
+/**
+ * Descuento tal como debe MOSTRARSE: lo que separa la suma de líneas del total redondeado
+ * (volumen + redondeo plegados), para que el desglose sume el total. `quote.discount` queda
+ * como valor exacto para cálculos.
+ */
+export function shownDiscount(q: Quote): number {
+  return q.roomSubtotal + q.coachSubtotal + q.addonsFlat - q.total;
+}
+
 /** $14.990 — separador de miles con punto (es-CL). */
 export function formatCLP(n: number): string {
   return "$" + Math.round(n).toLocaleString("es-CL");
@@ -348,7 +357,7 @@ export function bookingMessage(input: QuoteInput, q: Quote): string {
   }
   if (q.volumePct > 0) {
     detalle.push(
-      `- Descuento por volumen (${Math.round(q.volumePct * 100)}%): ${mono("−" + formatCLP(q.discount))}`
+      `- Descuento por volumen (${Math.round(q.volumePct * 100)}%): ${mono("−" + formatCLP(shownDiscount(q)))}`
     );
   }
   const recDetalle = recLabel(input, true);

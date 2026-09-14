@@ -1,4 +1,5 @@
 import { pricingService } from "@/src/composition";
+import { engineAdjustLine } from "@/src/domain/pricing/order-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,11 @@ export async function GET(req: Request): Promise<Response> {
       total: q.total,
       net: q.net,
       tax: q.tax,
-      discount: q.discount,
       volumePct: q.volumePct,
       roomSubtotal: q.roomSubtotal,
+      addonsTotal: q.addonsTotal,
+      // La línea plegada (volumen + redondeo) tal como irá al recibo — no `discount` exacto.
+      adjust: engineAdjustLine(q),
       currency: r.value.currency,
       tierLines: q.tierLines,
       addonLines: q.addonLines,

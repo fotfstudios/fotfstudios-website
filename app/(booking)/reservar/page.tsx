@@ -9,7 +9,7 @@ import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Reservar — FOTF Studios",
+  title: "Reservar",
   robots: { index: false }, // no indexar hasta el lanzamiento
 };
 

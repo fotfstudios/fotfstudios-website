@@ -69,6 +69,14 @@ describe("components/PublicChrome.tsx", () => {
     expect(src).toContain("<ConsentBanner />");
   });
 
+  it("la puerta de GTM vive en PublicChrome (server component) y se decide con measurementEnabled()", () => {
+    const src = read("components/PublicChrome.tsx");
+    expect(src).toContain("measurementEnabled()");
+    // Un "use client" haría que la puerta se evaluara en el navegador (VERCEL_ENV no existe ahí):
+    // GTM desaparecería en prod con un hydration mismatch y ningún test lo vería.
+    expect(src).not.toMatch(/^"use client"/m);
+  });
+
   it("no lleva cursor, medidor, SpeedInsights ni beforeInteractive", () => {
     for (const token of [...MARKETING_ONLY, "<SpeedInsights", BEFORE_INTERACTIVE]) {
       expect(src, token).not.toContain(token);
@@ -238,6 +246,12 @@ describe("árbol de rutas", () => {
     const block = home.match(/export const metadata: Metadata = \{([\s\S]*?)\n\};/);
     expect(block).not.toBeNull();
     expect(block?.[1] ?? "title").not.toMatch(/\btitle\b/);
+  });
+
+  it("las páginas de reserva no duplican el sufijo de marca (lo pone el template del root)", () => {
+    for (const f of ["app/(booking)/reservar/page.tsx", "app/(booking)/reserva/estado/page.tsx"]) {
+      expect(read(f), f).not.toMatch(/title: "[^"]*FOTF Studios"/);
+    }
   });
 
   it("lib/curso-content.ts existe y nadie importa ya app/curso-dj/_content", () => {

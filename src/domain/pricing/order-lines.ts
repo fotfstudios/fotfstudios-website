@@ -1,4 +1,5 @@
 import type { Quote } from "./types";
+import { tierLabel } from "./tier-labels";
 
 /** Línea de pedido priceada. Fuente única del shape (la reexporta el puerto de checkout). */
 export interface OrderLine {
@@ -27,6 +28,21 @@ export interface CarriedConcession {
 export function engineAdjustFor(quote: Pick<Quote, "tierLines" | "addonsTotal" | "total">): number {
   const gross = quote.tierLines.reduce((s, l) => s + l.subtotal, 0) + quote.addonsTotal;
   return quote.total - gross;
+}
+
+/**
+ * La línea de ajuste del motor (descuento por volumen + redondeo) EXACTAMENTE como la
+ * escribe `orderLinesFromQuote` y la ve el recibo/boleta. Las UIs la muestran en vez de
+ * `quote.discount` (exacto, sin redondear), que hacía que el desglose no sumara el total.
+ */
+export function engineAdjustLine(
+  quote: Pick<Quote, "tierLines" | "addonsTotal" | "total" | "volumePct">,
+): { description: string; amount: number } | null {
+  const adjust = engineAdjustFor(quote);
+  if (adjust === 0) return null;
+  const description =
+    quote.volumePct > 0 ? `Descuento por volumen (${Math.round(quote.volumePct * 100)}%)` : "Ajuste";
+  return { description, amount: adjust };
 }
 
 /**
@@ -80,7 +96,7 @@ export function orderLinesFromQuote(quote: Quote): OrderLine[] {
   const lines: OrderLine[] = [
     ...quote.tierLines.map((l) => ({
       line_type: "room_time" as const,
-      description: `Sala · ${l.hours}h (${l.key})`,
+      description: `Sala · ${l.hours}h (${tierLabel(l.key)})`,
       quantity: l.hours,
       unit_price_clp: l.rate,
       subtotal_clp: l.subtotal,
@@ -97,10 +113,9 @@ export function orderLinesFromQuote(quote: Quote): OrderLine[] {
 
   // Misma fuente que `concessionFromLines` usa para reconocer esta línea después:
   // si las dos se calcularan por separado podrían desalinearse en silencio.
-  const adjust = engineAdjustFor(quote);
-  if (adjust !== 0) {
-    const label = quote.volumePct > 0 ? `Descuento por volumen (${Math.round(quote.volumePct * 100)}%)` : "Ajuste";
-    lines.push({ line_type: "discount", description: label, quantity: 1, unit_price_clp: adjust, subtotal_clp: adjust });
+  const adjust = engineAdjustLine(quote);
+  if (adjust) {
+    lines.push({ line_type: "discount", description: adjust.description, quantity: 1, unit_price_clp: adjust.amount, subtotal_clp: adjust.amount });
   }
   return lines;
 }

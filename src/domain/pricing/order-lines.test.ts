@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { concessionFromLines, engineAdjustFor, orderLinesFromQuote } from "./order-lines";
+import { concessionFromLines, engineAdjustFor, engineAdjustLine, orderLinesFromQuote } from "./order-lines";
 import type { Quote } from "./types";
 
 // net/tax no los usa el constructor de líneas (solo tierLines/addonLines/addonsTotal/total/volumePct).
@@ -21,12 +21,25 @@ describe("orderLinesFromQuote", () => {
     expect(orderLinesFromQuote(base)).toEqual([
       {
         line_type: "room_time",
-        description: "Sala · 1h (valle)",
+        description: "Sala · 1h (Valle)",
         quantity: 1,
         unit_price_clp: 9990,
         subtotal_clp: 9990,
       },
     ]);
+  });
+
+  it("la glosa usa la etiqueta del tramo, no la clave interna", () => {
+    // Bruto = total → sin línea de ajuste: la única línea es la de sala.
+    const q: Quote = {
+      ...base,
+      tierLines: [{ key: "puntaSemana", hours: 1, rate: 14990, subtotal: 14990 }],
+      roomSubtotal: 14990,
+      total: 14990,
+    };
+    const lines = orderLinesFromQuote(q);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].description).toBe("Sala · 1h (Punta semana)");
   });
 
   it("con add-on → agrega una línea flat_service con addon_key", () => {
@@ -92,6 +105,20 @@ describe("engineAdjustFor", () => {
     expect(engineAdjustFor(conDescuento)).toBe(-4000);
     const delMotor = orderLinesFromQuote(conDescuento).find((l) => l.line_type === "discount");
     expect(delMotor?.subtotal_clp).toBe(engineAdjustFor(conDescuento));
+  });
+});
+
+describe("engineAdjustLine", () => {
+  // conDescuento: sala 39.980 + audio+video 39.990 = 79.970 bruto; total 75.970 → −4.000 plegado
+  // (el test "es exactamente el monto de la línea que escribe el motor" ya fija engineAdjustFor = −4000).
+  it("es la MISMA línea que escribe orderLinesFromQuote (volumen + redondeo plegados)", () => {
+    const line = engineAdjustLine(conDescuento);
+    expect(line).toEqual({ description: "Descuento por volumen (10%)", amount: -4000 });
+    const written = orderLinesFromQuote(conDescuento).find((l) => l.line_type === "discount");
+    expect(written).toMatchObject({ description: "Descuento por volumen (10%)", subtotal_clp: -4000 });
+  });
+  it("sin descuento ni redondeo → null", () => {
+    expect(engineAdjustLine(base)).toBeNull();
   });
 });
 

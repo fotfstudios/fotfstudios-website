@@ -16,6 +16,7 @@ import {
   BOOKING,
   ADDONS,
   GUIDED_RATE,
+  shownDiscount,
 } from "@/lib/pricing";
 
 // Orden de presentación: Lun → Dom
@@ -232,7 +233,7 @@ export default function PriceCalculator() {
             {q.volumePct > 0 && (
               <li className="flex items-baseline justify-between gap-3 text-gold">
                 <span>Descuento por volumen ({Math.round(q.volumePct * 100)}%)</span>
-                <span className="font-mono">−{formatCLP(q.discount)}</span>
+                <span className="font-mono">−{formatCLP(shownDiscount(q))}</span>
               </li>
             )}
           </ul>

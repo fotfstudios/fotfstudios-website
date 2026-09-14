@@ -175,6 +175,14 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
 Vercel → proyecto → **Deployments** → elegir el último deploy bueno →
 **Promote to Production** (Instant Rollback). No requiere rebuild.
 
+- **GTM solo en producción.** `components/PublicChrome.tsx` monta GTM únicamente cuando `VERCEL_ENV === "production"`
+  (o `NEXT_PUBLIC_GTM_FORCE=true` en local). Las páginas estáticas evalúan eso **al compilar**: tras cada deploy a
+  prod, abrir `https://www.fotfstudios.cl` en ventana privada → Network muestra `gtm.js?id=GTM-WCC3V22R` y GA4
+  Realtime registra la visita. **Nunca "Promote" un preview a producción** (su HTML estático se compiló con
+  `VERCEL_ENV=preview` y el marketing quedaría sin medición); ante un problema, redeploy desde `main` o
+  rollback a un build de producción anterior. Requiere "Automatically expose System Environment Variables"
+  activo en el proyecto de Vercel.
+
 ### Base de datos (migraciones = forward-only)
 No hay *down-migrations*. Para revertir un cambio de esquema:
 1. Escribir una **nueva migración** que deshaga/corrija el cambio (expand/contract).
