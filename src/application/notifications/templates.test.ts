@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { applicantConfirmation, courseEnrollmentRefunded, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
+const links = {
+  statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
+  calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=x",
+  accountUrl: "https://www.fotfstudios.cl/cuenta",
+};
+const confCtx = { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298", links };
+
 const view = {
   name: "Ana",
   when: "lunes 1 de enero, 10:00 h",
@@ -10,7 +17,7 @@ const view = {
 
 describe("email templates", () => {
   it("confirmación al cliente incluye total y WhatsApp", () => {
-    const m = customerConfirmation(view, { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" });
+    const m = customerConfirmation(view, confCtx);
     expect(m.subject).toMatch(/confirmada/i);
     expect(m.html).toContain("$9.990");
     expect(m.html).toContain("https://wa.me/56962803298");
@@ -18,12 +25,22 @@ describe("email templates", () => {
   });
 
   it("confirmación: el código de acceso llega por email 10 minutos antes, no por WhatsApp", () => {
-    const m = customerConfirmation(view, { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" });
+    const m = customerConfirmation(view, confCtx);
     expect(m.html).toMatch(/por email/);
     expect(m.html).toMatch(/10 minutos antes/);
     expect(m.html).not.toMatch(/acceso por WhatsApp/);
     expect(m.text).toMatch(/por email/);
     expect(m.text).not.toMatch(/acceso por WhatsApp/);
+  });
+
+  it("confirmación: enlaza a la reserva, al calendario y a la cuenta (H8)", () => {
+    const m = customerConfirmation(view, confCtx);
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/reserva/estado?b=o1"');
+    expect(m.html).toContain('href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;text=x"');
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/cuenta"');
+    expect(m.html).toMatch(/Ver mi reserva/);
+    expect(m.text).toContain("https://www.fotfstudios.cl/reserva/estado?b=o1");
+    expect(m.text).toContain("https://www.fotfstudios.cl/cuenta");
   });
 
   it("aviso al dueño recuerda cargar el PIN en la cerradura y la boleta (ya no 'enviar el código')", () => {
@@ -308,7 +325,7 @@ describe("reembolso de inscripción de curso (pagada)", () => {
 
 describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
   it("customerConfirmation lleva template = 'customerConfirmation'", () => {
-    const m = customerConfirmation(view, { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" });
+    const m = customerConfirmation(view, confCtx);
     expect(m.template).toBe("customerConfirmation");
   });
 

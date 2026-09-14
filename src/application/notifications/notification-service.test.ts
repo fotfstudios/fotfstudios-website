@@ -12,6 +12,7 @@ const makeService = () => {
   } as unknown as NotificationRepository;
   const service = new NotificationService(mailer, repo, {
     ownerEmail: "",
+    siteUrl: "https://www.fotfstudios.cl",
     tz: "America/Santiago",
     address: "Los Chercanes 78a",
     whatsappUrl: "https://wa.me/56962803298",
@@ -215,6 +216,7 @@ describe("notifyOrder — reclama notified_at antes de mandar", () => {
   const withOwner = (svc: ReturnType<typeof makeService>) =>
     new NotificationService(svc.mailer, svc.repo, {
       ownerEmail: "owner@e.cl",
+      siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
       whatsappUrl: "https://wa.me/56962803298",
@@ -469,5 +471,59 @@ describe("un solo formato de horario en todos los correos (H7)", () => {
     const html = mailer.send.mock.calls[0][0].html;
     expect(html).toContain("lunes 5 de octubre, 19:00–21:00 h");
     expect(html).not.toContain("lun 5 oct");
+  });
+});
+
+describe("notifyOrder — la confirmación lleva la reserva al bolsillo (H8)", () => {
+  const order = {
+    id: "o-links",
+    kind: "booking",
+    email: "ana@e.cl",
+    name: "Ana",
+    amount: 9990,
+    currency: "CLP",
+    startsAt: "2999-07-12T18:00:00Z",
+    endsAt: "2999-07-12T20:00:00Z",
+    notifiedAt: null,
+    lines: [{ description: "Sala · 2h", subtotal: 9990 }],
+  };
+
+  it("enlaza a /reserva/estado?b=<orden>, a Google Calendar y a /cuenta", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    await service.notifyOrder("o-links");
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.html).toContain("https://www.fotfstudios.cl/reserva/estado?b=o-links");
+    expect(msg.html).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
+    expect(msg.html).toContain("https://www.fotfstudios.cl/cuenta");
+  });
+
+  it("adjunta el .ics de la sesión (Apple Mail / Gmail lo ofrecen como evento)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    await service.notifyOrder("o-links");
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.attachments).toHaveLength(1);
+    expect(msg.attachments![0].filename).toBe("reserva-fotf.ics");
+    expect(msg.attachments![0].content).toContain("BEGIN:VCALENDAR");
+    expect(msg.attachments![0].content).toContain("DTSTART:29990712T180000Z");
+    expect(msg.attachments![0].content).toContain("Los Chercanes 78a");
+  });
+
+  it("el aviso al dueño no lleva adjunto", async () => {
+    const base = makeService();
+    const service = new NotificationService(base.mailer, base.repo, {
+      ownerEmail: "owner@e.cl",
+      siteUrl: "https://www.fotfstudios.cl",
+      tz: "America/Santiago",
+      address: "Los Chercanes 78a",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    });
+    vi.mocked(base.repo.getOrderForEmail).mockResolvedValue(order);
+    await service.notifyOrder("o-links");
+    expect(base.mailer.send.mock.calls[1][0].to).toBe("owner@e.cl");
+    expect(base.mailer.send.mock.calls[1][0].attachments).toBeUndefined();
   });
 });
