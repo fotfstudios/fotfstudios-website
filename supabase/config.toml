@@ -260,29 +260,9 @@ otp_expiry = 3600
 # subject = "Your password has been changed"
 # content_path = "./templates/password_changed_notification.html"
 
-# Plantillas de autenticación (FOTF Studios). Copy reformulado para que el código de
-# inicio de sesión NO se confunda con el código de acceso a la sala (ese llega por email 10 min antes).
-# Ambas apuntan al mismo archivo — el texto es idéntico. Nuevo cliente por magic link
-# recibe `confirmation`; cliente/admin recurrente recibe `magic_link`. Solo aplica al
-# stack LOCAL; en staging/prod estas plantillas viven en el Dashboard (espejar a mano).
-[auth.email.template.magic_link]
-subject = "Tu código para iniciar sesión en FOTF Studios: {{ .Token }}"
-content_path = "./supabase/templates/login-code.html"
-
-[auth.email.template.confirmation]
-subject = "Tu código para iniciar sesión en FOTF Studios: {{ .Token }}"
-content_path = "./supabase/templates/login-code.html"
-
-# App passwordless (magic link/OTP): recovery y email_change no los dispara la app hoy,
-# pero se dejan on-brand por si se gatillan (acción de admin / API). Mismo criterio:
-# "código de verificación", nunca "código de acceso".
-[auth.email.template.recovery]
-subject = "Tu código para recuperar el acceso a FOTF Studios: {{ .Token }}"
-content_path = "./supabase/templates/recovery.html"
-
-[auth.email.template.email_change]
-subject = "Confirma tu nuevo correo en FOTF Studios: {{ .Token }}"
-content_path = "./supabase/templates/email-change.html"
+# Plantillas de autenticación: NO viven acá. Local, staging y prod mandan los correos de
+# Auth por el Send Email Hook (abajo) con las plantillas de
+# src/application/notifications/templates.ts (authLoginCode, authRecovery, authEmailChange).
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -312,17 +292,18 @@ max_frequency = "5s"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # RBAC: inyecta app_role + app_permissions en el JWT (ver migración admin_rbac).
-# Send Email Hook (auditoría 2026-09-14, H10): los correos de Auth salen por
-# /api/auth/send-email con las plantillas de src/application/notifications/templates.ts
-# (authLoginCode, authRecovery, authEmailChange). Para probarlo en local: genera el
-# secreto (echo "v1,whsec_$(openssl rand -base64 32)"), ponlo en .env.local como
-# SEND_EMAIL_HOOK_SECRET, descomenta el bloque y reinicia el stack (db:stop && db:start).
-# Queda comentado por defecto: activado, iniciar sesión en local exige el dev server arriba.
-# En staging/prod se activa en el Dashboard (Auth → Hooks → Send Email) con la URL pública.
-# [auth.hook.send_email]
-# enabled = true
-# uri = "http://host.docker.internal:3000/api/auth/send-email"
-# secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+# Send Email Hook (auditoría 2026-09-14, H10; activo en prod desde 2026-09-14): GoTrue le
+# pide el correo a /api/auth/send-email y sale por nuestro Mailer (plantillas versionadas,
+# bitácora). En local el secreto es FIJO y público — solo vale para este stack; .env.example
+# trae el mismo valor para que el route lo verifique. Consecuencia: iniciar sesión en local
+# exige el dev server arriba (sin app no hay correo; en Mailpit no llega nada). Sin
+# RESEND_API_KEY local el envío es NoopMailer: el código queda en el log del dev server
+# ("[email:noop] Tu código para iniciar sesión…") y en notification_log.
+# En staging/prod se configura en el Dashboard (Auth → Hooks → Send Email) con su propio secreto.
+[auth.hook.send_email]
+enabled = true
+uri = "http://host.docker.internal:3000/api/auth/send-email"
+secrets = "v1,whsec_Zm90Zi1sb2NhbC1zZW5kLWVtYWlsLWhvb2stc2VjcmV0"
 
 [auth.hook.custom_access_token]
 enabled = true

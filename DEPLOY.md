@@ -135,13 +135,16 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
 2. **Redirect URLs**: confirmar el wildcard `https://www.fotfstudios.cl/**` (cubre
    `?next=`). Sin él, el magic-link cae al home tras el login.
 3. **Site URL** de prod = `https://www.fotfstudios.cl`.
-4. **Templates de email de Auth** — reescritos en es-CL neutro como **código de inicio de
-   sesión / verificación**. ⚠️ NO usar "código de acceso": se confunde con la **clave de la
-   sala** del lock (esa se coordina por WhatsApp). Aplica a los **4**: *Magic Link*, *Confirm
-   signup*, *Reset Password* (recovery) y *Change Email address*. Fuente local a copiar
-   **textual** (subject + body): [supabase/config.toml](supabase/config.toml)
-   `[auth.email.template.*]` → `supabase/templates/*.html`. Espejar cada uno en el dashboard de
-   **staging y prod** (mismo subject + body). Verificable local en Mailpit (`http://127.0.0.1:54424`).
+4. **Emails de Auth por el Send Email Hook** — no hay plantillas que espejar: GoTrue le pide
+   el correo a `/api/auth/send-email` y sale por nuestro Mailer con las plantillas de
+   `src/application/notifications/templates.ts` (`authLoginCode`, `authRecovery`,
+   `authEmailChange`; copy = "código de inicio de sesión / verificación", nunca "código de
+   acceso", que es el PIN de la sala). Por proyecto: generar el secreto
+   (`echo "v1,whsec_$(openssl rand -base64 32)"`) → Vercel `SEND_EMAIL_HOOK_SECRET` + Redeploy →
+   Dashboard **Authentication → Hooks → Send Email** (HTTPS, la URL pública del entorno, el mismo
+   secreto). Orden importa: primero la app, después el hook. Rollback = deshabilitar el hook.
+   Local: activo en `config.toml` con un secreto fijo; sin `RESEND_API_KEY` el código sale en el
+   log del dev server (`[email:noop]`), no en Mailpit.
 5. **SMTP propio** (Resend) o aceptar el límite por defecto (~2 emails/h) en soft launch.
 6. **Custom Access Token (JWT) hook** — habilitar en **Authentication → Hooks** apuntando a la
    función Postgres `public.custom_access_token_hook`. La migración crea la función (+ grants a
