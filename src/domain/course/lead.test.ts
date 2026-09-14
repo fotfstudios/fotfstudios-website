@@ -107,3 +107,19 @@ describe("parseCourseLead — validación por campo", () => {
     expect(r.kind).toBe("ok");
   });
 });
+
+describe("parseCourseLead — higiene del texto libre", () => {
+  it("quita caracteres de control del nombre (va al asunto del correo al dueño)", () => {
+    const r = parseCourseLead({ ...valid(), name: "Ana\r\nX-Injected: 1" });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.value.name).toBe("AnaX-Injected: 1");
+  });
+
+  it("el mensaje conserva saltos de línea", () => {
+    const r = parseCourseLead({ ...valid(), message: "hola\nchao\u0000" });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.value.message).toBe("hola\nchao");
+  });
+});

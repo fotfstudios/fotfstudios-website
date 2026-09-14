@@ -7,6 +7,8 @@ export class ResendMailer implements Mailer {
   constructor(
     apiKey: string,
     private readonly from: string,
+    /** Buzón que el dueño realmente lee; sin esto las respuestas caen en `from`. */
+    private readonly replyTo?: string,
   ) {
     this.resend = new Resend(apiKey);
   }
@@ -15,9 +17,10 @@ export class ResendMailer implements Mailer {
     const { error } = await this.resend.emails.send({
       from: this.from,
       to: msg.to,
+      ...(this.replyTo ? { replyTo: this.replyTo } : {}),
       subject: msg.subject,
       html: msg.html,
-      text: msg.text ?? "",
+      text: msg.text,
       // Etiqueta por plantilla: en el panel de Resend se ve qué correo rebota o se demora.
       tags: [{ name: "template", value: msg.template }],
       ...(msg.attachments ? { attachments: msg.attachments } : {}),

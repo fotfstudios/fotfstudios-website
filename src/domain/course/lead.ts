@@ -47,9 +47,22 @@ export function isCourseLeadStatus(s: string): s is CourseLeadStatus {
   return (COURSE_LEAD_STATUSES as readonly string[]).includes(s);
 }
 
+/**
+ * Texto de una línea: sin caracteres de control (CR/LF/TAB/NUL…). Este texto va al
+ * asunto y al cuerpo del correo al dueño; Resend codifica los headers, pero no hay
+ * razón para que un salto de línea tipeado en "nombre" llegue a ninguna parte.
+ */
 function str(raw: Record<string, unknown>, key: string): string {
   const v = raw[key];
-  return typeof v === "string" ? v.trim() : "";
+  // eslint-disable-next-line no-control-regex
+  return typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, "").trim() : "";
+}
+
+/** Texto multilínea: conserva \n (y normaliza \r\n), quita el resto de controles. */
+function text(raw: Record<string, unknown>, key: string): string {
+  const v = raw[key];
+  // eslint-disable-next-line no-control-regex
+  return typeof v === "string" ? v.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim() : "";
 }
 
 export function parseCourseLead(raw: unknown): ParsedCourseLead {
@@ -98,7 +111,7 @@ export function parseCourseLead(raw: unknown): ParsedCourseLead {
   else if (availability.length > COURSE_LEAD_CAPS.availability) add("availability", "too_long");
 
   // Opcional: solo se valida el tope.
-  const message = str(obj, "message");
+  const message = text(obj, "message");
   if (message.length > COURSE_LEAD_CAPS.message) add("message", "too_long");
 
   if (issues.length > 0) return { kind: "invalid", issues };
