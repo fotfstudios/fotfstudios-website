@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { DateTime } from "luxon";
+import { normalizeEmail } from "@/src/domain/contact/contact";
 import { formatCLP } from "@/src/domain/money/money";
 import { clampPoints } from "@/src/domain/points/points";
+import { FIRST_BOOKING_PROMO, firstBookingDiscountInput } from "@/src/domain/pricing/first-booking-promo";
+import { applyManualDiscount } from "@/src/domain/pricing/manual-discount";
 import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
 import type { DayStatus } from "@/src/domain/scheduling/month-availability";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
@@ -31,6 +34,8 @@ interface DayAvailability {
 
 interface QuoteResult {
   total: number;
+  net: number;
+  roomSubtotal: number;
   tierLines: { key: string; hours: number; rate: number; subtotal: number }[];
   addonLines: { key: string; name: string; amount: number }[];
   adjust: { description: string; amount: number } | null;
@@ -87,6 +92,9 @@ export default function BookingWidget({
   const [usePoints, setUsePoints] = useState(false);
   const [pointsInput, setPointsInput] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Promo de primera reserva: elegibilidad por correo normalizado, recordada por
+  // sesión de página. Es estado (no ref) para que el desglose se derive en render.
+  const [promoCache, setPromoCache] = useState<Record<string, boolean>>({});
   // Login en línea (código OTP): entrar sin salir del flujo de reserva. El correo
   // es el mismo campo de la reserva (bk-email): un solo lugar donde escribirlo.
   const [loginOpen, setLoginOpen] = useState(false);
@@ -212,11 +220,46 @@ export default function BookingWidget({
     };
   }, [resourceId, selected, selectedStart, duration, rec, extras]);
 
+  // Elegibilidad de la promo por correo (no por horario): se consulta al cambiar
+  // el correo válido, con debounce; una respuesta fallida queda "desconocida"
+  // (sin fila ni nota) y no se reintenta hasta que cambie el correo.
+  const promoEmail = FIRST_BOOKING_PROMO.enabled ? normalizeEmail(email) : null;
+  const promoEligible: boolean | null = promoEmail ? (promoCache[promoEmail] ?? null) : null;
+  const promoKnown = promoEmail === null || promoEligible !== null;
+  useEffect(() => {
+    if (!promoEmail || promoKnown) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/promos/first-booking?email=${encodeURIComponent(promoEmail)}`, {
+          signal: ctrl.signal,
+        });
+        if (!res.ok) return;
+        const d = (await res.json()) as { eligible?: boolean };
+        setPromoCache((c) => ({ ...c, [promoEmail]: d.eligible === true }));
+      } catch {
+        // abortado o sin red: queda desconocida
+      }
+    }, 400);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [promoEmail, promoKnown]);
+
+  // La promo se previsualiza con la MISMA función pura que aplica el servidor
+  // (como hace la consola del admin): el total mostrado es el que se cobra.
+  const promo =
+    FIRST_BOOKING_PROMO.enabled && promoEligible && quote ? applyManualDiscount(quote, firstBookingDiscountInput()) : null;
+  const promoLine = promo?.ok ? promo.value : null;
+  const total = quote ? quote.total - (promoLine?.amount ?? 0) : null;
+
   // Canje: derivado y SIEMPRE re-acotado al render (si cambia el total, el
   // aplicado se ajusta solo). El servidor re-valida contra el saldo real.
-  const maxApplicable = customer && quote ? clampPoints(customer.points, quote.total, customer.points) : 0;
-  const pointsApplied = usePoints && customer && quote ? clampPoints(customer.points, quote.total, pointsInput) : 0;
-  const payable = quote ? quote.total - pointsApplied : null;
+  // Se capa contra el total YA con promo: mismo orden descuento → puntos que el servidor.
+  const maxApplicable = customer && total !== null ? clampPoints(customer.points, total, customer.points) : 0;
+  const pointsApplied = usePoints && customer && total !== null ? clampPoints(customer.points, total, pointsInput) : 0;
+  const payable = total !== null ? total - pointsApplied : null;
   const fullPoints = pointsApplied > 0 && payable === 0;
 
   // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError
@@ -444,6 +487,12 @@ export default function BookingWidget({
                   </span>
                 </li>
               )}
+              {promoLine && (
+                <li className="flex justify-between gap-3 text-gold">
+                  <span>{promoLine.description}</span>
+                  <span className="shrink-0 whitespace-nowrap font-mono">−{formatCLP(promoLine.amount)}</span>
+                </li>
+              )}
               {pointsApplied > 0 && (
                 <li className="flex justify-between gap-3 text-gold">
                   <span>Puntos</span>
@@ -451,6 +500,16 @@ export default function BookingWidget({
                 </li>
               )}
             </ul>
+          )}
+          {quote && FIRST_BOOKING_PROMO.enabled && !promoEmail && (
+            <p className="mt-3 label-sm text-gold">
+              ¿Primera vez? −{FIRST_BOOKING_PROMO.pct}% en la sala al ingresar tu correo.
+            </p>
+          )}
+          {quote && FIRST_BOOKING_PROMO.enabled && promoEmail && promoEligible === false && (
+            <p className="mt-3 text-xs leading-relaxed text-bone-quiet">
+              El −{FIRST_BOOKING_PROMO.pct}% de primera reserva ya se usó con este correo.
+            </p>
           )}
 
           {/* Mejora la sesión: grabación (elige una) + guía por hora (opcional). */}
