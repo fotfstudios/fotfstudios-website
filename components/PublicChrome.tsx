@@ -1,6 +1,7 @@
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import ConsentBanner from "@/components/ConsentBanner";
+import { measurementEnabled } from "@/lib/measurement";
 
 // GA4 (G-5K07LY6W3N) se sirve vía este contenedor GTM — no agregar gtag.js aparte (duplicaría la medición).
 const GTM_ID = "GTM-WCC3V22R";
@@ -22,28 +23,35 @@ const GTM_ID = "GTM-WCC3V22R";
  * Cada URL debe caer bajo UN solo punto de montaje: next/script deduplica gtm-init
  * por id (LoadCache global al módulo) y @vercel/analytics no reinyecta su tag, pero
  * un ConsentBanner doble sí se vería. lib/chrome-contract.test.ts vigila quién monta qué.
+ *
+ * GTM solo en producción o con NEXT_PUBLIC_GTM_FORCE=true — ver lib/measurement.ts.
  */
 export default function PublicChrome() {
+  const gtm = measurementEnabled();
   return (
     <>
-      {/* Google Tag Manager (noscript) */}
-      <noscript>
-        <iframe
-          src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-          height="0"
-          width="0"
-          style={{ display: "none", visibility: "hidden" }}
-          title="Google Tag Manager"
-        />
-      </noscript>
-      {/* Google Tag Manager */}
-      <Script id="gtm-init" strategy="afterInteractive">
-        {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+      {gtm && (
+        <>
+          {/* Google Tag Manager (noscript) */}
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+          {/* Google Tag Manager */}
+          <Script id="gtm-init" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${GTM_ID}');`}
-      </Script>
+          </Script>
+        </>
+      )}
       <Analytics />
       <ConsentBanner />
     </>
