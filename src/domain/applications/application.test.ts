@@ -201,3 +201,20 @@ describe("isSessionFormat", () => {
     expect(isSessionFormat("")).toBe(false);
   });
 });
+
+describe("parseApplication — higiene del texto libre (va al asunto y al cuerpo del correo)", () => {
+  it("quita caracteres de control (saltos de línea, tabs, NUL) del nombre y la disponibilidad", () => {
+    const r = parseApplication({ ...valid(), name: "Vale\r\nBcc: x@y.z", availability: "tardes\tsemana\u0000" });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.value.name).toBe("ValeBcc: x@y.z");
+    expect(r.value.availability).toBe("tardessemana");
+  });
+
+  it("el pitch conserva sus saltos de línea (es multilínea a propósito) pero no otros controles", () => {
+    const r = parseApplication({ ...valid(), pitch: "línea 1\nlínea 2\u0000\u0007" });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.value.pitch).toBe("línea 1\nlínea 2");
+  });
+});

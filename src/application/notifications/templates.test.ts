@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -396,5 +396,42 @@ describe("estados que antes eran silencio (H6)", () => {
     expect(m.html).toContain("lunes 1 de enero, 10:00–11:00 h");
     expect(m.html).not.toMatch(/\$|reembols|cobro|tarjeta|puntos/i);
     expect(m.html).toContain(wa);
+  });
+});
+
+describe("shell del correo (H11/H13)", () => {
+  const m = customerConfirmation(view, confCtx);
+
+  it("es un documento completo: doctype, lang es, color-scheme dark, tabla contenedora con bgcolor", () => {
+    expect(m.html.trimStart().toLowerCase().startsWith("<!doctype html>")).toBe(true);
+    expect(m.html).toContain('<html lang="es"');
+    expect(m.html).toContain('<meta name="color-scheme" content="dark">');
+    expect(m.html).toContain('<meta name="supported-color-schemes" content="dark">');
+    expect(m.html).toContain('role="presentation"');
+    expect(m.html).toContain('bgcolor="#0a0a0a"');
+    expect(m.html).toContain("<title>FOTF Studios</title>");
+  });
+
+  it("preheader oculto con la fecha (lo que Gmail muestra como snippet)", () => {
+    expect(m.html).toMatch(/display:none[^>]*>[^<]*lunes 1 de enero, 10:00 h/);
+  });
+
+  it("CTA con alto táctil (padding 14px 22px) y sin franjas laterales (border-left)", () => {
+    expect(m.html).toContain("padding:14px 22px");
+    expect(m.html).not.toMatch(/border-left:\s*[2-9]px/);
+    const owner = ownerNewApplication({
+      name: "Ana", email: "a@e.cl", phone: "+56912345678", format: "clases", availability: "fines de semana",
+      mixUrl: "https://soundcloud.com/x", instagram: null, genres: null, pitch: "hola",
+    } as Parameters<typeof ownerNewApplication>[0]);
+    expect(owner.html).not.toMatch(/border-left:\s*[2-9]px/);
+  });
+
+  it("link de pago sin nombre: saluda sin 'Hola:'", () => {
+    const p = bookingPaymentPending(
+      { name: null, when: view.when, total: "$9.990", initPoint: "https://mp/x", expiresInHours: 72 },
+      { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(p.html).not.toContain("Hola:");
+    expect(p.text).not.toContain("Hola:");
   });
 });

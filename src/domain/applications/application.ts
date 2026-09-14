@@ -68,9 +68,22 @@ export type ParsedApplication =
   | { kind: "invalid"; issues: ApplicationIssue[] };
 
 /** Lee una clave como string recortado; cualquier no-string se vuelve "". */
+/**
+ * Texto de una línea: sin caracteres de control (CR/LF/TAB/NUL…). Este texto va al
+ * asunto y al cuerpo del correo al dueño; Resend codifica los headers, pero no hay
+ * razón para que un salto de línea tipeado en "nombre" llegue a ninguna parte.
+ */
 function str(raw: Record<string, unknown>, key: string): string {
   const v = raw[key];
-  return typeof v === "string" ? v.trim() : "";
+  // eslint-disable-next-line no-control-regex
+  return typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, "").trim() : "";
+}
+
+/** Texto multilínea: conserva \n (y normaliza \r\n), quita el resto de controles. */
+function text(raw: Record<string, unknown>, key: string): string {
+  const v = raw[key];
+  // eslint-disable-next-line no-control-regex
+  return typeof v === "string" ? v.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim() : "";
 }
 
 /** Normaliza a href http(s) con dominio; null si no es una URL web válida. */
@@ -148,7 +161,7 @@ export function parseApplication(raw: unknown): ParsedApplication {
   if (genresRaw.length > APPLICATION_CAPS.genres) add("genres", "too_long");
   const genres = genresRaw || null;
 
-  const pitch = str(obj, "pitch");
+  const pitch = text(obj, "pitch");
   if (!pitch) add("pitch", "required");
   else if (pitch.length > APPLICATION_CAPS.pitch) add("pitch", "too_long");
 

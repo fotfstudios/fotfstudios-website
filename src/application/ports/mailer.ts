@@ -4,7 +4,8 @@ export interface EmailMessage {
   template: string;
   subject: string;
   html: string;
-  text?: string;
+  /** Versión texto plano: obligatoria (lectores de pantalla, clientes sin HTML, filtros de spam). */
+  text: string;
   /** Adjuntos (p. ej. el .ics de la sesión); contenido en texto. */
   attachments?: { filename: string; content: string }[];
 }

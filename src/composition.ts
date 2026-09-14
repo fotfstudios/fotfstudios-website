@@ -167,7 +167,7 @@ export function notificationLogRepository(client: SupabaseClient<Database> = db(
 export function mailer(client: SupabaseClient<Database> = db()): Mailer {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM ?? "FOTF Studios <reservas@fotfstudios.cl>";
-  const real = key ? new ResendMailer(key, from) : new NoopMailer();
+  const real = key ? new ResendMailer(key, from, process.env.EMAIL_REPLY_TO || undefined) : new NoopMailer();
   return new LoggedMailer(real, notificationLogRepository(client));
 }
 
