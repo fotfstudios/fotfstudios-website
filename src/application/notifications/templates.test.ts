@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -462,5 +462,40 @@ describe("shell del correo (H11/H13)", () => {
     );
     expect(p.html).not.toContain("Hola:");
     expect(p.text).not.toContain("Hola:");
+  });
+});
+
+/**
+ * Asuntos con la fecha de la sesión: Gmail agrupa por asunto idéntico y colapsa como
+ * "texto citado" lo que se repite entre correos del mismo hilo (visto en el render check
+ * en iPhone: "•••" y barra lateral). Con la fecha, cada sesión es su propio hilo — y el
+ * asunto ya dice cuándo, sin abrir el correo.
+ */
+describe("asuntos de cliente con la fecha de la sesión", () => {
+  const when = "martes 15 de septiembre, 09:00–10:00 h";
+  const wa = "https://wa.me/56962803298";
+  const place = { address: "Los Chercanes 78a", mapsUrl: MAPS };
+  const cases: [string, () => string][] = [
+    ["customerConfirmation", () => customerConfirmation({ ...view, when }, confCtx).subject],
+    ["customerCourtesyConfirmation", () => customerCourtesyConfirmation({ name: null, when, addonNames: [] }, { ...place, whatsappUrl: wa, termsUrl: "t", privacyUrl: "p", links: { calendarUrl: "c", accountUrl: "a" } }).subject],
+    ["customerAccessCode", () => customerAccessCode({ name: null, when, code: "123456" }, { ...place, whatsappUrl: wa }).subject],
+    ["customerReminder", () => customerReminder({ name: null, when }, { ...place, whatsappUrl: wa, statusUrl: "s" }).subject],
+    ["customerCancellation", () => customerCancellation({ name: null, when, refunded: null }, { whatsappUrl: wa }).subject],
+    ["customerCourtesyCancelled", () => customerCourtesyCancelled({ name: null, when }, { whatsappUrl: wa }).subject],
+    ["customerReschedule", () => customerReschedule({ name: null, when, refunded: null }, { ...place, whatsappUrl: wa, calendarUrl: "c" }).subject],
+    ["customerRescheduleFailed", () => customerRescheduleFailed({ name: null, when, refunded: "$1" }, { whatsappUrl: wa }).subject],
+    ["customerHoldExpired", () => customerHoldExpired({ name: null, when }, { whatsappUrl: wa, bookUrl: "b" }).subject],
+    ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
+    ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
+  ];
+
+  it.each(cases)("%s lleva la fecha en el asunto", (_name, subject) => {
+    expect(subject()).toContain("martes 15 de septiembre");
+  });
+
+  it("dos sesiones distintas → dos asuntos distintos (no se enhebran)", () => {
+    const a = customerConfirmation({ ...view, when }, confCtx).subject;
+    const b = customerConfirmation({ ...view, when: "jueves 17 de septiembre, 18:00–20:00 h" }, confCtx).subject;
+    expect(a).not.toBe(b);
   });
 });
