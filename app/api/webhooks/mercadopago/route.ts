@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DateTime } from "luxon";
 import { notificationService, rescheduleNotifyInfo } from "@/src/composition";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import type { Database } from "@/src/infrastructure/db/database.types";
@@ -152,10 +151,7 @@ async function notifyCoursePaidFromWebhook(
     method: "Mercado Pago",
     sessions: sesiones
       .filter((s) => s.status === "agendada" && s.startsAt)
-      .map((s) =>
-        DateTime.fromISO(s.startsAt!).setZone("America/Santiago").setLocale("es")
-          .toFormat("cccc d 'de' LLLL, HH:mm 'h'"),
-      ),
+      .map((s) => ({ startsAt: s.startsAt!, endsAt: s.endsAt })),
     seatsLeft: gen?.seatsLeft ?? 0,
   });
 }

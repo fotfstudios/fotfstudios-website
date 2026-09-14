@@ -106,7 +106,7 @@ export async function createManualBookingAction(
       // cliente recibiendo un correo que no coincidía con su reserva. Sin ficha (walk-in
       // solo-nombre) no hay email y `notifyCourtesy` no manda nada.
       await notificationService()
-        .notifyCourtesy({ email: record?.email ?? null, name: savedCustomer.name, startsAt, addonNames })
+        .notifyCourtesy({ email: record?.email ?? null, name: savedCustomer.name, startsAt, endsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
       return { reservationId, orderId: null, amount: null, customer: savedCustomer, pointsApplied: 0 };

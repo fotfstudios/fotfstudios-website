@@ -16,7 +16,6 @@ import {
   refundService,
 } from "@/src/composition";
 import { hostFromHeaders } from "@/lib/urls";
-import { fmtDateTime } from "@/components/admin/format";
 import { TERMS_VERSION } from "@/lib/site";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
@@ -256,9 +255,10 @@ async function notifyPaid(orderId: string, method: string): Promise<void> {
     generation: inscripciones[0].generationCode,
     totalClp: inscripciones[0].orderAmountClp ?? 0,
     method,
+    // ISO: el formato del correo lo pone el servicio, igual que cuando paga por MP.
     sessions: sesiones
       .filter((s) => s.status === "agendada" && s.startsAt)
-      .map((s) => fmtDateTime(s.startsAt!)),
+      .map((s) => ({ startsAt: s.startsAt!, endsAt: s.endsAt })),
     seatsLeft: gen?.seatsLeft ?? 0,
   });
 }
