@@ -26,6 +26,8 @@ export interface ConfirmationView {
   endsAt: string | null;
   /** Estado del hold — distingue "pago pendiente" (held) de "reserva expirada". */
   reservationStatus: "held" | "confirmed" | "cancelled" | "expired" | null;
+  /** Vencimiento del hold (ISO) — null en hold firme o sin reserva. La isla acota su sondeo con esto. */
+  holdExpiresAt: string | null;
   /** URL para retomar un checkout abandonado (null sin preference). */
   resumeUrl: string | null;
 }
@@ -72,6 +74,9 @@ export function buildConfirmationView(m: OrderConfirmation, tz: string = TZ): Co
     startsAt: m.startsAt,
     endsAt: m.endsAt,
     reservationStatus: m.reservationStatus,
-    resumeUrl: checkoutResumeUrl(m.preferenceId),
+    holdExpiresAt: m.holdExpiresAt,
+    // Sin hold vivo no hay checkout que retomar: MP responde "ya no disponible" y su
+    // "Volver a la tienda" traía al cliente de vuelta aquí en bucle (auditoría H2).
+    resumeUrl: m.reservationStatus === "expired" ? null : checkoutResumeUrl(m.preferenceId),
   };
 }

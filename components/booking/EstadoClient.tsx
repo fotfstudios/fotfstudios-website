@@ -1,26 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MaskText from "@/components/MaskText";
 import Reveal from "@/components/Reveal";
 import CalendarButtons from "@/components/booking/CalendarButtons";
 import ReceiptCard from "@/components/booking/ReceiptCard";
 import WhatsAppCta from "@/components/WhatsAppCta";
 import type { ConfirmationView } from "@/lib/confirmation";
+import { nextPollDelay } from "@/lib/estado-polling";
 import { SITE } from "@/lib/site";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
 type OrderStatus = OrderConfirmation["orderStatus"];
+type ReservationStatus = OrderConfirmation["reservationStatus"];
 
 /** Estados que ya no cambian: cero polling (ni un fetch si el server llegó así). */
 const TERMINAL = new Set<OrderStatus>(["paid", "fulfilled", "cancelled", "refunded"]);
 
 /**
  * Isla cliente de /reserva/estado. Los datos del recibo llegan del servidor
- * (props); aquí solo vive el flip de estado en vivo: polling cada 3 s al
- * endpoint liviano de estado (que reconcilia contra MP bajo demanda) hasta
- * llegar a un estado terminal. Errores de fetch mantienen "Confirmando…".
+ * (props); aquí solo vive el flip de estado en vivo: polling acotado
+ * (lib/estado-polling.ts) al endpoint liviano de estado (que reconcilia contra MP
+ * bajo demanda) hasta llegar a un estado terminal o a que ya no haya nada que
+ * esperar (hold vencido). Errores de fetch mantienen "Confirmando…".
  */
 export default function EstadoClient({
   orderId,
@@ -28,6 +31,7 @@ export default function EstadoClient({
   view,
   sessionUpcoming,
   paymentHint,
+  holdExpiresAt,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
@@ -36,8 +40,17 @@ export default function EstadoClient({
   sessionUpcoming: boolean;
   /** Pista de MP en la URL (solo mensajería): "approved" → probablemente pagó. */
   paymentHint: "approved" | "none";
+  /** Vencimiento del hold (ISO) — acota el sondeo; null en hold firme. */
+  holdExpiresAt: string | null;
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
+  const [reservation, setReservation] = useState<ReservationStatus>(view.reservationStatus);
+  // Último estado conocido para la política de sondeo (evita closures rancios en el bucle).
+  const latest = useRef<{ order: OrderStatus; reservation: ReservationStatus }>({
+    order: initialStatus,
+    reservation: view.reservationStatus,
+  });
+  const [startedAt] = useState(() => Date.now());
   // La pista "approved" caduca a los 30 s sin confirmación real: si el pago no
   // aparece (param falsificado/rancio o backend lento), degrada a "Completa tu
   // pago" en vez de un "Confirmando…" infinito. El polling sigue igual.
@@ -48,25 +61,58 @@ export default function EstadoClient({
     return () => clearTimeout(t);
   }, [paymentHint, initialStatus]);
 
+  // Sondeo acotado (lib/estado-polling.ts): rápido 2 min, lento después, y se corta cuando
+  // la orden es terminal, la reserva venció, o pasó el vencimiento del hold (+2 min).
   useEffect(() => {
-    if (TERMINAL.has(status)) return;
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      const delay = nextPollDelay({
+        orderStatus: latest.current.order,
+        reservationStatus: latest.current.reservation,
+        holdExpiresAt,
+        approvedHint: paymentHint === "approved",
+        startedAt,
+        now: Date.now(),
+      });
+      if (delay !== null) timer = setTimeout(load, delay);
+    };
     const load = async () => {
       try {
         const r = await fetch(`/api/orders/${orderId}/status`);
         const d = await r.json();
-        if (active && d?.status) setStatus(d.status as OrderStatus);
+        if (!active) return;
+        if (d?.status) {
+          latest.current.order = d.status as OrderStatus;
+          setStatus(d.status as OrderStatus);
+        }
+        if (d?.reservation) {
+          latest.current.reservation = d.reservation as ReservationStatus;
+          setReservation(d.reservation as ReservationStatus);
+        }
       } catch {
-        // Red caída o similar: seguimos en "Confirmando…" y reintentamos.
+        // Red caída o similar: seguimos y reintentamos con la misma política.
       }
+      if (active) schedule();
     };
-    const id = setInterval(load, 3000);
-    void load();
+    // Primer poll inmediato (un pago recién aprobado se confirma sin esperar 3 s), salvo
+    // que ya no haya nada que esperar.
+    const first = nextPollDelay({
+      orderStatus: latest.current.order,
+      reservationStatus: latest.current.reservation,
+      holdExpiresAt,
+      approvedHint: paymentHint === "approved",
+      startedAt,
+      now: Date.now(),
+    });
+    if (first !== null) void load();
     return () => {
       active = false;
-      clearInterval(id);
+      if (timer) clearTimeout(timer);
     };
-  }, [orderId, status]);
+    // Solo al montar: el bucle se re-programa solo con `latest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
 
   const ui =
     status === "paid" || status === "fulfilled"
@@ -84,16 +130,18 @@ export default function EstadoClient({
       className="grain relative overflow-hidden border hairline bg-ink"
     >
       <div className="relative p-6 md:p-10">
-        {ui === "confirmed" && (
+        {ui === "confirmed" && reservation === "expired" ? (
+          <PaidNoHold />
+        ) : ui === "confirmed" ? (
           <Confirmed orderId={orderId} view={view} sessionUpcoming={sessionUpcoming} />
-        )}
+        ) : null}
         {ui === "failed" && <Failed />}
         {ui === "refunded" && <Refunded />}
         {ui === "pending" &&
-          (view.reservationStatus === "expired" ? (
-            <ExpiredHold />
-          ) : paymentHint === "approved" && !hintExpired ? (
+          (paymentHint === "approved" && !hintExpired ? (
             <Pending view={view} />
+          ) : reservation === "expired" ? (
+            <ExpiredHold />
           ) : (
             <PendingPayment view={view} />
           ))}
@@ -308,6 +356,32 @@ function ExpiredHold() {
         <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
           Volver a reservar →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ── Estado: pago recibido, pero el cupo ya se había liberado (paid_no_hold) ── */
+
+function PaidNoHold() {
+  return (
+    <div>
+      <span className="label-sm text-bone-mute">Pago recibido</span>
+      <h1 className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}>
+        Recibimos tu pago
+      </h1>
+      <p className="mt-4 text-bone-dim">
+        El horario se había liberado antes de que llegara el pago. Te escribimos para
+        reagendar o devolverte el monto — no tienes que hacer nada.
+      </p>
+      <div className="mt-8">
+        <WhatsAppCta
+          source="estado-pago-sin-cupo"
+          waMessage="Hola FOTF Studios. Pagué una reserva pero el horario ya se había liberado."
+          className="inline-flex bg-gold px-6 py-3 label text-ink"
+        >
+          Escríbenos por WhatsApp →
+        </WhatsAppCta>
       </div>
     </div>
   );

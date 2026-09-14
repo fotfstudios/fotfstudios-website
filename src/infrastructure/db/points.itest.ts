@@ -333,6 +333,65 @@ describe("liberación de canjes (órdenes que mueren sin pagar)", () => {
   });
 });
 
+/** Vence el hold de la orden y lo barre en la misma transacción (el cron de la base no se cuela). */
+const expireAndSweep = async (orderId: string) => {
+  await pg.query("begin");
+  await pg.query("update reservations set expires_at = now() - interval '1 minute' where order_id=$1", [orderId]);
+  await pg.query("select expire_stale_holds()");
+  await pg.query("commit");
+};
+
+describe("expiración del hold (H1/H3)", () => {
+  it("expire_stale_holds repone el canje al vencer el hold; la orden sigue pendiente", async () => {
+    await seedPoints(4000);
+    const b = await book(600, { points: 4000 });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+    expect(await balance()).toBe(0);
+
+    await expireAndSweep(orderId);
+    expect(await balance()).toBe(4000);
+    expect((await pg.query<{ s: string }>("select status s from reservations where order_id=$1", [orderId])).rows[0].s).toBe("expired");
+    expect((await pg.query<{ s: string }>("select status s from orders where id=$1", [orderId])).rows[0].s).toBe("pending_payment");
+    const releases = await pg.query<{ n: string }>(
+      "select count(*)::text n from points_ledger where order_id=$1 and kind='redeem_release'", [orderId],
+    );
+    expect(Number(releases.rows[0].n)).toBe(1);
+
+    // Idempotente por KIND: ni el barrido de 72 h ni un cancel posterior (ref distinto) reponen dos veces.
+    expect((await pg.query<{ n: number }>("select release_abandoned_redemptions('0 hours') n")).rows[0].n).toBe(0);
+    await pg.query("select cancel_unpaid_order($1)", [orderId]);
+    expect(await balance()).toBe(4000);
+    await expectBalanceConsistent();
+  });
+
+  it("un pago tardío tras la liberación se auto-repara (re-canje + earn)", async () => {
+    await seedPoints(4000);
+    const b = await book(600, { points: 4000 });
+    if (!b.ok) return;
+    await expireAndSweep(b.value.orderId);
+    expect(await balance()).toBe(4000);
+    const late = await pg.query<{ r: string }>("select confirm_payment($1, 'late_pay') r", [b.value.orderId]);
+    expect(late.rows[0].r).toBe("paid_no_hold"); // la reserva sigue expired: cupo liberado, pago retenido para revisión
+    expect(await balance()).toBe(computeEarn(HOUR_PRICE - 4000));
+    await expectBalanceConsistent();
+  });
+
+  it("el índice parcial impide dos redeem_release aunque lleguen con refs distintos", async () => {
+    await seedPoints(4000);
+    const b = await book(600, { points: 4000 });
+    if (!b.ok) return;
+    await expireAndSweep(b.value.orderId);
+    // Segundo release "a mano" con otro ref: apply_points → on conflict do nothing → false.
+    const second = await pg.query<{ ok: boolean }>(
+      "select apply_points($1, $2, 'redeem_release', 4000, 'otro-ref') ok", [CUST_ID, b.value.orderId],
+    );
+    expect(second.rows[0].ok).toBe(false);
+    expect(await balance()).toBe(4000);
+  });
+});
+
 describe("claw-back en reembolsos (mark_refunded)", () => {
   it("parciales acumulados convergen exacto; replay del mismo refund es no-op", async () => {
     // Orden canónica del spec: C=20000, P=5000 (insertada directa para montos redondos).

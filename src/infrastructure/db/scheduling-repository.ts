@@ -39,11 +39,16 @@ export class SupabaseSchedulingRepository implements SchedulingRepository {
     startUtc: string,
     endUtc: string,
   ): Promise<BookedRange[]> {
+    // Un hold vencido que el barrido (cron cada minuto) aún no marcó `expired` no ocupa
+    // el horario: sin esto, un checkout abandonado bloqueaba el slot hasta que otra
+    // persona reservara en la sala (auditoría 2026-09-13, H1). Hold firme = null → sigue.
+    const nowIso = new Date().toISOString();
     const { data } = await this.db
       .from("reservations")
       .select("starts_at, ends_at")
       .eq("resource_id", resourceId)
       .in("status", ["held", "confirmed"])
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
       .lt("starts_at", endUtc)
       .gt("ends_at", startUtc);
     return (data ?? []).map((r) => ({ startsAt: r.starts_at, endsAt: r.ends_at }));

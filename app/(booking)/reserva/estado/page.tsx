@@ -52,6 +52,7 @@ export default async function EstadoPage({
           view={view}
           sessionUpcoming={sessionUpcoming}
           paymentHint={paymentHint}
+          holdExpiresAt={order.holdExpiresAt}
         />
       </div>
     </main>

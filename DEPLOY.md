@@ -191,3 +191,8 @@ No hay *down-migrations*. Para revertir un cambio de esquema:
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI + job `migrate`.
 - [.github/rulesets/main.json](.github/rulesets/main.json) — protección de `main`.
 - [vercel.json](vercel.json) — build config + crons + `ignoreCommand`.
+- **pg_cron en la base (no en Vercel):** `expire-holds` (`* * * * *`, `select public.expire_stale_holds()`,
+  migración `20260914020000`), `purge-cron-history` (domingos 03:00 UTC, borra `cron.job_run_details` > 7 días)
+  y `access-codes` (`*/5`, necesita secretos en Vault). Verificar tras un deploy:
+  `select jobname, status, start_time from cron.job_run_details d join cron.job j using (jobid) order by start_time desc limit 5;`
+  — y el primer domingo, que `purge-cron-history` aparezca con `succeeded`.

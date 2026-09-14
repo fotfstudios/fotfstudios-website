@@ -6,6 +6,7 @@ import type {
   OrderPaymentRepository,
   RecordPreferenceParams,
 } from "@/src/application/ports/orders";
+import { effectiveReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 import type { Database } from "./database.types";
 
 export class SupabaseOrderRepository implements OrderPaymentRepository, OrderConfirmationReader {
@@ -26,7 +27,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
 
     const { data: r } = await this.db
       .from("reservations")
-      .select("starts_at, ends_at, status, resources(name)")
+      .select("starts_at, ends_at, status, expires_at, resources(name)")
       .eq("order_id", orderId)
       .limit(1)
       .maybeSingle();
@@ -43,7 +44,8 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
       startsAt: r?.starts_at ?? null,
       endsAt: r?.ends_at ?? null,
       resourceName: r?.resources?.name ?? null,
-      reservationStatus: r?.status ?? null,
+      reservationStatus: r ? effectiveReservationStatus(r.status, r.expires_at) : null,
+      holdExpiresAt: r?.expires_at ?? null,
       preferenceId: o.mp_preference_id,
       lines: (lines ?? []).map((l) => ({ description: l.description, subtotal: l.subtotal_clp })),
       total: o.amount_clp,
