@@ -436,3 +436,38 @@ describe("notifyCourseRefunded — inscripción pagada cancelada", () => {
     expect(msg.html).not.toMatch(/ningún cobro|reembolsamos/);
   });
 });
+
+describe("un solo formato de horario en todos los correos (H7)", () => {
+  it("la confirmación de reserva lleva el rango de horas", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "ana@e.cl",
+      name: "Ana",
+      amount: 9990,
+      currency: "CLP",
+      startsAt: "2999-07-12T18:00:00Z",
+      endsAt: "2999-07-12T20:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    await service.notifyOrder("o1");
+    expect(mailer.send.mock.calls[0][0].html).toContain("14:00–16:00 h");
+  });
+
+  it("notifyCoursePaid recibe las sesiones en ISO y las formatea él mismo (mismo formato desde admin y webhook)", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCoursePaid({
+      students: [{ name: "Ana", email: "ana@e.cl" }],
+      generation: "G3",
+      totalClp: 149990,
+      method: "efectivo",
+      sessions: [{ startsAt: "2026-10-05T22:00:00Z", endsAt: "2026-10-06T00:00:00Z" }],
+      seatsLeft: 3,
+    });
+    const html = mailer.send.mock.calls[0][0].html;
+    expect(html).toContain("lunes 5 de octubre, 19:00–21:00 h");
+    expect(html).not.toContain("lun 5 oct");
+  });
+});

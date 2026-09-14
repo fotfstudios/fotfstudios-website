@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { formatSessionWhen } from "./format-when";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
@@ -77,9 +78,7 @@ export class NotificationService {
     // reintenta hasta que la sesión termine); el del dueño es best-effort.
     if (!(await this.repo.markNotified(orderId))) return false;
 
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     const view = {
       name: o.name,
       when,
@@ -116,13 +115,11 @@ export class NotificationService {
     email: string | null;
     name: string | null;
     startsAt: string;
+    endsAt?: string | null;
     addonNames: string[];
   }): Promise<boolean> {
     if (!input.email) return false;
-    const when = DateTime.fromISO(input.startsAt)
-      .setZone(this.config.tz)
-      .setLocale("es")
-      .toFormat("cccc d 'de' LLLL, HH:mm 'h'");
+    const when = this.when(input.startsAt, input.endsAt ?? null);
     await this.mailer.send({
       to: input.email,
       ...customerCourtesyConfirmation(
@@ -147,13 +144,11 @@ export class NotificationService {
     email: string | null;
     name: string | null;
     startsAt: string;
+    endsAt?: string | null;
     code: string;
   }): Promise<boolean> {
     if (!input.email) return false;
-    const when = DateTime.fromISO(input.startsAt)
-      .setZone(this.config.tz)
-      .setLocale("es")
-      .toFormat("cccc d 'de' LLLL, HH:mm 'h'");
+    const when = this.when(input.startsAt, input.endsAt ?? null);
     await this.mailer.send({
       to: input.email,
       ...customerAccessCode(
@@ -177,9 +172,7 @@ export class NotificationService {
   ): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: o.email,
       ...customerCancellation(
@@ -203,9 +196,7 @@ export class NotificationService {
   async notifyReschedule(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: o.email,
       ...customerReschedule(
@@ -224,9 +215,7 @@ export class NotificationService {
   async notifyRescheduleFailed(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: o.email,
       ...customerRescheduleFailed(
@@ -246,9 +235,7 @@ export class NotificationService {
     if (!this.config.ownerEmail) return;
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o) return;
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: this.config.ownerEmail,
       ...ownerNeedsReview({ when, total: formatCLP(o.amount), email: o.email, paymentId }),
@@ -300,17 +287,19 @@ export class NotificationService {
     generation: string;
     totalClp: number;
     method: string;
-    sessions: string[];
+    /** Sesiones agendadas en ISO; el formato lo pone el servicio (uno solo, venga de donde venga). */
+    sessions: { startsAt: string; endsAt?: string | null }[];
     seatsLeft: number;
   }): Promise<void> {
     const total = formatCLP(v.totalClp);
+    const sessions = v.sessions.map((s) => this.when(s.startsAt, s.endsAt ?? null));
     // Un dúo son dos alumnos: cada uno recibe su confirmación, aunque el pedido
     // sea uno solo.
     for (const student of v.students) {
       await this.mailer.send({
         to: student.email,
         ...courseEnrollmentPaid(
-          { name: student.name, generation: v.generation, total, sessions: v.sessions },
+          { name: student.name, generation: v.generation, total, sessions },
           { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
         ),
       });
@@ -366,9 +355,7 @@ export class NotificationService {
     // NO se marca notified_at: eso pertenece al email de CONFIRMACIÓN, que sale
     // cuando la reserva se paga. Marcarlo acá dejaría al cliente sin su
     // confirmación y al dueño sin su aviso de reserva pagada.
-    const when = o.startsAt
-      ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
-      : "—";
+    const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: o.email,
       ...bookingPaymentPending(
@@ -435,5 +422,10 @@ export class NotificationService {
       }
     }
     return { notified, failed };
+  }
+
+  /** Horario en el formato único de los correos; "—" si la orden no tiene reserva. */
+  private when(startsAt: string | null, endsAt: string | null): string {
+    return startsAt ? formatSessionWhen(startsAt, this.config.tz, { endsAt }) : "—";
   }
 }
