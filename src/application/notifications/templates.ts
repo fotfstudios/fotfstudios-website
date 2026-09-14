@@ -106,19 +106,28 @@ export function customerAccessCode(
 
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
-  v: { name: string | null; when: string; refunded: string | null },
+  v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null },
   ctx: { whatsappUrl: string },
 ): EmailContent {
-  const refundLine = v.refunded
-    ? `<p style="color:#b9b5ab;margin:0 0 16px">Te reembolsamos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
-    : "";
+  // Orden pagada 100% con puntos: no hubo cobro, se reponen puntos (nada de "tarjeta").
+  const pts = v.restoredPoints && v.restoredPoints > 0 ? `${Math.round(v.restoredPoints).toLocaleString("es-CL")} puntos` : null;
+  const refundLine = pts
+    ? `<p style="color:#b9b5ab;margin:0 0 16px">Te repusimos <strong style="color:#f5f2ec">${pts}</strong> en tu cuenta.</p>`
+    : v.refunded
+      ? `<p style="color:#b9b5ab;margin:0 0 16px">Te reembolsamos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
+      : "";
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">Reserva cancelada</h1>
      <p style="color:#b9b5ab;margin:0 0 16px">${v.name ? `Hola ${esc(v.name)}, ` : ""}tu sesión del <strong style="color:#f5f2ec">${esc(v.when)}</strong> fue cancelada.</p>
      ${refundLine}
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
   );
-  const text = `Tu reserva del ${v.when} fue cancelada.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} ¿Dudas? ${ctx.whatsappUrl}`;
+  const textLine = pts
+    ? ` Te repusimos ${pts} en tu cuenta.`
+    : v.refunded
+      ? ` Te reembolsamos ${v.refunded} al medio de pago original.`
+      : "";
+  const text = `Tu reserva del ${v.when} fue cancelada.${textLine} ¿Dudas? ${ctx.whatsappUrl}`;
   return { subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
 }
 
