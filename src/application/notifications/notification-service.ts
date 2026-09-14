@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { formatSessionWhen } from "./format-when";
+import { buildIcs, googleCalendarUrl } from "@/src/domain/calendar/ics";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
@@ -28,6 +29,8 @@ import {
 
 export interface NotificationConfig {
   ownerEmail: string;
+  /** Origen público del sitio (https://www.fotfstudios.cl): links a la reserva y a la cuenta. */
+  siteUrl: string;
   tz: string;
   address: string;
   whatsappUrl: string;
@@ -87,10 +90,22 @@ export class NotificationService {
     };
 
     if (o.email) {
+      // La reserva al bolsillo: recibo público (sin login), Google Calendar y el .ics
+      // adjunto (Apple Mail / Gmail lo ofrecen como evento), más la cuenta.
+      const links = {
+        statusUrl: `${this.config.siteUrl}/reserva/estado?b=${orderId}`,
+        calendarUrl: o.startsAt && o.endsAt ? googleCalendarUrl(this.calendarEvent(orderId, o.startsAt, o.endsAt)) : this.config.siteUrl,
+        accountUrl: `${this.config.siteUrl}/cuenta`,
+      };
+      const attachments =
+        o.startsAt && o.endsAt
+          ? [{ filename: "reserva-fotf.ics", content: buildIcs(this.calendarEvent(orderId, o.startsAt, o.endsAt)) }]
+          : undefined;
       try {
         await this.mailer.send({
           to: o.email,
-          ...customerConfirmation(view, { address: this.config.address, whatsappUrl: this.config.whatsappUrl }),
+          ...customerConfirmation(view, { address: this.config.address, whatsappUrl: this.config.whatsappUrl, links }),
+          ...(attachments ? { attachments } : {}),
         });
       } catch (e) {
         await this.repo.releaseNotified(orderId).catch((e2) => console.error("[notify:release]", orderId, e2));
@@ -422,6 +437,19 @@ export class NotificationService {
       }
     }
     return { notified, failed };
+  }
+
+  /** El evento de calendario de una sesión (mismo uid/summary que los botones de /reserva/estado). */
+  private calendarEvent(orderId: string, startsAt: string, endsAt: string) {
+    return {
+      start: startsAt,
+      end: endsAt,
+      summary: "FOTF Studios — Sala",
+      description: "Tu código de acceso te llega por email 10 minutos antes de tu sesión.",
+      location: this.config.address,
+      uid: `fotf-${orderId}@fotfstudios.cl`,
+      url: `${this.config.siteUrl}/reserva/estado?b=${orderId}`,
+    };
   }
 
   /** Horario en el formato único de los correos; "—" si la orden no tiene reserva. */

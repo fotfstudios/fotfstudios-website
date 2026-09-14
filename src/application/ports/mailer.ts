@@ -5,6 +5,8 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text?: string;
+  /** Adjuntos (p. ej. el .ics de la sesión); contenido en texto. */
+  attachments?: { filename: string; content: string }[];
 }
 
 /** Contenido de un email sin destinatario (el servicio decide a quién). */

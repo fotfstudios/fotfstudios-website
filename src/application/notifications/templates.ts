@@ -38,7 +38,12 @@ const shell = (inner: string) =>
 /** Email al cliente: confirmación de reserva + cómo llega el acceso (PIN por email 10 min antes). */
 export function customerConfirmation(
   v: BookingView,
-  ctx: { address: string; whatsappUrl: string },
+  ctx: {
+    address: string;
+    whatsappUrl: string;
+    /** La reserva al bolsillo: recibo público, calendario y la cuenta (puntos + próximas). */
+    links: { statusUrl: string; calendarUrl: string; accountUrl: string };
+  },
 ): EmailContent {
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">¡Reserva confirmada!</h1>
@@ -48,9 +53,11 @@ export function customerConfirmation(
      <table style="width:100%;border-top:1px solid #1e1d1a;border-bottom:1px solid #1e1d1a;margin:8px 0">${rows(v.lines)}</table>
      <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:#8c8880;font-size:12px">IVA incluido</span></p>
      <p style="color:#b9b5ab;margin:16px 0">Tu <strong style="color:#f5f2ec">código de acceso te llega por email 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+     <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:#e8c94a;font-weight:bold">Ver mi reserva</a> <span style="color:#8c8880">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:#e8c94a;font-weight:bold">Agregar a mi calendario</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0">Tus puntos y tus próximas sesiones, en <a href="${esc(ctx.links.accountUrl)}" style="color:#e8c94a">tu cuenta</a>.</p>`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (puntos y próximas sesiones): ${ctx.links.accountUrl}`;
   return { template: "customerConfirmation", subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 

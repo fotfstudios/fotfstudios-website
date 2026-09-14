@@ -20,6 +20,7 @@ export class ResendMailer implements Mailer {
       text: msg.text ?? "",
       // Etiqueta por plantilla: en el panel de Resend se ve qué correo rebota o se demora.
       tags: [{ name: "template", value: msg.template }],
+      ...(msg.attachments ? { attachments: msg.attachments } : {}),
     });
     if (error) throw new Error(error.message);
   }
