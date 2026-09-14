@@ -36,7 +36,7 @@ export function CobroPendiente({
 }) {
   const toast = useToast();
   const [method, setMethod] = useState<OfflineMethod>("efectivo");
-  const [link, setLink] = useState<{ initPoint: string; amount: number } | null>(null);
+  const [link, setLink] = useState<{ initPoint: string; amount: number; firmed: boolean } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -92,6 +92,7 @@ export function CobroPendiente({
           <div className="mt-2.5 flex flex-col gap-2.5">
             <p className="text-sm leading-relaxed text-bone-dim">
               Cobro de <strong className="text-bone">{formatCLP(link.amount)}</strong> generado (vence en 72 h).
+              {link.firmed && " El horario queda reservado esas 72 h aunque el cliente no pague de inmediato."}
             </p>
             <a href={link.initPoint} target="_blank" rel="noreferrer" className={btn("secondary", "sm")}>
               <Icon name="external" size={14} /> Abrir link de pago

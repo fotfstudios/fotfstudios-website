@@ -556,3 +556,29 @@ describe("assignCustomer (adaptador)", () => {
     expect(String(err?.cause)).toMatch(/uuid/i);
   });
 });
+
+describe("firmUpHold (link de pago sobre hold de cliente)", () => {
+  const customerHold = () =>
+    checkout.createBooking({ resourceId, date: MON, startMinute: 600, durationHours: 1, customer: { email: "link@cliente.cl" } });
+  const reservationOf = async (orderId: string) =>
+    (await pg.query<{ id: string; expires_at: string | null }>("select id, expires_at from reservations where order_id=$1", [orderId])).rows[0];
+
+  it("convierte un hold vivo de 10 min en firme (expires_at null) una sola vez", async () => {
+    const b = await customerHold();
+    if (!b.ok) throw new Error(b.error);
+    const r = await reservationOf(b.value.orderId);
+    expect(r.expires_at).not.toBeNull();
+    expect(await repo.firmUpHold(r.id)).toBe("firmed");
+    expect((await reservationOf(b.value.orderId)).expires_at).toBeNull();
+    expect(await repo.firmUpHold(r.id)).toBe("already_firm");
+  });
+
+  it("un hold ya vencido no se resucita", async () => {
+    const b = await customerHold();
+    if (!b.ok) throw new Error(b.error);
+    await pg.query("update reservations set expires_at = now() - interval '1 minute' where order_id=$1", [b.value.orderId]);
+    const r = await reservationOf(b.value.orderId);
+    expect(await repo.firmUpHold(r.id)).toBe("not_held");
+    expect((await reservationOf(b.value.orderId)).expires_at).not.toBeNull();
+  });
+});

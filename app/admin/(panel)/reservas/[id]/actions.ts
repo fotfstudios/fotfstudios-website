@@ -238,15 +238,19 @@ export async function markPaidOfflineAction(_prev: ActionResult | null, fd: Form
 
 /**
  * Genera un link de pago MP (72 h) para una reserva pendiente; el webhook confirma al pagarse.
- * No muta el pago: la card ya la oculta la gate `status === "held"` arriba, y si de todas
- * formas se paga un link para un hold ya expirado, el webhook de MP maneja `paid_no_hold`
- * (mismo aviso al dueño) — no hace falta duplicar esa lógica acá.
+ * Un hold de cliente (10 min) pasa a firme ANTES de emitir el link: si no, el link sobrevivía
+ * ~72 h al cupo y un pago tardío caía en paid_no_hold (auditoría 2026-09-13, H5). Un hold
+ * ya vencido no tiene cupo que cobrar → error; el dueño crea una reserva manual nueva.
  */
-export async function sharePaymentLinkAction(reservationId: string): Promise<ActionDataResult<{ initPoint: string; amount: number }>> {
+export async function sharePaymentLinkAction(
+  reservationId: string,
+): Promise<ActionDataResult<{ initPoint: string; amount: number; firmed: boolean }>> {
   return runData(async () => {
     await requirePermission("reservations.create");
     const order = await adminRepository().orderForReservation(reservationId);
     if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
+    const firm = await adminRepository().firmUpHold(reservationId);
+    if (firm === "not_held") throw new Error("El horario ya se liberó (el hold venció). Crea una reserva nueva.");
     const host = hostFromHeaders(await headers());
     const pref = await paymentService(db(), host).createPreferenceForOrder(order.orderId, { expiresInMinutes: 72 * 60 });
     if (!pref.ok) throw new Error(pref.error);
@@ -259,6 +263,7 @@ export async function sharePaymentLinkAction(reservationId: string): Promise<Act
     await notificationService()
       .notifyBookingPaymentLink(order.orderId, { initPoint: pref.value.initPoint, expiresInHours: 72 })
       .catch((e) => console.error("[sharePaymentLink:email]", e));
-    return { initPoint: pref.value.initPoint, amount: order.amountClp };
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    return { initPoint: pref.value.initPoint, amount: order.amountClp, firmed: firm === "firmed" };
   });
 }

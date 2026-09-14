@@ -834,6 +834,27 @@ export class SupabaseAdminRepository {
     };
   }
 
+  /**
+   * Convierte un hold de cliente (10 min) en hold firme (expires_at null) antes de emitir
+   * un link de pago de 72 h — el link no debe sobrevivir al cupo. Queda en el mismo estado
+   * que una reserva manual pendiente: expire_abandoned_manual_holds lo barre a las 72 h si
+   * nadie paga. Un hold ya vencido (aunque el barrido no lo haya marcado) NO se resucita.
+   */
+  async firmUpHold(reservationId: string): Promise<"firmed" | "already_firm" | "not_held"> {
+    const { data: updated, error } = await this.db
+      .from("reservations")
+      .update({ expires_at: null })
+      .eq("id", reservationId)
+      .eq("status", "held")
+      .not("expires_at", "is", null)
+      .gt("expires_at", new Date().toISOString())
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (updated && updated.length > 0) return "firmed";
+    const { data: r } = await this.db.from("reservations").select("status, expires_at").eq("id", reservationId).single();
+    return r?.status === "held" && r.expires_at === null ? "already_firm" : "not_held";
+  }
+
   /** Boletas vivas + su pago (más-antigua-primero) para repartir el reembolso por-pago. */
   async backingBoletas(orderId: string): Promise<BackingBoleta[]> {
     const { data, error } = await this.db.rpc("order_backing_boletas", { p_order: orderId });
