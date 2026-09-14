@@ -851,7 +851,12 @@ export class SupabaseAdminRepository {
       .select("id");
     if (error) throw new Error(error.message);
     if (updated && updated.length > 0) return "firmed";
-    const { data: r } = await this.db.from("reservations").select("status, expires_at").eq("id", reservationId).single();
+    const { data: r, error: selErr } = await this.db
+      .from("reservations")
+      .select("status, expires_at")
+      .eq("id", reservationId)
+      .single();
+    if (selErr) throw new Error(selErr.message);
     return r?.status === "held" && r.expires_at === null ? "already_firm" : "not_held";
   }
 
