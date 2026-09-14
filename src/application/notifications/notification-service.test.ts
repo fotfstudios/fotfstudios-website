@@ -289,3 +289,28 @@ describe("notifyCancellation — orden 100% puntos", () => {
     expect(msg.html).not.toMatch(/tarjeta|reembolsamos/);
   });
 });
+
+describe("notifyCourseRefunded — inscripción pagada cancelada", () => {
+  const students = [
+    { name: "Ana", email: "ana@e.cl" },
+    { name: "Beto", email: "beto@e.cl" },
+  ];
+
+  it("manda un correo por alumno con el monto devuelto en CLP", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourseRefunded({ students, generation: "G3", refundedClp: 149990 });
+    expect(mailer.send).toHaveBeenCalledTimes(2);
+    const tos = mailer.send.mock.calls.map((c) => c[0].to);
+    expect(tos).toEqual(["ana@e.cl", "beto@e.cl"]);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.html).toContain("$149.990");
+    expect(msg.html).toContain("G3");
+  });
+
+  it("sin reembolso: nunca dice que no hubo cobro", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourseRefunded({ students: [students[0]], generation: "G3", refundedClp: null });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.html).not.toMatch(/ningún cobro|reembolsamos/);
+  });
+});

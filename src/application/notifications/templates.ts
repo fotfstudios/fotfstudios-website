@@ -399,6 +399,30 @@ export function courseEnrollmentCancelled(
   return { subject: "Tu inscripción quedó anulada — Curso de DJ", html, text };
 }
 
+/**
+ * Email al alumno: su inscripción PAGADA fue cancelada, con o sin reembolso. Espejo de
+ * `customerCancellation`: con monto dice cuánto y a dónde vuelve; sin monto no dice nada
+ * de dinero (la política de /terminos ya lo explica; una línea confrontacional acá no ayuda).
+ * Nunca "no se hizo ningún cobro" — eso es `courseEnrollmentCancelled`, para la impaga.
+ */
+export function courseEnrollmentRefunded(
+  v: { name: string; generation: string; refunded: string | null },
+  ctx: { whatsappUrl: string },
+): EmailContent {
+  const refundLine = v.refunded
+    ? `<p style="color:#b9b5ab;margin:0 0 16px">Te reembolsamos <strong style="color:#f5f2ec">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
+    : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Inscripción cancelada</h1>
+     <p style="color:#b9b5ab;margin:0 0 16px">Hola ${esc(v.name)}: cancelamos tu cupo en la generación ${esc(v.generation)} del Curso de Iniciación DJ.</p>
+     ${refundLine}
+     <p style="color:#b9b5ab;margin:0 0 20px">Si quieres entrar a la siguiente generación, escríbenos y lo vemos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+  );
+  const text = `Cancelamos tu cupo en la generación ${v.generation} del Curso de Iniciación DJ.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Si quieres entrar a la siguiente generación: ${ctx.whatsappUrl}`;
+  return { subject: "Tu inscripción al Curso de DJ fue cancelada", html, text };
+}
+
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
   v: BookingView & { email: string | null },

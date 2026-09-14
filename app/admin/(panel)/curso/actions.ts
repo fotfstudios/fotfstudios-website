@@ -445,10 +445,13 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
       if (res.alreadyProcessed) throw new Error("Ese reembolso ya estaba registrado.");
     }
 
+    // Plantilla de la PAGADA: dice cuánto se devolvió (o nada de dinero si no se
+    // devuelve). La de la impaga ("no se hizo ningún cobro") acá sería falsa.
     await notificationService()
-      .notifyCourseCancelled({
+      .notifyCourseRefunded({
         students: compañeros.map((i) => ({ name: i.studentName, email: i.studentEmail })),
         generation: compañeros[0]?.generationCode ?? "",
+        refundedClp: amount,
       })
       .catch((e) => console.error("[curso:reembolso:email]", e));
 

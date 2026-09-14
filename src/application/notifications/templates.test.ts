@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentRefunded, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const view = {
   name: "Ana",
@@ -247,5 +247,41 @@ describe("cancelación de una orden 100% puntos", () => {
     expect(m.text).toContain("14.990 puntos");
     expect(m.html).not.toMatch(/medio de pago original|tarjeta|reembolsamos/);
     expect(m.text).not.toMatch(/medio de pago original|reembolsamos/);
+  });
+});
+
+describe("reembolso de inscripción de curso (pagada)", () => {
+  it("con monto: dice cuánto se devolvió y al medio de pago original", () => {
+    const m = courseEnrollmentRefunded(
+      { name: "Ana", generation: "G3", refunded: "$149.990" },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.subject).toMatch(/cancelada/i);
+    expect(m.html).toContain("G3");
+    expect(m.html).toContain("$149.990");
+    expect(m.html).toContain("medio de pago original");
+    expect(m.text).toContain("$149.990");
+    expect(m.text).toContain("medio de pago original");
+    expect(m.html).toContain("https://wa.me/56962803298");
+  });
+
+  it("sin monto: no dice que no hubo cobro ni habla de dinero", () => {
+    const m = courseEnrollmentRefunded(
+      { name: "Ana", generation: "G3", refunded: null },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.html).not.toMatch(/ningún cobro|reembolsamos|tarjeta|\$/);
+    expect(m.text).not.toMatch(/ningún cobro|reembolsamos|\$/);
+    expect(m.html).toContain("G3");
+  });
+
+  it("escapa nombre y generación (anti-XSS)", () => {
+    const m = courseEnrollmentRefunded(
+      { name: "<b>Ana</b>", generation: "<i>G3</i>", refunded: null },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.html).not.toContain("<b>Ana</b>");
+    expect(m.html).not.toContain("<i>G3</i>");
+    expect(m.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
   });
 });
