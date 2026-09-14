@@ -21,12 +21,25 @@ describe("orderLinesFromQuote", () => {
     expect(orderLinesFromQuote(base)).toEqual([
       {
         line_type: "room_time",
-        description: "Sala · 1h (valle)",
+        description: "Sala · 1h (Valle)",
         quantity: 1,
         unit_price_clp: 9990,
         subtotal_clp: 9990,
       },
     ]);
+  });
+
+  it("la glosa usa la etiqueta del tramo, no la clave interna", () => {
+    // Bruto = total → sin línea de ajuste: la única línea es la de sala.
+    const q: Quote = {
+      ...base,
+      tierLines: [{ key: "puntaSemana", hours: 1, rate: 14990, subtotal: 14990 }],
+      roomSubtotal: 14990,
+      total: 14990,
+    };
+    const lines = orderLinesFromQuote(q);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].description).toBe("Sala · 1h (Punta semana)");
   });
 
   it("con add-on → agrega una línea flat_service con addon_key", () => {

@@ -1,4 +1,5 @@
 import type { Quote } from "./types";
+import { tierLabel } from "./tier-labels";
 
 /** Línea de pedido priceada. Fuente única del shape (la reexporta el puerto de checkout). */
 export interface OrderLine {
@@ -95,7 +96,7 @@ export function orderLinesFromQuote(quote: Quote): OrderLine[] {
   const lines: OrderLine[] = [
     ...quote.tierLines.map((l) => ({
       line_type: "room_time" as const,
-      description: `Sala · ${l.hours}h (${l.key})`,
+      description: `Sala · ${l.hours}h (${tierLabel(l.key)})`,
       quantity: l.hours,
       unit_price_clp: l.rate,
       subtotal_clp: l.subtotal,
