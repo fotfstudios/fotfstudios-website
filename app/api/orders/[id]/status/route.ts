@@ -68,9 +68,17 @@ export async function GET(
       try {
         const reconcileResult = await reconcileOrder(id, client);
         row = (await readOrder(client, id)) ?? row;
-        // Pagó pero el hold ya no existía: si el sondeo reconcilia antes que el webhook, el
-        // webhook llega como duplicado y su aviso nunca sale — el aviso al dueño va aquí.
-        if (reconcileResult?.result === "paid_unreserved") {
+        // Si el sondeo reconcilia antes que el webhook, el webhook llega como duplicado y su
+        // aviso nunca sale — los emails van aquí. `notifyOrder` es idempotente (notified_at),
+        // así que si el webhook ganó, esto no duplica; y sin webhook (sandbox, o uno perdido
+        // en prod) el cliente no espera al cron de la noche mientras la página le dice
+        // "te enviamos un email".
+        if (reconcileResult?.result === "paid") {
+          await notificationService(client)
+            .notifyOrder(id)
+            .catch((e) => console.error("[order-status:email]", e));
+        } else if (reconcileResult?.result === "paid_unreserved") {
+          // Pagó pero el hold ya no existía: aviso al dueño, nunca confirmación al cliente.
           await notificationService(client)
             .notifyPaymentNeedsReview(id, reconcileResult.orderId ?? id)
             .catch((e) => console.error("[order-status:review]", e));
