@@ -1,8 +1,9 @@
 # Auditoría E2E del flujo de reserva en línea (stack local)
 
-**Fecha:** 2026-09-13, 20:49–21:12 (America/Santiago). **Estado:** solo hallazgos; ningún
-cambio de código. Stack: Docker + Supabase CLI 2.109 (47/47 migraciones, seed intacto) +
-`next dev` 15.5.19 + túnel ngrok estático (`secluding-backpedal-authentic.ngrok-free.dev`)
+**Fecha:** 2026-09-13, 20:49–21:12 (America/Santiago). **Estado:** H1–H4 corregidos en la rama
+fix/hold-expiry-lifecycle (PR A); H5–H9 en curso (PRs B y C). Cada hallazgo anota su PR al
+mergearse. Stack: Docker + Supabase CLI 2.109 (47/47 migraciones, seed intacto) +
+`next dev` 15.5.19 + túnel ngrok estático
 + credenciales de prueba de MP (vendedor `3497260371`).
 
 ## Resumen

@@ -11,11 +11,13 @@
 --    NO se bloquea la fila de orders aquí a propósito: confirm_payment bloquea orders → reservations
 --    y el barrido reservations → orders; un lock explícito sería un deadlock webhook-vs-vencimiento.
 do $$
+declare v_dups text;
 begin
-  if exists (
-    select 1 from points_ledger where kind = 'redeem_release' group by order_id having count(*) > 1
-  ) then
-    raise exception 'points_ledger tiene órdenes con más de un redeem_release; reconciliar antes de migrar';
+  select string_agg(order_id::text, ', ') into v_dups
+    from (select order_id from points_ledger where kind = 'redeem_release'
+          group by order_id having count(*) > 1) d;
+  if v_dups is not null then
+    raise exception 'points_ledger tiene más de un redeem_release en: % — reconciliar antes de migrar', v_dups;
   end if;
 end $$;
 create unique index points_ledger_release_once
@@ -47,6 +49,10 @@ $$;
 --    confirm_payment (re-canje 'late:<pago>'). Misma firma y tipo de retorno → create or
 --    replace vale y database.types no cambia. search_path inline (create or replace pisa el
 --    `alter function … set search_path` de 20260626121614).
+-- Nota: la liberación de puntos se ejecuta también en el barrido inline de create_checkout, así que
+-- ese checkout toca filas de customers ajenas (points_balance) — con una sala es un punto de
+-- serialización más; el único ciclo construible (mismo cliente re-reservando un slot solapado en la
+-- ventana de ms) lo absorbe retryOnDeadlock.
 create or replace function expire_stale_holds(p_resource uuid default null)
 returns integer language plpgsql
 set search_path = public, pg_temp as $$
