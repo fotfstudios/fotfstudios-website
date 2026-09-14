@@ -34,7 +34,6 @@ interface QuoteResult {
   tierLines: { key: string; hours: number; rate: number; subtotal: number }[];
   addonLines: { key: string; name: string; amount: number }[];
   adjust: { description: string; amount: number } | null;
-  volumePct: number;
 }
 
 const todayInSantiago = () =>

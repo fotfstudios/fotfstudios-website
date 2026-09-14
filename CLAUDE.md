@@ -73,7 +73,8 @@ en vivo ni la base Supabase remota real.
   `Footer`, motion: `MaskText`/`Magnetic`/`Ticker`/`ParallaxImage`). `CustomCursor` is
   marketing-only (mounted by `app/(marketing)/layout.tsx`, never by the root).
   `components/PublicChrome.tsx` is the one place that mounts GTM (noscript + `gtm-init`) +
-  `ConsentBanner` + Vercel `<Analytics/>`.
+  `ConsentBanner` + Vercel `<Analytics/>`. GTM only when `VERCEL_ENV === "production"` (or
+  `NEXT_PUBLIC_GTM_FORCE=true` locally) — see `lib/measurement.ts`.
 - `lib/curso-content.ts` — Curso DJ copy/prices (`CURSO`, `PRECIOS`, `FAQ`…). Lives in `lib/`
   because the home section, a guide and `app/admin/(panel)/curso/generaciones` read it too —
   never import across `app/` trees (`@/app/...` from `components/` is a smell).

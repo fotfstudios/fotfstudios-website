@@ -69,6 +69,14 @@ describe("components/PublicChrome.tsx", () => {
     expect(src).toContain("<ConsentBanner />");
   });
 
+  it("la puerta de GTM vive en PublicChrome (server component) y se decide con measurementEnabled()", () => {
+    const src = read("components/PublicChrome.tsx");
+    expect(src).toContain("measurementEnabled()");
+    // Un "use client" haría que la puerta se evaluara en el navegador (VERCEL_ENV no existe ahí):
+    // GTM desaparecería en prod con un hydration mismatch y ningún test lo vería.
+    expect(src).not.toMatch(/^"use client"/m);
+  });
+
   it("no lleva cursor, medidor, SpeedInsights ni beforeInteractive", () => {
     for (const token of [...MARKETING_ONLY, "<SpeedInsights", BEFORE_INTERACTIVE]) {
       expect(src, token).not.toContain(token);
