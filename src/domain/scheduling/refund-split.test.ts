@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitRefundAcrossPayments } from "./refund-split";
+import { isSettledRefund, splitRefundAcrossPayments } from "./refund-split";
 
 describe("splitRefundAcrossPayments", () => {
   it("un solo pago: todo el reembolso va a ese pago", () => {
@@ -69,5 +69,17 @@ describe("splitRefundAcrossPayments", () => {
       { paymentId: null, amount: 9990 },
       { paymentId: "p2", amount: 3000 },
     ]);
+  });
+});
+
+describe("isSettledRefund", () => {
+  it("solo un reembolso `approved` cuenta como plata devuelta", () => {
+    expect(isSettledRefund({ id: "r1", amount: 1000, status: "approved" })).toBe(true);
+  });
+
+  it("in_process / rejected / cancelled / unknown NO cuentan", () => {
+    for (const status of ["in_process", "rejected", "cancelled", "unknown"]) {
+      expect(isSettledRefund({ id: "r1", amount: 1000, status })).toBe(false);
+    }
   });
 });

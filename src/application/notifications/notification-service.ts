@@ -147,7 +147,11 @@ export class NotificationService {
    * se dispara solo en los dos momentos únicos — la acción del admin o un
    * reembolso externo FRESCO vía webhook (el loopback admin dedupea por inbox).
    */
-  async notifyCancellation(orderId: string, opts: { refundAmount: number | null }): Promise<boolean> {
+  async notifyCancellation(
+    orderId: string,
+    /** `restoredPoints`: orden 100% puntos — se repusieron puntos, no hubo plata. */
+    opts: { refundAmount: number | null; restoredPoints?: number | null },
+  ): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
     const when = o.startsAt
@@ -160,6 +164,7 @@ export class NotificationService {
           name: o.name,
           when,
           refunded: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
+          restoredPoints: opts.restoredPoints ?? null,
         },
         { whatsappUrl: this.config.whatsappUrl },
       ),

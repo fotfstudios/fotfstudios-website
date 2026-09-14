@@ -236,3 +236,16 @@ describe("postulación de DJ — confirmación al postulante", () => {
     expect(m.html).toContain("&lt;img");
   });
 });
+
+describe("cancelación de una orden 100% puntos", () => {
+  it("dice que se repusieron puntos; nunca habla de plata ni de tarjeta", () => {
+    const m = customerCancellation(
+      { name: "Ana", when: view.when, refunded: null, restoredPoints: 14990 },
+      { whatsappUrl: "https://wa.me/56962803298" },
+    );
+    expect(m.html).toContain("14.990 puntos");
+    expect(m.text).toContain("14.990 puntos");
+    expect(m.html).not.toMatch(/medio de pago original|tarjeta|reembolsamos/);
+    expect(m.text).not.toMatch(/medio de pago original|reembolsamos/);
+  });
+});

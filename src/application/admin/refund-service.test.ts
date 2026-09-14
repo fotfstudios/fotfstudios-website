@@ -72,7 +72,7 @@ describe("RefundService.cancelBooking", () => {
 
     const res = await new RefundService(gw, repo, inbox).cancelBooking("r1", { refundAmount: 9990 });
 
-    expect(gw.refundPayment).toHaveBeenCalledWith("1234567890", 9990);
+    expect(gw.refundPayment).toHaveBeenCalledWith("1234567890", 9990, "refund:1234567890:9990:0");
     expect(inbox.recordEvent).toHaveBeenCalledWith("refund:ref_1", "refund", expect.anything());
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_1", 9990);
     expect(calls).toEqual(["recordEvent", "markRefunded"]); // orden inbox→asiento (anti NC duplicada)
@@ -89,8 +89,8 @@ describe("RefundService.cancelBooking", () => {
     ]);
     const inbox = makeInbox();
     const res = await new RefundService(gw, repo, inbox).cancelBooking("r1", { refundAmount: 12990 });
-    expect(gw.refundPayment).toHaveBeenCalledWith("orig", 9990);
-    expect(gw.refundPayment).toHaveBeenCalledWith("delta", 3000);
+    expect(gw.refundPayment).toHaveBeenCalledWith("orig", 9990, "refund:orig:9990:0");
+    expect(gw.refundPayment).toHaveBeenCalledWith("delta", 3000, "refund:delta:3000:0");
     expect(gw.refundPayment).toHaveBeenCalledTimes(2);
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_orig", 12990);
     expect(res.alreadyProcessed).toBe(false);
@@ -267,5 +267,44 @@ describe("RefundService.cancelBooking — anulación de pago pendiente (sin reem
     expect(gw.findPaymentByOrder).not.toHaveBeenCalled();
     expect(gw.cancelPayment).not.toHaveBeenCalled();
     expect(repo.cancelBooking).toHaveBeenCalledWith("r1");
+  });
+});
+
+describe("RefundService — estado del reembolso e idempotencia", () => {
+  it("MP deja el reembolso in_process → aborta ANTES del inbox y del asiento (el loopback lo completa)", async () => {
+    const gw = makeGateway({ refundPayment: vi.fn(async () => ({ id: "ref_p", status: "in_process", amount: 9990 })) });
+    const repo = makeRepo(PAID);
+    const inbox = makeInbox();
+
+    await expect(new RefundService(gw, repo, inbox).cancelBooking("r1", { refundAmount: 9990 })).rejects.toThrow(
+      /en proceso/,
+    );
+    expect(inbox.recordEvent).not.toHaveBeenCalled();
+    expect(inbox.markRefunded).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).not.toHaveBeenCalled();
+  });
+
+  it("la clave de idempotencia lleva lo ya reembolsado: dos parciales iguales seguidos NO colisionan", async () => {
+    const gw = makeGateway();
+    const inbox = makeInbox();
+    // 1er parcial sobre un pedido sin reembolsos previos.
+    await new RefundService(gw, makeRepo(PAID), inbox).cancelBooking("r1", { refundAmount: 5000 });
+    // 2º parcial del MISMO monto, ahora con 5000 ya devueltos (el asiento avanzó).
+    await new RefundService(gw, makeRepo({ ...PAID, refundedAmountClp: 5000 }), inbox).cancelBooking("r1", {
+      refundAmount: 5000,
+    });
+
+    const keys = (gw.refundPayment as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[2]);
+    expect(keys).toEqual(["refund:1234567890:5000:0", "refund:1234567890:5000:5000"]);
+  });
+
+  it("un reintento del MISMO intento (asiento no avanzó) reusa la clave → MP dedupea", async () => {
+    const gw = makeGateway();
+    const inbox = makeInbox();
+    await new RefundService(gw, makeRepo(PAID), inbox).cancelBooking("r1", { refundAmount: 5000 });
+    await new RefundService(gw, makeRepo(PAID), inbox).cancelBooking("r1", { refundAmount: 5000 });
+    const keys = (gw.refundPayment as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[2]);
+    expect(keys[0]).toMatch(/^refund:1234567890:5000:/);
+    expect(keys[1]).toBe(keys[0]);
   });
 });

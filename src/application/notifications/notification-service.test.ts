@@ -273,3 +273,19 @@ describe("notifyBookingPaymentLink", () => {
     expect(mailer.send).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("notifyCancellation — orden 100% puntos", () => {
+  it("con restoredPoints el email habla de puntos repuestos, no de reembolso en dinero", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({
+      email: "ana@e.cl",
+      name: "Ana",
+      startsAt: "2026-07-12T18:00:00Z",
+    });
+    const sent = await service.notifyCancellation("o1", { refundAmount: null, restoredPoints: 14990 });
+    expect(sent).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.html).toContain("14.990 puntos");
+    expect(msg.html).not.toMatch(/tarjeta|reembolsamos/);
+  });
+});

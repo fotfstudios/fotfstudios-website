@@ -1,6 +1,6 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
-import { splitRefundAcrossPayments, type BackingBoleta } from "@/src/domain/scheduling/refund-split";
+import { isSettledRefund, splitRefundAcrossPayments, type BackingBoleta } from "@/src/domain/scheduling/refund-split";
 
 /** Repo mínimo que la cancelación necesita (lo satisface SupabaseAdminRepository). */
 export interface RefundBookingRepo {
@@ -155,7 +155,19 @@ export class RefundService {
     let primaryRefundId: string | null = null;
     for (const s of splits) {
       if (!isRealMpPayment(s.paymentId)) continue;
-      const refund = await this.gateway.refundPayment(s.paymentId, s.amount);
+      // Clave de idempotencia con lo YA reembolsado del pedido: solo avanza tras nuestro
+      // asiento, así que un reintento del mismo intento repite la clave (MP devuelve el
+      // mismo reembolso, sin duplicar) y un segundo parcial del mismo monto NO la repite
+      // (antes MP lo dedupeaba en silencio y el admin veía "ok" sin que saliera plata).
+      const key = `refund:${s.paymentId}:${s.amount}:${target.refundedAmountClp}`;
+      const refund = await this.gateway.refundPayment(s.paymentId, s.amount, key);
+      // Solo `approved` se asienta. `in_process` (contingencia MP) puede rechazarse
+      // después: se aborta SIN tocar el inbox, y el webhook lo asienta cuando MP lo apruebe.
+      if (!isSettledRefund(refund)) {
+        throw new Error(
+          `Mercado Pago dejó el reembolso en proceso (${refund.status}): se asentará solo cuando MP lo apruebe. No vuelvas a reembolsar.`,
+        );
+      }
       // Inbox PRIMERO (dedupe contra el webhook loopback de cada reembolso).
       const fresh = await this.inbox.recordEvent(`refund:${refund.id}`, "refund", refund);
       if (!fresh) return { alreadyProcessed: true };

@@ -36,10 +36,10 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
     // Orden 100% puntos (efectivo $0): la base reembolsable son los puntos
     // canjeados — misma política 100/50/0, repuesta como puntos.
     const target = await adminRepository().orderForReservation(id);
+    const isPointsOrder = !!target && target.amountClp === 0 && target.pointsRedeemedClp > 0;
     let refundAmount: number | null = null;
     if (mode !== "none") {
       if (!target) throw new Error("Esta reserva no tiene un pago asociado. Cancela sin reembolso.");
-      const isPointsOrder = target.amountClp === 0 && target.pointsRedeemedClp > 0;
       refundAmount = resolveRefundAmount(mode, {
         startsAt: target.startsAt,
         liveBoleta: isPointsOrder ? target.pointsRedeemedClp : target.amountClp - target.refundedAmountClp,
@@ -51,9 +51,13 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
 
     // Aviso al cliente (best-effort): solo si había un pedido PAGADO antes de
     // cancelar. Si el loopback del webhook ya lo asentó, ese camino ya avisó.
+    // Orden 100% puntos: el "monto" son puntos repuestos, no plata → el email lo dice así.
     if (target?.status === "paid" && !alreadyProcessed) {
       await notificationService()
-        .notifyCancellation(target.orderId, { refundAmount })
+        .notifyCancellation(
+          target.orderId,
+          isPointsOrder ? { refundAmount: null, restoredPoints: refundAmount } : { refundAmount },
+        )
         .catch((e) => console.error("[cancel:email]", e));
     }
 

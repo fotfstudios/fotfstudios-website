@@ -2,6 +2,7 @@ import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { CourseFinalizer } from "@/src/application/ports/course";
 import type { RescheduleFinalizer } from "@/src/application/ports/reschedule";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import { isSettledRefund } from "@/src/domain/scheduling/refund-split";
 
 export type WebhookOutcome =
   | "paid"
@@ -53,6 +54,9 @@ export class WebhookService {
     let refunded = false;
     let refundedAmount = 0;
     for (const r of payment.refunds ?? []) {
+      // Solo `approved` es plata devuelta. Un `in_process`/`rejected` NO toca el inbox:
+      // así, cuando MP lo notifique ya aprobado, el mismo id entra fresco y se asienta.
+      if (!isSettledRefund(r)) continue;
       const freshRefund = await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
       if (freshRefund && orderId) {
         await this.repo.markRefunded(orderId, r.id, r.amount);
@@ -61,6 +65,9 @@ export class WebhookService {
       }
     }
     if (refunded) return { result: "refunded", orderId, refundedAmount };
+    // Pago ya reembolsado del todo y nada fresco: es una re-entrega (o el loopback de un
+    // reembolso admin), no un pago "pendiente".
+    if (payment.status === "refunded") return { result: "duplicate", orderId };
 
     // Transición de estado del pago (aprobación/rechazo), idempotente por status.
     const fresh = await this.repo.recordEvent(`${paymentId}:${payment.status}`, "payment", payment);
