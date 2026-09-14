@@ -1,8 +1,7 @@
 # Auditoría E2E del flujo de reserva en línea (stack local)
 
-**Fecha:** 2026-09-13, 20:49–21:12 (America/Santiago). **Estado:** H1–H4 corregidos en la rama
-fix/hold-expiry-lifecycle (PR A); H5–H9 en curso (PRs B y C). Cada hallazgo anota su PR al
-mergearse. Stack: Docker + Supabase CLI 2.109 (47/47 migraciones, seed intacto) +
+**Fecha:** 2026-09-13, 20:49–21:12 (America/Santiago). **Estado:** los nueve hallazgos están corregidos y mergeados a `main` (2026-09-14): H1–H4 en
+#152 (su migración entra a prod con la aprobación del job `migrate`), H5 en #153, H6–H9 en #154. Stack: Docker + Supabase CLI 2.109 (47/47 migraciones, seed intacto) +
 `next dev` 15.5.19 + túnel ngrok estático
 + credenciales de prueba de MP (vendedor `3497260371`).
 
@@ -29,7 +28,7 @@ el webhook y el reconcile).
 
 ## Hallazgos
 
-### H1 — Un hold vencido bloquea el horario hasta que otro cliente haga checkout (alto)
+### H1 — Un hold vencido bloquea el horario hasta que otro cliente haga checkout (alto) — corregido en #152
 
 `SupabaseSchedulingRepository.getReservationsForDate` selecciona `status in ('held',
 'confirmed')` y no filtra por `expires_at`
@@ -55,7 +54,7 @@ reconcile); (c) `perform expire_stale_holds(p_resource)` en una RPC de disponibi
 Pendiente decidir: ¿la verdad del estado es la columna (b) o el tiempo (a)? Hoy hay
 consumidores del `status` crudo (admin, estado, eventos).
 
-### H2 — `/reserva/estado` ofrece "Completar el pago" sobre un hold muerto (medio)
+### H2 — `/reserva/estado` ofrece "Completar el pago" sobre un hold muerto (medio) — corregido en #152
 
 `getOrderConfirmation` devuelve `reservationStatus` desde la columna
 ([order-repository.ts:27-32](../../src/infrastructure/db/order-repository.ts#L27-L32)), así
@@ -68,7 +67,7 @@ PAGO" tras 194 polls, aun después de que la DB ya decía `expired`.
 Arreglo mínimo: derivar `expired` en el read model (`held` && `expires_at < now()`), y que
 `/api/orders/[id]/status` (o el cliente) sepa cuándo dejar de esperar.
 
-### H3 — El canje de puntos abandonado queda retenido ~3–4 días (medio)
+### H3 — El canje de puntos abandonado queda retenido ~3–4 días (medio) — corregido en #152
 
 La orden `0337d122` (Felipe, 4.498 pts canjeados) murió a los 10 min con el hold, pero
 `points_balance` sigue en 0: `release_abandoned_redemptions` corre en el cron diario
@@ -77,14 +76,14 @@ la pestaña en MP pierde acceso a sus puntos hasta 4 días. `confirm_payment` ya
 pago tardío tras la liberación (comentario en `composition.ts`), así que liberar al vencer
 el hold (o en el barrido de H1) es compatible con el diseño.
 
-### H4 — El polling de estado no termina ni retrocede (medio-bajo)
+### H4 — El polling de estado no termina ni retrocede (medio-bajo) — corregido en #152
 
 `EstadoClient` sondea cada 3 s mientras la orden no sea terminal
 ([EstadoClient.tsx:51-68](../../components/booking/EstadoClient.tsx#L51-L68)) y cada poll
 dispara `payments/search` en MP (~250 ms). Una pestaña abandonada en "Completa tu pago" son
 ~1.200 llamadas/h a MP, indefinidamente. Tope sugerido: hold TTL + margen, o backoff.
 
-### H5 — Link de pago admin (72 h) sobre un hold de cliente de 10 min (bajo, adyacente)
+### H5 — Link de pago admin (72 h) sobre un hold de cliente de 10 min (bajo, adyacente) — corregido en #153
 
 `sharePaymentLinkAction` ([actions.ts:245-264](../../app/admin/(panel)/reservas/[id]/actions.ts#L245-L264))
 crea una preference de 72 h sin distinguir hold firme (`expires_at null`) de hold de
@@ -92,26 +91,26 @@ cliente. Así nacieron las preferences #2 y #3 de la orden `157f4d73` (20:14 y 2
 sobreviven ~71 h al hold → si se paga, `paid_no_hold` + revisión manual (el comentario del
 action lo acepta). Sugerencia: exigir hold firme, o afirmar el hold al generar el link.
 
-### H6 — Desglose del widget vs. línea del pedido (bajo, cosmético)
+### H6 — Desglose del widget vs. línea del pedido (bajo, cosmético) — corregido en #154
 
 Quote: subtotal 19.980, `discount` 1.998, total 17.980 (redondeo a 10). El widget muestra
 −$1.998 (no suma con su propio total por $2); la línea del pedido/recibo/boleta absorbe el
 redondeo como "Descuento por volumen (10%) −$2.000" (`orderLinesFromQuote`, por diseño).
 
-### H7 — La clave del tramo se filtra al recibo (bajo)
+### H7 — La clave del tramo se filtra al recibo (bajo) — corregido en #154
 
 La línea `room_time` se guarda como `Sala · 1h (puntaSemana)` / `(valle)`
 ([order-lines.ts:83](../../src/domain/pricing/order-lines.ts#L83)) y así llega al recibo
 de `/reserva/estado`, la boleta y el email; el widget muestra "Punta semana" vía
 `tierLabel`.
 
-### H8 — Título duplicado en las páginas de reserva (bajo)
+### H8 — Título duplicado en las páginas de reserva (bajo) — corregido en #154
 
 `app/(booking)/reservar/page.tsx` y `reserva/estado/page.tsx` exportan
 `title: "… — FOTF Studios"` bajo el template raíz `%s · FOTF Studios` → "Reservar — FOTF
 Studios · FOTF Studios". Las páginas de marketing pasan el título pelado.
 
-### H9 — GTM mide localhost, túnel y previews (bajo)
+### H9 — GTM mide localhost, túnel y previews (bajo) — corregido en #154
 
 `PublicChrome` monta GTM sin gate por entorno; en esta sesión GA4 recibió `page_view` y
 `scroll` con `dl=http://localhost/reservar` (`gcs=G111`). Si GA4 no tiene filtro de tráfico
