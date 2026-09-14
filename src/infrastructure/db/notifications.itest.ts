@@ -63,6 +63,7 @@ describe("NotificationService", () => {
       siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
+      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a",
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",

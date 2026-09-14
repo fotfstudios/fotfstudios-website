@@ -37,6 +37,8 @@ export interface NotificationConfig {
   siteUrl: string;
   tz: string;
   address: string;
+  /** Link a Maps de la dirección (la dirección va como link propio, no auto-enlazada). */
+  mapsUrl: string;
   whatsappUrl: string;
   termsUrl: string;
   privacyUrl: string;
@@ -108,7 +110,7 @@ export class NotificationService {
       try {
         await this.mailer.send({
           to: o.email,
-          ...customerConfirmation(view, { address: this.config.address, whatsappUrl: this.config.whatsappUrl, links }),
+          ...customerConfirmation(view, { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links }),
           ...(attachments ? { attachments } : {}),
         });
       } catch (e) {
@@ -133,23 +135,29 @@ export class NotificationService {
   async notifyCourtesy(input: {
     email: string | null;
     name: string | null;
+    /** Sin orden, el evento del calendario se identifica por la RESERVA. */
+    reservationId: string;
     startsAt: string;
     endsAt?: string | null;
     addonNames: string[];
   }): Promise<boolean> {
     if (!input.email) return false;
     const when = this.when(input.startsAt, input.endsAt ?? null);
+    const ev = input.endsAt ? this.calendarEvent(`r-${input.reservationId}`, input.startsAt, input.endsAt, null) : null;
     await this.mailer.send({
       to: input.email,
       ...customerCourtesyConfirmation(
         { name: input.name, when, addonNames: input.addonNames },
         {
           address: this.config.address,
+          mapsUrl: this.config.mapsUrl,
           whatsappUrl: this.config.whatsappUrl,
           termsUrl: this.config.termsUrl,
           privacyUrl: this.config.privacyUrl,
+          links: { calendarUrl: ev ? googleCalendarUrl(ev) : this.config.siteUrl, accountUrl: `${this.config.siteUrl}/cuenta` },
         },
       ),
+      ...(ev ? { attachments: [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }] } : {}),
     });
     return true;
   }
@@ -172,7 +180,7 @@ export class NotificationService {
       to: input.email,
       ...customerAccessCode(
         { name: input.name, when, code: input.code },
-        { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
+        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;
@@ -197,7 +205,7 @@ export class NotificationService {
       to: input.email,
       ...customerReminder(
         { name: input.name, when: this.when(input.startsAt, input.endsAt) },
-        { address: this.config.address, whatsappUrl: this.config.whatsappUrl, statusUrl },
+        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, statusUrl },
       ),
     });
     return true;
@@ -241,12 +249,20 @@ export class NotificationService {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
     const when = this.when(o.startsAt, o.endsAt);
+    // Mismo uid que la confirmación: el calendario ACTUALIZA el evento en vez de duplicarlo.
+    const ev = o.startsAt && o.endsAt ? this.calendarEvent(orderId, o.startsAt, o.endsAt) : null;
     await this.mailer.send({
       to: o.email,
       ...customerReschedule(
         { name: o.name, when, refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null },
-        { whatsappUrl: this.config.whatsappUrl, address: this.config.address },
+        {
+          whatsappUrl: this.config.whatsappUrl,
+          address: this.config.address,
+          mapsUrl: this.config.mapsUrl,
+          calendarUrl: ev ? googleCalendarUrl(ev) : this.config.siteUrl,
+        },
       ),
+      ...(ev ? { attachments: [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }] } : {}),
     });
     return true;
   }
@@ -383,7 +399,7 @@ export class NotificationService {
         to: student.email,
         ...courseEnrollmentPaid(
           { name: student.name, generation: v.generation, total, sessions },
-          { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
+          { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
         ),
       });
     }
@@ -508,15 +524,15 @@ export class NotificationService {
   }
 
   /** El evento de calendario de una sesión (mismo uid/summary que los botones de /reserva/estado). */
-  private calendarEvent(orderId: string, startsAt: string, endsAt: string) {
+  private calendarEvent(key: string, startsAt: string, endsAt: string, orderId: string | null = key) {
     return {
       start: startsAt,
       end: endsAt,
       summary: "FOTF Studios — Sala",
       description: "Tu código de acceso te llega por email 10 minutos antes de tu sesión.",
       location: this.config.address,
-      uid: `fotf-${orderId}@fotfstudios.cl`,
-      url: `${this.config.siteUrl}/reserva/estado?b=${orderId}`,
+      uid: `fotf-${key}@fotfstudios.cl`,
+      ...(orderId ? { url: `${this.config.siteUrl}/reserva/estado?b=${orderId}` } : {}),
     };
   }
 

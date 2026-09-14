@@ -181,6 +181,7 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     siteUrl: resolveSiteUrl(),
     tz: "America/Santiago",
     address: SITE.address,
+    mapsUrl: SITE.mapsUrl,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
     termsUrl: `${SITE_URL}/terminos`,
     privacyUrl: `${SITE_URL}/privacidad`,
