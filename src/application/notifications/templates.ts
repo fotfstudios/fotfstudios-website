@@ -96,7 +96,7 @@ export function customerConfirmation(
     `${v.when} · ${ctx.address}`,
   );
   const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (puntos y próximas sesiones): ${ctx.links.accountUrl}`;
-  return { template: "customerConfirmation", subject: "Tu reserva en FOTF Studios está confirmada", html, text };
+  return { template: "customerConfirmation", subject: `Reserva confirmada · ${v.when}`, html, text };
 }
 
 /**
@@ -135,7 +135,7 @@ export function customerCourtesyConfirmation(
     `${v.when} · ${ctx.address} · cortesía`,
   );
   const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Tu cuenta: ${ctx.links.accountUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
-  return { template: "customerCourtesyConfirmation", subject: "Tu sesión de cortesía en FOTF Studios está confirmada", html, text };
+  return { template: "customerCourtesyConfirmation", subject: `Sesión de cortesía confirmada · ${v.when}`, html, text };
 }
 
 /**
@@ -157,7 +157,7 @@ export function customerAccessCode(
     `Tu PIN para el ${v.when}`,
   );
   const text = `Tu acceso para el ${v.when}: ${v.code}. ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerAccessCode", subject: "Tu código de acceso — FOTF Studios", html, text };
+  return { template: "customerAccessCode", subject: `Tu código de acceso · ${v.when}`, html, text };
 }
 
 /**
@@ -180,7 +180,7 @@ export function customerReminder(
     `${v.when} · ${ctx.address}`,
   );
   const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email 10 minutos antes (revisa spam). Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
-  return { template: "customerReminder", subject: "Tu sesión en FOTF Studios se acerca", html, text };
+  return { template: "customerReminder", subject: `Tu sesión se acerca · ${v.when}`, html, text };
 }
 
 /**
@@ -201,7 +201,7 @@ export function customerPaymentNoSlot(
     `${v.total} · ${v.when}`,
   );
   const text = `Recibimos tu pago de ${v.total} para el ${v.when}, pero ese horario ya no estaba disponible cuando llegó el pago. Te escribimos por WhatsApp en breve para darte otro horario o devolverte el pago completo: ${ctx.whatsappUrl}`;
-  return { template: "customerPaymentNoSlot", subject: "Recibimos tu pago — te escribimos por WhatsApp", html, text };
+  return { template: "customerPaymentNoSlot", subject: `Recibimos tu pago · ${v.when} — te escribimos por WhatsApp`, html, text };
 }
 
 /**
@@ -220,7 +220,7 @@ export function customerHoldExpired(
     `Sesión del ${v.when}`,
   );
   const text = `No recibimos el pago de tu reserva del ${v.when}, así que el horario volvió a quedar disponible. Si aún quieres la sesión, reserva de nuevo: ${ctx.bookUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerHoldExpired", subject: "Se liberó tu hora en FOTF Studios", html, text };
+  return { template: "customerHoldExpired", subject: `Se liberó tu hora · ${v.when}`, html, text };
 }
 
 /** Email al cliente: su sesión de CORTESÍA fue cancelada. Sin dinero de por medio. */
@@ -234,7 +234,7 @@ export function customerCourtesyCancelled(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `Tu sesión del ${v.when} fue cancelada. Si quieres otro horario: ${ctx.whatsappUrl}`;
-  return { template: "customerCourtesyCancelled", subject: "Tu sesión en FOTF Studios fue cancelada", html, text };
+  return { template: "customerCourtesyCancelled", subject: `Sesión cancelada · ${v.when}`, html, text };
 }
 
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
@@ -262,7 +262,7 @@ export function customerCancellation(
       ? ` Te reembolsamos ${v.refunded} al medio de pago original.`
       : "";
   const text = `Tu reserva del ${v.when} fue cancelada.${textLine} ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerCancellation", subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
+  return { template: "customerCancellation", subject: `Reserva cancelada · ${v.when}`, html, text };
 }
 
 export function customerReschedule(
@@ -282,7 +282,7 @@ export function customerReschedule(
     `Nuevo horario: ${v.when}`,
   );
   const text = `Tu reserva quedó reagendada para el ${v.when}.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerReschedule", subject: "Tu reserva en FOTF Studios cambió de horario", html, text };
+  return { template: "customerReschedule", subject: `Reserva reagendada · ${v.when}`, html, text };
 }
 
 export function customerRescheduleFailed(
@@ -296,7 +296,7 @@ export function customerRescheduleFailed(
     `Se mantiene tu reserva del ${v.when}`,
   );
   const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
-  return { template: "customerRescheduleFailed", subject: "No pudimos cambiar tu horario en FOTF Studios", html, text };
+  return { template: "customerRescheduleFailed", subject: `No pudimos cambiar tu horario · se mantiene ${v.when}`, html, text };
 }
 
 /**
@@ -501,7 +501,7 @@ export function bookingPaymentPending(
     `${v.when} · ${v.total} · el link vence en ${v.expiresInHours} h`,
   );
   const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "bookingPaymentPending", subject: "Tu hora en FOTF Studios — falta el pago", html, text };
+  return { template: "bookingPaymentPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
 }
 
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
