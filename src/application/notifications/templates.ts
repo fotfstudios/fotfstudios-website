@@ -504,6 +504,65 @@ export function courseEnrollmentRefunded(
   return { template: "courseEnrollmentRefunded", subject: "Tu inscripción al Curso de DJ fue cancelada", html, text };
 }
 
+/*
+ * ─── Supabase Auth (Send Email Hook) ───────────────────────────────────────────
+ * Antes vivían en supabase/templates/*.html y había que espejarlas a mano en el
+ * Dashboard (la caída de #151 fue esa deriva). Con el hook, GoTrue nos pide el correo
+ * y estas plantillas son la única fuente. Mismo criterio de copy: "código de
+ * verificación", nunca "código de acceso" (ese es el PIN de la sala).
+ */
+
+/** Código de inicio de sesión (magic link y alta de cliente nuevo). */
+export function authLoginCode(v: { token: string; confirmUrl: string }): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Inicia sesión en tu cuenta</h1>
+     <p style="color:#b9b5ab;margin:0 0 20px">Usa este código para confirmar que eres tú e iniciar sesión en FOTF Studios. Vence en una hora y sirve una sola vez.</p>
+     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:#e8c94a;margin:0 0 20px">${esc(v.token)}</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:#f5f2ec;font-weight:bold">Iniciar sesión</a>.</p>
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0;border-top:1px solid #1e1d1a;padding-top:16px">Este es tu código para iniciar sesión en el sitio — no es el código de acceso a la sala (ese te llega en otro correo, 10 minutos antes de tu sesión). Si no intentaste iniciar sesión, ignora este correo: tu cuenta sigue segura.</p>`,
+  );
+  const text = `Tu código para iniciar sesión en FOTF Studios: ${v.token} (vence en una hora, sirve una sola vez). O entra con un clic: ${v.confirmUrl}. No es el código de acceso a la sala; ese te llega 10 minutos antes de tu sesión. Si no fuiste tú, ignora este correo.`;
+  return { template: "authLoginCode", subject: `Tu código para iniciar sesión en FOTF Studios: ${v.token}`, html, text };
+}
+
+/** Recuperación de acceso (la app es passwordless; queda on-brand por si se gatilla). */
+export function authRecovery(v: { token: string; confirmUrl: string }): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Recupera el acceso a tu cuenta</h1>
+     <p style="color:#b9b5ab;margin:0 0 20px">Pediste recuperar el acceso a tu cuenta de FOTF Studios. Usa este código para verificar que eres tú. Vence en una hora y sirve una sola vez.</p>
+     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:#e8c94a;margin:0 0 20px">${esc(v.token)}</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:#f5f2ec;font-weight:bold">Recuperar mi cuenta</a>.</p>
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0;border-top:1px solid #1e1d1a;padding-top:16px">Este código es para tu cuenta del sitio — no es el código de acceso a la sala (ese te llega en otro correo, 10 minutos antes de tu sesión). Si no lo pediste, ignora este correo: tu cuenta sigue segura.</p>`,
+  );
+  const text = `Tu código para recuperar el acceso a FOTF Studios: ${v.token} (vence en una hora). O con un clic: ${v.confirmUrl}. Si no lo pediste, ignora este correo.`;
+  return { template: "authRecovery", subject: `Tu código para recuperar el acceso a FOTF Studios: ${v.token}`, html, text };
+}
+
+/** Confirmación de cambio de correo (puede ir al actual y al nuevo). */
+export function authEmailChange(v: { token: string; confirmUrl: string }): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Confirma tu nuevo correo</h1>
+     <p style="color:#b9b5ab;margin:0 0 20px">Pediste cambiar el correo de tu cuenta de FOTF Studios. Confirma que este correo es tuyo con el código o el botón. Vence en una hora y sirve una sola vez.</p>
+     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:#e8c94a;margin:0 0 20px">${esc(v.token)}</p>
+     <p style="color:#b9b5ab;margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:#f5f2ec;font-weight:bold">Confirmar correo</a>.</p>
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0;border-top:1px solid #1e1d1a;padding-top:16px">Este código es para verificar tu correo en el sitio — no es el código de acceso a la sala. Si no pediste este cambio, ignora este correo: tu cuenta sigue segura.</p>`,
+  );
+  const text = `Confirma tu nuevo correo en FOTF Studios con este código: ${v.token} (vence en una hora). O con un clic: ${v.confirmUrl}. Si no pediste este cambio, ignora este correo.`;
+  return { template: "authEmailChange", subject: `Confirma tu nuevo correo en FOTF Studios: ${v.token}`, html, text };
+}
+
+/** Código de verificación genérico (reautenticación u otros tipos con token). */
+export function authVerificationCode(v: { token: string }): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu código de verificación</h1>
+     <p style="color:#b9b5ab;margin:0 0 20px">Usa este código para confirmar que eres tú. Vence en una hora y sirve una sola vez.</p>
+     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:#e8c94a;margin:0 0 20px">${esc(v.token)}</p>
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0;border-top:1px solid #1e1d1a;padding-top:16px">Es un código de verificación del sitio — no es el código de acceso a la sala. Si no lo pediste, ignora este correo.</p>`,
+  );
+  const text = `Tu código de verificación en FOTF Studios: ${v.token} (vence en una hora). Si no lo pediste, ignora este correo.`;
+  return { template: "authVerificationCode", subject: `Tu código de verificación en FOTF Studios: ${v.token}`, html, text };
+}
+
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
   v: BookingView & { email: string | null },

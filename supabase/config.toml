@@ -312,6 +312,18 @@ max_frequency = "5s"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # RBAC: inyecta app_role + app_permissions en el JWT (ver migración admin_rbac).
+# Send Email Hook (auditoría 2026-09-14, H10): los correos de Auth salen por
+# /api/auth/send-email con las plantillas de src/application/notifications/templates.ts
+# (authLoginCode, authRecovery, authEmailChange). Para probarlo en local: genera el
+# secreto (echo "v1,whsec_$(openssl rand -base64 32)"), ponlo en .env.local como
+# SEND_EMAIL_HOOK_SECRET, descomenta el bloque y reinicia el stack (db:stop && db:start).
+# Queda comentado por defecto: activado, iniciar sesión en local exige el dev server arriba.
+# En staging/prod se activa en el Dashboard (Auth → Hooks → Send Email) con la URL pública.
+# [auth.hook.send_email]
+# enabled = true
+# uri = "http://host.docker.internal:3000/api/auth/send-email"
+# secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/public/custom_access_token_hook"
