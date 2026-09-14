@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, courseEnrollmentRefunded, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -364,5 +364,37 @@ describe("recordatorio de sesión (H9)", () => {
   it("escapa el nombre (anti-XSS)", () => {
     const m = customerReminder({ name: "<b>Ana</b>", when: "x" }, ctx);
     expect(m.html).not.toContain("<b>Ana</b>");
+  });
+});
+
+describe("estados que antes eran silencio (H6)", () => {
+  const wa = "https://wa.me/56962803298";
+
+  it("pago sin cupo: reconoce el pago, dice que el horario ya no estaba y promete WhatsApp; nunca 'confirmada'", () => {
+    const m = customerPaymentNoSlot({ name: "Ana", when: "lunes 1 de enero, 10:00–11:00 h", total: "$9.990" }, { whatsappUrl: wa });
+    expect(m.subject).toMatch(/recibimos tu pago/i);
+    expect(m.html).toContain("$9.990");
+    expect(m.html).toContain("lunes 1 de enero, 10:00–11:00 h");
+    expect(m.html).toMatch(/ya no estaba disponible/);
+    expect(m.html).toMatch(/WhatsApp/);
+    expect(m.html).not.toMatch(/confirmada/i);
+    expect(m.text).toMatch(/ya no estaba disponible/);
+  });
+
+  it("hora liberada: sin pago, se liberó; ofrece reservar de nuevo", () => {
+    const m = customerHoldExpired({ name: "Ana", when: "lunes 1 de enero, 10:00–11:00 h" }, { whatsappUrl: wa, bookUrl: "https://www.fotfstudios.cl/reservar" });
+    expect(m.subject).toMatch(/se liberó/i);
+    expect(m.html).toMatch(/no recibimos el pago/);
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/reservar"');
+    expect(m.text).toContain("https://www.fotfstudios.cl/reservar");
+    expect(m.html).not.toMatch(/reembols|cobro|tarjeta/);
+  });
+
+  it("cortesía cancelada: sin una palabra de dinero", () => {
+    const m = customerCourtesyCancelled({ name: "Ana", when: "lunes 1 de enero, 10:00–11:00 h" }, { whatsappUrl: wa });
+    expect(m.subject).toMatch(/cancelada/i);
+    expect(m.html).toContain("lunes 1 de enero, 10:00–11:00 h");
+    expect(m.html).not.toMatch(/\$|reembols|cobro|tarjeta|puntos/i);
+    expect(m.html).toContain(wa);
   });
 });
