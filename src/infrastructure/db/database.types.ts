@@ -727,6 +727,36 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          ok: boolean
+          recipient: string
+          subject: string
+          template: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          ok: boolean
+          recipient: string
+          subject: string
+          template: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          ok?: boolean
+          recipient?: string
+          subject?: string
+          template?: string
+        }
+        Relationships: []
+      }
       opening_hours: {
         Row: {
           close_minute: number
@@ -1700,6 +1730,16 @@ export type Database = {
           p_ends: string
           p_session: string
           p_starts: string
+        }
+        Returns: undefined
+      }
+      notification_log_record: {
+        Args: {
+          p_error: string
+          p_ok: boolean
+          p_recipient: string
+          p_subject: string
+          p_template: string
         }
         Returns: undefined
       }

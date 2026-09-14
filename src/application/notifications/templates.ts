@@ -51,7 +51,7 @@ export function customerConfirmation(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
-  return { subject: "Tu reserva en FOTF Studios está confirmada", html, text };
+  return { template: "customerConfirmation", subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 
 /**
@@ -80,7 +80,7 @@ export function customerCourtesyConfirmation(
      <p style="color:#8c8880;font-size:13px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:#e8c94a">términos</a> y <a href="${ctx.privacyUrl}" style="color:#e8c94a">política de privacidad</a>.</p>`,
   );
   const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
-  return { subject: "Tu sesión de cortesía en FOTF Studios está confirmada", html, text };
+  return { template: "customerCourtesyConfirmation", subject: "Tu sesión de cortesía en FOTF Studios está confirmada", html, text };
 }
 
 /**
@@ -101,7 +101,7 @@ export function customerAccessCode(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
   );
   const text = `Tu acceso para el ${v.when}: ${v.code}. ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { subject: "Tu código de acceso — FOTF Studios", html, text };
+  return { template: "customerAccessCode", subject: "Tu código de acceso — FOTF Studios", html, text };
 }
 
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
@@ -128,7 +128,7 @@ export function customerCancellation(
       ? ` Te reembolsamos ${v.refunded} al medio de pago original.`
       : "";
   const text = `Tu reserva del ${v.when} fue cancelada.${textLine} ¿Dudas? ${ctx.whatsappUrl}`;
-  return { subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
+  return { template: "customerCancellation", subject: "Tu reserva en FOTF Studios fue cancelada", html, text };
 }
 
 export function customerReschedule(
@@ -146,7 +146,7 @@ export function customerReschedule(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
   );
   const text = `Tu reserva quedó reagendada para el ${v.when}.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { subject: "Tu reserva en FOTF Studios cambió de horario", html, text };
+  return { template: "customerReschedule", subject: "Tu reserva en FOTF Studios cambió de horario", html, text };
 }
 
 export function customerRescheduleFailed(
@@ -159,7 +159,7 @@ export function customerRescheduleFailed(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos para elegir otro horario</a>`,
   );
   const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
-  return { subject: "No pudimos cambiar tu horario en FOTF Studios", html, text };
+  return { template: "customerRescheduleFailed", subject: "No pudimos cambiar tu horario en FOTF Studios", html, text };
 }
 
 /**
@@ -178,7 +178,7 @@ export function ownerNeedsReview(
      <p style="color:#b9b5ab;margin:0 0 16px">Pago: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
   );
   const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
-  return { subject: "⚠️ Pago sin reserva — acción requerida", html, text };
+  return { template: "ownerNeedsReview", subject: "⚠️ Pago sin reserva — acción requerida", html, text };
 }
 
 /**
@@ -218,7 +218,7 @@ export function ownerNewApplication(v: {
   const igText = v.instagram ? ` IG: ${v.instagram}.` : "";
   const genresText = v.genres ? ` Géneros: ${v.genres}.` : "";
   const text = `Nueva postulación de DJ: ${v.name}. Puede hacer: ${formatLabel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}. Set: ${v.mixUrl}.${igText}${genresText}\n\n${v.pitch}`;
-  return { subject: `Nueva postulación de DJ — ${v.name}`, html, text };
+  return { template: "ownerNewApplication", subject: `Nueva postulación de DJ — ${v.name}`, html, text };
 }
 
 /** Email al postulante: confirmación de que recibimos su postulación. Sin plazos prometidos. */
@@ -233,7 +233,7 @@ export function applicantConfirmation(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `Recibimos tu postulación al equipo, ${v.name}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1: ${ctx.whatsappUrl}`;
-  return { subject: "Recibimos tu postulación — FOTF Studios", html, text };
+  return { template: "applicantConfirmation", subject: "Recibimos tu postulación — FOTF Studios", html, text };
 }
 
 /**
@@ -266,7 +266,7 @@ export function ownerNewCourseLead(
   const cuposText = gen ? ` ${gen.code}: quedan ${gen.seatsLeft} cupos.` : " Sin generación abierta.";
   const msgText = v.message ? `\n\n${v.message}` : "";
   const text = `Nueva solicitud del curso: ${v.name}. Le interesa: ${plan}. Parte desde: ${nivel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}.${cuposText}${msgText}`;
-  return { subject: `Nueva solicitud del curso — ${v.name}`, html, text };
+  return { template: "ownerNewCourseLead", subject: `Nueva solicitud del curso — ${v.name}`, html, text };
 }
 
 /**
@@ -284,7 +284,7 @@ export function courseLeadConfirmation(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `Recibimos tu solicitud del Curso de Iniciación DJ, ${v.name}. Revisamos cada una a mano y te escribimos por WhatsApp para cerrar tu cupo y coordinar las fechas. Si prefieres adelantarlo: ${ctx.whatsappUrl}`;
-  return { subject: "Recibimos tu solicitud — Curso de DJ", html, text };
+  return { template: "courseLeadConfirmation", subject: "Recibimos tu solicitud — Curso de DJ", html, text };
 }
 
 /**
@@ -315,7 +315,7 @@ export function courseEnrollmentPaid(v: {
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `Tu cupo está confirmado, ${v.name}. Generación ${v.generation} del Curso de Iniciación DJ.${v.sessions.length ? " Sesiones: " + v.sessions.join(" · ") + "." : " Te confirmamos las fechas por WhatsApp."} Dónde: ${ctx.address}. Qué traer: audífonos y un USB con tu música. Total pagado: ${v.total}. WhatsApp: ${ctx.whatsappUrl}`;
-  return { subject: "Tu cupo está confirmado — Curso de DJ", html, text };
+  return { template: "courseEnrollmentPaid", subject: "Tu cupo está confirmado — Curso de DJ", html, text };
 }
 
 /**
@@ -336,7 +336,7 @@ export function courseEnrollmentPending(
      <p style="color:#b9b5ab;margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:#e8c94a">términos y condiciones</a>.</p>`,
   );
   const text = `${v.name}: reservamos tu cupo en la generación ${v.generation} del Curso de Iniciación DJ. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { subject: `Tu cupo en el Curso de DJ — falta el pago`, html, text };
+  return { template: "courseEnrollmentPending", subject: `Tu cupo en el Curso de DJ — falta el pago`, html, text };
 }
 
 /**
@@ -361,7 +361,7 @@ export function bookingPaymentPending(
      <p style="color:#b9b5ab;margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:#e8c94a">términos y condiciones</a>.</p>`,
   );
   const text = `${v.name ?? "Hola"}: te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { subject: "Tu hora en FOTF Studios — falta el pago", html, text };
+  return { template: "bookingPaymentPending", subject: "Tu hora en FOTF Studios — falta el pago", html, text };
 }
 
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
@@ -381,7 +381,7 @@ export function ownerCoursePaid(v: {
      <p style="color:#e8c94a;margin:16px 0">Recuerda emitir la boleta.</p>`,
   );
   const text = `Inscripción pagada: ${v.name} (${v.generation}). Pagó por ${v.method}. Total ${v.total}. Quedan ${v.seatsLeft} cupos. Recuerda emitir la boleta.`;
-  return { subject: `Inscripción pagada — ${v.name} (${v.generation})`, html, text };
+  return { template: "ownerCoursePaid", subject: `Inscripción pagada — ${v.name} (${v.generation})`, html, text };
 }
 
 /** Email al alumno: su inscripción quedó anulada (impaga). Sin dinero de por medio. */
@@ -396,7 +396,7 @@ export function courseEnrollmentCancelled(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
   const text = `Tu inscripción en la generación ${v.generation} quedó anulada y liberamos tu cupo. No se hizo ningún cobro. Si fue un error o quieres entrar a la siguiente: ${ctx.whatsappUrl}`;
-  return { subject: "Tu inscripción quedó anulada — Curso de DJ", html, text };
+  return { template: "courseEnrollmentCancelled", subject: "Tu inscripción quedó anulada — Curso de DJ", html, text };
 }
 
 /**
@@ -420,7 +420,7 @@ export function courseEnrollmentRefunded(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
   );
   const text = `Cancelamos tu cupo en la generación ${v.generation} del Curso de Iniciación DJ.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Si quieres entrar a la siguiente generación: ${ctx.whatsappUrl}`;
-  return { subject: "Tu inscripción al Curso de DJ fue cancelada", html, text };
+  return { template: "courseEnrollmentRefunded", subject: "Tu inscripción al Curso de DJ fue cancelada", html, text };
 }
 
 /** Email al dueño: aviso de nueva reserva pagada. */
@@ -436,5 +436,5 @@ export function ownerNotification(
      <p style="color:#e8c94a;margin:16px 0">Recuerda cargar el PIN en la cerradura y emitir la boleta.</p>`,
   );
   const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}. Cargar el PIN en la cerradura + emitir boleta.`;
-  return { subject: `Nueva reserva — ${v.when}`, html, text };
+  return { template: "ownerNotification", subject: `Nueva reserva — ${v.when}`, html, text };
 }

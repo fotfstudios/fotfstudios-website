@@ -1,5 +1,7 @@
 export interface EmailMessage {
   to: string;
+  /** Nombre de la plantilla que lo generó: clave estable para la bitácora y los tags. */
+  template: string;
   subject: string;
   html: string;
   text?: string;

@@ -40,6 +40,8 @@ import { SupabaseRatePlanRepository } from "@/src/infrastructure/db/rate-plan-re
 import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling-repository";
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
 import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mailer";
+import { LoggedMailer } from "@/src/application/notifications/logged-mailer";
+import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 
 /** Cliente Supabase service-role (servidor). */
@@ -154,14 +156,21 @@ export async function reconcilePending(
   return { scanned: ids.length, paid, unreserved };
 }
 
-export function mailer(): Mailer {
+/** Bitácora de correos: cada intento (ok o fallo) queda en notification_log; /admin la muestra. */
+export function notificationLogRepository(client: SupabaseClient<Database> = db()): SupabaseNotificationLogRepository {
+  return new SupabaseNotificationLogRepository(client);
+}
+
+/** Mailer real (Resend) o no-op sin API key; en ambos casos envuelto en la bitácora. */
+export function mailer(client: SupabaseClient<Database> = db()): Mailer {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM ?? "FOTF Studios <reservas@fotfstudios.cl>";
-  return key ? new ResendMailer(key, from) : new NoopMailer();
+  const real = key ? new ResendMailer(key, from) : new NoopMailer();
+  return new LoggedMailer(real, notificationLogRepository(client));
 }
 
 export function notificationService(client: SupabaseClient<Database> = db()): NotificationService {
-  return new NotificationService(mailer(), new SupabaseNotificationRepository(client), {
+  return new NotificationService(mailer(client), new SupabaseNotificationRepository(client), {
     ownerEmail: process.env.OWNER_EMAIL ?? "",
     tz: "America/Santiago",
     address: SITE.address,
