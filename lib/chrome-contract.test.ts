@@ -240,6 +240,12 @@ describe("árbol de rutas", () => {
     expect(block?.[1] ?? "title").not.toMatch(/\btitle\b/);
   });
 
+  it("las páginas de reserva no duplican el sufijo de marca (lo pone el template del root)", () => {
+    for (const f of ["app/(booking)/reservar/page.tsx", "app/(booking)/reserva/estado/page.tsx"]) {
+      expect(read(f), f).not.toMatch(/title: "[^"]*FOTF Studios"/);
+    }
+  });
+
   it("lib/curso-content.ts existe y nadie importa ya app/curso-dj/_content", () => {
     expect(exists("lib/curso-content.ts")).toBe(true);
     expect(exists("app/(marketing)/curso-dj/_content.ts")).toBe(false);

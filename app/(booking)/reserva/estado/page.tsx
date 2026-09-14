@@ -8,7 +8,7 @@ import { bookingEnabled, orderConfirmation } from "@/src/composition";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Estado de tu reserva — FOTF Studios",
+  title: "Estado de tu reserva",
   robots: { index: false },
 };
 
