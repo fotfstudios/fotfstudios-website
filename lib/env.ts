@@ -74,6 +74,7 @@ export const PROD_RECOMMENDED = [
   "EMAIL_FROM",
   "OWNER_EMAIL",
   "CRON_SECRET",
+  "SEND_EMAIL_HOOK_SECRET",
 ] as const;
 
 /** Faltantes del set recomendado de prod (vacío si están todas). Puro. */
