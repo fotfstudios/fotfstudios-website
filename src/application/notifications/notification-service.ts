@@ -14,6 +14,7 @@ import {
   customerCourtesyConfirmation,
   customerReschedule,
   customerRescheduleFailed,
+  customerReminder,
   ownerNeedsReview,
   ownerNewApplication,
   ownerNotification,
@@ -169,6 +170,31 @@ export class NotificationService {
       ...customerAccessCode(
         { name: input.name, when, code: input.code },
         { address: this.config.address, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Recordatorio de sesión al CLIENTE (lo dispara ReminderService desde el cron).
+   * Datos en mano; sin orden (cortesía) el link va a la cuenta en vez del recibo.
+   */
+  async notifyReminder(input: {
+    email: string | null;
+    name: string | null;
+    orderId: string | null;
+    startsAt: string;
+    endsAt: string | null;
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    const statusUrl = input.orderId
+      ? `${this.config.siteUrl}/reserva/estado?b=${input.orderId}`
+      : `${this.config.siteUrl}/cuenta`;
+    await this.mailer.send({
+      to: input.email,
+      ...customerReminder(
+        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
+        { address: this.config.address, whatsappUrl: this.config.whatsappUrl, statusUrl },
       ),
     });
     return true;
