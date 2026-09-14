@@ -34,3 +34,13 @@ export function splitRefundAcrossPayments(boletas: BackingBoleta[], refundAmount
   }
   return out;
 }
+
+/**
+ * Un reembolso de MP tiene su propio `status` (`approved` | `in_process` | `rejected` |
+ * `cancelled`). Solo `approved` es plata devuelta: `in_process` ("contingencia") aún
+ * puede rechazarse. Es la ÚNICA definición de "asentable" — la comparten el webhook
+ * (`refunds[]` del pago) y el admin (respuesta de crear el reembolso).
+ */
+export function isSettledRefund(r: { status: string }): boolean {
+  return r.status === "approved";
+}

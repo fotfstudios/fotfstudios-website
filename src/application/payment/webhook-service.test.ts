@@ -238,3 +238,79 @@ describe("WebhookService — finalizador de curso", () => {
     expect(repo.confirmPaid).not.toHaveBeenCalled();
   });
 });
+
+describe("WebhookService — estado del reembolso", () => {
+  it("un reembolso in_process NO se asienta ni entra al inbox (queda para la entrega que lo apruebe)", async () => {
+    const repo = makeRepo();
+    const svc = new WebhookService(
+      makeGateway({
+        status: "approved",
+        externalReference: "o1",
+        amount: 9990,
+        refunds: [{ id: "ref_p", amount: 9990, status: "in_process" }],
+      }),
+      repo,
+    );
+    const res = await svc.handlePaymentNotification("pay1");
+    expect(repo.markRefunded).not.toHaveBeenCalled();
+    expect(repo.recordEvent).not.toHaveBeenCalledWith("refund:ref_p", "refund", expect.anything());
+    // El pago sigue approved y ya estaba confirmado: inbox por status → duplicate.
+    expect(res.result).not.toBe("refunded");
+  });
+
+  it("in_process en la 1ª entrega y approved en la 2ª → se asienta UNA vez, en la 2ª", async () => {
+    // Inbox con semántica real: la primera vez que se ve un id es fresco, después duplicado.
+    const seen = new Set<string>();
+    const repo = makeRepo({
+      recordEvent: vi.fn(async (id: string) => (seen.has(id) ? false : (seen.add(id), true))),
+    });
+    const refund = { id: "ref_p", amount: 9990 };
+    const first = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o1", amount: 9990, refunds: [{ ...refund, status: "in_process" }] }),
+      repo,
+    );
+    const second = new WebhookService(
+      makeGateway({ status: "refunded", externalReference: "o1", refunds: [{ ...refund, status: "approved" }] }),
+      repo,
+    );
+    expect((await first.handlePaymentNotification("pay1")).result).not.toBe("refunded");
+    expect(await second.handlePaymentNotification("pay1")).toEqual({ result: "refunded", orderId: "o1", refundedAmount: 9990 });
+    expect(repo.markRefunded).toHaveBeenCalledTimes(1);
+    expect(repo.markRefunded).toHaveBeenCalledWith("o1", "ref_p", 9990);
+  });
+
+  it("un reembolso rechazado nunca asienta, aunque el pago venga con otros aprobados", async () => {
+    const repo = makeRepo();
+    const svc = new WebhookService(
+      makeGateway({
+        status: "approved",
+        externalReference: "o1",
+        refunds: [
+          { id: "ref_ok", amount: 3000, status: "approved" },
+          { id: "ref_no", amount: 2000, status: "rejected" },
+        ],
+      }),
+      repo,
+    );
+    const res = await svc.handlePaymentNotification("pay1");
+    expect(res).toEqual({ result: "refunded", orderId: "o1", refundedAmount: 3000 });
+    expect(repo.markRefunded).toHaveBeenCalledTimes(1);
+    expect(repo.markRefunded).toHaveBeenCalledWith("o1", "ref_ok", 3000);
+  });
+
+  it("re-entrega de un pago ya reembolsado (todo duplicado) → duplicate, no pending", async () => {
+    // El refund ya está en el inbox (loopback admin o entrega anterior); el evento por status es nuevo.
+    const repo = makeRepo({ recordEvent: vi.fn(async (id: string) => !id.startsWith("refund:")) });
+    const svc = new WebhookService(
+      makeGateway({
+        status: "refunded",
+        externalReference: "o1",
+        refunds: [{ id: "ref_a", amount: 9990, status: "approved" }],
+      }),
+      repo,
+    );
+    const res = await svc.handlePaymentNotification("pay1");
+    expect(res).toEqual({ result: "duplicate", orderId: "o1" });
+    expect(repo.markRefunded).not.toHaveBeenCalled();
+  });
+});
