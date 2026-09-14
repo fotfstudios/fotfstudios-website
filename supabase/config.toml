@@ -261,7 +261,7 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 # Plantillas de autenticación (FOTF Studios). Copy reformulado para que el código de
-# inicio de sesión NO se confunda con la clave de la sala (esa se coordina por WhatsApp).
+# inicio de sesión NO se confunda con el código de acceso a la sala (ese llega por email 10 min antes).
 # Ambas apuntan al mismo archivo — el texto es idéntico. Nuevo cliente por magic link
 # recibe `confirmation`; cliente/admin recurrente recibe `magic_link`. Solo aplica al
 # stack LOCAL; en staging/prod estas plantillas viven en el Dashboard (espejar a mano).

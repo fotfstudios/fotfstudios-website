@@ -35,7 +35,7 @@ const shell = (inner: string) =>
      </div>
    </div>`;
 
-/** Email al cliente: confirmación de reserva + cómo se coordina el acceso. */
+/** Email al cliente: confirmación de reserva + cómo llega el acceso (PIN por email 10 min antes). */
 export function customerConfirmation(
   v: BookingView,
   ctx: { address: string; whatsappUrl: string },
@@ -46,11 +46,11 @@ export function customerConfirmation(
      <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
      <p style="color:#b9b5ab;margin:0 0 16px">${esc(ctx.address)}</p>
      <table style="width:100%;border-top:1px solid #1e1d1a;border-bottom:1px solid #1e1d1a;margin:8px 0">${rows(v.lines)}</table>
-     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:#6f6c64;font-size:12px">IVA incluido</span></p>
-     <p style="color:#b9b5ab;margin:16px 0">Coordinaremos tu <strong style="color:#f5f2ec">acceso por WhatsApp</strong> antes de tu sesión.</p>
+     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:#8c8880;font-size:12px">IVA incluido</span></p>
+     <p style="color:#b9b5ab;margin:16px 0">Tu <strong style="color:#f5f2ec">código de acceso te llega por email 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Coordinaremos tu acceso por WhatsApp: ${ctx.whatsappUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
   return { subject: "Tu reserva en FOTF Studios está confirmada", html, text };
 }
 
@@ -75,11 +75,11 @@ export function customerCourtesyConfirmation(
      <p style="color:#b9b5ab;margin:0 0 16px">${esc(ctx.address)}</p>
      <p style="margin:8px 0 16px;border-top:1px solid #1e1d1a;border-bottom:1px solid #1e1d1a;padding:8px 0"><strong>Cortesía:</strong> sesión sin cobro.</p>
      ${addonsLine}
-     <p style="color:#b9b5ab;margin:16px 0">Coordinaremos tu <strong style="color:#f5f2ec">acceso por WhatsApp</strong> antes de tu sesión.</p>
+     <p style="color:#b9b5ab;margin:16px 0">Tu <strong style="color:#f5f2ec">código de acceso te llega por email 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:#e8c94a;color:#0a0a0a;padding:12px 20px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:#6f6c64;font-size:12px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:#6f6c64">términos</a> y <a href="${ctx.privacyUrl}" style="color:#6f6c64">política de privacidad</a>.</p>`,
+     <p style="color:#8c8880;font-size:13px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:#e8c94a">términos</a> y <a href="${ctx.privacyUrl}" style="color:#e8c94a">política de privacidad</a>.</p>`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Coordinaremos tu acceso por WhatsApp: ${ctx.whatsappUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
   return { subject: "Tu sesión de cortesía en FOTF Studios está confirmada", html, text };
 }
 
@@ -433,8 +433,8 @@ export function ownerNotification(
      <p style="color:#b9b5ab;margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(v.email ?? "sin email")}</p>
      <table style="width:100%;border-top:1px solid #1e1d1a;border-bottom:1px solid #1e1d1a;margin:8px 0">${rows(v.lines)}</table>
      <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong></p>
-     <p style="color:#e8c94a;margin:16px 0">Recuerda enviar el código de acceso y emitir la boleta.</p>`,
+     <p style="color:#e8c94a;margin:16px 0">Recuerda cargar el PIN en la cerradura y emitir la boleta.</p>`,
   );
-  const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}. Enviar acceso + emitir boleta.`;
+  const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}. Cargar el PIN en la cerradura + emitir boleta.`;
   return { subject: `Nueva reserva — ${v.when}`, html, text };
 }

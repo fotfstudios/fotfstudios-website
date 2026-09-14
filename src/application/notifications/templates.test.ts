@@ -17,9 +17,21 @@ describe("email templates", () => {
     expect(m.html).toContain("Los Chercanes 78a");
   });
 
-  it("aviso al dueño recuerda acceso y boleta", () => {
+  it("confirmación: el código de acceso llega por email 10 minutos antes, no por WhatsApp", () => {
+    const m = customerConfirmation(view, { address: "Los Chercanes 78a", whatsappUrl: "https://wa.me/56962803298" });
+    expect(m.html).toMatch(/por email/);
+    expect(m.html).toMatch(/10 minutos antes/);
+    expect(m.html).not.toMatch(/acceso por WhatsApp/);
+    expect(m.text).toMatch(/por email/);
+    expect(m.text).not.toMatch(/acceso por WhatsApp/);
+  });
+
+  it("aviso al dueño recuerda cargar el PIN en la cerradura y la boleta (ya no 'enviar el código')", () => {
     const m = ownerNotification({ ...view, email: "ana@e.cl" });
     expect(m.html).toMatch(/boleta/i);
+    expect(m.html).toMatch(/cargar el PIN/i);
+    expect(m.html).not.toMatch(/enviar el código/i);
+    expect(m.text).toMatch(/cargar/i);
     expect(m.html).toContain("ana@e.cl");
   });
 
@@ -83,6 +95,14 @@ describe("cortesía", () => {
     expect(m.html).toContain("https://www.fotfstudios.cl/privacidad");
     expect(m.text).toContain("https://www.fotfstudios.cl/terminos");
     expect(m.text).toContain("https://www.fotfstudios.cl/privacidad");
+  });
+
+  it("el código de acceso llega por email 10 minutos antes, no por WhatsApp", () => {
+    const m = customerCourtesyConfirmation({ name: "Ana", when: view.when, addonNames: [] }, ctx);
+    expect(m.html).toMatch(/por email/);
+    expect(m.html).toMatch(/10 minutos antes/);
+    expect(m.html).not.toMatch(/acceso por WhatsApp/);
+    expect(m.text).not.toMatch(/acceso por WhatsApp/);
   });
 
   it("no menciona dinero: sin Total, sin montos, sin IVA", () => {
