@@ -46,19 +46,36 @@ export class NotificationService {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o || o.notifiedAt) return false;
 
-    // Ramificar por `kind` ANTES de cualquier otra cosa. Un pedido de curso no
-    // tiene reserva, así que `startsAt` viene null y la plantilla de reserva
-    // saldría con la fecha en "—". Como notifyPending() barre TODA orden pagada
-    // sin notificar, el cron nocturno le mandaría al alumno una "Reserva
-    // confirmada · —". El curso avisa por su propio camino (notifyCoursePaid).
+    // Ramificar por `kind` ANTES de cualquier otra cosa. Solo 'booking'/'trial' son
+    // dueños de una reserva; un pedido de curso o de delta de reagendamiento no
+    // tiene `startsAt` y la plantilla de reserva saldría con la fecha en "—".
+    // Como notifyPending() barre TODA orden pagada sin notificar, el cron
+    // nocturno le mandaría una "Reserva confirmada · —". El curso avisa por su
+    // propio camino (notifyCoursePaid); el delta avisa vía notifyReschedule.
     //
     // Se marca como notificado igual: si solo devolviéramos false, la orden
     // quedaría con notified_at en null y el barrido la volvería a levantar en
     // cada corrida, para siempre.
-    if (o.kind === "course") {
+    if (o.kind !== "booking" && o.kind !== "trial") {
       await this.repo.markNotified(orderId);
       return false;
     }
+
+    // Sesión ya terminada: no hay confirmación que valga. Sin esto, el barrido de
+    // respaldo mandaba confirmaciones tardías de sesiones pasadas tras una caída
+    // del proveedor (2026-07-10). Se marca para que converja.
+    if (o.endsAt && DateTime.fromISO(o.endsAt) < DateTime.now()) {
+      await this.repo.markNotified(orderId);
+      return false;
+    }
+
+    // RECLAMAR antes de mandar (como AccessCodeService): dos corridas — cron,
+    // webhook, sondeo de estado — no pueden mandar la misma confirmación. Antes
+    // se marcaba al final: si el envío al dueño o el update fallaban, notified_at
+    // quedaba en null y el cron diario re-mandaba la confirmación al cliente cada
+    // día. Solo se suelta el reclamo si falla el envío al CLIENTE (el cron
+    // reintenta hasta que la sesión termine); el del dueño es best-effort.
+    if (!(await this.repo.markNotified(orderId))) return false;
 
     const when = o.startsAt
       ? DateTime.fromISO(o.startsAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL, HH:mm 'h'")
@@ -71,16 +88,21 @@ export class NotificationService {
     };
 
     if (o.email) {
-      await this.mailer.send({
-        to: o.email,
-        ...customerConfirmation(view, { address: this.config.address, whatsappUrl: this.config.whatsappUrl }),
-      });
+      try {
+        await this.mailer.send({
+          to: o.email,
+          ...customerConfirmation(view, { address: this.config.address, whatsappUrl: this.config.whatsappUrl }),
+        });
+      } catch (e) {
+        await this.repo.releaseNotified(orderId).catch((e2) => console.error("[notify:release]", orderId, e2));
+        throw e;
+      }
     }
     if (this.config.ownerEmail) {
-      await this.mailer.send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email }) });
+      await this.mailer
+        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email }) })
+        .catch((e) => console.error("[notify:owner]", orderId, e));
     }
-
-    await this.repo.markNotified(orderId);
     return true;
   }
 
@@ -395,12 +417,23 @@ export class NotificationService {
     }
   }
 
-  async notifyPending(): Promise<number> {
+  /**
+   * Barrido de respaldo: confirma lo pagado que sigue sin `notified_at`. Un fallo en
+   * una orden no frena a las demás y se CUENTA: el cron devuelve `failed` para que
+   * un proveedor caído no pase por "0 notificadas, todo bien" (incidente 2026-07-10).
+   */
+  async notifyPending(): Promise<{ notified: number; failed: number }> {
     const ids = await this.repo.pendingPaidOrderIds();
-    let n = 0;
+    let notified = 0;
+    let failed = 0;
     for (const id of ids) {
-      if (await this.notifyOrder(id)) n++;
+      try {
+        if (await this.notifyOrder(id)) notified++;
+      } catch (e) {
+        failed++;
+        console.error("[notify:pending]", id, e);
+      }
     }
-    return n;
+    return { notified, failed };
   }
 }

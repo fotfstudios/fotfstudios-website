@@ -49,11 +49,21 @@ export class SupabaseNotificationRepository implements NotificationRepository {
     return (data ?? []).map((o) => o.id);
   }
 
-  async markNotified(orderId: string): Promise<void> {
-    const { error } = await this.db
+  async markNotified(orderId: string): Promise<boolean> {
+    // `.is("notified_at", null)` + `select` = UPDATE … WHERE notified_at IS NULL
+    // RETURNING id: un solo statement, así dos corridas no pueden reclamar la misma.
+    const { data, error } = await this.db
       .from("orders")
       .update({ notified_at: new Date().toISOString() })
-      .eq("id", orderId);
+      .eq("id", orderId)
+      .is("notified_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  async releaseNotified(orderId: string): Promise<void> {
+    const { error } = await this.db.from("orders").update({ notified_at: null }).eq("id", orderId);
     if (error) throw new Error(error.message);
   }
 }

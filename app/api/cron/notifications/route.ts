@@ -14,8 +14,10 @@ export async function GET(req: Request): Promise<Response> {
     return new Response("unauthorized", { status: 401 });
   }
   try {
-    const notified = await notificationService().notifyPending();
-    return Response.json({ notified });
+    const result = await notificationService().notifyPending();
+    // Con fallos el cron responde 503: Vercel lo marca como fallido y queda a la vista.
+    // Antes devolvía `{ notified: 0 }` como si nada cuando el proveedor estaba caído.
+    return Response.json(result, { status: result.failed > 0 ? 503 : 200 });
   } catch (e) {
     console.error("[cron-notifications]", e);
     return Response.json({ error: "server" }, { status: 503 });

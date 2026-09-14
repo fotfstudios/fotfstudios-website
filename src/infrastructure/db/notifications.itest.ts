@@ -77,3 +77,26 @@ describe("NotificationService", () => {
     expect(mailer.sent.length).toBe(2);
   });
 });
+
+describe("SupabaseNotificationRepository.markNotified — reclamo único", () => {
+  it("la primera llamada reclama (true); la segunda ve notified_at ya puesto (false); release lo suelta", async () => {
+    const b = await checkout.createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 720,
+      durationHours: 1,
+      customer: { name: "Ana", email: "cliente@e.cl" },
+    });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    await pg.query("select confirm_payment($1,$2)", [b.value.orderId, "payClaim"]);
+    const repo = new SupabaseNotificationRepository(db);
+
+    // Dos corridas "simultáneas": ambas parten sin reclamo; solo una gana.
+    const [a, c] = await Promise.all([repo.markNotified(b.value.orderId), repo.markNotified(b.value.orderId)]);
+    expect([a, c].filter(Boolean)).toHaveLength(1);
+
+    await repo.releaseNotified(b.value.orderId);
+    expect(await repo.markNotified(b.value.orderId)).toBe(true);
+  });
+});
