@@ -498,3 +498,50 @@ describe("CheckoutService.createBooking — promo de primera reserva (checkout p
     if (r.ok) expect(r.value.amount).toBe(30000);
   });
 });
+
+// Guard "lo que ves es lo que pagas": el widget manda el total que mostró; si el
+// servidor calcula otro (elegibilidad de la promo cambió, price book nuevo), el
+// pedido no se crea y el cliente vuelve a ver el resumen — nunca paga a ciegas.
+describe("CheckoutService.createBooking — expectedAmount", () => {
+  it("coincide → crea el pedido", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking({ ...input, expectedAmount: 26000 }, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(true);
+    expect(repo.createCheckout).toHaveBeenCalled();
+  });
+
+  it("no coincide (la promo ya no aplica) → amount_changed y sin tocar la DB", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn() };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(true));
+
+    const r = await svc.createBooking({ ...input, expectedAmount: 26000 }, { firstBookingPromo: true });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe("amount_changed");
+    expect(repo.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("se compara contra el efectivo tras puntos (lo que muestra el widget como total a pagar)", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo, promoWith(false));
+
+    const r = await svc.createBooking(
+      { ...input, customerId: "cust-1", pointsToRedeem: 5000, expectedAmount: 21000 },
+      { firstBookingPromo: true },
+    );
+
+    expect(r.ok).toBe(true);
+  });
+
+  it("sin expectedAmount (consola del admin) no hay guard", async () => {
+    const repo: CheckoutRepository = { createCheckout: vi.fn().mockResolvedValue("ord_1") };
+    const svc = new CheckoutService(discountablePricing(), repo);
+
+    const r = await svc.createBooking(input);
+
+    expect(r.ok).toBe(true);
+  });
+});

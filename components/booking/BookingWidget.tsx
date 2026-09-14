@@ -95,6 +95,8 @@ export default function BookingWidget({
   // Promo de primera reserva: elegibilidad por correo normalizado, recordada por
   // sesión de página. Es estado (no ref) para que el desglose se derive en render.
   const [promoCache, setPromoCache] = useState<Record<string, boolean>>({});
+  // Sube para re-cotizar sin cambiar la selección (tras un 409 amount_changed).
+  const [quoteNonce, setQuoteNonce] = useState(0);
   // Login en línea (código OTP): entrar sin salir del flujo de reserva. El correo
   // es el mismo campo de la reserva (bk-email): un solo lugar donde escribirlo.
   const [loginOpen, setLoginOpen] = useState(false);
@@ -218,7 +220,7 @@ export default function BookingWidget({
     return () => {
       active = false;
     };
-  }, [resourceId, selected, selectedStart, duration, rec, extras]);
+  }, [resourceId, selected, selectedStart, duration, rec, extras, quoteNonce]);
 
   // Elegibilidad de la promo por correo (no por horario): se consulta al cambiar
   // el correo válido, con debounce; una respuesta fallida queda "desconocida"
@@ -297,6 +299,8 @@ export default function BookingWidget({
             customer: { name, email, phone },
             pointsToRedeem: pointsApplied,
             termsAccepted: acceptedTerms,
+            // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
+            expectedAmount: payable,
           }),
         });
         ok = res.ok;
@@ -308,11 +312,31 @@ export default function BookingWidget({
       return data as { orderId: string; preferenceId?: string; initPoint?: string; paidWithPoints?: boolean };
     } catch (e) {
       const err = e instanceof BookingRequestError ? e : new BookingRequestError("network");
+      if (err.code === "amount_changed") {
+        // El total real ya no es el mostrado: olvida la elegibilidad de este correo
+        // y vuelve a cotizar, así el resumen se corrige solo antes del reintento.
+        if (promoEmail) setPromoCache((c) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== promoEmail)));
+        setQuoteNonce((n) => n + 1);
+      }
       setError(bookingErrorMessage(err.code));
       setSubmitting(false);
       throw err;
     }
-  }, [resourceId, selected, selectedStart, duration, rec, extras, name, email, phone, pointsApplied, acceptedTerms]);
+  }, [
+    resourceId,
+    selected,
+    selectedStart,
+    duration,
+    rec,
+    extras,
+    name,
+    email,
+    phone,
+    pointsApplied,
+    acceptedTerms,
+    payable,
+    promoEmail,
+  ]);
 
   // Flujo clásico (fallback): redirect a init_point. `submitting` queda en true
   // a propósito → "Redirigiendo…" mientras el navegador navega.

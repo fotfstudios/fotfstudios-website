@@ -33,6 +33,12 @@ describe("bookingErrorMessage", () => {
     expect(bookingErrorMessage("points_session")).toBe("Tu sesión expiró. Vuelve a entrar para usar tus puntos.");
   });
 
+  it("amount_changed → el total cambió: revisa el resumen (no 'no se pudo crear')", () => {
+    const msg = bookingErrorMessage("amount_changed");
+    expect(msg).toContain("total cambió");
+    expect(msg).not.toBe("No se pudo crear la reserva.");
+  });
+
   it("points_email_conflict → no manda a 'vuelve a entrar' (eso no lo arregla)", () => {
     const msg = bookingErrorMessage("points_email_conflict");
     expect(msg).not.toContain("Vuelve a entrar");

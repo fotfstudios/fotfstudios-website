@@ -23,6 +23,13 @@ export interface CreateBookingInput extends BookingQuoteInput {
   /** Consentimiento T&C — lo asigna el borde: 'customer' (route /reservar) | 'staff' (admin). */
   termsSource?: "customer" | "staff";
   termsVersion?: string;
+  /**
+   * Total que el cliente VIO antes de pagar (efectivo tras descuentos y puntos).
+   * Si el servidor calcula otro —la promo dejó de aplicar entre la vista previa y
+   * el pago, cambió el price book— el pedido no se crea (`amount_changed`) y el
+   * widget vuelve a cotizar. Solo lo manda el checkout público.
+   */
+  expectedAmount?: number;
 }
 
 export interface CreateBookingResult {
@@ -81,6 +88,12 @@ export class CheckoutService {
     // eximir la ventana (enforceLeadTime:false) para walk-ins, pero el pasado sigue vetado.
     const lead = opts?.enforceLeadTime === false ? 0 : MIN_LEAD_MINUTES;
     if (new Date(startsAt).getTime() <= Date.now() + lead * 60_000) return err("too_soon");
+
+    // Lo que ves es lo que pagas: cualquier diferencia con el total mostrado aborta
+    // ANTES de crear el hold (también hacia abajo — el cliente merece ver el nuevo total).
+    if (input.expectedAmount !== undefined && input.expectedAmount !== redemption.cashTotal) {
+      return err("amount_changed");
+    }
 
     // Líneas de sala + add-ons + ajuste (volumen/redondeo). Extraído a dominio
     // para reutilizarlo desde el reagendamiento (misma forma de líneas).
