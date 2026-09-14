@@ -174,7 +174,11 @@ export function mailer(client: SupabaseClient<Database> = db()): Mailer {
 export function notificationService(client: SupabaseClient<Database> = db()): NotificationService {
   return new NotificationService(mailer(client), new SupabaseNotificationRepository(client), {
     ownerEmail: process.env.OWNER_EMAIL ?? "",
-    siteUrl: SITE_URL,
+    // Origen de los links del correo (recibo, cuenta, reservar): el del ENTORNO, como las
+    // back_urls de MP — prod → www, local → NEXT_PUBLIC_SITE_URL. Con el canónico fijo, un
+    // correo de prueba local mandaba al cliente al recibo de prod (404: la orden vive acá).
+    // T&C y privacidad siguen canónicos: son documentos, no la reserva.
+    siteUrl: resolveSiteUrl(),
     tz: "America/Santiago",
     address: SITE.address,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
