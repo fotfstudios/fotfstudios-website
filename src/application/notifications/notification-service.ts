@@ -15,6 +15,9 @@ import {
   customerReschedule,
   customerRescheduleFailed,
   customerReminder,
+  customerCourtesyCancelled,
+  customerHoldExpired,
+  customerPaymentNoSlot,
   ownerNeedsReview,
   ownerNewApplication,
   ownerNotification,
@@ -268,19 +271,58 @@ export class NotificationService {
   }
 
   /**
-   * Alerta al dueño cuando un pago se aprobó sin reserva válida (`paid_no_hold`).
-   * No escribe al cliente: `confirm_payment` ya marcó `notified_at` para suprimir la
-   * confirmación normal. Best-effort; el dueño igual lo ve en el panel/boleta.
+   * Pago aprobado sin reserva válida (`paid_no_hold`): alerta al dueño PRIMERO (es
+   * quien decide devolver o reasignar) y al cliente le reconoce el pago —antes no
+   * recibía nada: plata fuera, cero correo—. `confirm_payment` ya marcó `notified_at`
+   * para suprimir la confirmación normal. Cada envío es independiente y best-effort.
    */
   async notifyPaymentNeedsReview(orderId: string, paymentId: string): Promise<void> {
-    if (!this.config.ownerEmail) return;
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o) return;
     const when = this.when(o.startsAt, o.endsAt);
+    const total = formatCLP(o.amount);
+    if (this.config.ownerEmail) {
+      await this.mailer
+        .send({ to: this.config.ownerEmail, ...ownerNeedsReview({ when, total, email: o.email, paymentId }) })
+        .catch((e) => console.error("[notify:review:owner]", orderId, e));
+    }
+    if (o.email) {
+      await this.mailer
+        .send({ to: o.email, ...customerPaymentNoSlot({ name: o.name, when, total }, { whatsappUrl: this.config.whatsappUrl }) })
+        .catch((e) => console.error("[notify:review:customer]", orderId, e));
+    }
+  }
+
+  /** Reserva pendiente vencida (link de 72 h sin pagar): el horario se liberó. Best-effort. */
+  async notifyHoldExpired(orderId: string): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
     await this.mailer.send({
-      to: this.config.ownerEmail,
-      ...ownerNeedsReview({ when, total: formatCLP(o.amount), email: o.email, paymentId }),
+      to: o.email,
+      ...customerHoldExpired(
+        { name: o.name, when: this.when(o.startsAt, o.endsAt) },
+        { whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar` },
+      ),
     });
+    return true;
+  }
+
+  /** Cortesía cancelada: datos en mano (no hay orden), mismo patrón que notifyCourtesy. */
+  async notifyCourtesyCancelled(input: {
+    email: string | null;
+    name: string | null;
+    startsAt: string;
+    endsAt: string | null;
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    await this.mailer.send({
+      to: input.email,
+      ...customerCourtesyCancelled(
+        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
+        { whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
   }
 
   /**

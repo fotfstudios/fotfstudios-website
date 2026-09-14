@@ -552,3 +552,65 @@ describe("notifyReminder (H9)", () => {
     expect(mailer.send.mock.calls[0][0].html).toContain("https://www.fotfstudios.cl/cuenta");
   });
 });
+
+describe("estados que antes eran silencio (H6)", () => {
+  const order = {
+    id: "o1",
+    kind: "booking",
+    email: "ana@e.cl",
+    name: "Ana",
+    amount: 9990,
+    currency: "CLP",
+    startsAt: "2999-07-12T18:00:00Z",
+    endsAt: "2999-07-12T20:00:00Z",
+    notifiedAt: "2999-01-01T00:00:00Z",
+    lines: [],
+  };
+  const withOwner = (svc: ReturnType<typeof makeService>) =>
+    new NotificationService(svc.mailer, svc.repo, {
+      ownerEmail: "owner@e.cl",
+      siteUrl: "https://www.fotfstudios.cl",
+      tz: "America/Santiago",
+      address: "Los Chercanes 78a",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    });
+
+  it("pago sin cupo: avisa al dueño PRIMERO y luego al cliente", async () => {
+    const base = makeService();
+    vi.mocked(base.repo.getOrderForEmail).mockResolvedValue(order);
+    await withOwner(base).notifyPaymentNeedsReview("o1", "pay1");
+    const tos = base.mailer.send.mock.calls.map((c) => c[0].to);
+    expect(tos).toEqual(["owner@e.cl", "ana@e.cl"]);
+    expect(base.mailer.send.mock.calls[1][0].html).toMatch(/ya no estaba disponible/);
+  });
+
+  it("pago sin cupo: si falla el correo al dueño, el cliente igual recibe el suyo", async () => {
+    const base = makeService();
+    vi.mocked(base.repo.getOrderForEmail).mockResolvedValue(order);
+    base.mailer.send.mockRejectedValueOnce(new Error("owner bounced"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    await withOwner(base).notifyPaymentNeedsReview("o1", "pay1");
+    expect(base.mailer.send).toHaveBeenCalledTimes(2);
+    err.mockRestore();
+  });
+
+  it("hora liberada: manda al cliente de la orden con el horario", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    expect(await service.notifyHoldExpired("o1")).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.html).toContain("14:00–16:00 h");
+    expect(msg.html).toContain("https://www.fotfstudios.cl/reservar");
+  });
+
+  it("cortesía cancelada: datos en mano, sin email no manda", async () => {
+    const { service, mailer } = makeService();
+    expect(await service.notifyCourtesyCancelled({ email: null, name: "Ana", startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T20:00:00Z" })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(await service.notifyCourtesyCancelled({ email: "ana@e.cl", name: "Ana", startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T20:00:00Z" })).toBe(true);
+    expect(mailer.send.mock.calls[0][0].html).toContain("14:00–16:00 h");
+  });
+});

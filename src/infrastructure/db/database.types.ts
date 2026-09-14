@@ -1696,6 +1696,10 @@ export type Database = {
         Args: { p_older_than?: string }
         Returns: number
       }
+      expire_abandoned_manual_holds_ids: {
+        Args: { p_older_than?: string }
+        Returns: string[]
+      }
       expire_abandoned_reschedules: {
         Args: { p_older_than?: string }
         Returns: number

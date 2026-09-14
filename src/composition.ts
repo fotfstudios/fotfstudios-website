@@ -244,8 +244,17 @@ export async function expireAbandonedReschedules(client: SupabaseClient<Database
 
 /** Barre reservas manuales pendientes abandonadas (hold firme, >72 h sin pagar). */
 export async function expireAbandonedManualHolds(client: SupabaseClient<Database> = db()): Promise<number> {
-  const { data } = await client.rpc("expire_abandoned_manual_holds");
-  return data ?? 0;
+  const { data, error } = await client.rpc("expire_abandoned_manual_holds_ids");
+  if (error) throw new Error(error.message);
+  const ids = data ?? [];
+  // El cliente recibió "Tu hora está tomada — falta el pago" y luego nada: avisarle
+  // que el horario se liberó (best-effort; la orden ya quedó cancelada igual).
+  for (const id of ids) {
+    await notificationService(client)
+      .notifyHoldExpired(id)
+      .catch((e) => console.error("[reconcile:manual-holds:email]", id, e));
+  }
+  return ids.length;
 }
 
 /** Barre inscripciones de curso abandonadas (>72 h sin pagar) y libera sus cupos. */

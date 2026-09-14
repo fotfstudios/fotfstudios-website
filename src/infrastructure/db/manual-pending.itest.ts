@@ -149,6 +149,17 @@ describe("CheckoutService.createBooking con opts.firmHold", () => {
 // (20260707140000_reschedule_charge.sql:117-131) — cancela pending_payment con reserva held
 // y expires_at NULL (hold firme) más viejo que 72 h, vía cancel_unpaid_order. No debe tocar
 // holds firmes frescos ni holds de cliente (expires_at no NULL, TTL de 10 min).
+describe("expire_abandoned_manual_holds_ids — devuelve lo que barrió (para avisar al cliente)", () => {
+  it("lista el id del pedido vencido; la segunda pasada (versión int) ya no encuentra nada", async () => {
+    const stale = await firmCheckout();
+    await pg.query("update orders set created_at = now() - interval '73 hours' where id=$1", [stale.orderId]);
+    const ids = await pg.query<{ id: string }>("select id from expire_abandoned_manual_holds_ids() id");
+    expect(ids.rows.map((r) => r.id)).toEqual([stale.orderId]);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [stale.orderId])).rows[0].status).toBe("cancelled");
+    expect(Number((await pg.query<{ n: number }>("select expire_abandoned_manual_holds() n")).rows[0].n)).toBe(0);
+  });
+});
+
 describe("expire_abandoned_manual_holds", () => {
   it("cancela pendientes manuales >72 h (orden cancelled, reserva expired) y respeta frescas", async () => {
     const stale = await firmCheckout();
