@@ -573,12 +573,20 @@ describe("firmUpHold (link de pago sobre hold de cliente)", () => {
     expect(await repo.firmUpHold(r.id)).toBe("already_firm");
   });
 
-  it("un hold ya vencido no se resucita", async () => {
+  it("un hold ya vencido no se resucita: devuelve el estado observado ('expired')", async () => {
     const b = await customerHold();
     if (!b.ok) throw new Error(b.error);
     await pg.query("update reservations set expires_at = now() - interval '1 minute' where order_id=$1", [b.value.orderId]);
     const r = await reservationOf(b.value.orderId);
-    expect(await repo.firmUpHold(r.id)).toBe("not_held");
+    expect(await repo.firmUpHold(r.id)).toBe("expired");
     expect((await reservationOf(b.value.orderId)).expires_at).not.toBeNull();
+  });
+
+  it("una reserva ya confirmada devuelve 'confirmed' (no hay hold que afirmar)", async () => {
+    const b = await customerHold();
+    if (!b.ok) throw new Error(b.error);
+    await pg.query("select confirm_payment($1, 'mp_x')", [b.value.orderId]);
+    const r = await reservationOf(b.value.orderId);
+    expect(await repo.firmUpHold(r.id)).toBe("confirmed");
   });
 });

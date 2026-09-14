@@ -117,14 +117,17 @@ describe("webhook", () => {
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
   });
 
-  it("approved sin hold vigente → paid_unreserved, no confirma reserva ni emite boleta", async () => {
+  it("approved con el cupo ya revendido → paid_unreserved, no confirma reserva ni emite boleta", async () => {
     const b = await book(600, "d@e.cl");
     expect(b.ok).toBe(true);
     if (!b.ok) return;
     const orderId = b.value.orderId;
 
-    // Simula que el hold venció y fue barrido/revendido antes de que llegue el pago.
+    // El hold venció, fue barrido y OTRO cliente tomó el cupo antes de que llegue el pago.
+    // (Con el cupo libre, confirm_payment lo re-toma — ver el caso siguiente.)
     await pg.query("update reservations set status='expired' where order_id=$1", [orderId]);
+    const other = await book(600, "otro@e.cl");
+    expect(other.ok).toBe(true);
 
     const svc = new WebhookService(
       new StubGateway({ id: "pay3", status: "approved", externalReference: orderId, amount: 9990 }),
@@ -144,6 +147,24 @@ describe("webhook", () => {
     expect(r.rows[0].status).toBe("expired");
     const t = await pg.query("select 1 from tax_documents where order_id=$1", [orderId]);
     expect(t.rowCount).toBe(0);
+  });
+
+  it("approved sobre un hold vencido con el cupo libre → paid: re-toma la reserva y emite boleta", async () => {
+    const b = await book(600, "e@e.cl");
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+    await pg.query("update reservations set status='expired' where order_id=$1", [orderId]);
+
+    const svc = new WebhookService(
+      new StubGateway({ id: "pay4", status: "approved", externalReference: orderId, amount: 9990 }),
+      repo,
+    );
+    expect((await svc.handlePaymentNotification("pay4")).result).toBe("paid");
+    const r = await pg.query<{ status: string }>("select status from reservations where order_id=$1", [orderId]);
+    expect(r.rows[0].status).toBe("confirmed");
+    const t = await pg.query("select 1 from tax_documents where order_id=$1 and kind='boleta'", [orderId]);
+    expect(t.rowCount).toBe(1);
   });
 
   it("rejected → NO cancela: hold intacto y un reintento aprobado confirma la MISMA orden", async () => {

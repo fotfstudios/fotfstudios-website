@@ -250,7 +250,13 @@ export async function sharePaymentLinkAction(
     const order = await adminRepository().orderForReservation(reservationId);
     if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
     const firm = await adminRepository().firmUpHold(reservationId);
-    if (firm === "not_held") throw new Error("El horario ya se liberó (el hold venció). Crea una reserva nueva.");
+    // Copy según lo que realmente pasó: entre la lectura de arriba y este update el cliente
+    // pudo pagar (confirmed) o el hold pudo vencer (expired); decirle al dueño "crea una
+    // reserva nueva" sobre una que acaba de pagarse lo empujaría a duplicarla.
+    if (firm === "expired") throw new Error("El horario ya se liberó (el hold venció). Crea una reserva nueva.");
+    if (firm === "confirmed") throw new Error("La reserva ya está confirmada (pagada). Recarga la página.");
+    if (firm === "cancelled") throw new Error("La reserva está cancelada.");
+    if (firm === "held") throw new Error("La reserva cambió de estado. Recarga la página.");
     const host = hostFromHeaders(await headers());
     const pref = await paymentService(db(), host).createPreferenceForOrder(order.orderId, { expiresInMinutes: 72 * 60 });
     if (!pref.ok) throw new Error(pref.error);

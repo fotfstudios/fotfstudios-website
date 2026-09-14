@@ -373,7 +373,7 @@ describe("expiración del hold (H1/H3)", () => {
     await expireAndSweep(b.value.orderId);
     expect(await balance()).toBe(4000);
     const late = await pg.query<{ r: string }>("select confirm_payment($1, 'late_pay') r", [b.value.orderId]);
-    expect(late.rows[0].r).toBe("paid_no_hold"); // la reserva sigue expired: cupo liberado, pago retenido para revisión
+    expect(late.rows[0].r).toBe("confirmed"); // el cupo seguía libre → se re-toma (20260914120000)
     expect(await balance()).toBe(computeEarn(HOUR_PRICE - 4000));
     await expectBalanceConsistent();
   });

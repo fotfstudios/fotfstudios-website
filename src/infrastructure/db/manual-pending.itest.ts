@@ -192,6 +192,24 @@ describe("expire_abandoned_manual_holds", () => {
     expect((await pg.query<{ status: string }>("select status from orders where id=$1", [freshOrderId])).rows[0].status).toBe("pending_payment");
   });
 
+  it("un link de pago reciente extiende la ventana: barre 72 h después del ÚLTIMO payment_intent", async () => {
+    const r = await firmCheckout();
+    await pg.query("update orders set created_at = now() - interval '73 hours' where id=$1", [r.orderId]);
+    // Link regenerado hace 1 h (día 2): el hold debe vivir lo que vive ese link.
+    await pg.query(
+      `insert into payment_intents (order_id, provider, preference_id, amount_clp, currency, status, created_at)
+       values ($1, 'mercadopago', 'pref-reciente', 9990, 'CLP', 'created', now() - interval '1 hour')`,
+      [r.orderId],
+    );
+    expect(Number((await pg.query<{ n: number }>("select expire_abandoned_manual_holds() n")).rows[0].n)).toBe(0);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [r.orderId])).rows[0].status).toBe("pending_payment");
+
+    // Con el link también vencido (>72 h) sí se barre.
+    await pg.query("update payment_intents set created_at = now() - interval '73 hours' where order_id=$1", [r.orderId]);
+    expect(Number((await pg.query<{ n: number }>("select expire_abandoned_manual_holds() n")).rows[0].n)).toBe(1);
+    expect((await pg.query<{ status: string }>("select status from orders where id=$1", [r.orderId])).rows[0].status).toBe("cancelled");
+  });
+
   it("no toca holds del cliente (expires_at no NULL) aunque la orden sea vieja", async () => {
     const res = await checkout.createBooking({ resourceId, date: MON, startMinute: 660, durationHours: 1, customer: { email: "cliente2@e.cl" } });
     if (!res.ok) throw new Error(`book failed: ${res.error}`);
@@ -221,28 +239,85 @@ describe("liquidación idempotente de una pendiente", () => {
     expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [r.orderId])).rows[0].n).toBe("1");
   });
 
-  // B1 Task 4 fix: la vía real a `paid_no_hold` para una orden MANUAL es una carrera
-  // TOCTOU con `expire_abandoned_manual_holds` — el sweep de 72h cancela la orden
-  // (reservation → expired, order → cancelled) entre la lectura de estado de la acción
-  // y `confirmOffline`; `confirm_payment` (guard `status <> 'paid'`) igual la flipea a
-  // 'paid' sin reserva held. (`expire_stale_holds` NO aplica: filtra `expires_at < now()`
-  // y un hold firme tiene `expires_at IS NULL`, así que nunca lo toca.) Este test simula
-  // el resultado de esa carrera forzando el estado por SQL. Characterization test: fija
-  // que `confirm_payment` en ese caso deja la orden 'paid' pero devuelve 'paid_no_hold'
-  // y NO genera boleta. Es la rama exacta que `markPaidOfflineAction` ahora distingue
-  // (aviso al dueño + mensaje preciso) en vez de tirar un error genérico que esconde que
-  // el pago SÍ quedó registrado.
-  it("hold expirado + confirm_payment → 'paid_no_hold', orden paid, sin boleta", async () => {
+  // Carrera TOCTOU con `expire_abandoned_manual_holds`: el sweep cancela la orden (reserva →
+  // expired, orden → cancelled) entre la lectura de estado de la acción y `confirmOffline`.
+  // Desde 20260914120000 `confirm_payment` RE-TOMA el cupo si sigue libre y la sesión aún no
+  // empieza: el pago existió, el cupo estaba libre → reserva confirmada con boleta, no revisión.
+  it("hold expirado por el barrido + cupo libre → confirm_payment re-toma la reserva ('confirmed', boleta)", async () => {
     const r = await firmCheckout(); // pending + held NULL
-    await pg.query("update reservations set status='expired' where order_id=$1", [r.orderId]);
+    await pg.query("select cancel_unpaid_order($1)", [r.orderId]); // lo que hace el barrido de 72 h
 
     const res = await pg.query<{ c: string }>("select confirm_payment($1,$2) c", [r.orderId, "offline:efectivo"]);
-    expect(res.rows[0].c).toBe("paid_no_hold");
+    expect(res.rows[0].c).toBe("confirmed");
 
     const o = await pg.query<{ status: string }>("select status from orders where id=$1", [r.orderId]);
     expect(o.rows[0].status).toBe("paid");
+    const rs = await pg.query<{ status: string; expires_at: string | null }>("select status, expires_at from reservations where id=$1", [r.reservationId]);
+    expect(rs.rows[0]).toEqual({ status: "confirmed", expires_at: null });
     expect(
-      (await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1", [r.orderId])).rows[0].n,
-    ).toBe("0");
+      (await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [r.orderId])).rows[0].n,
+    ).toBe("1");
+  });
+});
+
+// Pago tardío (webhook/reconcile/admin) sobre un hold que el barrido ya expiró: se re-toma el
+// cupo solo si sigue libre y la sesión aún no empieza; si no, `paid_no_hold` (revisión del dueño).
+describe("pago tardío sobre un hold vencido (re-toma del cupo)", () => {
+  const book = (start: number, email: string) =>
+    checkout.createBooking({ resourceId, date: MON, startMinute: start, durationHours: 1, customer: { email } });
+  const reservation = async (orderId: string) =>
+    (await pg.query<{ status: string; expires_at: string | null }>("select status, expires_at from reservations where order_id=$1", [orderId])).rows[0];
+  const boletas = async (orderId: string) =>
+    Number((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [orderId])).rows[0].n);
+
+  it("cupo libre y sesión futura → 'confirmed', boleta y evento marcado como re-toma", async () => {
+    const r = await book(600, "tarde@e.cl");
+    if (!r.ok) throw new Error(r.error);
+    await pg.query("update reservations set status='expired' where order_id=$1", [r.value.orderId]);
+
+    const c = await pg.query<{ c: string }>("select confirm_payment($1,'mp_late') c", [r.value.orderId]);
+    expect(c.rows[0].c).toBe("confirmed");
+    expect(await reservation(r.value.orderId)).toEqual({ status: "confirmed", expires_at: null });
+    expect(await boletas(r.value.orderId)).toBe(1);
+    const ev = await pg.query<{ detail: { reacquired?: boolean } | null }>(
+      "select detail from booking_events where order_id=$1 and type='payment_confirmed'",
+      [r.value.orderId],
+    );
+    expect(ev.rows[0]?.detail?.reacquired).toBe(true);
+  });
+
+  it("otro ya tomó el cupo → 'paid_no_hold', sin boleta, el competidor intacto", async () => {
+    const a = await book(600, "a@e.cl");
+    if (!a.ok) throw new Error(a.error);
+    await pg.query("update reservations set status='expired' where order_id=$1", [a.value.orderId]);
+    const b = await book(600, "b@e.cl");
+    if (!b.ok) throw new Error(b.error);
+
+    const c = await pg.query<{ c: string }>("select confirm_payment($1,'mp_late') c", [a.value.orderId]);
+    expect(c.rows[0].c).toBe("paid_no_hold");
+    expect((await reservation(a.value.orderId)).status).toBe("expired");
+    expect((await reservation(b.value.orderId)).status).toBe("held");
+    expect(await boletas(a.value.orderId)).toBe(0);
+  });
+
+  it("sesión ya empezada → 'paid_no_hold' aunque el cupo esté libre", async () => {
+    const r = await book(600, "pasado@e.cl");
+    if (!r.ok) throw new Error(r.error);
+    await pg.query(
+      "update reservations set status='expired', starts_at = now() - interval '2 hours', ends_at = now() - interval '1 hour' where order_id=$1",
+      [r.value.orderId],
+    );
+    const c = await pg.query<{ c: string }>("select confirm_payment($1,'mp_late') c", [r.value.orderId]);
+    expect(c.rows[0].c).toBe("paid_no_hold");
+    expect((await reservation(r.value.orderId)).status).toBe("expired");
+  });
+
+  it("una reserva cancelada (decisión, no barrido) no se re-toma", async () => {
+    const r = await book(600, "cancel@e.cl");
+    if (!r.ok) throw new Error(r.error);
+    await pg.query("update reservations set status='cancelled' where order_id=$1", [r.value.orderId]);
+    const c = await pg.query<{ c: string }>("select confirm_payment($1,'mp_late') c", [r.value.orderId]);
+    expect(c.rows[0].c).toBe("paid_no_hold");
+    expect((await reservation(r.value.orderId)).status).toBe("cancelled");
   });
 });
