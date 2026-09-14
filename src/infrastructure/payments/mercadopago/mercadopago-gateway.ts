@@ -130,21 +130,23 @@ export class MercadoPagoGateway implements PaymentGateway {
     }
   }
 
-  async refundPayment(paymentId: string, amount?: number): Promise<RefundResult> {
+  async refundPayment(paymentId: string, amount?: number, idempotencyKey?: string): Promise<RefundResult> {
     const refunds = new PaymentRefund(this.client);
     let r;
     try {
-      // Idempotencia: reintentos no generan reembolsos duplicados.
+      // Idempotencia: reintentos no generan reembolsos duplicados. La clave del llamador
+      // (RefundService) lleva lo ya reembolsado para que dos parciales iguales seguidos
+      // no colapsen en uno; el default por pago(+monto) queda para el resto de caminos.
       r =
         amount == null
           ? await refunds.total({
               payment_id: paymentId,
-              requestOptions: { idempotencyKey: `refund:${paymentId}` },
+              requestOptions: { idempotencyKey: idempotencyKey ?? `refund:${paymentId}` },
             })
           : await refunds.create({
               payment_id: paymentId,
               body: { amount },
-              requestOptions: { idempotencyKey: `refund:${paymentId}:${amount}` },
+              requestOptions: { idempotencyKey: idempotencyKey ?? `refund:${paymentId}:${amount}` },
             });
     } catch (e) {
       // El SDK de MP puede lanzar un objeto (no Error) con la respuesta de la API;

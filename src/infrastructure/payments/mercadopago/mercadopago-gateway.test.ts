@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { toRefundInfo } from "./mercadopago-gateway";
+import { describe, expect, it, vi } from "vitest";
+import { MercadoPagoGateway, toRefundInfo } from "./mercadopago-gateway";
 
 /**
  * El adaptador es glue delgado sobre el SDK (se ejercita en el .itest sandbox);
@@ -20,5 +20,36 @@ describe("toRefundInfo", () => {
       status: "unknown",
       dateCreated: undefined,
     });
+  });
+});
+
+// El SDK es la frontera: se mockea solo PaymentRefund para ver qué clave viaja a MP.
+const refundCreate = vi.fn(async () => ({ id: 777, status: "approved", amount: 5000 }));
+vi.mock("mercadopago", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("mercadopago")>();
+  return {
+    ...mod,
+    PaymentRefund: class {
+      create = refundCreate;
+      total = vi.fn(async () => ({ id: 778, status: "approved" }));
+    },
+  };
+});
+
+describe("MercadoPagoGateway.refundPayment — clave de idempotencia", () => {
+  it("usa la clave del llamador cuando viene", async () => {
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await gw.refundPayment("123", 5000, "refund:123:5000:9990");
+    expect(refundCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ payment_id: "123", body: { amount: 5000 }, requestOptions: { idempotencyKey: "refund:123:5000:9990" } }),
+    );
+  });
+
+  it("sin clave del llamador, conserva la clave por pago+monto", async () => {
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await gw.refundPayment("123", 5000);
+    expect(refundCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestOptions: { idempotencyKey: "refund:123:5000" } }),
+    );
   });
 });

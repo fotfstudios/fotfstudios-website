@@ -55,8 +55,13 @@ export interface PaymentGateway {
   getPayment(paymentId: string): Promise<PaymentInfo>;
   /** Busca el pago de una orden por `external_reference` (reconciliación). */
   findPaymentByOrder(orderId: string): Promise<PaymentInfo | null>;
-  /** Reembolsa un pago. Sin `amount` → total; con `amount` → parcial. */
-  refundPayment(paymentId: string, amount?: number): Promise<RefundResult>;
+  /**
+   * Reembolsa un pago. Sin `amount` → total; con `amount` → parcial.
+   * `idempotencyKey` (opcional): clave que el llamador deriva de SU estado, de modo que un
+   * reintento del mismo intento repita la clave (MP dedupea) y un reembolso nuevo del mismo
+   * monto no la repita. Sin ella el adaptador usa una clave por pago(+monto).
+   */
+  refundPayment(paymentId: string, amount?: number, idempotencyKey?: string): Promise<RefundResult>;
   /**
    * Anula un pago aún no aprobado (MP "Create cancellation":
    * `PUT /v1/payments/{id}` `{status:"cancelled"}`). Solo válido si el pago está
