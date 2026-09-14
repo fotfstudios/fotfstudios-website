@@ -188,8 +188,8 @@ function Confirmed({
         <ol className="mt-4 space-y-4">
           <Step n="01">Te enviamos un email con el detalle de tu reserva.</Step>
           <Step n="02">
-            Coordinaremos tu <strong className="text-bone">acceso por WhatsApp</strong> antes de tu
-            sesión. Entras solo, sin esperar a nadie.
+            Tu <strong className="text-bone">código de acceso te llega por email 10 minutos antes</strong> de
+            tu sesión. Entras solo, sin esperar a nadie. Si no lo ves, escríbenos por WhatsApp.
           </Step>
           <Step n="03">
             {SITE.address}.{" "}
