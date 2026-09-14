@@ -5,6 +5,7 @@ import { applyManualDiscount, type ManualDiscount, type ManualDiscountInput } fr
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import type { FirstBookingPromoService } from "./first-booking-promo";
 
 export interface CreateBookingInput extends BookingQuoteInput {
   customer: Customer;
@@ -14,7 +15,9 @@ export interface CreateBookingInput extends BookingQuoteInput {
   /**
    * Descuento digitado por el staff (reserva manual). Viaja como intención
    * (target/modo/valor), NUNCA como pesos: la base se resuelve contra el quote
-   * del servidor. El checkout público jamás lo envía.
+   * del servidor. El checkout público jamás lo envía: su única rebaja es la
+   * promo de primera reserva, que resuelve ESTE servicio (opts.firstBookingPromo)
+   * y no el cliente.
    */
   manualDiscount?: ManualDiscountInput;
   /** Consentimiento T&C — lo asigna el borde: 'customer' (route /reservar) | 'staff' (admin). */
@@ -34,11 +37,17 @@ export class CheckoutService {
   constructor(
     private readonly pricing: PricingService,
     private readonly repo: CheckoutRepository,
+    private readonly promo?: FirstBookingPromoService,
   ) {}
 
+  /**
+   * `firstBookingPromo`: el borde público opta a la promo de primera reserva; la
+   * consola del admin no la pasa (ahí el staff decide con su DiscountPicker). Se
+   * evalúa sobre `input.customer.email` — el mismo correo que queda en el pedido.
+   */
   async createBooking(
     input: CreateBookingInput,
-    opts?: { enforceLeadTime?: boolean; firmHold?: boolean },
+    opts?: { enforceLeadTime?: boolean; firmHold?: boolean; firstBookingPromo?: boolean },
   ): Promise<Result<CreateBookingResult, string>> {
     const res = await this.pricing.quoteBooking(input);
     if (!res.ok) return err(res.error);
@@ -52,6 +61,12 @@ export class CheckoutService {
       const d = applyManualDiscount(quote, input.manualDiscount);
       if (!d.ok) return err(`discount:${d.error}`);
       discount = d.value;
+    } else if (opts?.firstBookingPromo && this.promo) {
+      // Promo automática: nunca junto al descuento manual. Un error de la
+      // matemática acá (imposible con 20% de sala) no es del staff → sin promo.
+      const promo = await this.promo.discountFor(input.customer.email);
+      const d = promo ? applyManualDiscount(quote, promo) : null;
+      if (d?.ok) discount = d.value;
     }
     const afterDiscount = discount
       ? { total: discount.cashTotal, net: discount.cashNet }

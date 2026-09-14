@@ -111,6 +111,10 @@ export async function POST(req: Request): Promise<Response> {
       pointsToRedeem: points,
       termsSource: "customer",
       termsVersion: TERMS_VERSION,
+    }, {
+      // Único borde que opta a la promo de primera reserva: el servicio la
+      // evalúa sobre el email que queda en el pedido (el de sesión si hubo canje).
+      firstBookingPromo: true,
     });
     if (!booking.ok) {
       const status =

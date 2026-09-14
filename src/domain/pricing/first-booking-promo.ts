@@ -24,11 +24,13 @@ export const FIRST_BOOKING_PROMO = {
 } as const;
 
 /** La promo expresada como intención de descuento manual (la base la resuelve el quote del servidor). */
-export function firstBookingDiscountInput(): ManualDiscountInput {
+export type FirstBookingPromoConfig = { enabled: boolean; pct: number; reason: string };
+
+export function firstBookingDiscountInput(promo: FirstBookingPromoConfig = FIRST_BOOKING_PROMO): ManualDiscountInput {
   return {
     target: { kind: "room" },
     mode: "pct",
-    value: FIRST_BOOKING_PROMO.pct,
-    reason: FIRST_BOOKING_PROMO.reason,
+    value: promo.pct,
+    reason: promo.reason,
   };
 }
