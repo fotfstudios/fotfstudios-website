@@ -7,7 +7,8 @@ const makeService = () => {
   const repo = {
     getOrderForEmail: vi.fn(),
     pendingPaidOrderIds: vi.fn(),
-    markNotified: vi.fn(),
+    markNotified: vi.fn(async () => true),
+    releaseNotified: vi.fn(async () => {}),
   } as unknown as NotificationRepository;
   const service = new NotificationService(mailer, repo, {
     ownerEmail: "",
@@ -182,12 +183,133 @@ describe("notifyOrder — un pedido de curso no usa la plantilla de reserva", ()
     vi.mocked(repo.getOrderForEmail).mockResolvedValue({
       ...courseOrder,
       kind: "booking",
-      startsAt: "2026-09-08T23:00:00Z",
-      endsAt: "2026-09-09T01:00:00Z",
+      // Futuro: una sesión ya terminada se marca sin mandar (ver bloque claim-first).
+      startsAt: "2999-09-08T23:00:00Z",
+      endsAt: "2999-09-09T01:00:00Z",
     });
 
     expect(await service.notifyOrder("o-booking")).toBe(true);
     expect(mailer.send).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Claim-first (auditoría 2026-09-14, H4). Antes: cliente → dueño → marcar. Si el
+ * segundo envío o el update fallaban, notified_at quedaba en null y el cron diario
+ * volvía a mandar la confirmación al cliente cada día. Ahora se reclama ANTES de
+ * mandar (como AccessCodeService) y solo se suelta si falla el envío al cliente.
+ */
+describe("notifyOrder — reclama notified_at antes de mandar", () => {
+  const order = {
+    id: "o1",
+    kind: "booking",
+    email: "ana@e.cl",
+    name: "Ana",
+    amount: 9990,
+    currency: "CLP",
+    startsAt: "2999-01-01T18:00:00Z",
+    endsAt: "2999-01-01T20:00:00Z",
+    notifiedAt: null,
+    lines: [{ description: "Sala · 1h", subtotal: 9990 }],
+  };
+  const withOwner = (svc: ReturnType<typeof makeService>) =>
+    new NotificationService(svc.mailer, svc.repo, {
+      ownerEmail: "owner@e.cl",
+      tz: "America/Santiago",
+      address: "Los Chercanes 78a",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    });
+
+  it("reclama antes del primer envío", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    const orden: string[] = [];
+    vi.mocked(repo.markNotified).mockImplementation(async () => { orden.push("claim"); return true; });
+    mailer.send.mockImplementation(async () => { orden.push("send"); });
+
+    expect(await service.notifyOrder("o1")).toBe(true);
+    expect(orden[0]).toBe("claim");
+  });
+
+  it("si otra corrida ya reclamó, no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    vi.mocked(repo.markNotified).mockResolvedValue(false);
+
+    expect(await service.notifyOrder("o1")).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("si falla el envío al cliente, suelta el reclamo y propaga (el cron reintenta)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    mailer.send.mockRejectedValueOnce(new Error("resend 429"));
+
+    await expect(service.notifyOrder("o1")).rejects.toThrow("resend 429");
+    expect(repo.releaseNotified).toHaveBeenCalledWith("o1");
+  });
+
+  it("si falla el envío al dueño, el cliente NO recibe dos: la orden queda marcada y no se propaga", async () => {
+    const base = makeService();
+    const service = withOwner(base);
+    vi.mocked(base.repo.getOrderForEmail).mockResolvedValue(order);
+    base.mailer.send.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("owner bounced"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await service.notifyOrder("o1")).toBe(true);
+    expect(base.mailer.send).toHaveBeenCalledTimes(2);
+    expect(base.repo.releaseNotified).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("sesión ya terminada: marca sin mandar (nada de confirmaciones tardías tras una caída)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      ...order,
+      startsAt: "2020-01-01T18:00:00Z",
+      endsAt: "2020-01-01T20:00:00Z",
+    });
+
+    expect(await service.notifyOrder("o1")).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(repo.markNotified).toHaveBeenCalledWith("o1");
+  });
+
+  it("orden de delta de reagendamiento: marca sin mandar (no es una reserva)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({ ...order, kind: "reschedule_delta", startsAt: null, endsAt: null });
+
+    expect(await service.notifyOrder("o1")).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(repo.markNotified).toHaveBeenCalledWith("o1");
+  });
+});
+
+describe("notifyPending — un fallo no frena a las demás", () => {
+  it("cuenta enviadas y fallidas por separado", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.pendingPaidOrderIds).mockResolvedValue(["a", "b", "c"]);
+    vi.mocked(repo.getOrderForEmail).mockImplementation(async (id) => ({
+      id,
+      kind: "booking",
+      email: `${id}@e.cl`,
+      name: null,
+      amount: 9990,
+      currency: "CLP",
+      startsAt: "2999-01-01T18:00:00Z",
+      endsAt: "2999-01-01T20:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    }));
+    mailer.send.mockImplementation(async (m) => { if (m.to === "b@e.cl") throw new Error("boom"); });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await service.notifyPending()).toEqual({ notified: 2, failed: 1 });
+    expect(mailer.send).toHaveBeenCalledTimes(3);
+    err.mockRestore();
   });
 });
 

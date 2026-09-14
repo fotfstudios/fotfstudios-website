@@ -19,5 +19,12 @@ export interface OrderEmailData {
 export interface NotificationRepository {
   getOrderForEmail(orderId: string): Promise<OrderEmailData | null>;
   pendingPaidOrderIds(limit?: number): Promise<string[]>;
-  markNotified(orderId: string): Promise<void>;
+  /**
+   * Reclama la notificación: pone `notified_at` SOLO si estaba en null. `true` = esta
+   * llamada la marcó; `false` = otra corrida (cron, webhook, sondeo) ya la reclamó.
+   * Se llama ANTES de mandar, como `markAccessSent` en el PIN.
+   */
+  markNotified(orderId: string): Promise<boolean>;
+  /** Suelta el reclamo (vuelve `notified_at` a null) cuando el envío al cliente falló. */
+  releaseNotified(orderId: string): Promise<void>;
 }
