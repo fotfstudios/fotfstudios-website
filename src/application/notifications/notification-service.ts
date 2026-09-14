@@ -18,6 +18,7 @@ import {
   courseLeadConfirmation,
   ownerNewCourseLead,
   courseEnrollmentCancelled,
+  courseEnrollmentRefunded,
   courseEnrollmentPaid,
   ownerCoursePaid,
   bookingPaymentPending,
@@ -366,6 +367,28 @@ export class NotificationService {
         to: student.email,
         ...courseEnrollmentCancelled(
           { name: student.name, generation: v.generation },
+          { whatsappUrl: this.config.whatsappUrl },
+        ),
+      });
+    }
+  }
+
+  /**
+   * Inscripción PAGADA cancelada, con o sin reembolso. `refundedClp` null = el dueño
+   * decidió no devolver (política de /terminos): el correo no habla de dinero. Nunca
+   * usa la plantilla de la impaga ("no se hizo ningún cobro"): acá sí hubo cobro.
+   */
+  async notifyCourseRefunded(v: {
+    students: { name: string; email: string }[];
+    generation: string;
+    refundedClp: number | null;
+  }): Promise<void> {
+    const refunded = v.refundedClp != null && v.refundedClp > 0 ? formatCLP(v.refundedClp) : null;
+    for (const student of v.students) {
+      await this.mailer.send({
+        to: student.email,
+        ...courseEnrollmentRefunded(
+          { name: student.name, generation: v.generation, refunded },
           { whatsappUrl: this.config.whatsappUrl },
         ),
       });
