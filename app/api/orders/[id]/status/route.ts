@@ -1,4 +1,4 @@
-import { db, reconcileOrder } from "@/src/composition";
+import { db, notificationService, reconcileOrder } from "@/src/composition";
 import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +26,9 @@ type ReservationRow = { status: ReservationStatus; expires_at: string | null };
 
 /**
  * Tras vencer el hold seguimos consultando a MP un rato: un pago aprobado segundos después
- * del vencimiento debe volverse `paid_no_hold` YA (aviso al dueño), no en el cron de la noche.
- * Pasada la gracia, el barrido diario (reconcilePending, 72 h) se hace cargo.
+ * del vencimiento debe volverse `paid_no_hold` YA — y el dueño se entera acá mismo (ver
+ * `notifyPaymentNeedsReview` más abajo), no en el cron de la noche. Pasada la gracia, el
+ * barrido diario (reconcilePending, 72 h) se hace cargo tanto de reconciliar como de avisar.
  */
 const RECONCILE_GRACE_MS = 15 * 60_000;
 
@@ -65,8 +66,15 @@ export async function GET(
     const withinGrace = !res?.expires_at || Date.now() < Date.parse(res.expires_at) + RECONCILE_GRACE_MS;
     if (row.status === "pending_payment" && (reservation !== "expired" || withinGrace)) {
       try {
-        await reconcileOrder(id, client);
+        const reconcileResult = await reconcileOrder(id, client);
         row = (await readOrder(client, id)) ?? row;
+        // Pagó pero el hold ya no existía: si el sondeo reconcilia antes que el webhook, el
+        // webhook llega como duplicado y su aviso nunca sale — el aviso al dueño va aquí.
+        if (reconcileResult?.result === "paid_unreserved") {
+          await notificationService(client)
+            .notifyPaymentNeedsReview(id, reconcileResult.orderId ?? id)
+            .catch((e) => console.error("[order-status:review]", e));
+        }
       } catch (e) {
         console.error("[order-status:reconcile]", e);
       }

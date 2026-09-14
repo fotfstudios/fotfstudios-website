@@ -71,6 +71,7 @@ export default function EstadoClient({
         orderStatus: latest.current.order,
         reservationStatus: latest.current.reservation,
         holdExpiresAt,
+        approvedHint: paymentHint === "approved",
         startedAt,
         now: Date.now(),
       });
@@ -100,6 +101,7 @@ export default function EstadoClient({
       orderStatus: latest.current.order,
       reservationStatus: latest.current.reservation,
       holdExpiresAt,
+      approvedHint: paymentHint === "approved",
       startedAt,
       now: Date.now(),
     });
@@ -136,10 +138,10 @@ export default function EstadoClient({
         {ui === "failed" && <Failed />}
         {ui === "refunded" && <Refunded />}
         {ui === "pending" &&
-          (reservation === "expired" ? (
-            <ExpiredHold />
-          ) : paymentHint === "approved" && !hintExpired ? (
+          (paymentHint === "approved" && !hintExpired ? (
             <Pending view={view} />
+          ) : reservation === "expired" ? (
+            <ExpiredHold />
           ) : (
             <PendingPayment view={view} />
           ))}

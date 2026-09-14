@@ -17,6 +17,8 @@ export interface PollInput {
   orderStatus: string;
   reservationStatus: string | null;
   holdExpiresAt: string | null;
+  /** ?status=approved en la URL de retorno de MP: el pago probablemente existe, hay que confirmarlo. */
+  approvedHint: boolean;
   /** Date.now() al montar la isla. */
   startedAt: number;
   now: number;
@@ -25,9 +27,14 @@ export interface PollInput {
 /** Próximo intervalo en ms, o null cuando ya no hay nada que esperar. */
 export function nextPollDelay(i: PollInput): number | null {
   if (TERMINAL.has(i.orderStatus)) return null;
-  if (i.reservationStatus === "expired" || i.reservationStatus === "cancelled") return null;
+  if (i.reservationStatus === "cancelled") return null;
   const elapsed = i.now - i.startedAt;
   if (elapsed >= POLL_MAX_MS) return null;
-  if (i.holdExpiresAt && i.now >= Date.parse(i.holdExpiresAt) + POLL_GRACE_AFTER_EXPIRY_MS) return null;
+  const pastGrace = !!i.holdExpiresAt && i.now >= Date.parse(i.holdExpiresAt) + POLL_GRACE_AFTER_EXPIRY_MS;
+  // Reserva vencida: no hay nada que esperar… salvo que MP nos haya devuelto con
+  // "approved": un pago que entró en los últimos segundos del hold se confirma
+  // (o cae en paid_no_hold) recién al reconciliar, y eso ocurre en el sondeo.
+  if (i.reservationStatus === "expired" && !(i.approvedHint && !pastGrace)) return null;
+  if (pastGrace) return null;
   return elapsed < POLL_FAST_WINDOW_MS ? POLL_FAST_MS : POLL_SLOW_MS;
 }

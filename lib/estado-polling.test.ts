@@ -10,7 +10,14 @@ import {
 
 const T0 = Date.parse("2026-09-13T21:00:00-03:00");
 const EXP = "2026-09-13T21:10:00-03:00";
-const base = { orderStatus: "pending_payment", reservationStatus: "held", holdExpiresAt: EXP, startedAt: T0, now: T0 };
+const base = {
+  orderStatus: "pending_payment",
+  reservationStatus: "held",
+  holdExpiresAt: EXP,
+  approvedHint: false,
+  startedAt: T0,
+  now: T0,
+};
 
 describe("nextPollDelay", () => {
   it("rápido los primeros 2 minutos, luego lento", () => {
@@ -35,5 +42,13 @@ describe("nextPollDelay", () => {
   it("hold firme (sin vencimiento): tope duro de 30 minutos", () => {
     expect(nextPollDelay({ ...base, holdExpiresAt: null, now: T0 + POLL_MAX_MS - 1 })).toBe(POLL_SLOW_MS);
     expect(nextPollDelay({ ...base, holdExpiresAt: null, now: T0 + POLL_MAX_MS })).toBeNull();
+  });
+  it("con pista approved sigue sondeando durante la gracia aunque la reserva ya venció", () => {
+    const expired = { ...base, reservationStatus: "expired", approvedHint: true };
+    expect(nextPollDelay({ ...expired, now: T0 })).toBe(POLL_FAST_MS);
+    const deadline = Date.parse(EXP) + POLL_GRACE_AFTER_EXPIRY_MS;
+    expect(nextPollDelay({ ...expired, now: deadline - 1 })).toBe(POLL_SLOW_MS);
+    expect(nextPollDelay({ ...expired, now: deadline })).toBeNull();
+    expect(nextPollDelay({ ...expired, reservationStatus: "cancelled" })).toBeNull();
   });
 });
