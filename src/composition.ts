@@ -172,6 +172,7 @@ export function mailer(client: SupabaseClient<Database> = db()): Mailer {
 export function notificationService(client: SupabaseClient<Database> = db()): NotificationService {
   return new NotificationService(mailer(client), new SupabaseNotificationRepository(client), {
     ownerEmail: process.env.OWNER_EMAIL ?? "",
+    siteUrl: SITE_URL,
     tz: "America/Santiago",
     address: SITE.address,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,

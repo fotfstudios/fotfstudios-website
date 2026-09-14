@@ -60,6 +60,7 @@ describe("NotificationService", () => {
     const mailer = new RecordingMailer();
     const svc = new NotificationService(mailer, new SupabaseNotificationRepository(db), {
       ownerEmail: "owner@e.cl",
+      siteUrl: "https://www.fotfstudios.cl",
       tz: "America/Santiago",
       address: "Los Chercanes 78a",
       whatsappUrl: "https://wa.me/56962803298",
