@@ -46,7 +46,7 @@ describe("email templates", () => {
 
   it("la dirección es un link propio a Maps (Gmail no la auto-enlaza en azul sobre Ink)", () => {
     const m = customerConfirmation(view, confCtx);
-    const href = `<a href="${MAPS.replace("&", "&amp;")}"`; // & escapado en el atributo
+    const href = `<a href="${MAPS.replaceAll("&", "&amp;")}"`; // & escapado en el atributo
     expect(m.html).toContain(href);
     const a = m.html.indexOf(href);
     expect(m.html.slice(a, m.html.indexOf("</a>", a))).toContain(">Los Chercanes 78a");
