@@ -546,9 +546,9 @@ export function courseEnrollmentRefunded(
 
 /*
  * ─── Supabase Auth (Send Email Hook) ───────────────────────────────────────────
- * Antes vivían en supabase/templates/*.html y había que espejarlas a mano en el
- * Dashboard (la caída de #151 fue esa deriva). Con el hook, GoTrue nos pide el correo
- * y estas plantillas son la única fuente. Mismo criterio de copy: "código de
+ * Antes vivían en HTML aparte y había que espejarlas a mano en el Dashboard (la
+ * caída de #151 fue esa deriva). Con el hook (activo en local y prod), GoTrue nos pide
+ * el correo y estas plantillas son la única fuente. Mismo criterio de copy: "código de
  * verificación", nunca "código de acceso" (ese es el PIN de la sala).
  */
 
