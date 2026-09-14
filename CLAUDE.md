@@ -55,6 +55,21 @@ en vivo ni la base Supabase remota real.
     reconcile). Con el túnel: retorno automático + webhook al túnel. El interstitial de ngrok
     free pide un clic ("Visit Site") la primera vez. Revertir a `http://localhost:3000` al
     terminar. Admin siempre por `localhost` (allow-list de magic links).
+  - **Reembolsos:** el sandbox de MP **no permite reembolsar por API** con credenciales de
+    prueba (401 "Unauthorized use of live credentials") ni **entrega webhooks reales** de pagos
+    de prueba a la URL test-mode del panel. Se prueba por capas:
+    1. Unit + itests (gateway stub) → lógica y asiento (`mark_refunded`, inbox, NC, puntos).
+    2. `node scripts/mp-replay-refund.mjs --payment <id>` (dev server + DB local arriba) →
+       la ruta real con firma válida + lectura real del pago en MP + asiento + email +
+       idempotencia ante re-entregas. `--list` muestra los pagos sandbox ya reembolsados que
+       sirven de fixture. `db:reset` al terminar.
+    3. Para generar un reembolso NUEVO en sandbox: pagar como comprador de prueba (túnel) y
+       reembolsar desde el panel de MP como vendedor de prueba, con `MP_NOTIFICATION_URL`
+       apuntando al túnel (la IPN por-preference sí llega; su firma no valida, es esperado).
+    4. El `POST /refunds` iniciado por la app **solo se verifica en prod**: un pago real
+       chico + "Cancelar y reembolsar" desde el admin; en los logs de Vercel debe aparecer
+       `firma ok (forma=webhooks)` del loopback y UNA sola NC. El camino de aborto (MP
+       falla → DB intacta) sí está probado local contra el 401 real.
 - A producción **solo** va lo ya verificado localmente. Lo único exclusivo de prod: crear el
   proyecto remoto, env vars de prod, dominio.
 - **Tests de integración.** CI los corre contra Supabase en contenedor (job "integration
