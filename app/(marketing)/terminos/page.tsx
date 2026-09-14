@@ -6,7 +6,7 @@ import WhatsAppCta from "@/components/WhatsAppCta";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "17 de agosto de 2026";
+const UPDATED = "14 de septiembre de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -111,6 +111,11 @@ export default function TerminosPage() {
             <li>Rigen los precios vigentes publicados en el sitio al momento de reservar.</li>
             <li>Los precios están en pesos chilenos (CLP) e incluyen IVA.</li>
             <li>Pueden aplicar descuentos por volumen de horas y servicios adicionales de grabación.</li>
+            <li>
+              Pueden aplicar promociones para la primera reserva, según las condiciones publicadas en el
+              sitio al momento de reservar. Se calculan sobre el valor de la sala, se aplican una vez por
+              correo electrónico y no son acumulables con otros descuentos otorgados manualmente.
+            </li>
             <li>El pago se realiza en línea a través de Mercado Pago.</li>
             <li>Por cada pago se emite la boleta electrónica correspondiente.</li>
           </ul>

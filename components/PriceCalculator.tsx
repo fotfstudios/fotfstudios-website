@@ -4,6 +4,7 @@ import { useState } from "react";
 import Magnetic from "./Magnetic";
 import { BookingCta } from "./BookingCta";
 import { bookingOnline } from "@/lib/flags";
+import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import {
   DAYS,
   quote,
@@ -255,6 +256,12 @@ export default function PriceCalculator() {
           </Magnetic>
           <p className="mt-3 text-center label-sm text-bone-mute">
             IVA incluido · estimación · {bookingOnline() ? "pagas en línea al reservar" : "confirmas por WhatsApp"}
+            {FIRST_BOOKING_PROMO.enabled && bookingOnline() && (
+              <>
+                {" · "}
+                <span className="text-gold">−{FIRST_BOOKING_PROMO.pct}% en la sala en tu primera reserva</span>
+              </>
+            )}
           </p>
         </div>
       </div>
