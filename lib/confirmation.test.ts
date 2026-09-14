@@ -16,6 +16,7 @@ const MODEL: OrderConfirmation = {
   endsAt: "2026-07-09T20:00:00-04:00",
   resourceName: "Sala",
   reservationStatus: "confirmed",
+  holdExpiresAt: null,
   preferenceId: "3497260371-abcd-ef01",
   lines: [
     { description: "Sala · 2h (valle)", subtotal: 19990 },
@@ -112,5 +113,14 @@ describe("buildConfirmationView", () => {
     expect(v.startsAt).toBeNull();
     expect(v.total).toBe("$29.980");
     expect(v.lines).toHaveLength(2);
+  });
+
+  it("buildConfirmationView expone holdExpiresAt para la isla", () => {
+    const v = buildConfirmationView({ ...MODEL, reservationStatus: "held", holdExpiresAt: "2026-07-09T17:10:00-04:00" });
+    expect(v.holdExpiresAt).toBe("2026-07-09T17:10:00-04:00");
+  });
+  it("reserva expirada → sin resumeUrl (la preference ya no sirve)", () => {
+    const v = buildConfirmationView({ ...MODEL, orderStatus: "pending_payment", reservationStatus: "expired" });
+    expect(v.resumeUrl).toBeNull();
   });
 });

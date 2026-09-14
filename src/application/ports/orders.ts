@@ -26,7 +26,10 @@ export interface OrderConfirmation {
   startsAt: string | null;
   endsAt: string | null;
   resourceName: string | null;
+  /** Estado EFECTIVO (un held con expires_at pasado ya es expired; ver hold-expiry.ts). */
   reservationStatus: "held" | "confirmed" | "cancelled" | "expired" | null;
+  /** Vencimiento del hold (ISO) — null en hold firme o sin reserva. La isla acota su sondeo con esto. */
+  holdExpiresAt: string | null;
   /** Preference de MP (orders.mp_preference_id) — permite retomar un checkout abandonado. */
   preferenceId: string | null;
   lines: { description: string; subtotal: number }[];

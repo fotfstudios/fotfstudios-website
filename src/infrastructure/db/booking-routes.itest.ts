@@ -13,6 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { GET as availabilityGET } from "@/app/api/availability/route";
 import { POST as bookingsPOST } from "@/app/api/bookings/route";
 import { GET as statusGET } from "@/app/api/orders/[id]/status/route";
+import { checkoutService, orderConfirmation } from "@/src/composition";
 import { futureDate } from "@/tests/dates";
 
 // Sesión mockeada: variable mutable vía vi.hoisted (la fábrica de vi.mock se
@@ -103,7 +104,13 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
 
     const st = await statusGET(new Request("http://x"), { params: Promise.resolve({ id: json.orderId }) });
     expect(st.status).toBe(200);
-    expect((await st.json()).status).toBe("pending_payment");
+    const body = await st.json();
+    expect(body.status).toBe("pending_payment");
+    expect(body.reservation).toBe("held");
+    expect(typeof body.holdExpiresAt).toBe("string");
+    await pg.query("update reservations set expires_at = now() - interval '1 minute' where order_id=$1", [json.orderId]);
+    const st2 = await statusGET(new Request("http://x"), { params: Promise.resolve({ id: json.orderId }) });
+    expect((await st2.json()).reservation).toBe("expired");
   });
 
   it("rechaza horario ya tomado (409)", async () => {
@@ -142,6 +149,28 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
     );
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("terms_required");
+  });
+});
+
+describe("confirmación de un hold vencido (sin MP)", () => {
+  it("orderConfirmation deriva expired desde expires_at y expone holdExpiresAt", async () => {
+    const b = await checkoutService().createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 660,
+      durationHours: 1,
+      customer: { email: "hold@vencido.cl" },
+    });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const live = await orderConfirmation(b.value.orderId);
+    expect(live?.reservationStatus).toBe("held");
+    expect(live?.holdExpiresAt).not.toBeNull();
+
+    await pg.query("update reservations set expires_at = now() - interval '1 minute' where order_id=$1", [b.value.orderId]);
+    const dead = await orderConfirmation(b.value.orderId);
+    expect(dead?.reservationStatus).toBe("expired");
+    expect(dead?.orderStatus).toBe("pending_payment");
   });
 });
 

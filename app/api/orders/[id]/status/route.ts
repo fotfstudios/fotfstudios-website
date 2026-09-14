@@ -1,4 +1,5 @@
 import { db, reconcileOrder } from "@/src/composition";
+import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,25 @@ async function readOrder(
   return (data as OrderRow | null) ?? null;
 }
 
+type ReservationRow = { status: ReservationStatus; expires_at: string | null };
+
+/**
+ * Tras vencer el hold seguimos consultando a MP un rato: un pago aprobado segundos después
+ * del vencimiento debe volverse `paid_no_hold` YA (aviso al dueño), no en el cron de la noche.
+ * Pasada la gracia, el barrido diario (reconcilePending, 72 h) se hace cargo.
+ */
+const RECONCILE_GRACE_MS = 15 * 60_000;
+
+async function readReservation(client: ReturnType<typeof db>, orderId: string): Promise<ReservationRow | null> {
+  const { data } = await client
+    .from("reservations")
+    .select("status, expires_at")
+    .eq("order_id", orderId)
+    .limit(1)
+    .maybeSingle();
+  return (data as ReservationRow | null) ?? null;
+}
+
 /**
  * GET /api/orders/[id]/status → estado del pedido (para la página de retorno).
  *
@@ -40,7 +60,10 @@ export async function GET(
     let row = await readOrder(client, id);
     if (!row) return Response.json({ error: "no encontrado" }, { status: 404 });
 
-    if (row.status === "pending_payment") {
+    const res = await readReservation(client, id);
+    const reservation = res ? effectiveReservationStatus(res.status, res.expires_at) : null;
+    const withinGrace = !res?.expires_at || Date.now() < Date.parse(res.expires_at) + RECONCILE_GRACE_MS;
+    if (row.status === "pending_payment" && (reservation !== "expired" || withinGrace)) {
       try {
         await reconcileOrder(id, client);
         row = (await readOrder(client, id)) ?? row;
@@ -48,8 +71,16 @@ export async function GET(
         console.error("[order-status:reconcile]", e);
       }
     }
-
-    return Response.json({ status: row.status, amount: row.amount_clp, currency: row.currency });
+    // Estado efectivo de la reserva + vencimiento: la isla deja de sondear cuando el hold
+    // murió (H2/H4) en vez de seguir ofreciendo "Completar el pago" sobre una preference
+    // que MP ya rechaza.
+    return Response.json({
+      status: row.status,
+      amount: row.amount_clp,
+      currency: row.currency,
+      reservation,
+      holdExpiresAt: res?.expires_at ?? null,
+    });
   } catch (e) {
     console.error("[order-status]", e);
     return Response.json({ error: "no disponible" }, { status: 503 });
