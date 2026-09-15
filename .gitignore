@@ -23,3 +23,7 @@ public/dj-course/
 # depurar un run y no son fuente; el repo es público, no queremos 100+ KB de
 # logs de runner en la historia.
 [0-9]_*.txt
+
+# La guía gratis de /guia-dj vive en el bucket privado `guias` (Supabase Storage),
+# nunca en el repo (es público). Ver DEPLOY.md § Config de prod fuera de git.
+guia-iniciacion-djing*.pdf
