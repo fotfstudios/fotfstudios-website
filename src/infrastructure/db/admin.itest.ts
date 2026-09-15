@@ -402,25 +402,26 @@ describe("admin actions", () => {
 });
 
 /**
- * La tarjeta "Boletas pendientes" de /admin enlaza a la ficha del pedido, pero
- * `orders.id` NO es destino: la ficha de reserva resuelve por id de RESERVA, y un
- * pedido de curso no tiene reserva en absoluto. El enlace llevaba a un 404.
+ * La tarjeta de documentos pendientes ahora vive en /admin/sii; la cola
+ * (`pendingTaxDocsQueue`) es quien resuelve a dónde lleva cada uno. `orders.id`
+ * NO es destino: la ficha de reserva resuelve por id de RESERVA, y un pedido de
+ * curso no tiene reserva en absoluto. El enlace viejo llevaba a un 404.
  */
-describe("pendingBoletas — a dónde lleva cada boleta", () => {
-  it("una boleta de sala trae el id de su RESERVA, no el del pedido", async () => {
+describe("pendingTaxDocsQueue — a dónde lleva cada documento", () => {
+  it("un documento de sala lleva a su RESERVA, no al pedido", async () => {
     const b = await book(600);
     if (!b.ok) throw new Error("no se pudo reservar");
     await repo.confirmOffline(b.value.orderId, "efectivo");
 
-    const [boleta] = await repo.pendingBoletas();
+    const [group] = await repo.pendingTaxDocsQueue();
     const reservationId = await reservationOf(b.value.orderId);
 
-    expect(boleta.reservationId).toBe(reservationId);
-    expect(boleta.reservationId).not.toBe(boleta.orderId); // el bug original
-    expect(boleta.enrollmentId).toBeNull();
+    expect(group.orderId).toBe(b.value.orderId);
+    expect(group.context).toMatchObject({ kind: "reserva", reservationId });
+    expect(group.docs.map((d) => d.kind)).toEqual(["boleta"]);
   });
 
-  it("una boleta de curso trae el id de la INSCRIPCIÓN", async () => {
+  it("un documento de curso lleva a la INSCRIPCIÓN", async () => {
     const { rows: g } = await pg.query<{ id: string }>(
       `insert into course_generations
          (resource_id, code, name, status, seats, price_duo_clp, price_individual_clp, price_prueba_clp)
@@ -435,13 +436,12 @@ describe("pendingBoletas — a dónde lleva cada boleta", () => {
     const orderId = o[0].create_course_enrollment;
     await pg.query("select confirm_course_payment($1, 'offline:efectivo', 'efectivo')", [orderId]);
 
-    const [boleta] = await repo.pendingBoletas();
+    const [group] = await repo.pendingTaxDocsQueue();
     const { rows: e } = await pg.query<{ id: string }>(
       "select id from course_enrollments where order_id = $1", [orderId]);
 
-    expect(boleta.enrollmentId).toBe(e[0].id);
-    // Un pedido de curso no tiene reserva: por eso el enlace viejo era imposible.
-    expect(boleta.reservationId).toBeNull();
+    expect(group.orderId).toBe(orderId);
+    expect(group.context).toMatchObject({ kind: "curso", enrollmentId: e[0].id, studentName: "Camila", generationCode: "GX" });
   });
 });
 

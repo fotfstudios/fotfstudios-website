@@ -11,9 +11,10 @@ type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
 function groups(
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean },
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean; sii: boolean },
   porHacer: number,
   solicitudes: number,
+  pendientesSii: number,
 ): Group[] {
   const analysis: Item[] = show.analytics
     ? [{ href: "/admin/analitica", label: "Analíticas", icon: "chart" }]
@@ -37,6 +38,9 @@ function groups(
   // Curso antes que Postulaciones: el curso es dinero de clientes, postulaciones
   // es contratación. Operación está ordenada por cercanía al ingreso.
   if (show.course) operacion.push({ href: "/admin/curso", label: "Curso", icon: "curso", badge: solicitudes });
+  // SII después de Curso: es la cola de la plata que ya entró (boletas y NC por emitir),
+  // con el mismo permiso que el botón "Registrar folio". Sin permiso, sin enlace.
+  if (show.sii) operacion.push({ href: "/admin/sii", label: "SII", icon: "doc", badge: pendientesSii });
   if (show.applications) {
     operacion.push({ href: "/admin/postulaciones", label: "Postulaciones", icon: "user" });
   }
@@ -106,15 +110,17 @@ export function Sidebar({
   show,
   porHacer = 0,
   solicitudes = 0,
+  pendientesSii = 0,
 }: {
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean };
+  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean; sii: boolean };
   porHacer?: number;
   solicitudes?: number;
+  pendientesSii?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
-  const data = groups(show, porHacer, solicitudes);
+  const data = groups(show, porHacer, solicitudes, pendientesSii);
   const active = activeHref(pathname, data.flatMap((g) => g.items));
 
   // El drawer es un <dialog> siempre montado: showModal()/close() siguen a `open`.

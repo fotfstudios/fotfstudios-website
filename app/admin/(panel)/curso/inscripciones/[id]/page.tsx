@@ -8,11 +8,13 @@ import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { Textarea } from "@/components/admin/ui/Field";
-import { courseRepository } from "@/src/composition";
-import { formatCLP } from "@/src/domain/money/money";
+import { TaxDocsCard } from "@/components/admin/tax-docs/TaxDocsCard";
+import { adminRepository, courseRepository } from "@/src/composition";
 import { courseCancellationPolicy } from "@/src/domain/course/cancellation-policy";
-import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { cancelEnrollmentAction, setEnrollmentNotesAction } from "../../actions";
+import { describeTaxDocs } from "@/src/domain/tax/tax-doc-steps";
+import { hasPermission } from "@/src/domain/auth/permissions";
+import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { cancelEnrollmentAction, recordTaxDocFolioAction, setEnrollmentNotesAction } from "../../actions";
 import { AnularPagada } from "./_components/AnularPagada";
 import { CobroCurso } from "./_components/CobroCurso";
 import { Practica } from "./_components/Practica";
@@ -40,11 +42,13 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
   const inscripcion = await repo.enrollmentById(id);
   if (!inscripcion) notFound();
 
-  const [compañeros, boletas, sesiones] = await Promise.all([
+  const [compañeros, taxDocs, sesiones] = await Promise.all([
     inscripcion.orderId ? repo.enrollmentsByOrder(inscripcion.orderId) : Promise.resolve([inscripcion]),
-    inscripcion.orderId ? repo.taxDocumentsForOrder(inscripcion.orderId) : Promise.resolve([]),
+    inscripcion.orderId ? adminRepository().taxDocsForOrder(inscripcion.orderId) : Promise.resolve([]),
     repo.listSessions(inscripcion.generationId),
   ]);
+  const canRecordFolio = hasPermission(await currentClaims(), "reservations.boleta");
+  const taxSteps = describeTaxDocs(taxDocs, { now: new Date().toISOString() });
   const practicas = await repo.practiceRedemptions(inscripcion.id);
   // Destinos posibles del traslado: cualquier otra generación que reciba gente.
   const destinos = (await repo.listGenerations())
@@ -116,29 +120,12 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
             </ActionForm>
           </Card>
 
-          {boletas.length > 0 && (
-            <Card title="Documentos tributarios">
-              <ul className="divide-y divide-ink-line">
-                {boletas.map((doc) => (
-                  <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <div>
-                      <p className="text-sm text-bone">{doc.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
-                      <p className="label-sm mt-0.5 text-bone-quiet">
-                        Neto {formatCLP(doc.neto)} · IVA {formatCLP(doc.iva)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-display text-xl text-bone">{formatCLP(doc.total)}</span>
-                      <StatusPill status={doc.status} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-4 text-xs text-bone-quiet">
-                Emítelas en el portal del SII y registra el folio desde la reserva correspondiente.
-              </p>
-            </Card>
-          )}
+          <TaxDocsCard
+            steps={taxSteps}
+            action={recordTaxDocFolioAction}
+            backPath={`/admin/curso/inscripciones/${inscripcion.id}`}
+            canRecord={canRecordFolio}
+          />
         </div>
 
         <aside className="flex flex-col gap-6">

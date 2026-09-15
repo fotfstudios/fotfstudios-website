@@ -171,16 +171,6 @@ export interface CourseEnrollmentRepository {
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
 }
 
-export interface CourseTaxDoc {
-  id: string;
-  kind: string;
-  status: string;
-  folio: string | null;
-  neto: number;
-  iva: number;
-  total: number;
-}
-
 /**
  * Finaliza el pago de un curso desde el webhook. Espejo de RescheduleFinalizer:
  * ambos existen porque su pedido NO tiene reserva y confirm_payment los mandaría
