@@ -262,8 +262,29 @@ export async function rescheduleAction(input: {
         await notificationService()
           .notifyReschedule(target.orderId, {
             refundAmount: res.value.kind === "refunded" || res.value.kind === "refund_pending" ? res.value.amount : 0,
+            offline: res.value.kind === "refunded" ? res.value.offline : false,
           })
           .catch((e) => console.error("[reschedule:email]", e));
+      } else if (res.value.kind === "moved") {
+        // Cortesía (sin pedido): sin orden que buscar, los datos salen de la ficha.
+        // `reschedules` viene ordenado por `created_at` ascendente: el último es el
+        // movimiento recién aplicado.
+        const b = await adminRepository().getBooking(reservationId).catch(() => null);
+        if (b && b.kind === "booking" && !b.orderId) {
+          const last = b.reschedules[b.reschedules.length - 1];
+          if (last) {
+            await notificationService()
+              .notifyCourtesyRescheduled({
+                email: b.customerEmail,
+                name: b.customerName,
+                reservationId,
+                oldStartsAt: last.oldStartsAt,
+                startsAt: b.startsAt,
+                endsAt: b.endsAt,
+              })
+              .catch((e) => console.error("[reschedule:courtesy-email]", e));
+          }
+        }
       }
     }
 
