@@ -588,6 +588,21 @@ describe("pending charge lifecycle (auditoría 2026-09-14, H2/H3)", () => {
     expect(o.rows[0].amount).toBe(9990); // NO se sumó el delta
   });
 
+  it("charge_void repetido → noop, sin segunda boleta ni eventos duplicados", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc2b");
+    const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const first = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay"]);
+    expect(first.rows[0].apply_reschedule_charge).toBe("charge_void");
+    const second = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay-retry"]);
+    expect(second.rows[0].apply_reschedule_charge).toBe("noop");
+    const boletas = await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [delta_order_id]);
+    expect(boletas.rows[0].n).toBe("1");
+    const paidEvents = await pg.query<{ n: string }>(
+      "select count(*)::text n from booking_events where reservation_id=$1 and type='reschedule_charge_paid'", [reservationId]);
+    expect(paidEvents.rows[0].n).toBe("1");
+  });
+
   it("reserva cancelada por fuera (update crudo) → reservation_gone, misma contabilidad que slot_taken", async () => {
     const { reservationId, endsAt } = await paidBooking(600, "pc3");
     const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));

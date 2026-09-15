@@ -378,7 +378,7 @@ declare
   v_resched uuid; v_reservation uuid; v_order uuid; v_status text;
   v_starts timestamptz; v_ends timestamptz; v_delta int; v_snapshot jsonb; v_lines jsonb;
   v_old_start timestamptz; v_delta_net int; v_delta_tax int; v_customer uuid;
-  v_new_live int; v_earn_net int; v_earn_add int; v_bol uuid; v_rows int; v_reason text;
+  v_new_live int; v_earn_net int; v_earn_add int; v_bol uuid; v_rows int; v_reason text; v_paid_rows int;
 begin
   select id, reservation_id, original_order_id, status, old_starts_at, new_starts_at, new_ends_at, delta_clp, new_snapshot, new_lines
     into v_resched, v_reservation, v_order, v_status, v_old_start, v_starts, v_ends, v_delta, v_snapshot, v_lines
@@ -389,6 +389,12 @@ begin
 
   update orders set status = 'paid', mp_payment_id = p_payment_id, paid_at = now()
     where id = p_delta_order and status not in ('paid', 'fulfilled');
+  -- El pago del delta ES la marca de idempotencia: si esta llamada no lo transicionó
+  -- (ya estaba paid/fulfilled de una llamada anterior), no repetir el resto (boleta,
+  -- eventos, earn) — evita boletas/eventos duplicados en reintentos/reentregas.
+  get diagnostics v_paid_rows = row_count;
+  if v_paid_rows = 0 then return 'noop'; end if;
+
   perform log_booking_event(v_reservation, 'reschedule_charge_paid', p_order => p_delta_order,
     p_reschedule => v_resched, p_amount => v_delta, p_payment_ref => p_payment_id);
 
