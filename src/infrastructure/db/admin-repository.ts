@@ -86,10 +86,14 @@ export interface AdminBookingDetail extends AdminBooking {
   }[];
   /** Eventos de reagendamiento (auditoría) para la línea de tiempo. */
   reschedules: {
+    id: string;
     kind: string; // equal | refund | charge
     status: string; // applied | pending_charge | failed_slot_taken | expired | cancelled
+    /** Orden del delta (cobro pendiente) — la ficha lo necesita para el link/anular. */
+    deltaOrderId: string | null;
     oldStartsAt: string;
     newStartsAt: string;
+    newEndsAt: string;
     deltaClp: number;
     createdAt: string;
     appliedAt: string | null;
@@ -117,6 +121,8 @@ export interface BookingTimelineEvent {
     old_starts_at?: string;
     new_starts_at?: string;
     folio?: string | null;
+    /** `reschedule_failed_slot_taken`: por qué no se movió (H3/H5). */
+    reason?: string;
     /** `customer_changed`: quién era y quién es, y los puntos que se movieron. */
     from_customer_id?: string | null;
     from_name?: string | null;
@@ -658,14 +664,17 @@ export class SupabaseAdminRepository {
     // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).
     const { data: moves } = await this.db
       .from("reschedules")
-      .select("kind, status, old_starts_at, new_starts_at, delta_clp, created_at, applied_at")
+      .select("id, kind, status, delta_order_id, old_starts_at, new_starts_at, new_ends_at, delta_clp, created_at, applied_at")
       .eq("reservation_id", id)
       .order("created_at", { ascending: true });
     const reschedules = (moves ?? []).map((m) => ({
+      id: m.id,
       kind: m.kind,
       status: m.status,
+      deltaOrderId: m.delta_order_id,
       oldStartsAt: m.old_starts_at,
       newStartsAt: m.new_starts_at,
+      newEndsAt: m.new_ends_at,
       deltaClp: m.delta_clp,
       createdAt: m.created_at,
       appliedAt: m.applied_at,
@@ -1266,6 +1275,14 @@ export class SupabaseAdminRepository {
       .select("id")
       .single();
     if (error) throw new Error(error.code === "23P01" ? "slot_taken" : error.message);
+    // El timeline ES el log de auditoría: a diferencia de los avisos por email (best-effort
+    // en otros lados), un evento que no queda registrado es un hueco silencioso en la
+    // ficha — así que esto SÍ lanza si falla, no se traga el error.
+    const { error: eventErr } = await this.db.rpc("log_booking_event", {
+      p_reservation: data.id,
+      p_type: "courtesy_confirmed",
+    });
+    if (eventErr) throw new Error(eventErr.message);
     return data.id;
   }
 

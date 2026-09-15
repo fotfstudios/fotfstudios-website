@@ -134,6 +134,24 @@ export async function getRescheduleDayAction(reservationId: string, date: string
   });
 }
 
+/**
+ * Anula un cobro de reagendamiento pendiente (H3): cierra la orden delta y libera
+ * la reserva para reagendarla de nuevo. `false` es una carrera benigna — alguien
+ * ya lo pagó o ya lo anuló entre el render y el clic — así que el mensaje manda a
+ * recargar en vez de sonar a error de servidor.
+ */
+export async function cancelRescheduleChargeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.reschedule");
+    const reservationId = str(fd, "reservationId");
+    const rescheduleId = str(fd, "rescheduleId");
+    const actor = (await currentClaims())?.sub ?? null;
+    const ok = await rescheduleService().cancelPendingCharge(rescheduleId, actor);
+    if (!ok) throw new Error("El cobro ya no estaba pendiente. Recarga la página.");
+    revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
 /** Códigos del servicio de reagendamiento → mensaje es-CL para el admin. */
 function rescheduleErrorMessage(code: string): string {
   switch (code) {
