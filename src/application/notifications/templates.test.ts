@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -528,5 +528,39 @@ describe("customerRescheduleFailed — kept distingue reserva viva de reserva ca
     expect(m.html).not.toContain("Mantuvimos tu reserva");
     expect(m.html).not.toContain(when);
     expect(m.text).not.toContain("Mantuvimos");
+  });
+});
+
+describe("guideDelivery — la guía de /guia-dj", () => {
+  const wa = "https://wa.me/56962803298";
+  const url = "https://www.fotfstudios.cl/guia-dj/descarga/" + "a".repeat(48);
+
+  it("asunto nombra la guía y el PDF; el link va como botón Y como texto en ambas versiones", () => {
+    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
+    expect(m.template).toBe("guideDelivery");
+    expect(m.subject).toMatch(/gu[ií]a de iniciaci[óo]n al djing/i);
+    expect(m.subject).toMatch(/pdf/i);
+    expect(m.html).toContain(`href="${url}"`);
+    expect(m.html).toContain(url); // también en claro, para copiar/pegar
+    expect(m.text).toContain(url);
+    expect(m.html).toMatch(/Descargar la gu[ií]a/);
+  });
+
+  it("dice que el link es durable (se puede volver a usar) y ofrece WhatsApp si algo falla", () => {
+    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
+    expect(m.html).toMatch(/link es tuyo|gu[áa]rdalo|vuelve a usar/i);
+    expect(m.html).toContain(wa);
+    expect(m.text).toContain(wa);
+  });
+
+  it("escapa la URL al incrustarla en HTML", () => {
+    const m = guideDelivery({ downloadUrl: 'https://x.example/?a=1&b="2"' }, { whatsappUrl: wa });
+    expect(m.html).toContain("https://x.example/?a=1&amp;b=&quot;2&quot;");
+    expect(m.html).not.toContain('b="2"');
+  });
+
+  it("no promete cupos, precios ni el curso: es solo la entrega de la guía", () => {
+    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
+    expect(m.html).not.toMatch(/\$|cupo|inscri|curso de dj/i);
   });
 });

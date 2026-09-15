@@ -8,6 +8,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { SupabaseGuideLeadRepository } from "./guide-lead-repository";
 import { createServiceClient } from "./supabase-client";
 
 const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54421";
@@ -123,5 +124,36 @@ describe("acceso", () => {
     } finally {
       await raw("rollback");
     }
+  });
+});
+
+describe("SupabaseGuideLeadRepository", () => {
+  const repo = new SupabaseGuideLeadRepository(db);
+
+  it("request: primera vez → isNew:true con id y token", async () => {
+    const r = await repo.request({ email: "dj@correo.cl", source: "hero" });
+    expect(r.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(r.token).toMatch(/^[0-9a-f]{48}$/);
+    expect(r.isNew).toBe(true);
+  });
+
+  it("request: re-pedido → isNew:false y el mismo token", async () => {
+    const a = await repo.request({ email: "dj@correo.cl", source: "hero" });
+    const b = await repo.request({ email: "dj@correo.cl", source: "fragmento" });
+    expect(b).toEqual({ id: a.id, token: a.token, isNew: false });
+  });
+
+  it("touchDownload: token conocido → true y marca last_downloaded_at; desconocido → false", async () => {
+    const { token } = await repo.request({ email: "dj@correo.cl", source: "hero" });
+    expect(await repo.touchDownload(token)).toBe(true);
+    const { rows } = await raw("select last_downloaded_at is not null as touched from guide_leads");
+    expect(rows[0].touched).toBe(true);
+    expect(await repo.touchDownload("f".repeat(48))).toBe(false);
+  });
+
+  it("touchDownload no es de un solo uso: dos clics, dos true", async () => {
+    const { token } = await repo.request({ email: "dj@correo.cl", source: "hero" });
+    expect(await repo.touchDownload(token)).toBe(true);
+    expect(await repo.touchDownload(token)).toBe(true);
   });
 });

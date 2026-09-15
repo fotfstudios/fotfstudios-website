@@ -836,3 +836,34 @@ describe("notifyCourtesyRescheduled (H6) + copy offline al reembolsar (M2)", () 
     expect(mailer.send.mock.calls[0][0].html).not.toContain("medio de pago original");
   });
 });
+
+describe("notifyGuideLead", () => {
+  it("manda UN correo al lead con el link de descarga armado desde siteUrl + token", async () => {
+    const { service, mailer } = makeService();
+    const token = "b".repeat(48);
+    await service.notifyGuideLead({ email: "dj@correo.cl", token });
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("dj@correo.cl");
+    expect(msg.template).toBe("guideDelivery");
+    expect(msg.html).toContain(`href="https://www.fotfstudios.cl/guia-dj/descarga/${token}"`);
+    expect(msg.text).toContain(`https://www.fotfstudios.cl/guia-dj/descarga/${token}`);
+  });
+
+  it("no avisa al dueño aunque OWNER_EMAIL esté configurado (la bandeja es el admin, no el correo)", async () => {
+    const mailer = { send: vi.fn(async () => {}) };
+    const service = new NotificationService(mailer, {} as never, {
+      ownerEmail: "dueno@fotfstudios.cl",
+      siteUrl: "https://www.fotfstudios.cl",
+      tz: "America/Santiago",
+      address: "",
+      mapsUrl: "",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "",
+      privacyUrl: "",
+    });
+    await service.notifyGuideLead({ email: "dj@correo.cl", token: "c".repeat(48) });
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    expect(mailer.send.mock.calls[0][0].to).toBe("dj@correo.cl");
+  });
+});

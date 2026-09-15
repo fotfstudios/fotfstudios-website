@@ -51,3 +51,12 @@ export function trackCourseLead(step: "start" | "submit", plan?: string): void {
   if (typeof window === "undefined") return;
   pushEvent(`course_lead_${step}`, { page: "curso-dj", ...(plan ? { plan } : {}) });
 }
+
+/**
+ * Embudo de la guía gratis (/guia-dj): `start` al primer tecleo, `submit` solo con
+ * 200 del route. `source` = cuál de los tres formularios de la landing convirtió.
+ */
+export function trackGuideLead(step: "start" | "submit", source: "hero" | "fragmento" | "cierre"): void {
+  if (typeof window === "undefined") return;
+  pushEvent(`guide_lead_${step}`, { page: "guia-dj", source });
+}

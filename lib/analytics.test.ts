@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const track = vi.fn();
 vi.mock("@vercel/analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
 
-import { pageFromPathname, pushEvent, trackBookingCta, trackWhatsAppClick } from "./analytics";
+import { pageFromPathname, pushEvent, trackBookingCta, trackGuideLead, trackWhatsAppClick } from "./analytics";
 
 type TestWindow = { dataLayer?: unknown[]; location: { pathname: string } };
 
@@ -84,5 +84,24 @@ describe("trackBookingCta", () => {
       placement: "nav",
       page: "home",
     });
+  });
+});
+
+describe("trackGuideLead", () => {
+  it("emite guide_lead_start / guide_lead_submit con page fija y el formulario de origen", () => {
+    const dl = stubWindow("/guia-dj");
+    trackGuideLead("start", "hero");
+    trackGuideLead("submit", "cierre");
+    expect(dl).toEqual([
+      { event: "guide_lead_start", page: "guia-dj", source: "hero" },
+      { event: "guide_lead_submit", page: "guia-dj", source: "cierre" },
+    ]);
+    expect(track).toHaveBeenCalledWith("guide_lead_submit", { page: "guia-dj", source: "cierre" });
+  });
+
+  it("sin window (SSR) no hace nada ni lanza", () => {
+    delete (globalThis as { window?: TestWindow }).window;
+    expect(() => trackGuideLead("start", "hero")).not.toThrow();
+    expect(track).not.toHaveBeenCalled();
   });
 });
