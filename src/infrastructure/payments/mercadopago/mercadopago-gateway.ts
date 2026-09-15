@@ -126,6 +126,14 @@ export class MercadoPagoGateway implements PaymentGateway {
       const r = await refunds.get({ payment_id: paymentId, refund_id: refundId });
       return r?.id ? toRefundInfo(r) : null;
     } catch (e) {
+      // Un 404 (id de otro ambiente, o el reembolso nunca se llegó a crear) es un
+      // reembolso INEXISTENTE, no un error de la pasarela: se mapea a null para que
+      // `isDeadRefund(null)` en RescheduleService lo trate como muerto y reintente con
+      // una clave nueva, en vez de tumbar el retry con una excepción sin manejar.
+      if (e && typeof e === "object") {
+        const o = e as { status?: unknown; error?: unknown };
+        if (o.status === 404 || o.error === "not_found") return null;
+      }
       throw new Error(`No se pudo obtener el reembolso en Mercado Pago: ${mpErrorMessage(e)}`);
     }
   }

@@ -128,7 +128,10 @@ export async function POST(req: Request): Promise<Response> {
         if (info) {
           console.error(`[mp-webhook] REAGENDAMIENTO SIN CUPO — excedente devuelto (order ${info.originalOrderId})`);
           await notificationService(client)
-            .notifyRescheduleFailed(info.originalOrderId, { refundAmount: info.delta })
+            .notifyRescheduleFailed(info.originalOrderId, {
+              refundAmount: info.delta,
+              kept: info.reservationStatus === "confirmed",
+            })
             .catch((e) => console.error("[mp-webhook:reschedule-failed-email]", e));
         }
       } else {
@@ -140,6 +143,37 @@ export async function POST(req: Request): Promise<Response> {
         await notificationService(client)
           .notifyPaymentNeedsReview(orderId, resourceId)
           .catch((e) => console.error("[mp-webhook:review]", e));
+      }
+    } else if (result === "reschedule_charge_refunded" && orderId) {
+      // Reembolso FRESCO sobre el pago de un cobro de reagendamiento (panel de MP, no
+      // nuestro loopback): NUNCA es "la reserva se canceló" (FR1, auditoría 2026-09-14) —
+      // `orderId` es la orden de DELTA, jamás la de la reserva. `notifyCancellation` mandaría
+      // "Reserva cancelada" de una reserva que puede seguir viva.
+      const info = await rescheduleNotifyInfo(orderId, client).catch(() => null);
+      if (!info) {
+        // Sin fila de reagendamiento que explique este reembolso: revisión manual.
+        console.error(`[mp-webhook] REEMBOLSO DE COBRO SIN FILA DE REAGENDAMIENTO — revisar (order ${orderId}, pago ${resourceId})`);
+        await notificationService(client)
+          .notifyPaymentNeedsReview(orderId, resourceId)
+          .catch((e) => console.error("[mp-webhook:review]", e));
+      } else if (info.status === "applied") {
+        // El cobro SÍ se aplicó (la reserva ya se movió) y igual se reembolsó a mano: no
+        // hay nada automático y correcto que decirle al cliente — un humano decide.
+        console.error(
+          `[mp-webhook] REEMBOLSO MANUAL SOBRE UN COBRO YA APLICADO — revisar (order ${orderId}, pago ${resourceId})`,
+        );
+        await notificationService(client)
+          .notifyPaymentNeedsReview(orderId, resourceId)
+          .catch((e) => console.error("[mp-webhook:review]", e));
+      } else {
+        // El cobro nunca se aplicó (falló, se anuló, o quedó pendiente): el reembolso es
+        // correcto y el aviso es sobre la reserva ORIGINAL, con el copy según si sigue viva.
+        await notificationService(client)
+          .notifyRescheduleFailed(info.originalOrderId, {
+            refundAmount: refundedAmount ?? info.delta,
+            kept: info.reservationStatus === "confirmed",
+          })
+          .catch((e) => console.error("[mp-webhook:reschedule-charge-refunded-email]", e));
       }
     }
   } catch (e) {

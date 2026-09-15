@@ -660,6 +660,69 @@ describe("calendario también en cortesía y reagendamiento", () => {
   });
 });
 
+describe("notifyRescheduleFailed — cobro de reagendamiento devuelto sin aplicarse (FR2)", () => {
+  it("kept:true (el caso típico, slot tomado): mantiene el copy de 'se mantiene tu reserva'", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "c@e.cl",
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: true })).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.subject).toMatch(/No pudimos cambiar tu horario · se mantiene/);
+    expect(msg.html).toContain("Mantuvimos tu reserva original del");
+    expect(msg.html).toContain("$6.000");
+  });
+
+  it("kept:false (la reserva ya estaba cancelada): copy de devolución, sin decir que se mantiene nada", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "c@e.cl",
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: false })).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.subject).toMatch(/Te devolvimos \$6\.000 · cambio de horario/);
+    expect(msg.html).not.toContain("Mantuvimos tu reserva");
+    expect(msg.html).toContain("ya estaba cancelada");
+    expect(msg.html).toContain("$6.000");
+  });
+
+  it("sin email en la orden no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: null,
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: true })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+});
+
 describe("notifyReschedulePaymentLink — cobro de reagendamiento pendiente (H4)", () => {
   it("notifyReschedulePaymentLink: asunto con el horario NUEVO, monto y link; sin .ics", async () => {
     const { service, mailer, repo } = makeService();

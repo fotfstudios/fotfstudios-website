@@ -483,7 +483,7 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["customerCancellation", () => customerCancellation({ name: null, when, refunded: null }, { whatsappUrl: wa }).subject],
     ["customerCourtesyCancelled", () => customerCourtesyCancelled({ name: null, when }, { whatsappUrl: wa }).subject],
     ["customerReschedule", () => customerReschedule({ name: null, when, refunded: null, refundedOffline: false }, { ...place, whatsappUrl: wa, calendarUrl: "c" }).subject],
-    ["customerRescheduleFailed", () => customerRescheduleFailed({ name: null, when, refunded: "$1" }, { whatsappUrl: wa }).subject],
+    ["customerRescheduleFailed", () => customerRescheduleFailed({ name: null, when, refunded: "$1", kept: true }, { whatsappUrl: wa }).subject],
     ["customerHoldExpired", () => customerHoldExpired({ name: null, when }, { whatsappUrl: wa, bookUrl: "b" }).subject],
     ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
@@ -497,5 +497,36 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     const a = customerConfirmation({ ...view, when }, confCtx).subject;
     const b = customerConfirmation({ ...view, when: "jueves 17 de septiembre, 18:00–20:00 h" }, confCtx).subject;
     expect(a).not.toBe(b);
+  });
+});
+
+/**
+ * FR2 (auditoría 2026-09-14): customerRescheduleFailed(`kept`) cambia de historia entera
+ * cuando la reserva ya NO existe — decir "mantuvimos tu reserva" de una cancelada es falso.
+ * Mismo `template` name en ambas ramas: el pin de nombres de plantilla sigue verde.
+ */
+describe("customerRescheduleFailed — kept distingue reserva viva de reserva cancelada", () => {
+  const wa = "https://wa.me/56962803298";
+  const when = "martes 15 de septiembre, 09:00–10:00 h";
+
+  it("kept:true — copy de siempre: 'mantuvimos tu reserva del <when>'", () => {
+    const m = customerRescheduleFailed({ name: "Ana", when, refunded: "$6.000", kept: true }, { whatsappUrl: wa });
+    expect(m.template).toBe("customerRescheduleFailed");
+    expect(m.subject).toBe(`No pudimos cambiar tu horario · se mantiene ${when}`);
+    expect(m.html).toContain("No pudimos cambiar tu horario");
+    expect(m.html).toContain("Mantuvimos tu reserva original del");
+    expect(m.html).toContain(when);
+    expect(m.text).toContain("Mantuvimos tu reserva del");
+  });
+
+  it("kept:false — 'Devolvimos el cobro del cambio de horario', sin mencionar que se mantiene nada", () => {
+    const m = customerRescheduleFailed({ name: "Ana", when, refunded: "$6.000", kept: false }, { whatsappUrl: wa });
+    expect(m.template).toBe("customerRescheduleFailed");
+    expect(m.subject).toBe("Te devolvimos $6.000 · cambio de horario");
+    expect(m.html).toContain("Devolvimos el cobro del cambio de horario");
+    expect(m.html).toContain("ya estaba cancelada");
+    expect(m.html).not.toContain("Mantuvimos tu reserva");
+    expect(m.html).not.toContain(when);
+    expect(m.text).not.toContain("Mantuvimos");
   });
 });

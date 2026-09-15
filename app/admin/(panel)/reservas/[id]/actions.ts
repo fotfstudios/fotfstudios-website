@@ -262,7 +262,15 @@ export async function rescheduleAction(input: {
         await notificationService()
           .notifyReschedule(target.orderId, {
             refundAmount: res.value.kind === "refunded" || res.value.kind === "refund_pending" ? res.value.amount : 0,
-            offline: res.value.kind === "refunded" ? res.value.offline : false,
+            // `refund_pending` en la práctica nunca es 100% offline (un asiento offline no
+            // pasa por MP ni queda `pending`), pero el flag sale del dato real en vez de un
+            // `false` a fuego: si `offlineAmount` cubre TODO el delta pendiente, es offline.
+            offline:
+              res.value.kind === "refunded"
+                ? res.value.offline
+                : res.value.kind === "refund_pending"
+                  ? res.value.offlineAmount === res.value.amount
+                  : false,
           })
           .catch((e) => console.error("[reschedule:email]", e));
       } else if (res.value.kind === "moved") {

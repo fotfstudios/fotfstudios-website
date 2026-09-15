@@ -275,18 +275,22 @@ export class NotificationService {
   }
 
   /**
-   * Aviso al CLIENTE cuando el cobro de un reagendamiento se pagó pero el slot ya
-   * estaba tomado: la reserva NO se movió (sigue en su horario original) y se le
-   * devolvió el excedente. Best-effort.
+   * Aviso al CLIENTE de que el cobro de un reagendamiento se devolvió sin aplicarse.
+   * `kept`: la reserva original SIGUE viva (el caso típico — el slot ya estaba tomado
+   * cuando se procesó el pago) vs. ya estaba cancelada cuando llegó el pago del cambio
+   * de horario (`reservation_gone`/`charge_void` tras una cancelación, o un reembolso
+   * manual del panel de MP sobre un cobro que ya no aplica) — la plantilla cambia de
+   * copy para no decir "mantuvimos tu reserva" de una reserva que ya no existe (FR2,
+   * auditoría 2026-09-14). Best-effort.
    */
-  async notifyRescheduleFailed(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
+  async notifyRescheduleFailed(orderId: string, opts: { refundAmount: number; kept: boolean }): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
     const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
       to: o.email,
       ...customerRescheduleFailed(
-        { name: o.name, when, refunded: formatCLP(opts.refundAmount) },
+        { name: o.name, when, refunded: formatCLP(opts.refundAmount), kept: opts.kept },
         { whatsappUrl: this.config.whatsappUrl },
       ),
     });

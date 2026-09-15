@@ -15,12 +15,13 @@ export type WebhookOutcome =
   | "reschedule_applied"
   | "reschedule_charge_failed"
   | "reschedule_refund_settled"
+  | "reschedule_charge_refunded"
   | "course_paid";
 
 export interface WebhookResult {
   result: WebhookOutcome;
   orderId: string | null;
-  /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded" o "reschedule_refund_settled"). */
+  /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded", "reschedule_refund_settled" o "reschedule_charge_refunded"). */
   refundedAmount?: number;
   /** Detalle del cobro de reagendamiento no aplicado (solo cuando result === "reschedule_charge_failed"). */
   chargeFailure?: {
@@ -59,6 +60,11 @@ export class WebhookService {
     // (RefundService, inbox-first) → aquí cae como duplicado: sin doble NC/email.
     let refunded = false;
     let settledReschedule = false;
+    // Reembolso fresco sobre el pago de un COBRO de reagendamiento (isChargeOrder true):
+    // nunca es "la reserva se canceló" — es un ajuste manual (panel de MP) del excedente o
+    // del cobro completo. Se resuelve aparte de `refunded` para no mandar
+    // notifyCancellation de una reserva que sigue viva (auditoría 2026-09-14, FR1).
+    let chargeRefunded = false;
     let refundedAmount = 0;
     // Si `orderId` es la orden de delta de un COBRO (chargeForOrder no-null), no cambia
     // entre reembolsos del mismo pago: se resuelve una sola vez, perezoso (solo si hay
@@ -101,11 +107,16 @@ export class WebhookService {
         }
       }
       await this.repo.markRefunded(orderId, r.id, r.amount);
-      refunded = true;
+      if (isChargeOrder) chargeRefunded = true;
+      else refunded = true;
       refundedAmount += r.amount;
     }
+    // Precedencia: un `refunded` normal manda sobre `chargeRefunded` — en la práctica
+    // imposible que ambos se den en la misma notificación (un pago = una orden = un
+    // `isChargeOrder` fijo para todo el loop), pero se resuelve así por si acaso.
     if (refunded) return { result: "refunded", orderId, refundedAmount };
     if (settledReschedule) return { result: "reschedule_refund_settled", orderId, refundedAmount };
+    if (chargeRefunded) return { result: "reschedule_charge_refunded", orderId, refundedAmount };
     // Pago ya reembolsado del todo y nada fresco: es una re-entrega (o el loopback de un
     // reembolso admin), no un pago "pendiente".
     if (payment.status === "refunded") return { result: "duplicate", orderId };
