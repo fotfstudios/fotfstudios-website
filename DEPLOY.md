@@ -143,8 +143,10 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
    (`echo "v1,whsec_$(openssl rand -base64 32)"`) → Vercel `SEND_EMAIL_HOOK_SECRET` + Redeploy →
    Dashboard **Authentication → Hooks → Send Email** (HTTPS, la URL pública del entorno, el mismo
    secreto). Orden importa: primero la app, después el hook. Rollback = deshabilitar el hook.
-   Local: activo en `config.toml` con un secreto fijo; sin `RESEND_API_KEY` el código sale en el
-   log del dev server (`[email:noop]`), no en Mailpit.
+   Local: activo en `config.toml` con un secreto fijo; con `SMTP_URL=smtp://127.0.0.1:54325` en
+   `.env.local` (SmtpMailer) el correo llega a Mailpit (`http://127.0.0.1:54424`, código y link
+   clickeables); sin `SMTP_URL` ni `RESEND_API_KEY` el código sale solo en el log del dev server
+   (`[email:noop]`).
 5. **SMTP propio** (Resend) o aceptar el límite por defecto (~2 emails/h) en soft launch.
 6. **Custom Access Token (JWT) hook** — habilitar en **Authentication → Hooks** apuntando a la
    función Postgres `public.custom_access_token_hook`. La migración crea la función (+ grants a

@@ -40,6 +40,7 @@ import { SupabaseRatePlanRepository } from "@/src/infrastructure/db/rate-plan-re
 import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling-repository";
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
 import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mailer";
+import { SmtpMailer } from "@/src/infrastructure/email/smtp-mailer";
 import { LoggedMailer } from "@/src/application/notifications/logged-mailer";
 import { ReminderService } from "@/src/application/reminders/reminder-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
@@ -234,11 +235,18 @@ export function notificationLogRepository(client: SupabaseClient<Database> = db(
   return new SupabaseNotificationLogRepository(client);
 }
 
-/** Mailer real (Resend) o no-op sin API key; en ambos casos envuelto en la bitácora. */
+/**
+ * Mailer real por precedencia —Resend (prod/staging) → SMTP (local: el Mailpit de Supabase,
+ * `SMTP_URL=smtp://127.0.0.1:54325`) → no-op (solo log)— y en los tres casos envuelto en la
+ * bitácora. Con SMTP local, TODOS los correos (Auth vía el Send Email Hook y transaccionales)
+ * se leen y clickean en http://127.0.0.1:54424 con las mismas plantillas que en prod.
+ */
 export function mailer(client: SupabaseClient<Database> = db()): Mailer {
   const key = process.env.RESEND_API_KEY;
+  const smtp = process.env.SMTP_URL;
   const from = process.env.EMAIL_FROM ?? "FOTF Studios <reservas@fotfstudios.cl>";
-  const real = key ? new ResendMailer(key, from, process.env.EMAIL_REPLY_TO || undefined) : new NoopMailer();
+  const replyTo = process.env.EMAIL_REPLY_TO || undefined;
+  const real = key ? new ResendMailer(key, from, replyTo) : smtp ? new SmtpMailer(smtp, from, replyTo) : new NoopMailer();
   return new LoggedMailer(real, notificationLogRepository(client));
 }
 
