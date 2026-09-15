@@ -40,6 +40,8 @@ export function RescheduleDialog(props: {
   today: string;
   maxDate: string;
   initialMonth: string;
+  /** Duración real de la reserva actual (horas enteras) — el picker parte ahí, no en 1h. */
+  initialDuration: number;
   addonKeys: string[];
   isOffline: boolean;
   /**
@@ -77,6 +79,7 @@ function ReschedulePicker({
   today,
   maxDate,
   initialMonth,
+  initialDuration,
   addonKeys,
   concessionClp,
   concessionLabel,
@@ -99,7 +102,7 @@ function ReschedulePicker({
   const [dayError, setDayError] = useState(false);
 
   const [start, setStart] = useState<number | null>(null);
-  const [duration, setDuration] = useState(1);
+  const [duration, setDuration] = useState(initialDuration);
   const [quoteRes, setQuoteRes] = useState<{ key: string; quote: QuoteView | null; error: boolean } | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -235,6 +238,14 @@ function ReschedulePicker({
         ? (close - open) / 60
         : 8,
   );
+  // La duración inicial es la de la reserva actual, que puede no caber en el
+  // nuevo horario elegido (p. ej. una sesión de 4h movida a un hueco de 2h).
+  // requestAnimationFrame evita el setState síncrono en el efecto (regla
+  // react-hooks/set-state-in-effect), igual que en ConsentBanner.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setDuration((d) => Math.min(d, maxDuration)));
+    return () => cancelAnimationFrame(raf);
+  }, [maxDuration]);
 
   // Cotización en vivo (debounce + abort). Delta = classify(oldLive, total).
   // Cortesía: sin plata no hay cotización (quoteKey null → el effect no corre).

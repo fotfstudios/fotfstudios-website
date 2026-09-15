@@ -514,6 +514,11 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
     today,
     maxDate: DateTime.fromISO(today).plus({ days: 180 }).toFormat("yyyy-MM-dd"),
     initialMonth: today.slice(0, 7),
+    // Arranca el picker en la duración real de la reserva, no siempre en 1h.
+    initialDuration: Math.max(
+      1,
+      Math.round(DateTime.fromISO(b.endsAt).diff(DateTime.fromISO(b.startsAt), "hours").hours),
+    ),
     addonKeys: b.addonKeys,
     concessionClp: b.concessionClp,
     concessionLabel: b.concessionLabel,
