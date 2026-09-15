@@ -59,10 +59,17 @@ export function Td({
   children,
   right,
   className = "",
+  rowSpan,
 }: {
   children?: ReactNode;
   right?: boolean;
   className?: string;
+  /** Celda que abarca varias filas (p. ej. un pedido con varios documentos). */
+  rowSpan?: number;
 }) {
-  return <td className={`px-4 py-3.5 align-middle ${right ? "text-right" : ""} ${className}`}>{children}</td>;
+  return (
+    <td rowSpan={rowSpan} className={`px-4 py-3.5 align-middle ${right ? "text-right" : ""} ${className}`}>
+      {children}
+    </td>
+  );
 }
