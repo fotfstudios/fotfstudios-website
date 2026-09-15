@@ -698,8 +698,10 @@ export class SupabaseAdminRepository {
       // El descuento que decidió el staff, para que el diálogo de reagendamiento
       // proyecte el MISMO delta que después calcula el servidor.
       concession = concessionFromLines(l ?? [], snapshotQuote(row.orders?.pricing_snapshot ?? null));
-      taxDocs = await this.taxDocsForReservation(id, base.orderId);
     }
+    // taxDocsForReservation ya maneja orderId=null (una reserva sin pedido, p. ej. un
+    // bloqueo, igual podría tener boletas vía sus propios reagendamientos-delta).
+    taxDocs = await this.taxDocsForReservation(id, base.orderId);
     // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).
     const { data: moves } = await this.db
       .from("reschedules")

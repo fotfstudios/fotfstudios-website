@@ -83,6 +83,45 @@ describe("taxDocsForReservation / taxDocsForOrderOf", () => {
     expect(viaDoc?.map((d) => d.id)).toEqual([viaRes[0].id]);
     expect(await repo.taxDocsForOrderOf("00000000-0000-0000-0000-000000000000")).toBeNull();
   });
+
+  it("slot tomado: la boleta vive en la orden de DELTA, no en la del pedido — el fallback la trae igual", async () => {
+    const orderId = await paid(900, "f@e.cl");
+    const resId = await reservationOf(orderId);
+    const res = (await pg.query<{ starts_at: string; ends_at: string }>("select starts_at, ends_at from reservations where id=$1", [resId])).rows[0];
+    const order = (await pg.query<{ amount_clp: number }>("select amount_clp from orders where id=$1", [orderId])).rows[0];
+
+    // Orden de delta (financia el cobro del encarecimiento) + reschedule 'failed_slot_taken':
+    // simula la rama de slot tomado de apply_reschedule_charge (20260707230000) — la reserva
+    // NO se mueve y la boleta queda financiada por (y vive en) la orden de delta, no en `orderId`.
+    const deltaOrder = (
+      await pg.query<{ id: string }>(
+        `insert into orders (status, currency, amount_clp, net_clp, tax_clp, customer_email)
+           values ('paid', 'CLP', 3000, 2521, 479, $1) returning id`,
+        ["f@e.cl"],
+      )
+    ).rows[0].id;
+    await pg.query(
+      `insert into reschedules
+         (reservation_id, original_order_id, delta_order_id, kind, status,
+          old_starts_at, old_ends_at, new_starts_at, new_ends_at, old_live_clp, new_total_clp, delta_clp)
+       values ($1, $2, $3, 'charge', 'failed_slot_taken', $4, $5, $4, $5, $6, $6, 3000)`,
+      [resId, orderId, deltaOrder, res.starts_at, res.ends_at, order.amount_clp],
+    );
+    await pg.query("select create_boleta_amount($1, $2, $1)", [deltaOrder, 3000]);
+
+    const docs = await repo.taxDocsForReservation(resId, orderId);
+    expect(docs.map((d) => ({ orderId: d.orderId, settlementOrderId: d.settlementOrderId }))).toEqual([
+      { orderId, settlementOrderId: orderId },
+      { orderId: deltaOrder, settlementOrderId: deltaOrder },
+    ]);
+
+    // Pasar el id de la orden de delta COMO `orderId` coincide con el que ya trae el
+    // fallback de reschedules: el `Set` los funde en uno solo, así que sigue resolviendo
+    // a un único documento (el de la orden de delta) — no aparece duplicado.
+    const viaDelta = await repo.taxDocsForReservation(resId, deltaOrder);
+    expect(viaDelta).toHaveLength(1);
+    expect(viaDelta[0]).toMatchObject({ orderId: deltaOrder, settlementOrderId: deltaOrder });
+  });
 });
 
 describe("pendingTaxDocsQueue / pendingTaxDocsSummary", () => {
