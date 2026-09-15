@@ -46,6 +46,8 @@ export interface AdminBooking {
   refundedAmount: number | null;
   /** Ficha vinculada (directorio). null = walk-in solo-nombre o historial sin vincular. */
   customerId: string | null;
+  /** Hold del cupo de un reagendamiento pendiente (sin orden): apunta a la fila `reschedules`. */
+  rescheduleId: string | null;
 }
 
 /** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
@@ -100,7 +102,12 @@ export interface AdminBookingDetail extends AdminBooking {
     offlineSettledClp: number;
     createdAt: string;
     appliedAt: string | null;
+    /** `pending_charge`: link de pago persistido (payment_intents.init_point) y vencimiento del hold del cupo. */
+    initPoint: string | null;
+    holdExpiresAt: string | null;
   }[];
+  /** Esta reserva ES el hold del cupo de un reagendamiento pendiente de otra reserva. */
+  holdOf: { reservationId: string; deltaClp: number; status: string } | null;
   mpPaymentId: string | null;
   mpPreferenceId: string | null;
   mpRefundId: string | null;
@@ -214,6 +221,7 @@ type ResRow = {
   notes: string | null;
   order_id: string | null;
   customer_id: string | null;
+  reschedule_id?: string | null;
   orders: {
     amount_clp: number;
     status: string;
@@ -224,7 +232,7 @@ type ResRow = {
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
 
 /** Subconjunto estructural del query builder de PostgREST que usan los filtros de la lista. */
 interface ReservasFilterable {
@@ -273,6 +281,7 @@ const map = (r: ResRow): AdminBooking => ({
   cancelledAt: r.cancelled_at,
   refundedAt: r.orders?.refunded_at ?? null,
   refundedAmount: r.orders?.refunded_amount_clp ?? null,
+  rescheduleId: r.reschedule_id ?? null,
   customerId: r.customer_id ?? null,
 });
 
@@ -614,7 +623,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
@@ -670,6 +679,37 @@ export class SupabaseAdminRepository {
       .select("id, kind, status, delta_order_id, old_starts_at, new_starts_at, new_ends_at, delta_clp, settled_clp, offline_settled_clp, created_at, applied_at")
       .eq("reservation_id", id)
       .order("created_at", { ascending: true });
+    // Cobro pendiente: link persistido y vencimiento del hold del cupo (una fila por reserva
+    // a lo más, por el índice único parcial).
+    const pendingCharge = (moves ?? []).find((m) => m.status === "pending_charge");
+    let initPoint: string | null = null;
+    let holdExpiresAt: string | null = null;
+    if (pendingCharge?.delta_order_id) {
+      const { data: pi } = await this.db
+        .from("payment_intents")
+        .select("init_point")
+        .eq("order_id", pendingCharge.delta_order_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      initPoint = pi?.init_point ?? null;
+      const { data: hold } = await this.db
+        .from("reservations")
+        .select("expires_at, status")
+        .eq("reschedule_id", pendingCharge.id)
+        .maybeSingle();
+      holdExpiresAt = hold?.status === "held" ? (hold.expires_at ?? null) : null;
+    }
+    // Esta reserva es el hold del cupo de OTRA reserva (reagendamiento pendiente).
+    let holdOf: AdminBookingDetail["holdOf"] = null;
+    if (row.reschedule_id) {
+      const { data: h } = await this.db
+        .from("reschedules")
+        .select("reservation_id, delta_clp, status")
+        .eq("id", row.reschedule_id)
+        .maybeSingle();
+      if (h) holdOf = { reservationId: h.reservation_id, deltaClp: h.delta_clp, status: h.status };
+    }
     const reschedules = (moves ?? []).map((m) => ({
       id: m.id,
       kind: m.kind,
@@ -683,10 +723,13 @@ export class SupabaseAdminRepository {
       offlineSettledClp: m.offline_settled_clp,
       createdAt: m.created_at,
       appliedAt: m.applied_at,
+      initPoint: m.status === "pending_charge" ? initPoint : null,
+      holdExpiresAt: m.status === "pending_charge" ? holdExpiresAt : null,
     }));
 
     return {
       ...base,
+      holdOf,
       lines,
       addonKeys,
       concessionClp: concession.amount,

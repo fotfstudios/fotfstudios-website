@@ -92,6 +92,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
       order_id: p.orderId,
       provider: p.provider,
       preference_id: p.preferenceId,
+      init_point: p.initPoint ?? null,
       amount_clp: p.amount,
       currency: p.currency,
       status: "created",

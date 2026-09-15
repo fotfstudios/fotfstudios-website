@@ -13,6 +13,8 @@ export interface RecordPreferenceParams {
   orderId: string;
   provider: string;
   preferenceId: string;
+  /** Link de Checkout Pro: se guarda para que la ficha del admin pueda mostrarlo/reenviarlo. */
+  initPoint?: string;
   amount: number;
   currency: string;
 }

@@ -939,6 +939,7 @@ export type Database = {
           currency: string
           id: string
           idempotency_key: string | null
+          init_point: string | null
           order_id: string
           payment_id: string | null
           preference_id: string | null
@@ -951,6 +952,7 @@ export type Database = {
           currency?: string
           id?: string
           idempotency_key?: string | null
+          init_point?: string | null
           order_id: string
           payment_id?: string | null
           preference_id?: string | null
@@ -963,6 +965,7 @@ export type Database = {
           currency?: string
           id?: string
           idempotency_key?: string | null
+          init_point?: string | null
           order_id?: string
           payment_id?: string | null
           preference_id?: string | null
@@ -1274,6 +1277,7 @@ export type Database = {
           notes: string | null
           order_id: string | null
           reminder_sent_at: string | null
+          reschedule_id: string | null
           resource_id: string
           starts_at: string
           status: Database["public"]["Enums"]["reservation_status"]
@@ -1296,6 +1300,7 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           reminder_sent_at?: string | null
+          reschedule_id?: string | null
           resource_id: string
           starts_at: string
           status?: Database["public"]["Enums"]["reservation_status"]
@@ -1318,6 +1323,7 @@ export type Database = {
           notes?: string | null
           order_id?: string | null
           reminder_sent_at?: string | null
+          reschedule_id?: string | null
           resource_id?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["reservation_status"]
@@ -1335,6 +1341,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservations_reschedule_id_fkey"
+            columns: ["reschedule_id"]
+            isOneToOne: false
+            referencedRelation: "reschedules"
             referencedColumns: ["id"]
           },
           {
@@ -1831,6 +1844,10 @@ export type Database = {
       }
       release_practice_hours: {
         Args: { p_reservation: string }
+        Returns: undefined
+      }
+      release_reschedule_hold: {
+        Args: { p_reschedule: string }
         Returns: undefined
       }
       reschedule_courtesy: {

@@ -200,6 +200,12 @@ const createCharge = (reservationId: string, start: string, end: string) =>
     )
     .then((r) => r.rows[0]);
 
+/** Simula el vencimiento del hold del cupo (24 h): expires_at al pasado + barrido expire_stale_holds. */
+const expireHold = async (rescheduleId: string) => {
+  await pg.query("update reservations set expires_at = now() - interval '1 minute' where reschedule_id=$1", [rescheduleId]);
+  await pg.query("select expire_stale_holds()");
+};
+
 /** Baja de precio completa (mover + asentar offline) — reemplaza al viejo reschedule_down en los tests. */
 async function downOffline(reservationId: string, start: string, end: string, lines: string, amount: number) {
   const m = await pg.query<{ reschedule_down_move: string }>(
@@ -259,7 +265,8 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     const c = await createCharge(a.reservationId, newStart, newEnd);
     const deltaOrderId = c.delta_order_id;
 
-    // Otro cliente toma el slot destino mientras el cobro estaba pendiente.
+    // El hold del cupo venció (24 h sin pagar) y otro cliente tomó el slot destino.
+    await expireHold(c.reschedule_id);
     await paidBooking(720, "cs2"); // 12:00–13:00 == [newStart,newEnd]
 
     const res = await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_delta_2"]);
@@ -636,7 +643,8 @@ describe("pending charge lifecycle (auditoría 2026-09-14, H2/H3)", () => {
   it("chargeForOrder (repo) encuentra la orden delta de un cobro failed_slot_taken — su reembolso NO debe asentar otra fila pending_refund", async () => {
     const a = await paidBooking(600, "pc7");
     const c = await createCharge(a.reservationId, addHours(a.endsAt, 1), addHours(a.endsAt, 2));
-    await paidBooking(720, "pc7b"); // toma el slot destino
+    await expireHold(c.reschedule_id);
+    await paidBooking(720, "pc7b"); // toma el slot destino (el hold ya venció)
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [c.delta_order_id, "mp_pc7"])).rows[0].r).toBe("slot_taken");
     const repo = new SupabaseRescheduleRepository(db);
     expect(await repo.chargeForOrder(c.delta_order_id)).toEqual({ deltaOrderId: c.delta_order_id, rescheduleId: c.reschedule_id });
@@ -829,5 +837,69 @@ describe("reschedule_down_move + reschedule_settle_refund (auditoría 2026-09-14
     const ev = await pg.query<{ order_id: string }>(
       "select order_id from booking_events where reschedule_id=$1 and type='reschedule_cancelled'", [id]);
     expect(ev.rows[0].order_id).toBe(orderId);
+  });
+});
+
+describe("cobro pendiente: el cupo destino queda RESERVADO mientras el cliente paga (hold)", () => {
+  const holdOf = (rescheduleId: string) =>
+    pg
+      .query<{ id: string; status: string; kind: string; order_id: string | null; expires_in_h: number; customer_email: string }>(
+        "select id, status, kind, order_id, round(extract(epoch from (expires_at - now()))/3600)::int expires_in_h, customer_email from reservations where reschedule_id=$1",
+        [rescheduleId],
+      )
+      .then((r) => r.rows);
+
+  it("create_reschedule_charge crea un hold sin orden (24 h) en el cupo nuevo y el GiST lo protege de otro checkout", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "hold1");
+    const newStart = addHours(endsAt, 1);
+    const newEnd = addHours(endsAt, 2);
+    const c = await createCharge(reservationId, newStart, newEnd);
+    const holds = await holdOf(c.reschedule_id);
+    expect(holds).toHaveLength(1);
+    expect(holds[0]).toMatchObject({ status: "held", kind: "booking", order_id: null, expires_in_h: 24, customer_email: "r@e.cl" });
+    // Otro cliente intenta el MISMO cupo: la exclusion constraint lo rechaza.
+    const other = await checkout.createBooking({ resourceId, date: MON, startMinute: 720, durationHours: 1, customer: { email: "otro@e.cl" } });
+    expect(other.ok).toBe(false);
+    // El cupo ORIGINAL sigue ocupado por la reserva (nada se movió todavía).
+    const r = await pg.query<{ starts_at: string }>("select starts_at from reservations where id=$1", [reservationId]);
+    expect(new Date(r.rows[0].starts_at).toISOString()).not.toBe(newStart);
+  });
+
+  it("si el cupo nuevo ya está tomado, create_reschedule_charge falla por GiST y no deja orden delta ni fila", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "hold2");
+    await paidBooking(660, "hold2b"); // ocupa 11:00–12:00
+    await expect(createCharge(reservationId, addHours(endsAt, 0), addHours(endsAt, 1))).rejects.toThrow(/exclusion|23P01|overlap/i);
+    const rows = await pg.query<{ n: string }>("select count(*)::text n from reschedules where reservation_id=$1", [reservationId]);
+    expect(rows.rows[0].n).toBe("0");
+  });
+
+  it("apply_reschedule_charge borra el hold y mueve la reserva al cupo (sin chocar consigo mismo)", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "hold3");
+    const newStart = addHours(endsAt, 1);
+    const c = await createCharge(reservationId, newStart, addHours(endsAt, 2));
+    const res = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [c.delta_order_id, "pay-hold3"]);
+    expect(res.rows[0].apply_reschedule_charge).toBe("applied");
+    expect(await holdOf(c.reschedule_id)).toHaveLength(0);
+    const r = await pg.query<{ starts_at: string; status: string }>("select starts_at, status from reservations where id=$1", [reservationId]);
+    expect(r.rows[0].status).toBe("confirmed");
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(newStart);
+  });
+
+  it("anular el cobro y el barrido de 72 h borran el hold", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "hold4");
+    const a = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_reschedule_charge($1)", [a.reschedule_id]);
+    expect(await holdOf(a.reschedule_id)).toHaveLength(0);
+    const b = await createCharge(reservationId, addHours(endsAt, 3), addHours(endsAt, 4));
+    await pg.query("update reschedules set created_at = now() - interval '80 hours' where id=$1", [b.reschedule_id]);
+    await pg.query("select expire_abandoned_reschedules()");
+    expect(await holdOf(b.reschedule_id)).toHaveLength(0);
+  });
+
+  it("cancelar la reserva original con cobro pendiente también borra el hold", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "hold5");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    expect(await holdOf(c.reschedule_id)).toHaveLength(0);
   });
 });
