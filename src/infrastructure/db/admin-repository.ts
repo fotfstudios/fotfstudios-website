@@ -19,6 +19,7 @@ import {
 } from "@/src/domain/analytics/metrics";
 import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
 import { CUSTOMER_GENERIC_DB_ERROR, customerDbErrorCode } from "@/src/domain/customers/customer-input";
+import type { TaxDocRaw } from "@/src/domain/tax/tax-doc-steps";
 import { snapshotQuote } from "./pricing-snapshot";
 import type { Database, Json } from "./database.types";
 
@@ -77,15 +78,8 @@ export interface AdminBookingDetail extends AdminBooking {
   concessionLabel: string;
   /** Puntos canjeados (CLP). >0 bloquea el reagendamiento en v1. */
   pointsRedeemedClp: number;
-  taxDocs: {
-    id: string;
-    kind: string;
-    status: string;
-    folio: string | null;
-    total: number;
-    createdAt: string;
-    emittedAt: string | null;
-  }[];
+  /** Todos los documentos tributarios de la reserva (su pedido + órdenes delta). */
+  taxDocs: TaxDocRaw[];
   /** Eventos de reagendamiento (auditoría) para la línea de tiempo. */
   reschedules: {
     id: string;
@@ -178,6 +172,8 @@ export interface DashboardData {
   weekRevenue: number;
   weekOccupancyPct: number;
   pendingBoletas: number;
+  /** Documento tributario pendiente más antiguo (`null` si no hay ninguno). */
+  oldestPendingDocAt: string | null;
   pendingPayments: number;
   /** PIN generado que el dueño aún no cargó en la cerradura (sesión futura). */
   accessToLoad: number;
@@ -204,6 +200,50 @@ export interface PendingBoleta {
   reservationId: string | null;
   enrollmentId: string | null;
 }
+
+export type PendingTaxDocContext =
+  | { kind: "reserva"; reservationId: string; customerName: string | null; startsAt: string }
+  | { kind: "curso"; enrollmentId: string; studentName: string; generationCode: string }
+  | { kind: "pedido"; customerName: string | null };
+
+/** Un pedido con ≥1 documento pendiente, con TODOS sus documentos (la NC bloqueada nombra a su padre). */
+export interface PendingTaxDocGroup {
+  orderId: string;
+  oldestPendingAt: string;
+  docs: TaxDocRaw[];
+  context: PendingTaxDocContext;
+}
+
+export interface PendingTaxDocsSummary {
+  count: number;
+  oldestCreatedAt: string | null;
+}
+
+const TAX_DOC_SELECT =
+  "id, order_id, kind, status, folio, neto, iva, total, created_at, emitted_at, reverses_document_id, is_live, reversed_clp, settlement_order_id";
+
+type TaxDocRow = {
+  id: string; order_id: string; kind: "boleta" | "nota_credito"; status: "pendiente" | "emitida";
+  folio: string | null; neto: number; iva: number; total: number; created_at: string; emitted_at: string | null;
+  reverses_document_id: string | null; is_live: boolean | null; reversed_clp: number; settlement_order_id: string | null;
+};
+
+const toTaxDocRaw = (d: TaxDocRow): TaxDocRaw => ({
+  id: d.id,
+  orderId: d.order_id,
+  kind: d.kind,
+  status: d.status,
+  folio: d.folio,
+  neto: d.neto,
+  iva: d.iva,
+  total: d.total,
+  createdAt: d.created_at,
+  emittedAt: d.emitted_at,
+  reversesDocumentId: d.reverses_document_id,
+  // Columna generada (tipada nullable por PostgREST): misma expresión que el esquema.
+  isLive: d.is_live ?? (d.kind === "boleta" && d.reversed_clp < d.total),
+  settlementOrderId: d.settlement_order_id,
+});
 
 type ResRow = {
   id: string;
@@ -537,7 +577,7 @@ export class SupabaseAdminRepository {
     const weekStart = now.startOf("week");
     const weekEnd = weekStart.plus({ weeks: 1 });
 
-    const [weekBookings, upcoming, boletas, pendingPay] = await Promise.all([
+    const [weekBookings, upcoming, boletas, pendingPay, docsSummary] = await Promise.all([
       this.bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!),
       this.upcomingBookings(40),
       this.pendingBoletas(),
@@ -547,6 +587,7 @@ export class SupabaseAdminRepository {
         .select("id", { count: "exact", head: true })
         .eq("status", "pending_payment")
         .eq("kind", "booking"),
+      this.pendingTaxDocsSummary(),
     ]);
 
     const sessions = weekBookings.filter((b) => isSellableSession(b.kind));
@@ -566,6 +607,7 @@ export class SupabaseAdminRepository {
       weekRevenue,
       weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
       pendingBoletas: boletas.length,
+      oldestPendingDocAt: docsSummary.oldestCreatedAt,
       pendingPayments: pendingPay.count ?? 0,
       accessToLoad: await this.accessToLoadCount(),
       accessToRemove: await this.accessToRemoveCount(),
@@ -656,22 +698,7 @@ export class SupabaseAdminRepository {
       // El descuento que decidió el staff, para que el diálogo de reagendamiento
       // proyecte el MISMO delta que después calcula el servidor.
       concession = concessionFromLines(l ?? [], snapshotQuote(row.orders?.pricing_snapshot ?? null));
-      // Todos los documentos tributarios (boletas + NC): un pedido reembolsado
-      // parcialmente puede tener boleta original + NC + boleta del saldo.
-      const { data: docs } = await this.db
-        .from("tax_documents")
-        .select("id, kind, status, folio, total, created_at, emitted_at")
-        .eq("order_id", base.orderId)
-        .order("created_at", { ascending: true });
-      taxDocs = (docs ?? []).map((d) => ({
-        id: d.id,
-        kind: d.kind,
-        status: d.status,
-        folio: d.folio,
-        total: d.total,
-        createdAt: d.created_at,
-        emittedAt: d.emitted_at,
-      }));
+      taxDocs = await this.taxDocsForReservation(id, base.orderId);
     }
     // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).
     const { data: moves } = await this.db
@@ -766,6 +793,112 @@ export class SupabaseAdminRepository {
       detail: e.detail as BookingTimelineEvent["detail"],
       occurredAt: e.occurred_at,
     }));
+  }
+
+  // ── Documentos tributarios (superficie SII) ──────────────────────────────
+
+  async taxDocsForOrders(orderIds: string[]): Promise<TaxDocRaw[]> {
+    if (orderIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("tax_documents")
+      .select(TAX_DOC_SELECT)
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: true })
+      // Misma tx (mismo created_at): la NC va antes que la boleta de saldo que la
+      // acompaña — mismo criterio que byChrono en tax-doc-steps.ts. El enum
+      // tax_doc_kind declara 'boleta' antes que 'nota_credito', así que DESC la
+      // ordena primero; `id` como último desempate solo por determinismo.
+      .order("kind", { ascending: false })
+      .order("id", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(toTaxDocRaw);
+  }
+
+  async taxDocsForOrder(orderId: string): Promise<TaxDocRaw[]> {
+    return this.taxDocsForOrders([orderId]);
+  }
+
+  /**
+   * Documentos de una reserva: los de su pedido + los de sus órdenes delta. La boleta
+   * de un encarecimiento con slot tomado vive en la orden de DELTA (apply_reschedule_charge),
+   * y sin este fallback la ficha no la mostraría nunca.
+   */
+  async taxDocsForReservation(reservationId: string, orderId: string | null): Promise<TaxDocRaw[]> {
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("delta_order_id")
+      .eq("reservation_id", reservationId)
+      .not("delta_order_id", "is", null);
+    if (error) throw new Error(error.message);
+    const ids = [...(orderId ? [orderId] : []), ...(data ?? []).map((r) => r.delta_order_id!)];
+    return this.taxDocsForOrders([...new Set(ids)]);
+  }
+
+  /** Todos los documentos del pedido al que pertenece `docId`; `null` si el doc no existe. */
+  async taxDocsForOrderOf(docId: string): Promise<TaxDocRaw[] | null> {
+    const { data, error } = await this.db.from("tax_documents").select("order_id").eq("id", docId).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return this.taxDocsForOrder(data.order_id);
+  }
+
+  /** Cola SII: pedidos con algo pendiente, más antiguo primero, con todos sus docs y a dónde ir. */
+  async pendingTaxDocsQueue(): Promise<PendingTaxDocGroup[]> {
+    const { data: pend, error } = await this.db
+      .from("tax_documents")
+      .select("order_id, created_at")
+      .eq("status", "pendiente")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    const oldest = new Map<string, string>();
+    for (const p of pend ?? []) if (!oldest.has(p.order_id)) oldest.set(p.order_id, p.created_at);
+    const orderIds = [...oldest.keys()];
+    if (orderIds.length === 0) return [];
+
+    const [docs, res, deltas, enr, ords] = await Promise.all([
+      this.taxDocsForOrders(orderIds),
+      this.db.from("reservations").select("id, order_id, customer_name, starts_at").in("order_id", orderIds).eq("kind", "booking"),
+      this.db.from("reschedules").select("delta_order_id, reservation_id").in("delta_order_id", orderIds),
+      this.db.from("course_enrollments").select("id, order_id, student_name, course_generations(code)").in("order_id", orderIds),
+      this.db.from("orders").select("id, customer_name").in("id", orderIds),
+    ]);
+    // Reservas alcanzadas solo vía orden delta: segundo lookup por id.
+    const deltaResIds = [...new Set((deltas.data ?? []).map((d) => d.reservation_id))];
+    const viaDelta = deltaResIds.length
+      ? await this.db.from("reservations").select("id, order_id, customer_name, starts_at").in("id", deltaResIds)
+      : { data: [] as { id: string; order_id: string | null; customer_name: string | null; starts_at: string }[] };
+
+    const resByOrder = new Map((res.data ?? []).map((r) => [r.order_id, r]));
+    const resById = new Map((viaDelta.data ?? []).map((r) => [r.id, r]));
+    const deltaToRes = new Map((deltas.data ?? []).map((d) => [d.delta_order_id, d.reservation_id]));
+    // Un dúo son dos inscripciones sobre el mismo pedido: con una basta para ir a la ficha.
+    const enrByOrder = new Map((enr.data ?? []).map((e) => [e.order_id, e]));
+    const orderName = new Map((ords.data ?? []).map((o) => [o.id, o.customer_name]));
+    const docsByOrder = new Map<string, TaxDocRaw[]>();
+    for (const d of docs) docsByOrder.set(d.orderId, [...(docsByOrder.get(d.orderId) ?? []), d]);
+
+    const context = (orderId: string): PendingTaxDocContext => {
+      const r = resByOrder.get(orderId) ?? resById.get(deltaToRes.get(orderId) ?? "");
+      if (r) return { kind: "reserva", reservationId: r.id, customerName: r.customer_name, startsAt: r.starts_at };
+      const e = enrByOrder.get(orderId);
+      if (e) return { kind: "curso", enrollmentId: e.id, studentName: e.student_name, generationCode: e.course_generations?.code ?? "" };
+      return { kind: "pedido", customerName: orderName.get(orderId) ?? null };
+    };
+
+    return orderIds
+      .map((orderId) => ({ orderId, oldestPendingAt: oldest.get(orderId)!, docs: docsByOrder.get(orderId) ?? [], context: context(orderId) }))
+      .sort((a, b) => a.oldestPendingAt.localeCompare(b.oldestPendingAt));
+  }
+
+  async pendingTaxDocsSummary(): Promise<PendingTaxDocsSummary> {
+    const { data, count, error } = await this.db
+      .from("tax_documents")
+      .select("created_at", { count: "exact" })
+      .eq("status", "pendiente")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    return { count: count ?? 0, oldestCreatedAt: data?.[0]?.created_at ?? null };
   }
 
   async pendingBoletas(): Promise<PendingBoleta[]> {
