@@ -1164,6 +1164,8 @@ export type Database = {
           delta_order_id: string | null
           id: string
           kind: string
+          mp_refund_id: string | null
+          mp_refund_payment_id: string | null
           new_ends_at: string
           new_lines: Json | null
           new_snapshot: Json | null
@@ -1174,6 +1176,7 @@ export type Database = {
           old_starts_at: string
           original_order_id: string | null
           reservation_id: string
+          settled_clp: number
           status: string
         }
         Insert: {
@@ -1184,6 +1187,8 @@ export type Database = {
           delta_order_id?: string | null
           id?: string
           kind: string
+          mp_refund_id?: string | null
+          mp_refund_payment_id?: string | null
           new_ends_at: string
           new_lines?: Json | null
           new_snapshot?: Json | null
@@ -1194,6 +1199,7 @@ export type Database = {
           old_starts_at: string
           original_order_id?: string | null
           reservation_id: string
+          settled_clp?: number
           status?: string
         }
         Update: {
@@ -1204,6 +1210,8 @@ export type Database = {
           delta_order_id?: string | null
           id?: string
           kind?: string
+          mp_refund_id?: string | null
+          mp_refund_payment_id?: string | null
           new_ends_at?: string
           new_lines?: Json | null
           new_snapshot?: Json | null
@@ -1214,6 +1222,7 @@ export type Database = {
           old_starts_at?: string
           original_order_id?: string | null
           reservation_id?: string
+          settled_clp?: number
           status?: string
         }
         Relationships: [
@@ -1827,13 +1836,13 @@ export type Database = {
         }
         Returns: string
       }
-      reschedule_down: {
+      reschedule_down_move: {
         Args: {
+          p_created_by?: string
           p_ends: string
           p_lines: Json
           p_note?: string
           p_refund_amount: number
-          p_refund_id: string
           p_reservation: string
           p_snapshot: Json
           p_starts: string
@@ -1849,6 +1858,10 @@ export type Database = {
           p_snapshot: Json
           p_starts: string
         }
+        Returns: string
+      }
+      reschedule_settle_refund: {
+        Args: { p_amount?: number; p_refund_id: string; p_reschedule: string }
         Returns: string
       }
       reservation_for_order: { Args: { p_order: string }; Returns: string }
