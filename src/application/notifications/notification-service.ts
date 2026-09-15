@@ -12,7 +12,9 @@ import {
   customerCancellation,
   customerConfirmation,
   customerCourtesyConfirmation,
+  customerCourtesyRescheduled,
   customerReschedule,
+  customerReschedulePaymentLink,
   customerRescheduleFailed,
   customerReminder,
   customerCourtesyCancelled,
@@ -245,7 +247,7 @@ export class NotificationService {
    * ya refleja el NUEVO horario (la reserva se movió). Con reembolso del delta si el
    * nuevo horario era más barato.
    */
-  async notifyReschedule(orderId: string, opts: { refundAmount: number }): Promise<boolean> {
+  async notifyReschedule(orderId: string, opts: { refundAmount: number; offline?: boolean }): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
     const when = this.when(o.startsAt, o.endsAt);
@@ -254,7 +256,12 @@ export class NotificationService {
     await this.mailer.send({
       to: o.email,
       ...customerReschedule(
-        { name: o.name, when, refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null },
+        {
+          name: o.name,
+          when,
+          refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
+          refundedOffline: opts.offline ?? false,
+        },
         {
           whatsappUrl: this.config.whatsappUrl,
           address: this.config.address,
@@ -460,6 +467,66 @@ export class NotificationService {
       ...bookingPaymentPending(
         { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours },
         { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Cortesía reagendada: datos en mano (no hay orden), mismo patrón que
+   * notifyCourtesyCancelled + el bloque de calendario de notifyReschedule. Mismo uid
+   * que notifyCourtesy (`r-${reservationId}`, sin orderId): el calendario ACTUALIZA
+   * el evento en vez de duplicarlo.
+   */
+  async notifyCourtesyRescheduled(input: {
+    email: string | null;
+    name: string | null;
+    reservationId: string;
+    oldStartsAt: string;
+    startsAt: string;
+    endsAt: string;
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    const ev = this.calendarEvent(`r-${input.reservationId}`, input.startsAt, input.endsAt, null);
+    await this.mailer.send({
+      to: input.email,
+      ...customerCourtesyRescheduled(
+        { name: input.name, oldWhen: this.when(input.oldStartsAt, null), when: this.when(input.startsAt, input.endsAt) },
+        {
+          whatsappUrl: this.config.whatsappUrl,
+          address: this.config.address,
+          mapsUrl: this.config.mapsUrl,
+          calendarUrl: googleCalendarUrl(ev),
+        },
+      ),
+      attachments: [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }],
+    });
+    return true;
+  }
+
+  /**
+   * Manda al cliente el link de pago del EXCEDENTE de un reagendamiento (H4): el
+   * nuevo horario cuesta más y la reserva sigue en su horario ORIGINAL hasta que
+   * pague. Best-effort, como el resto de los avisos.
+   */
+  async notifyReschedulePaymentLink(
+    orderId: string,
+    v: { newStartsAt: string; newEndsAt: string; amount: number; initPoint: string; expiresInHours: number },
+  ): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    await this.mailer.send({
+      to: o.email,
+      ...customerReschedulePaymentLink(
+        {
+          name: o.name,
+          oldWhen: this.when(o.startsAt, o.endsAt),
+          newWhen: this.when(v.newStartsAt, v.newEndsAt),
+          amount: formatCLP(v.amount),
+          initPoint: v.initPoint,
+          expiresInHours: v.expiresInHours,
+        },
+        { whatsappUrl: this.config.whatsappUrl, termsUrl: this.config.termsUrl },
       ),
     });
     return true;

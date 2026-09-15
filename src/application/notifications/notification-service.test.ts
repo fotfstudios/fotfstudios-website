@@ -659,3 +659,117 @@ describe("calendario también en cortesía y reagendamiento", () => {
     expect(msg.html).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
   });
 });
+
+describe("notifyReschedulePaymentLink — cobro de reagendamiento pendiente (H4)", () => {
+  it("notifyReschedulePaymentLink: asunto con el horario NUEVO, monto y link; sin .ics", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "c@e.cl",
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(
+      await service.notifyReschedulePaymentLink("o1", {
+        newStartsAt: "2026-09-19T18:00:00Z",
+        newEndsAt: "2026-09-19T20:00:00Z",
+        amount: 6000,
+        initPoint: "https://mp/x",
+        expiresInHours: 24,
+      }),
+    ).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.subject).toMatch(/Confirma tu nuevo horario · sábado 19 de septiembre, 15:00–17:00 h/);
+    expect(msg.html).toContain("$6.000");
+    expect(msg.html).toContain("https://mp/x");
+    expect(msg.html).toContain("miércoles 16 de septiembre, 16:00–18:00 h");
+    expect(msg.attachments).toBeUndefined();
+  });
+
+  it("sin email en la orden no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: null,
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(
+      await service.notifyReschedulePaymentLink("o1", {
+        newStartsAt: "2026-09-19T18:00:00Z",
+        newEndsAt: "2026-09-19T20:00:00Z",
+        amount: 6000,
+        initPoint: "https://mp/x",
+        expiresInHours: 24,
+      }),
+    ).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("notifyCourtesyRescheduled (H6) + copy offline al reembolsar (M2)", () => {
+  it("notifyCourtesyRescheduled: datos en mano, asunto con el horario nuevo, .ics con el uid de la reserva", async () => {
+    const { service, mailer, repo } = makeService();
+    expect(
+      await service.notifyCourtesyRescheduled({
+        email: "v@e.cl",
+        name: "Vale",
+        reservationId: "r1",
+        oldStartsAt: "2026-09-17T15:00:00Z",
+        startsAt: "2026-09-17T11:00:00Z",
+        endsAt: "2026-09-17T12:00:00Z",
+      }),
+    ).toBe(true);
+    expect(repo.getOrderForEmail).not.toHaveBeenCalled();
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.subject).toMatch(/Sesión reagendada · jueves 17 de septiembre, 08:00–09:00 h/);
+    expect(msg.attachments?.[0]?.filename).toBe("reserva-fotf.ics");
+    expect(msg.attachments?.[0]?.content).toContain("UID:fotf-r-r1@fotfstudios.cl");
+  });
+
+  it("notifyCourtesyRescheduled sin email → false, no manda", async () => {
+    const { service, mailer } = makeService();
+    expect(
+      await service.notifyCourtesyRescheduled({
+        email: null,
+        name: "Vale",
+        reservationId: "r1",
+        oldStartsAt: "2026-09-17T15:00:00Z",
+        startsAt: "2026-09-17T11:00:00Z",
+        endsAt: "2026-09-17T12:00:00Z",
+      }),
+    ).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("notifyReschedule offline: la línea del reembolso dice que el estudio coordina la devolución", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "c@e.cl",
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    await service.notifyReschedule("o1", { refundAmount: 5000, offline: true });
+    expect(mailer.send.mock.calls[0][0].html).toContain("coordinamos contigo la devolución de <strong");
+    expect(mailer.send.mock.calls[0][0].html).not.toContain("medio de pago original");
+  });
+});

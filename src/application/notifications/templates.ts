@@ -266,11 +266,13 @@ export function customerCancellation(
 }
 
 export function customerReschedule(
-  v: { name: string | null; when: string; refunded: string | null },
+  v: { name: string | null; when: string; refunded: string | null; refundedOffline: boolean },
   ctx: { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
 ): EmailContent {
   const refundLine = v.refunded
-    ? `<p style="color:${T.boneDim};margin:0 0 16px">Como el nuevo horario cuesta menos, te reembolsamos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
+    ? v.refundedOffline
+      ? `<p style="color:${T.boneDim};margin:0 0 16px">Como el nuevo horario cuesta menos, coordinamos contigo la devolución de <strong style="color:${T.bone}">${esc(v.refunded)}</strong> (pagaste en efectivo/transferencia).</p>`
+      : `<p style="color:${T.boneDim};margin:0 0 16px">Como el nuevo horario cuesta menos, te reembolsamos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
     : "";
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">Reserva reagendada</h1>
@@ -281,8 +283,30 @@ export function customerReschedule(
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
     `Nuevo horario: ${v.when}`,
   );
-  const text = `Tu reserva quedó reagendada para el ${v.when}.${v.refunded ? ` Te reembolsamos ${v.refunded} al medio de pago original.` : ""} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
+  const refundTextLine = v.refunded
+    ? v.refundedOffline
+      ? ` Coordinamos contigo la devolución de ${v.refunded} (pagaste en efectivo/transferencia).`
+      : ` Te reembolsamos ${v.refunded} al medio de pago original.`
+    : "";
+  const text = `Tu reserva quedó reagendada para el ${v.when}.${refundTextLine} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerReschedule", subject: `Reserva reagendada · ${v.when}`, html, text };
+}
+
+/** Email al cliente: su sesión de CORTESÍA cambió de horario. Sin dinero de por medio (sin línea de reembolso). */
+export function customerCourtesyRescheduled(
+  v: { name: string | null; oldWhen: string; when: string },
+  ctx: { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Sesión reagendada</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión del <strong style="color:${T.bone}">${esc(v.oldWhen)}</strong> quedó reagendada para el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Te esperamos en ${place(ctx)}.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.calendarUrl)}" style="color:${T.gold};font-weight:bold">Actualizar en mi calendario</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+    `Nuevo horario: ${v.when}`,
+  );
+  const text = `Tu sesión del ${v.oldWhen} quedó reagendada para el ${v.when}. Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerCourtesyRescheduled", subject: `Sesión reagendada · ${v.when}`, html, text };
 }
 
 export function customerRescheduleFailed(
@@ -297,6 +321,27 @@ export function customerRescheduleFailed(
   );
   const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
   return { template: "customerRescheduleFailed", subject: `No pudimos cambiar tu horario · se mantiene ${v.when}`, html, text };
+}
+
+/**
+ * Email al cliente: el nuevo horario de un reagendamiento cuesta más — falta pagar el
+ * excedente. La reserva sigue en su horario ORIGINAL hasta que pague (mismo patrón que
+ * `bookingPaymentPending`); `oldWhen` dice qué horario se mantiene mientras tanto.
+ */
+export function customerReschedulePaymentLink(
+  v: { name: string | null; oldWhen: string; newWhen: string; amount: string; initPoint: string; expiresInHours: number },
+  ctx: { whatsappUrl: string; termsUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Confirma tu nuevo horario</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "pediste")} mover tu sesión del <strong style="color:${T.bone}">${esc(v.oldWhen)}</strong> al <strong style="color:${T.bone}">${esc(v.newWhen)}</strong>. El nuevo horario cuesta <strong style="color:${T.bone}">${esc(v.amount)}</strong> más.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Tu reserva se mueve sola apenas pagues la diferencia. El link vence en ${v.expiresInHours} h; mientras tanto se mantiene tu horario actual.</p>
+     <a href="${esc(v.initPoint)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Pagar la diferencia</a>
+     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Aplican los <a href="${esc(ctx.termsUrl)}" style="color:${T.bone}">términos de reagendamiento</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `Nuevo horario: ${v.newWhen} · falta pagar ${v.amount}`,
+  );
+  const text = `Pediste mover tu sesión del ${v.oldWhen} al ${v.newWhen}. Cuesta ${v.amount} más; paga aquí y la reserva se mueve sola: ${v.initPoint} (vence en ${v.expiresInHours} h). Mientras tanto se mantiene tu horario actual. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerReschedulePaymentLink", subject: `Confirma tu nuevo horario · ${v.newWhen}`, html, text };
 }
 
 /**
