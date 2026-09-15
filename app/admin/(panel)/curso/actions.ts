@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
+import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
 import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
 import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-policy";
 import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
@@ -566,4 +567,9 @@ export async function releasePracticeAction(_prev: ActionResult | null, fd: Form
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
     revalidatePath("/admin/agenda");
   });
+}
+
+/** Registrar folio SII de un documento del curso — cuerpo compartido en components/admin/tax-docs/record-folio.ts. */
+export async function recordTaxDocFolioAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(() => recordTaxDocFolioFromForm(fd));
 }

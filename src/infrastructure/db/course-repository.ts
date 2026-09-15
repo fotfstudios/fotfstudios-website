@@ -19,7 +19,6 @@ import type {
   CourseLeadRow,
   CourseLeadsListResult,
   CourseSessionRow,
-  CourseTaxDoc,
   StudentCourseView,
   NewEnrollment,
   NewGeneration,
@@ -575,26 +574,6 @@ export class SupabaseCourseRepository
   async setEnrollmentNotes(id: string, notes: string | null): Promise<void> {
     const { error } = await this.db.from("course_enrollments").update({ notes }).eq("id", id);
     if (error) throw new Error(error.message);
-  }
-
-
-  /** Documentos tributarios del pedido (boleta + notas de crédito, si las hay). */
-  async taxDocumentsForOrder(orderId: string): Promise<CourseTaxDoc[]> {
-    const { data, error } = await this.db
-      .from("tax_documents")
-      .select("id, kind, status, folio, neto, iva, total, created_at")
-      .eq("order_id", orderId)
-      .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((d) => ({
-      id: d.id,
-      kind: d.kind,
-      status: d.status,
-      folio: d.folio,
-      neto: d.neto,
-      iva: d.iva,
-      total: d.total,
-    }));
   }
 
   // ── Finalizador del webhook ──────────────────────────────────────────────
