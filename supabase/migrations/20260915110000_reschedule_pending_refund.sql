@@ -10,8 +10,10 @@ alter table reschedules add constraint reschedules_status_check
   check (status in ('pending_charge', 'pending_refund', 'applied', 'failed_slot_taken', 'expired', 'cancelled'));
 alter table reschedules
   add column settled_clp int not null default 0,
+  add column offline_settled_clp int not null default 0,  -- parte de settled_clp devuelta en mano (offline:*), para mostrarla aparte
   add column mp_refund_id text,            -- reembolso en vuelo (in_process) o el que asentó
-  add column mp_refund_payment_id text;    -- pago MP al que pertenece el reembolso en vuelo
+  add column mp_refund_payment_id text,    -- pago MP al que pertenece el reembolso en vuelo
+  add column refund_attempt_at timestamptz; -- lease de 5 min: serializa emisores concurrentes del reembolso (admin/cron)
 
 -- ── 2. cancel_reschedule_row: deja constancia del reembolso en vuelo al cancelar ──
 create or replace function cancel_reschedule_row(p_reschedule uuid, p_created_by uuid default null)
@@ -44,13 +46,16 @@ begin
   select r.order_id, r.starts_at, r.ends_at into v_order, v_old_start, v_old_end
     from reservations r where r.id = p_reservation and r.status = 'confirmed' and r.kind = 'booking';
   if v_order is null then raise exception 'reschedule_not_active'; end if;
+  select 1 into v_dummy from orders
+    where id = v_order and status = 'paid' and coalesce(points_redeemed_clp, 0) = 0 for update;
+  if v_dummy is null then raise exception 'reschedule_not_eligible'; end if;
+  -- DESPUÉS del lock de la orden: dos movidas concurrentes de la misma reserva se serializan
+  -- ahí y la segunda ve la fila pendiente de la primera (si no, ambas pasarían el check y
+  -- la segunda moriría por el índice único con un 23505 que el admin no entiende).
   if exists (select 1 from reschedules where reservation_id = p_reservation
                and status in ('pending_charge', 'pending_refund')) then
     raise exception 'reschedule_pending_exists';
   end if;
-  select 1 into v_dummy from orders
-    where id = v_order and status = 'paid' and coalesce(points_redeemed_clp, 0) = 0 for update;
-  if v_dummy is null then raise exception 'reschedule_not_eligible'; end if;
   select coalesce(sum(total - reversed_clp), 0) into v_live_total
     from tax_documents where order_id = v_order and kind = 'boleta' and reversed_clp < total;
   if p_refund_amount < 1 or p_refund_amount > v_live_total then raise exception 'reschedule_bad_delta'; end if;
@@ -93,6 +98,10 @@ begin
                and type = 'reschedule_refund' and payment_ref = p_refund_id) then
     return 'duplicate';
   end if;
+  -- `cancelled` se distingue de `noop`: la reserva se canceló con el reembolso en vuelo y la
+  -- plata igual salió → el servicio la asienta sobre la orden cancelada (mark_refunded). Un
+  -- `noop` (fila inexistente / applied con otro id / nada por asentar) NO autoriza eso.
+  if r.status = 'cancelled' then return 'cancelled'; end if;
   if r.status <> 'pending_refund' then return 'noop'; end if;
 
   select coalesce(sum(total - reversed_clp), 0) into v_live_total
@@ -142,7 +151,11 @@ begin
   end loop;
 
   update reschedules
-    set settled_clp = settled_clp + v_amount, mp_refund_id = null, mp_refund_payment_id = null
+    set settled_clp = settled_clp + v_amount,
+        -- Lo devuelto en mano se lleva aparte: la ficha lo muestra como "ya registrado" y el
+        -- resto como lo que falta por MP (pedido mixto: original offline + delta por MP).
+        offline_settled_clp = offline_settled_clp + case when p_refund_id like 'offline:%' then v_amount else 0 end,
+        mp_refund_id = null, mp_refund_payment_id = null
     where id = r.id;
 
   if r.settled_clp + v_amount >= r.delta_clp then
@@ -167,4 +180,6 @@ drop function if exists reschedule_down(uuid, timestamptz, timestamptz, jsonb, j
 
 -- ── 6. Solo service_role toca plata (patrón 20260914130000_first_booking_promo.sql:44) ──
 revoke execute on function reschedule_down_move(uuid, timestamptz, timestamptz, jsonb, jsonb, int, text, uuid) from public, anon, authenticated;
+grant  execute on function reschedule_down_move(uuid, timestamptz, timestamptz, jsonb, jsonb, int, text, uuid) to service_role;
 revoke execute on function reschedule_settle_refund(uuid, text, int) from public, anon, authenticated;
+grant  execute on function reschedule_settle_refund(uuid, text, int) to service_role;

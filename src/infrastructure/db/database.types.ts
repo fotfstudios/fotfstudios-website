@@ -1171,10 +1171,12 @@ export type Database = {
           new_snapshot: Json | null
           new_starts_at: string
           new_total_clp: number
+          offline_settled_clp: number
           old_ends_at: string
           old_live_clp: number
           old_starts_at: string
           original_order_id: string | null
+          refund_attempt_at: string | null
           reservation_id: string
           settled_clp: number
           status: string
@@ -1194,10 +1196,12 @@ export type Database = {
           new_snapshot?: Json | null
           new_starts_at: string
           new_total_clp: number
+          offline_settled_clp?: number
           old_ends_at: string
           old_live_clp: number
           old_starts_at: string
           original_order_id?: string | null
+          refund_attempt_at?: string | null
           reservation_id: string
           settled_clp?: number
           status?: string
@@ -1217,10 +1221,12 @@ export type Database = {
           new_snapshot?: Json | null
           new_starts_at?: string
           new_total_clp?: number
+          offline_settled_clp?: number
           old_ends_at?: string
           old_live_clp?: number
           old_starts_at?: string
           original_order_id?: string | null
+          refund_attempt_at?: string | null
           reservation_id?: string
           settled_clp?: number
           status?: string

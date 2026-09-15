@@ -65,10 +65,12 @@ export interface RescheduleChargeParams extends RescheduleMoveParams {
 
 /**
  * Resultado de `reschedule_settle_refund`: `settled` = parcial (falta plata), `applied` = la
- * fila quedó completa, `duplicate` = ese refund id ya se asentó (loopback), `noop` = la fila
- * ya no está pendiente (cancelada entre medio).
+ * fila quedó completa, `duplicate` = ese refund id ya se asentó (loopback), `cancelled` = la
+ * reserva se canceló con el reembolso en vuelo (la plata igual salió: se asienta sobre la orden
+ * cancelada), `noop` = no hay nada que asentar (fila inexistente, ya applied con otro id, o
+ * monto 0) — NUNCA autoriza cancelar nada.
  */
-export type SettleOutcome = "settled" | "applied" | "duplicate" | "noop";
+export type SettleOutcome = "settled" | "applied" | "duplicate" | "cancelled" | "noop";
 
 /** Fila `pending_refund` viva: cuánto se debe, cuánto ya se asentó y el reembolso MP en vuelo (si hay). */
 export interface PendingRefundRow {
@@ -77,6 +79,8 @@ export interface PendingRefundRow {
   reservationId: string;
   deltaClp: number;
   settledClp: number;
+  /** Parte de `settledClp` devuelta en mano (asientos `offline:*`) — la ficha la muestra aparte. */
+  offlineSettledClp: number;
   inFlight: { paymentId: string; refundId: string } | null;
 }
 
@@ -93,6 +97,15 @@ export interface ReschedulePort {
   markRefundInFlight(rescheduleId: string, ref: { paymentId: string; refundId: string } | null): Promise<void>;
   /** Fila pending_refund por id; null si ya no está pendiente. */
   pendingRefundRow(rescheduleId: string): Promise<PendingRefundRow | null>;
+  /**
+   * Lease de 5 min sobre la fila pending_refund (`refund_attempt_at`): true si ESTE emisor la
+   * tomó (nadie más la tiene, o el lease anterior venció). Serializa admin/cron concurrentes:
+   * dos emisores que reparten sobre snapshots distintos de boletas arman claves distintas y
+   * MP devolvería dos veces.
+   */
+  claimRefundAttempt(rescheduleId: string): Promise<boolean>;
+  /** Suelta el lease (siempre, al terminar el intento — MP en vuelo es otra marca). */
+  releaseRefundAttempt(rescheduleId: string): Promise<void>;
   /** Ids de filas pending_refund más viejas que la ventana (cron de reintento). */
   pendingRefundIds(opts: { olderThanMinutes: number }): Promise<string[]>;
   /** Cobros no aplicados cuyo delta se capturó en MP y nunca se devolvió (H9). */
@@ -122,12 +135,14 @@ export interface RescheduleFinalizer {
   markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void>;
   /**
    * Fila pending_refund de la reserva a la que pertenece `orderId` (original o delta), vía
-   * reservation_for_order. Dependencia de orden con RescheduleService: el webhook es
-   * inbox-first, así que si el loopback asienta por acá, el asiento del admin del mismo
-   * refund id llega con el inbox NO fresco (y `duplicate` del RPC) — nunca cae en
-   * `mark_refunded`, que cancelaría una reserva confirmada.
+   * reservation_for_order. `remainingClp` = delta − asentado: el webhook solo asienta un
+   * reembolso que quepa ahí; uno mayor es otra cosa (reembolso total desde el panel).
+   * Dependencia de orden con RescheduleService: el webhook es inbox-first, así que si el
+   * loopback asienta por acá, el asiento del admin del mismo refund id llega con el inbox NO
+   * fresco (y `duplicate` del RPC) — nunca cae en `mark_refunded`, que cancelaría una
+   * reserva confirmada.
    */
-  pendingRefundForOrder(orderId: string): Promise<{ rescheduleId: string; originalOrderId: string } | null>;
+  pendingRefundForOrder(orderId: string): Promise<{ rescheduleId: string; originalOrderId: string; remainingClp: number } | null>;
   /**
    * Asienta el reembolso sobre la fila pending_refund en vez de cancelar (RPC
    * reschedule_settle_refund; `duplicate` se evalúa antes que el estado, así el último
