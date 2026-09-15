@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { fmtDateTime } from "@/components/admin/format";
+import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
@@ -30,7 +30,7 @@ export default async function AdminHome() {
 
   const pendientes = (
     [
-      { n: d.pendingBoletas, icon: "doc", label: "Boletas por emitir", href: "#boletas" },
+      { n: d.pendingBoletas, icon: "doc", label: "Documentos por emitir en el SII", href: "/admin/sii" },
       { n: d.pendingPayments, icon: "clock", label: "Pagos pendientes", href: "/admin/reservas" },
       { n: d.accessToLoad, icon: "lock", label: "PIN por cargar en la cerradura", href: "/admin/cerradura#cargar" },
       { n: d.accessToRemove, icon: "lock", label: "PIN por quitar de la cerradura", href: "/admin/cerradura#quitar" },
@@ -120,43 +120,22 @@ export default async function AdminHome() {
         </div>
       )}
 
-      {d.boletas.length > 0 && (
-        <div id="boletas" className="mt-10 scroll-mt-8">
-          <Card title="Boletas pendientes de emitir">
-            <ul className="divide-y divide-ink-line">
-              {d.boletas.map((doc) => (
-                <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div>
-                    <p className="text-sm text-bone">{doc.kind === "boleta" ? "Boleta" : "Nota de crédito"}</p>
-                    <p className="label-sm mt-0.5 text-bone-quiet">
-                      Neto {formatCLP(doc.neto)} · IVA {formatCLP(doc.iva)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-display text-xl text-bone">{formatCLP(doc.total)}</span>
-                    {/* `orderId` no es destino: la ficha de reserva resuelve por id de
-                        RESERVA y un pedido de curso no tiene reserva. Si no hay a dónde
-                        ir, no se pinta un enlace muerto. */}
-                    {doc.enrollmentId ? (
-                      <Link
-                        href={`/admin/curso/inscripciones/${doc.enrollmentId}`}
-                        className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone"
-                      >
-                        Ir a la inscripción
-                      </Link>
-                    ) : doc.reservationId ? (
-                      <Link
-                        href={`/admin/reservas/${doc.reservationId}`}
-                        className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone"
-                      >
-                        Ir a la reserva
-                      </Link>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 text-xs text-bone-quiet">Emítelas en el portal del SII y registra el folio en cada ficha.</p>
+      {d.pendingBoletas > 0 && (
+        <div className="mt-10">
+          <Card title="Documentos por emitir en el SII">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="font-display text-3xl text-bone">
+                  {d.pendingBoletas} <span className="text-base text-bone-dim">{d.pendingBoletas === 1 ? "documento" : "documentos"}</span>
+                </p>
+                {d.oldestPendingDocAt && (
+                  <p className="mt-1 text-sm text-bone-dim">El más antiguo espera desde el {fmtDate(d.oldestPendingDocAt)}.</p>
+                )}
+              </div>
+              <Button href="/admin/sii" icon="doc">
+                Ir a SII
+              </Button>
+            </div>
           </Card>
         </div>
       )}

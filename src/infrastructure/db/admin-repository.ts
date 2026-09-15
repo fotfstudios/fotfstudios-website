@@ -182,24 +182,6 @@ export interface DashboardData {
   accessToRemove: number;
   today: AdminBooking[];
   upcoming: AdminBooking[];
-  boletas: PendingBoleta[];
-}
-
-export interface PendingBoleta {
-  id: string;
-  orderId: string;
-  kind: string;
-  neto: number;
-  iva: number;
-  total: number;
-  createdAt: string;
-  /**
-   * A DÓNDE lleva esta boleta. `orderId` no sirve de destino: la ficha de reserva
-   * resuelve por id de RESERVA, y un pedido de curso no tiene reserva en absoluto.
-   * Se resuelve acá para que la UI no tenga que adivinar la ruta.
-   */
-  reservationId: string | null;
-  enrollmentId: string | null;
 }
 
 export type PendingTaxDocContext =
@@ -578,10 +560,9 @@ export class SupabaseAdminRepository {
     const weekStart = now.startOf("week");
     const weekEnd = weekStart.plus({ weeks: 1 });
 
-    const [weekBookings, upcoming, boletas, pendingPay, docsSummary] = await Promise.all([
+    const [weekBookings, upcoming, pendingPay, docsSummary] = await Promise.all([
       this.bookingsBetween(weekStart.toUTC().toISO()!, weekEnd.toUTC().toISO()!),
       this.upcomingBookings(40),
-      this.pendingBoletas(),
       // Mismo criterio que porHacerCount: la fila enlaza a /admin/reservas.
       this.db
         .from("orders")
@@ -607,14 +588,13 @@ export class SupabaseAdminRepository {
       todaySessions: today.length,
       weekRevenue,
       weekOccupancyPct: await this.weekOccupancy(weekStart, sessions),
-      pendingBoletas: boletas.length,
+      pendingBoletas: docsSummary.count,
       oldestPendingDocAt: docsSummary.oldestCreatedAt,
       pendingPayments: pendingPay.count ?? 0,
       accessToLoad: await this.accessToLoadCount(),
       accessToRemove: await this.accessToRemoveCount(),
       today,
       upcoming: vendidas.filter((b) => !isToday(b)).slice(0, 12),
-      boletas,
     };
   }
 
@@ -902,40 +882,6 @@ export class SupabaseAdminRepository {
       .limit(1);
     if (error) throw new Error(error.message);
     return { count: count ?? 0, oldestCreatedAt: data?.[0]?.created_at ?? null };
-  }
-
-  async pendingBoletas(): Promise<PendingBoleta[]> {
-    const { data } = await this.db
-      .from("tax_documents")
-      .select("id, order_id, kind, neto, iva, total, created_at")
-      .eq("status", "pendiente")
-      .order("created_at", { ascending: true });
-    const docs = data ?? [];
-    if (docs.length === 0) return [];
-
-    // Dos lookups en lote (no uno por boleta) para saber a dónde lleva cada una:
-    // las de sala a su reserva, las de curso a su inscripción.
-    const orderIds = [...new Set(docs.map((d) => d.order_id))];
-    const [res, enr] = await Promise.all([
-      this.db.from("reservations").select("id, order_id").in("order_id", orderIds),
-      this.db.from("course_enrollments").select("id, order_id").in("order_id", orderIds),
-    ]);
-    const byOrderRes = new Map((res.data ?? []).map((r) => [r.order_id, r.id]));
-    // Un dúo son dos inscripciones sobre el mismo pedido: basta con una para
-    // llevar al dueño a la ficha (desde ahí ve a la pareja completa).
-    const byOrderEnr = new Map((enr.data ?? []).map((e) => [e.order_id, e.id]));
-
-    return docs.map((d) => ({
-      id: d.id,
-      orderId: d.order_id,
-      kind: d.kind,
-      neto: d.neto,
-      iva: d.iva,
-      total: d.total,
-      createdAt: d.created_at,
-      reservationId: byOrderRes.get(d.order_id) ?? null,
-      enrollmentId: byOrderEnr.get(d.order_id) ?? null,
-    }));
   }
 
   async upcomingBlocks(limit = 50): Promise<AdminBooking[]> {
