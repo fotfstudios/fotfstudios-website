@@ -152,6 +152,30 @@ export async function cancelRescheduleChargeAction(_prev: ActionResult | null, f
   });
 }
 
+/**
+ * Reintenta el reembolso de una fila `pending_refund` (H1): MP falló o lo dejó en
+ * contingencia la primera vez y quedó por reintentar desde la ficha. `noop` es una
+ * carrera benigna (el cron o otro reintento ya la resolvió) — se traduce vía
+ * `rescheduleErrorMessage`. Si MP vuelve a fallar, la fila sigue pendiente y se avisa
+ * con el motivo (mp_error/in_process) en vez de un error genérico.
+ */
+export async function retryRescheduleRefundAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.reschedule");
+    const reservationId = str(fd, "reservationId");
+    const res = await rescheduleService().retryRefund(str(fd, "rescheduleId"));
+    if (!res.ok) throw new Error(rescheduleErrorMessage(res.error));
+    if (res.value.kind === "refund_pending") {
+      throw new Error(
+        res.value.reason === "in_process"
+          ? "Mercado Pago todavía tiene el reembolso en proceso. Vuelve a intentar más tarde."
+          : "Mercado Pago no respondió. Vuelve a intentar en unos minutos.",
+      );
+    }
+    revalidatePath(`/admin/reservas/${reservationId}`);
+  });
+}
+
 /** Códigos del servicio de reagendamiento → mensaje es-CL para el admin. */
 function rescheduleErrorMessage(code: string): string {
   switch (code) {

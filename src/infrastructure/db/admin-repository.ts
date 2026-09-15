@@ -844,6 +844,18 @@ export class SupabaseAdminRepository {
     };
   }
 
+  /** Fila `pending_charge`/`pending_refund` viva de esta reserva, si la hay (H1). */
+  async pendingRescheduleFor(reservationId: string): Promise<{ kind: "charge" | "refund"; amountClp: number } | null> {
+    const { data } = await this.db
+      .from("reschedules")
+      .select("status, delta_clp")
+      .eq("reservation_id", reservationId)
+      .in("status", ["pending_charge", "pending_refund"])
+      .maybeSingle();
+    if (!data) return null;
+    return { kind: data.status === "pending_charge" ? "charge" : "refund", amountClp: data.delta_clp };
+  }
+
   /**
    * Convierte un hold de cliente (10 min) en hold firme (expires_at null) antes de emitir
    * un link de pago de 72 h — el link no debe sobrevivir al cupo. Queda en el mismo estado

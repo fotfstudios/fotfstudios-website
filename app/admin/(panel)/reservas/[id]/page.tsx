@@ -163,7 +163,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Enriquecimiento del render que depende del pedido (no vive en cada evento):
   // el origen de "Reserva creada" y el método de "Pago confirmado". El horario
   // original es el del primer reagendamiento aplicado (si lo hubo).
-  const firstApplied = b.reschedules.find((m) => m.status === "applied");
+  const firstApplied = b.reschedules.find((m) => m.status === "applied" || m.status === "pending_refund");
   const originalStart = firstApplied ? firstApplied.oldStartsAt : b.startsAt;
   const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
   const snapshotMethod = b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";

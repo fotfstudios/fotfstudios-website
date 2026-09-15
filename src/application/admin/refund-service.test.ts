@@ -25,6 +25,7 @@ function makeRepo(target: Target, backing?: { liveAmount: number; paymentId: str
     backingBoletas: vi.fn(async () => boletas),
     cancelBooking: vi.fn(async () => {}),
     refundPointsOrder: vi.fn(async () => {}),
+    pendingRescheduleFor: vi.fn(async () => null),
   };
 }
 
@@ -184,6 +185,21 @@ describe("RefundService.cancelBooking", () => {
   it("bloqueo/cortesía (sin orden) + reembolso pedido → error claro", async () => {
     const svc = new RefundService(makeGateway(), makeRepo(null), makeInbox());
     await expect(svc.cancelBooking("r1", { refundAmount: 5000 })).rejects.toThrow(/pago asociado/);
+  });
+
+  it("cancelar con reembolso de reagendamiento pendiente → lanza sin tocar MP ni cancelar; con cobro pendiente → procede", async () => {
+    const gw = makeGateway();
+    const repo = makeRepo(PAID);
+    repo.pendingRescheduleFor = vi.fn(async () => ({ kind: "refund" as const, amountClp: 2000 }));
+    const svc = new RefundService(gw, repo, makeInbox());
+
+    await expect(svc.cancelBooking("r1", { refundAmount: null })).rejects.toThrow(/reembolso de reagendamiento pendiente/);
+    expect(gw.refundPayment).not.toHaveBeenCalled();
+    expect(repo.cancelBooking).not.toHaveBeenCalled();
+
+    repo.pendingRescheduleFor = vi.fn(async () => ({ kind: "charge" as const, amountClp: 3000 }));
+    await svc.cancelBooking("r1", { refundAmount: null });
+    expect(repo.cancelBooking).toHaveBeenCalled();
   });
 });
 
