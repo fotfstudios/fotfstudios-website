@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MercadoPagoGateway, toRefundInfo } from "./mercadopago-gateway";
+import { MercadoPagoGateway, mpErrorMessage, toRefundInfo } from "./mercadopago-gateway";
 
 /**
  * El adaptador es glue delgado sobre el SDK (se ejercita en el .itest sandbox);
@@ -20,6 +20,36 @@ describe("toRefundInfo", () => {
       status: "unknown",
       dateCreated: undefined,
     });
+  });
+});
+
+describe("mpErrorMessage", () => {
+  it("mapea el 404 de MP (id de pago inexistente/otro ambiente) por status", () => {
+    expect(
+      mpErrorMessage({
+        message: "Si quieres conocer los recursos de la API...",
+        error: "not_found",
+        status: 404,
+      }),
+    ).toBe("Mercado Pago no encuentra el pago (id inválido o de otro ambiente)");
+  });
+
+  it("mapea el 404 aunque solo venga error:'not_found' sin status", () => {
+    expect(mpErrorMessage({ error: "not_found" })).toBe(
+      "Mercado Pago no encuentra el pago (id inválido o de otro ambiente)",
+    );
+  });
+
+  it("usa el message del Error cuando no es un 404 de MP", () => {
+    expect(mpErrorMessage(new Error("boom"))).toBe("boom");
+  });
+
+  it("usa el message genérico del objeto cuando no matchea el caso 404", () => {
+    expect(mpErrorMessage({ message: "otro error" })).toBe("otro error");
+  });
+
+  it("cae a 'error desconocido' sin nada útil", () => {
+    expect(mpErrorMessage(null)).toBe("error desconocido");
   });
 });
 

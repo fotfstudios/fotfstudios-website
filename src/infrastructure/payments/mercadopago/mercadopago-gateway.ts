@@ -191,10 +191,16 @@ export class MercadoPagoGateway implements PaymentGateway {
 }
 
 /** Mensaje legible del error del SDK de MP (que a veces lanza un objeto, no un Error). */
-function mpErrorMessage(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message;
+export function mpErrorMessage(e: unknown): string {
   if (e && typeof e === "object") {
-    const o = e as { message?: unknown; cause?: unknown };
+    const o = e as { status?: unknown; error?: unknown; message?: unknown; cause?: unknown };
+    // El 404 de MP para un id de pago inexistente (u otro ambiente) trae un mensaje
+    // genérico de "conoce los recursos de la API" que no dice nada al dueño — lo
+    // mapeamos antes de caer en el genérico `message` de abajo.
+    if (o.status === 404 || o.error === "not_found") {
+      return "Mercado Pago no encuentra el pago (id inválido o de otro ambiente)";
+    }
+    if (e instanceof Error && e.message) return e.message;
     if (typeof o.message === "string" && o.message) return o.message;
     if (Array.isArray(o.cause) && o.cause[0] && typeof o.cause[0] === "object") {
       const c = o.cause[0] as { description?: unknown };
