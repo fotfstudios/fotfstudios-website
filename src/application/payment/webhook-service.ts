@@ -13,7 +13,7 @@ export type WebhookOutcome =
   | "duplicate"
   | "ignored"
   | "reschedule_applied"
-  | "reschedule_slot_taken"
+  | "reschedule_charge_failed"
   | "course_paid";
 
 export interface WebhookResult {
@@ -21,6 +21,11 @@ export interface WebhookResult {
   orderId: string | null;
   /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded"). */
   refundedAmount?: number;
+  /** Detalle del cobro de reagendamiento no aplicado (solo cuando result === "reschedule_charge_failed"). */
+  chargeFailure?: {
+    reason: "slot_taken" | "reservation_gone" | "charge_void";
+    refund: "done" | "pending" | "failed";
+  };
 }
 
 /**
@@ -78,22 +83,32 @@ export class WebhookService {
     if (payment.status === "approved") {
       // Cobro de reagendamiento diferido: la orden de delta no tiene reserva, así
       // que NO va por confirm_payment (daría paid_no_hold). Se finaliza el movimiento;
-      // si el slot fue tomado mientras el cliente pagaba, se devuelve el excedente.
-      // El inbox (arriba) ya dedupea por `{paymentId}:approved` → sin doble finalización.
+      // si no se pudo aplicar (slot tomado, reserva cancelada o link anulado mientras
+      // el cliente pagaba), se devuelve el excedente. El inbox (arriba) ya dedupea por
+      // `{paymentId}:approved` → sin doble finalización.
       if (this.finalizer) {
-        const pend = await this.finalizer.pendingChargeForOrder(orderId);
-        if (pend) {
+        const charge = await this.finalizer.chargeForOrder(orderId);
+        if (charge) {
           const outcome = await this.finalizer.applyCharge(orderId, paymentId);
-          if (outcome === "slot_taken") {
+          if (outcome === "applied") return { result: "reschedule_applied", orderId };
+          if (outcome === "noop") return { result: "duplicate", orderId };
+          // La reserva no se movió (slot tomado / cancelada / link anulado): devolver el delta.
+          // Inbox-first como todos los reembolsos; solo `approved` se asienta. Si MP falla o
+          // deja el reembolso en proceso, la orden delta queda `paid` y el cron reconcile lo
+          // reintenta (retryFailedChargeRefunds) o el loopback lo asienta.
+          let refund: "done" | "pending" | "failed";
+          try {
             const r = await this.gateway.refundPayment(paymentId);
-            // Inbox-first (como todos los demás caminos de reembolso): la creación del
-            // reembolso dispara su propia notificación MP; sin esto, la re-entrega vería
-            // el refund como fresco y emitiría una NC espuria de $0 sobre la orden de delta.
-            await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
-            await this.finalizer.markChargeRefunded(orderId, r.id);
-            return { result: "reschedule_slot_taken", orderId };
+            if (isSettledRefund(r)) {
+              await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
+              await this.finalizer.markChargeRefunded(orderId, r.id);
+              refund = "done";
+            } else refund = "pending";
+          } catch (e) {
+            console.error("[webhook:charge-refund]", e);
+            refund = "failed";
           }
-          return { result: outcome === "applied" ? "reschedule_applied" : "duplicate", orderId };
+          return { result: "reschedule_charge_failed", orderId, chargeFailure: { reason: outcome, refund } };
         }
       }
 

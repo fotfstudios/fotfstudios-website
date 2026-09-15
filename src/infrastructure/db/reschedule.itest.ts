@@ -198,10 +198,12 @@ const linesUp = JSON.stringify([
   { line_type: "room_time", description: "Sala · 1h (punta)", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 },
 ]);
 const createCharge = (reservationId: string, start: string, end: string) =>
-  pg.query<{ reschedule_id: string; delta_order_id: string }>(
-    "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
-    [reservationId, start, end, "{}", linesUp, 3000, 2521, 479, null],
-  );
+  pg
+    .query<{ reschedule_id: string; delta_order_id: string }>(
+      "select * from create_reschedule_charge($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9)",
+      [reservationId, start, end, "{}", linesUp, 3000, 2521, 479, null],
+    )
+    .then((r) => r.rows[0]);
 
 describe("reschedule charge (más caro, cobro diferido)", () => {
   it("create_reschedule_charge NO mueve la reserva; apply (slot libre) la mueve y dobla el delta", async () => {
@@ -210,7 +212,7 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     const newEnd = addHours(endsAt, 2);
 
     const c = await createCharge(reservationId, newStart, newEnd);
-    const deltaOrderId = c.rows[0].delta_order_id;
+    const deltaOrderId = c.delta_order_id;
 
     // Antes de pagar: reserva SIN mover, orden de delta pendiente, reschedule pending_charge.
     let r = await pg.query<{ starts_at: string; status: string }>("select starts_at, status from reservations where id=$1", [reservationId]);
@@ -250,7 +252,7 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
     const newStart = addHours(a.endsAt, 1);
     const newEnd = addHours(a.endsAt, 2);
     const c = await createCharge(a.reservationId, newStart, newEnd);
-    const deltaOrderId = c.rows[0].delta_order_id;
+    const deltaOrderId = c.delta_order_id;
 
     // Otro cliente toma el slot destino mientras el cobro estaba pendiente.
     await paidBooking(720, "cs2"); // 12:00–13:00 == [newStart,newEnd]
@@ -267,7 +269,7 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
   it("apply repetido → noop (idempotente), sin doblar boleta ni monto", async () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "ci1");
     const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
-    const deltaOrderId = c.rows[0].delta_order_id;
+    const deltaOrderId = c.delta_order_id;
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("applied");
     expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [deltaOrderId, "mp_d"])).rows[0].r).toBe("noop");
     expect((await pg.query<{ amount: number }>("select amount_clp amount from orders where id=$1", [orderId])).rows[0].amount).toBe(12990); // no doblado
@@ -278,7 +280,7 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
   it("tras el encarecimiento aditivo, mark_refunded total anula CADA boleta viva (NC por boleta)", async () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "cinv");
     const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
-    await pg.query("select apply_reschedule_charge($1,$2)", [c.rows[0].delta_order_id, "mp_inv"]);
+    await pg.query("select apply_reschedule_charge($1,$2)", [c.delta_order_id, "mp_inv"]);
     // Boletas vivas [9990, 3000]; el reembolso total emite UNA NC por CADA una (regla SII:
     // la NC referencia el folio de una boleta, no un monto agregado).
     await pg.query("select mark_refunded($1,$2,$3)", [orderId, "mp_ref_inv", 12990]);
@@ -294,7 +296,7 @@ describe("reschedule charge (más caro, cobro diferido)", () => {
   it("expire_abandoned_reschedules cancela cobros pendientes viejos", async () => {
     const { reservationId, endsAt } = await paidBooking(600, "ce1");
     const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
-    const deltaOrderId = c.rows[0].delta_order_id;
+    const deltaOrderId = c.delta_order_id;
     await pg.query("update reschedules set created_at = now() - interval '73 hours' where delta_order_id=$1", [deltaOrderId]);
 
     const n = await pg.query<{ n: number }>("select expire_abandoned_reschedules() n");
@@ -372,7 +374,7 @@ describe("compuesto encarecer→abaratar (multi-boleta)", () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "cmp1");
     // Encarecer a 12990 (delta 3000) y pagarlo.
     const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
-    const deltaOrderId = c.rows[0].delta_order_id;
+    const deltaOrderId = c.delta_order_id;
     await pg.query("select apply_reschedule_charge($1,$2)", [deltaOrderId, "mp_cmp"]);
 
     // Abaratar 12990 → 8000 (refund 4990). El refund cabe en la boleta original (9990).
@@ -557,5 +559,99 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
     expect((await pg.query<{ n: number }>("select award_retro_points($1) n", [EARN_CUST_ID])).rows[0].n).toBe(1000);
     const rows = await pg.query<{ n: string }>("select count(*)::text n from points_ledger where order_id=$1 and kind='earn'", [o.rows[0].id]);
     expect(rows.rows[0].n).toBe("1");
+  });
+});
+
+describe("pending charge lifecycle (auditoría 2026-09-14, H2/H3)", () => {
+  it("cancel_booking cancela el cobro pendiente y su orden delta, y registra reschedule_cancelled + cancelled", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc1");
+    const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const rs = await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [delta_order_id]);
+    expect(rs.rows[0].status).toBe("cancelled");
+    const d = await pg.query<{ status: string }>("select status from orders where id=$1", [delta_order_id]);
+    expect(d.rows[0].status).toBe("cancelled");
+    const ev = await pg.query<{ type: string }>("select type from booking_events where reservation_id=$1 order by occurred_at, seq", [reservationId]);
+    expect(ev.rows.map((r) => r.type)).toEqual(expect.arrayContaining(["reschedule_cancelled", "cancelled"]));
+  });
+
+  it("pago tardío de un cobro cancelado → charge_void: delta paid + boleta en la delta, original intacta", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pc2");
+    const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const r = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay"]);
+    expect(r.rows[0].apply_reschedule_charge).toBe("charge_void");
+    const d = await pg.query<{ status: string; n: number }>(
+      "select o.status, (select count(*)::int from tax_documents t where t.order_id=o.id and t.kind='boleta') n from orders o where o.id=$1", [delta_order_id]);
+    expect(d.rows[0]).toEqual({ status: "paid", n: 1 });
+    const o = await pg.query<{ amount: number }>("select amount_clp amount from orders where id=$1", [orderId]);
+    expect(o.rows[0].amount).toBe(9990); // NO se sumó el delta
+  });
+
+  it("charge_void repetido → noop, sin segunda boleta ni eventos duplicados", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc2b");
+    const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const first = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay"]);
+    expect(first.rows[0].apply_reschedule_charge).toBe("charge_void");
+    const second = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay-retry"]);
+    expect(second.rows[0].apply_reschedule_charge).toBe("noop");
+    const boletas = await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [delta_order_id]);
+    expect(boletas.rows[0].n).toBe("1");
+    const paidEvents = await pg.query<{ n: string }>(
+      "select count(*)::text n from booking_events where reservation_id=$1 and type='reschedule_charge_paid'", [reservationId]);
+    expect(paidEvents.rows[0].n).toBe("1");
+  });
+
+  it("reserva cancelada por fuera (update crudo) → reservation_gone, misma contabilidad que slot_taken", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc3");
+    const { delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("update reservations set status='cancelled' where id=$1", [reservationId]);
+    const r = await pg.query<{ apply_reschedule_charge: string }>("select apply_reschedule_charge($1,$2)", [delta_order_id, "late-pay"]);
+    expect(r.rows[0].apply_reschedule_charge).toBe("reservation_gone");
+    const rs = await pg.query<{ status: string }>("select status from reschedules where delta_order_id=$1", [delta_order_id]);
+    expect(rs.rows[0].status).toBe("failed_slot_taken");
+  });
+
+  it("segundo cobro pendiente en la misma reserva → reschedule_pending_exists (y el índice único lo respalda)", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc4");
+    await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await expect(createCharge(reservationId, addHours(endsAt, 3), addHours(endsAt, 4))).rejects.toThrow(/reschedule_pending_exists/);
+    await expect(
+      pg.query("select reschedule_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", lines1h, null]),
+    ).rejects.toThrow(/reschedule_pending_exists/);
+  });
+
+  it("cancel_reschedule_charge: pendiente → true + delta cancelled; repetido → false", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc5");
+    const { reschedule_id, delta_order_id } = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    const a = await pg.query<{ cancel_reschedule_charge: boolean }>("select cancel_reschedule_charge($1)", [reschedule_id]);
+    expect(a.rows[0].cancel_reschedule_charge).toBe(true);
+    const d = await pg.query<{ status: string }>("select status from orders where id=$1", [delta_order_id]);
+    expect(d.rows[0].status).toBe("cancelled");
+    const b = await pg.query<{ cancel_reschedule_charge: boolean }>("select cancel_reschedule_charge($1)", [reschedule_id]);
+    expect(b.rows[0].cancel_reschedule_charge).toBe(false);
+  });
+
+  it("mark_refunded sobre la orden DELTA (slot_taken) NO cancela un cobro pendiente nuevo de la reserva viva", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pc6");
+    const first = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
+    await pg.query("select cancel_reschedule_charge($1)", [first.reschedule_id]);
+    await pg.query("select apply_reschedule_charge($1,$2)", [first.delta_order_id, "late-pay"]); // charge_void → delta paid + boleta
+    const second = await createCharge(reservationId, addHours(endsAt, 3), addHours(endsAt, 4));
+    await pg.query("select mark_refunded($1,$2)", [first.delta_order_id, "ref-void"]);
+    const rs = await pg.query<{ status: string }>("select status from reschedules where id=$1", [second.reschedule_id]);
+    expect(rs.rows[0].status).toBe("pending_charge");
+    const ev = await pg.query<{ type: string }>("select type from booking_events where reservation_id=$1 and type='cancelled'", [reservationId]);
+    expect(ev.rows).toHaveLength(0);
+  });
+});
+
+describe("eventos que faltaban (auditoría 2026-09-14, H5)", () => {
+  it("cancel_booking sin reembolso registra 'cancelled'", async () => {
+    const { reservationId } = await paidBooking(600, "ev1");
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const ev = await pg.query<{ type: string }>("select type from booking_events where reservation_id=$1 and type='cancelled'", [reservationId]);
+    expect(ev.rows).toHaveLength(1);
   });
 });

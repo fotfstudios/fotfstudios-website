@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  ApplyChargeOutcome,
   ReschedulePort,
   RescheduleChargeParams,
   RescheduleContext,
@@ -22,6 +23,8 @@ function rescheduleError(message: string): string {
   if (/reschedule_not_active|reschedule_not_eligible/i.test(message))
     return "Esta reserva ya no se puede reagendar (debe estar pagada y activa).";
   if (/reschedule_bad_delta/i.test(message)) return "El monto del reembolso no corresponde al cambio.";
+  if (/reschedule_pending_exists/i.test(message))
+    return "Hay un reagendamiento pendiente en esta reserva. Anúlalo o espera a que se pague antes de mover la sesión.";
   return message;
 }
 
@@ -67,6 +70,25 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       }
     }
 
+    // Al menos un reagendamiento pendiente (cobro por pagar, o —futuro— reembolso por
+    // asentar) bloquea uno nuevo: el índice único parcial garantiza a lo más una fila.
+    const { data: p } = await this.db
+      .from("reschedules")
+      .select("id, kind, delta_order_id, delta_clp, new_starts_at, new_ends_at, status")
+      .eq("reservation_id", reservationId)
+      .in("status", ["pending_charge", "pending_refund"])
+      .maybeSingle();
+    const pending = p
+      ? {
+          kind: p.status === "pending_charge" ? ("charge" as const) : ("refund" as const),
+          rescheduleId: p.id,
+          deltaOrderId: p.delta_order_id,
+          amountClp: p.delta_clp,
+          newStartsAt: p.new_starts_at,
+          newEndsAt: p.new_ends_at,
+        }
+      : null;
+
     return {
       reservation: { id: r.id, resourceId: r.resource_id, startsAt: r.starts_at, status: r.status, kind: r.kind },
       order,
@@ -74,6 +96,7 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       concessionClp: concession.amount,
       concessionLabel: concession.description,
       timezone,
+      pending,
     };
   }
 
@@ -152,26 +175,41 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
     return { rescheduleId: row.reschedule_id, deltaOrderId: row.delta_order_id };
   }
 
+  async cancelCharge(rescheduleId: string, createdBy: string | null): Promise<boolean> {
+    const { data, error } = await this.db.rpc("cancel_reschedule_charge", {
+      p_reschedule: rescheduleId,
+      p_created_by: createdBy ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
+    return !!data;
+  }
+
   // ── RescheduleFinalizer (webhook) ──
-  async pendingChargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null> {
+  async chargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null> {
+    // `cancelled`/`expired` entran también: un pago que llega tarde (el cliente pagó
+    // justo cuando el link expiraba, o la reserva se canceló mientras el pago viajaba)
+    // sigue siendo un cobro de reagendamiento — hay que encontrarlo para devolverlo,
+    // no dejarlo caer al confirm normal (que no sabe qué es una orden de delta).
     const { data } = await this.db
       .from("reschedules")
       .select("id, delta_order_id")
       .eq("delta_order_id", orderId)
-      .eq("status", "pending_charge")
+      .in("status", ["pending_charge", "cancelled", "expired"])
       .maybeSingle();
     if (!data?.delta_order_id) return null;
     return { deltaOrderId: data.delta_order_id, rescheduleId: data.id };
   }
 
-  async applyCharge(deltaOrderId: string, paymentId: string): Promise<"applied" | "slot_taken" | "noop"> {
+  async applyCharge(deltaOrderId: string, paymentId: string): Promise<ApplyChargeOutcome> {
     // También mueve el rango (tras el pago del delta); la reintenta el webhook de MP igual,
     // pero acá se resuelve sin esperar ese ciclo.
     const { data, error } = await retryOnDeadlock(() =>
       this.db.rpc("apply_reschedule_charge", { p_delta_order: deltaOrderId, p_payment_id: paymentId }),
     );
     if (error) throw new Error(rescheduleError(error.message));
-    return (data ?? "noop") as "applied" | "slot_taken" | "noop";
+    // El typegen de Supabase todavía tipa el retorno de esta RPC como `string`
+    // (regenerarlo no lo estrecha); el cast documenta el contrato real de la función SQL.
+    return (data ?? "noop") as ApplyChargeOutcome;
   }
 
   async markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void> {

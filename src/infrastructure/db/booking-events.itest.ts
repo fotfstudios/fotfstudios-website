@@ -11,6 +11,7 @@ import { WebhookService } from "@/src/application/payment/webhook-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import type { PaymentGateway, PaymentInfo, PreferenceResult, RefundResult } from "@/src/application/ports/payment";
 import { futureDate } from "@/tests/dates";
+import { SupabaseAdminRepository } from "./admin-repository";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
 import { createServiceClient } from "./supabase-client";
@@ -162,6 +163,19 @@ describe("booking_events — orden del timeline", () => {
     const idxMoved = e.findIndex((r) => r.type === "reschedule_moved");
     const idxPaid = e.findIndex((r) => r.type === "payment_confirmed");
     expect(idxMoved).toBeLessThan(idxPaid); // más reciente aparece antes
+  });
+});
+
+describe("booking_events — cortesía", () => {
+  it("createCourtesyBooking registra courtesy_confirmed", async () => {
+    const repo = new SupabaseAdminRepository(db);
+    const id = await repo.createCourtesyBooking(
+      resourceId,
+      addHours(new Date().toISOString(), 48),
+      addHours(new Date().toISOString(), 49),
+      { email: "c@e.cl", name: "C" },
+    );
+    expect(types(await events(id))).toContain("courtesy_confirmed");
   });
 });
 

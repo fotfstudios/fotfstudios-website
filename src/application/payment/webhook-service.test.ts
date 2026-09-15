@@ -99,7 +99,7 @@ describe("WebhookService.handlePaymentNotification", () => {
 
 function makeFinalizer(over = {}) {
   return {
-    pendingChargeForOrder: vi.fn(async () => ({ deltaOrderId: "do1", rescheduleId: "rs1" })),
+    chargeForOrder: vi.fn(async () => ({ deltaOrderId: "do1", rescheduleId: "rs1" })),
     applyCharge: vi.fn(async () => "applied" as const),
     markChargeRefunded: vi.fn(async () => {}),
     ...over,
@@ -117,18 +117,58 @@ describe("WebhookService — cobro de reagendamiento diferido", () => {
     expect(repo.confirmPaid).not.toHaveBeenCalled(); // NO confirm normal para la orden de delta
   });
 
-  it("slot tomado al pagar → devuelve el excedente, registra el inbox y marca refund → reschedule_slot_taken", async () => {
+  it("slot tomado al pagar → devuelve el excedente, inbox, markChargeRefunded → reschedule_charge_failed{refund:'done'}", async () => {
     const repo = makeRepo();
     const fin = makeFinalizer({ applyCharge: vi.fn(async () => "slot_taken" as const) });
     const gw = makeGateway({ status: "approved", externalReference: "do1", amount: 3000 });
     (gw.refundPayment as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ref_slot", status: "approved", amount: 3000 });
     const svc = new WebhookService(gw, repo, fin);
     const res = await svc.handlePaymentNotification("payd");
-    expect(res).toEqual({ result: "reschedule_slot_taken", orderId: "do1" });
+    expect(res).toMatchObject({
+      result: "reschedule_charge_failed",
+      orderId: "do1",
+      chargeFailure: { reason: "slot_taken", refund: "done" },
+    });
     expect(gw.refundPayment).toHaveBeenCalledWith("payd");
     // Inbox-first: reclama refund:ref_slot para que la re-entrega del webhook dedupee.
     expect(repo.recordEvent).toHaveBeenCalledWith("refund:ref_slot", "refund", expect.anything());
     expect(fin.markChargeRefunded).toHaveBeenCalledWith("do1", "ref_slot");
+  });
+
+  it("reservation_gone y charge_void se tratan igual que slot_taken", async () => {
+    for (const reason of ["reservation_gone", "charge_void"] as const) {
+      const repo = makeRepo();
+      const fin = makeFinalizer({ applyCharge: vi.fn(async () => reason) });
+      const gw = makeGateway({ status: "approved", externalReference: "do1", amount: 3000 });
+      (gw.refundPayment as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ref_x", status: "approved", amount: 3000 });
+      const svc = new WebhookService(gw, repo, fin);
+      const res = await svc.handlePaymentNotification("payd");
+      expect(res.chargeFailure).toEqual({ reason, refund: "done" });
+    }
+  });
+
+  it("el reembolso del delta lanza → refund:'failed', sin inbox ni mark (el cron lo reintenta)", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({ applyCharge: vi.fn(async () => "slot_taken" as const) });
+    const gw = makeGateway({ status: "approved", externalReference: "do1", amount: 3000 });
+    (gw.refundPayment as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("MP down"));
+    const svc = new WebhookService(gw, repo, fin);
+    const res = await svc.handlePaymentNotification("payd");
+    expect(res.chargeFailure).toEqual({ reason: "slot_taken", refund: "failed" });
+    expect(fin.markChargeRefunded).not.toHaveBeenCalled();
+    expect(repo.recordEvent).not.toHaveBeenCalledWith(expect.stringMatching(/^refund:/), "refund", expect.anything());
+  });
+
+  it("el reembolso del delta queda in_process → refund:'pending', sin inbox ni mark (lo asienta el loopback)", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({ applyCharge: vi.fn(async () => "slot_taken" as const) });
+    const gw = makeGateway({ status: "approved", externalReference: "do1", amount: 3000 });
+    (gw.refundPayment as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "ref_ip", status: "in_process", amount: 3000 });
+    const svc = new WebhookService(gw, repo, fin);
+    const res = await svc.handlePaymentNotification("payd");
+    expect(res.chargeFailure).toEqual({ reason: "slot_taken", refund: "pending" });
+    expect(fin.markChargeRefunded).not.toHaveBeenCalled();
+    expect(repo.recordEvent).not.toHaveBeenCalledWith("refund:ref_ip", "refund", expect.anything());
   });
 
   it("segunda entrega (inbox duplicado) → duplicate, sin re-finalizar", async () => {
@@ -141,7 +181,7 @@ describe("WebhookService — cobro de reagendamiento diferido", () => {
 
   it("orden normal (no es cobro de reagendamiento) → confirm normal", async () => {
     const repo = makeRepo();
-    const fin = makeFinalizer({ pendingChargeForOrder: vi.fn(async () => null) });
+    const fin = makeFinalizer({ chargeForOrder: vi.fn(async () => null) });
     const svc = new WebhookService(makeGateway({ status: "approved", externalReference: "o1", amount: 9990 }), repo, fin);
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("paid");
     expect(fin.applyCharge).not.toHaveBeenCalled();
@@ -195,7 +235,7 @@ describe("WebhookService — finalizador de curso", () => {
     const repo = makeRepo();
     const curso = courseFinalizer(true);
     const resched = {
-      pendingChargeForOrder: vi.fn(async () => ({ deltaOrderId: "o-delta", rescheduleId: "r1" })),
+      chargeForOrder: vi.fn(async () => ({ deltaOrderId: "o-delta", rescheduleId: "r1" })),
       applyCharge: vi.fn(async () => "applied" as const),
       markChargeRefunded: vi.fn(async () => {}),
     };

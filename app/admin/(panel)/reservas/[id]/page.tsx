@@ -23,10 +23,14 @@ import { AccessCodeCard } from "./_components/AccessCodeCard";
 import { CambiarClienteDialog } from "./_components/CambiarClienteDialog";
 import { CancelBookingDialog } from "./_components/CancelBookingDialog";
 import { CobroPendiente } from "./_components/CobroPendiente";
+import { PendingRescheduleCard } from "./_components/PendingRescheduleCard";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
+
+/** Zona horaria del estudio — misma resolución de siempre (una sala, sin multi-tz). */
+const TZ = "America/Santiago";
 
 /** Categoría de cada evento del timeline de actividad (espejo de booking_events.category). */
 type ActivityTag = "Reservas" | "Pagos" | "Puntos" | "Documentos tributarios" | "Notificaciones";
@@ -73,10 +77,26 @@ function timelineEntry(
       return { label: "Cobro extra por reagendamiento", detail: clp(e.amountClp) };
     case "reschedule_refund":
       return { label: "Reembolso por reagendamiento", detail: clp(e.amountClp) };
-    case "reschedule_failed_slot_taken":
-      return { label: "Reagendamiento fallido (horario tomado)", detail: `${move() ?? ""} · excedente ${clp(e.amountClp)} devuelto` };
+    case "reschedule_failed_slot_taken": {
+      // `reason` distingue por qué el cobro pagado no movió la reserva (H3/H5):
+      // el horario se lo ganaron, la reserva ya no existe, o el cobro estaba
+      // anulado/expirado y llegó pagado tarde. Sin distinguir, los tres se veían
+      // igual y "horario tomado" era engañoso para los otros dos casos.
+      const reason = (e.detail as { reason?: string } | null)?.reason;
+      const label =
+        reason === "charge_void"
+          ? "Cobro anulado pagado tarde"
+          : reason === "reservation_gone"
+            ? "Reagendamiento fallido (reserva cancelada)"
+            : "Reagendamiento fallido (horario tomado)";
+      return { label, detail: `${move() ?? ""} · ${clp(e.amountClp)} devueltos` };
+    }
     case "reschedule_expired":
       return { label: "Cobro de reagendamiento expirado", detail: move() };
+    case "reschedule_cancelled":
+      return { label: "Reagendamiento anulado", detail: `${move()} · ${clp(e.amountClp)}` };
+    case "points_restored":
+      return { label: "Puntos repuestos", detail: `+${e.amountClp} pts` };
     case "boleta_issued":
       return { label: "Boleta generada", detail: clp(e.amountClp) };
     case "boleta_emitted":
@@ -117,14 +137,25 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
   const canReassign = !isBlock && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
 
+  // Cobro (o, desde una PR futura, reembolso) de reagendamiento pendiente: a lo
+  // más UNA fila por reserva (índice único en la migración H3/H5) — mientras
+  // exista, la reserva sigue en su horario ORIGINAL y no se puede reagendar de
+  // nuevo hasta que se pague, anule o (pending_refund) confirme el reembolso.
+  const pending = b.reschedules.find((m) => m.status === "pending_charge" || m.status === "pending_refund") ?? null;
+
   // Reagendar: reservas pagadas (sin puntos, ≥12 h de anticipación) o cortesías
   // confirmadas (sin plata no aplica la política — misma flexibilidad que crearlas).
   // Los props del picker se calculan en el server (force-dynamic) solo si aplica.
   const canReschedule =
     b.status !== "cancelled" &&
+    !pending &&
     ((isPaid && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed) ||
       (isCourtesy && b.status === "confirmed"));
   const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
+  // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a
+  // la vez (PR2 lo resuelve); un cobro pendiente sí se puede cancelar — "Anular
+  // cobro" ya lo cierra primero.
+  const canCancel = b.status !== "cancelled" && pending?.status !== "pending_refund";
 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
@@ -356,6 +387,8 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
+          {pending && <PendingRescheduleCard reservationId={b.id} pending={pending} tz={TZ} />}
+
           {reschedProps && (
             <Card title="Reagendar">
               <p className="text-sm leading-relaxed text-bone-dim">
@@ -369,7 +402,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
-          {b.status !== "cancelled" && (
+          {canCancel && (
             <Card title="Zona de peligro">
               {isPaid ? (
                 (() => {
