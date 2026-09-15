@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  ApplyChargeOutcome,
   ReschedulePort,
   RescheduleChargeParams,
   RescheduleContext,
@@ -153,25 +154,31 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   }
 
   // ── RescheduleFinalizer (webhook) ──
-  async pendingChargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null> {
+  async chargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null> {
+    // `cancelled`/`expired` entran también: un pago que llega tarde (el cliente pagó
+    // justo cuando el link expiraba, o la reserva se canceló mientras el pago viajaba)
+    // sigue siendo un cobro de reagendamiento — hay que encontrarlo para devolverlo,
+    // no dejarlo caer al confirm normal (que no sabe qué es una orden de delta).
     const { data } = await this.db
       .from("reschedules")
       .select("id, delta_order_id")
       .eq("delta_order_id", orderId)
-      .eq("status", "pending_charge")
+      .in("status", ["pending_charge", "cancelled", "expired"])
       .maybeSingle();
     if (!data?.delta_order_id) return null;
     return { deltaOrderId: data.delta_order_id, rescheduleId: data.id };
   }
 
-  async applyCharge(deltaOrderId: string, paymentId: string): Promise<"applied" | "slot_taken" | "noop"> {
+  async applyCharge(deltaOrderId: string, paymentId: string): Promise<ApplyChargeOutcome> {
     // También mueve el rango (tras el pago del delta); la reintenta el webhook de MP igual,
     // pero acá se resuelve sin esperar ese ciclo.
     const { data, error } = await retryOnDeadlock(() =>
       this.db.rpc("apply_reschedule_charge", { p_delta_order: deltaOrderId, p_payment_id: paymentId }),
     );
     if (error) throw new Error(rescheduleError(error.message));
-    return (data ?? "noop") as "applied" | "slot_taken" | "noop";
+    // El typegen de Supabase todavía tipa el retorno de esta RPC como `string`
+    // (regenerarlo no lo estrecha); el cast documenta el contrato real de la función SQL.
+    return (data ?? "noop") as ApplyChargeOutcome;
   }
 
   async markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void> {

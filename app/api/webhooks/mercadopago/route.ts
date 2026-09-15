@@ -84,7 +84,7 @@ export async function POST(req: Request): Promise<Response> {
     new SupabaseCourseRepository(client),
   );
   try {
-    const { result, orderId, refundedAmount } = await service.handlePaymentNotification(resourceId);
+    const { result, orderId, refundedAmount, chargeFailure } = await service.handlePaymentNotification(resourceId);
     if (result === "paid" && orderId) {
       // Envío de emails (best-effort; el cron diario es el respaldo).
       await notificationService(client).notifyOrder(orderId).catch((e) => console.error("[mp-webhook:email]", e));
@@ -107,21 +107,34 @@ export async function POST(req: Request): Promise<Response> {
       await notificationService(client)
         .notifyCancellation(orderId, { refundAmount: refundedAmount ?? null })
         .catch((e) => console.error("[mp-webhook:cancel-email]", e));
-    } else if ((result === "reschedule_applied" || result === "reschedule_slot_taken") && orderId) {
+    } else if (result === "reschedule_applied" && orderId) {
       // `orderId` acá es la orden de DELTA; el aviso es sobre la reserva ORIGINAL.
       const info = await rescheduleNotifyInfo(orderId, client).catch(() => null);
       if (info) {
-        if (result === "reschedule_applied") {
-          await notificationService(client)
-            .notifyReschedule(info.originalOrderId, { refundAmount: 0 })
-            .catch((e) => console.error("[mp-webhook:reschedule-email]", e));
-        } else {
-          // Slot tomado al pagar: se devolvió el excedente; la reserva NO se movió.
+        await notificationService(client)
+          .notifyReschedule(info.originalOrderId, { refundAmount: 0 })
+          .catch((e) => console.error("[mp-webhook:reschedule-email]", e));
+      }
+    } else if (result === "reschedule_charge_failed" && orderId) {
+      if (chargeFailure?.refund === "done") {
+        // El excedente ya se devolvió; la reserva NO se movió. Avisar al cliente
+        // como siempre (`orderId` es la orden de DELTA, el aviso es sobre la ORIGINAL).
+        const info = await rescheduleNotifyInfo(orderId, client).catch(() => null);
+        if (info) {
           console.error(`[mp-webhook] REAGENDAMIENTO SIN CUPO — excedente devuelto (order ${info.originalOrderId})`);
           await notificationService(client)
             .notifyRescheduleFailed(info.originalOrderId, { refundAmount: info.delta })
             .catch((e) => console.error("[mp-webhook:reschedule-failed-email]", e));
         }
+      } else {
+        // El reembolso del excedente falló o quedó en proceso: nada que avisarle
+        // todavía al cliente (el cron/loopback lo asienta) — alertar al dueño.
+        console.error(
+          `[mp-webhook] REEMBOLSO DE REAGENDAMIENTO ${chargeFailure?.refund.toUpperCase()} — revisar (order ${orderId}, pago ${resourceId})`,
+        );
+        await notificationService(client)
+          .notifyPaymentNeedsReview(orderId, resourceId)
+          .catch((e) => console.error("[mp-webhook:review]", e));
       }
     }
   } catch (e) {

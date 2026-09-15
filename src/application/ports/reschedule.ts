@@ -66,11 +66,14 @@ export interface ReschedulePort {
   moveCourtesy(p: { reservationId: string; startsAt: string; endsAt: string; note: string | null }): Promise<void>;
 }
 
+/** Resultado de aplicar un cobro de reagendamiento diferido (RPC apply_reschedule_charge). */
+export type ApplyChargeOutcome = "applied" | "slot_taken" | "reservation_gone" | "charge_void" | "noop";
+
 /** Finaliza un cobro de reagendamiento diferido desde el webhook (RPC apply_reschedule_charge). */
 export interface RescheduleFinalizer {
-  /** ¿La orden es un cobro de reagendamiento pendiente? (para desviar del confirm normal). */
-  pendingChargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null>;
-  applyCharge(deltaOrderId: string, paymentId: string): Promise<"applied" | "slot_taken" | "noop">;
-  /** Reembolsa el asiento del delta cuando el slot fue tomado (mark_refunded sobre la orden de delta). */
+  /** Fila de cobro (pendiente, anulada o expirada) cuya orden delta es `orderId`; null si no es un cobro. */
+  chargeForOrder(orderId: string): Promise<{ deltaOrderId: string; rescheduleId: string } | null>;
+  applyCharge(deltaOrderId: string, paymentId: string): Promise<ApplyChargeOutcome>;
+  /** Reembolsa el asiento del delta cuando el cobro no se aplicó (mark_refunded sobre la orden de delta). */
   markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void>;
 }
