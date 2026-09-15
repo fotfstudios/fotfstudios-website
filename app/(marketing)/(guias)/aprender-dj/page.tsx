@@ -134,7 +134,11 @@ export default function AprenderDjPage() {
           </Link>
           : 4 sesiones, 12 horas de estudio y tu set final grabado en audio y video. Y si
           prefieres partir solo, la sala se arrienda por hora — el método de arriba funciona
-          igual.
+          igual. Para partir hoy mismo, la{" "}
+          <Link href="/guia-dj" className={enlace}>
+            Guía de iniciación al DJing
+          </Link>{" "}
+          (PDF gratis, 8 páginas) te deja el equipo explicado y una rutina semanal.
         </p>
       </GuideSection>
     </>

@@ -140,6 +140,8 @@ export const PLACEMENT = {
   ],
   /** /curso-dj landing: [0..1] → Equipos section, [2] → closing CTA. */
   curso: ["cabina-7.JPG", "cabina-9.JPG", "cabina-8.JPG"],
+  /** /guia-dj landing: portada del PDF (vertical, cabina al centro). */
+  guia: "cabina-11.JPG",
   /** /grabacion landing: ambas fotos → sección Qué incluye. */
   grabacion: ["grabacion-gear-1.jpg", "grabacion-manos-1.jpg"],
   /** /grabacion landing: sección La sesión (foto · video · foto). */
@@ -215,6 +217,11 @@ export function grabacionSesionPhotos(photos: Photo[]): Photo[] {
     .filter((p): p is Photo => Boolean(p));
 }
 
+/** Foto reservada para la portada de la guía en /guia-dj. */
+export function guiaPhoto(photos: Photo[]): Photo | null {
+  return bySrc(photos, PLACEMENT.guia) ?? photos.find((p) => p.category === "sala") ?? null;
+}
+
 /** Foto reservada para el fondo del cierre de /grabacion. */
 export function grabacionCierrePhoto(photos: Photo[]): Photo | null {
   return bySrc(photos, PLACEMENT.grabacionCierre) ?? null;
@@ -229,6 +236,7 @@ export function galleryPhotos(photos: Photo[]): Photo[] {
     `/photos/${PLACEMENT.hero}`,
     `/photos/${PLACEMENT.cierre}`,
     `/photos/${PLACEMENT.grabacionCierre}`,
+    `/photos/${PLACEMENT.guia}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
     ...PLACEMENT.curso.map((f) => `/photos/${f}`),
     ...PLACEMENT.grabacion.map((f) => `/photos/${f}`),

@@ -83,6 +83,11 @@ export default function Footer() {
             <span className="label-sm mt-8 block text-bone-mute">Guías</span>
             <ul className="mt-4 space-y-3">
               <li>
+                <Link href="/guia-dj" className="text-bone transition-colors hover:text-gold">
+                  Guía gratis de iniciación (PDF)
+                </Link>
+              </li>
+              <li>
                 <Link href="/aprender-dj" className="text-bone transition-colors hover:text-gold">
                   Aprender a ser DJ
                 </Link>

@@ -186,6 +186,10 @@ describe("árbol de rutas", () => {
       "app/(marketing)/(guias)/aprender-dj/page.tsx",
       "app/(marketing)/(guias)/cuanto-cuesta-un-curso-de-dj/page.tsx",
       "app/(marketing)/(guias)/xdj-vs-controlador/page.tsx",
+      "app/(marketing)/guia-dj/page.tsx",
+      "app/(marketing)/guia-dj/descarga/[token]/page.tsx",
+      "app/(marketing)/guia-dj/opengraph-image.tsx",
+      "app/(marketing)/guia-dj/twitter-image.tsx",
     ]) {
       expect(exists(p), p).toBe(true);
     }
