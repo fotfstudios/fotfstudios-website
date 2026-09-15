@@ -125,6 +125,7 @@ export interface BookingTimelineEvent {
     old_starts_at?: string;
     new_starts_at?: string;
     folio?: string | null;
+    previous_folio?: string | null;
     /** `reschedule_failed_slot_taken`: por qué no se movió (H3/H5). */
     reason?: string;
     /** `customer_changed`: quién era y quién es, y los puntos que se movieron. */
@@ -1133,11 +1134,38 @@ export class SupabaseAdminRepository {
     return data?.id ?? null;
   }
 
-  async recordBoleta(docId: string, folio: string, pdfUrl: string | null): Promise<void> {
-    const { error } = await this.db
-      .from("tax_documents")
-      .update({ status: "emitida", folio, pdf_url: pdfUrl, emitted_at: new Date().toISOString() })
-      .eq("id", docId);
+  /** Marca emitida con folio. Primera vez fija `emitted_at`; una corrección lo conserva. */
+  async recordTaxDocFolio(docId: string, folio: string, firstTime: boolean): Promise<void> {
+    const patch = firstTime ? { status: "emitida" as const, folio, emitted_at: new Date().toISOString() } : { folio };
+    const { error } = await this.db.from("tax_documents").update(patch).eq("id", docId);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Evento de timeline al registrar un folio. La reserva se resuelve por la orden del
+   * documento, con fallback a `reschedules.delta_order_id` (la boleta delta de un
+   * encarecimiento con slot tomado vive en la orden de delta). Un pedido de curso sin
+   * reserva no loguea: no tiene timeline. Lanza si el RPC falla; el servicio lo captura.
+   */
+  async logTaxDocEmitted(doc: TaxDocRaw, folio: string, previousFolio: string | null, actor: string | null): Promise<void> {
+    const { data: r } = await this.db
+      .from("reservations").select("id").eq("order_id", doc.orderId).eq("kind", "booking").limit(1).maybeSingle();
+    let reservationId = r?.id ?? null;
+    if (!reservationId) {
+      const { data: d } = await this.db
+        .from("reschedules").select("reservation_id").eq("delta_order_id", doc.orderId).limit(1).maybeSingle();
+      reservationId = d?.reservation_id ?? null;
+    }
+    if (!reservationId) return;
+    const { error } = await this.db.rpc("log_booking_event", {
+      p_reservation: reservationId,
+      p_type: doc.kind === "boleta" ? "boleta_emitted" : "nota_credito_emitted",
+      p_order: doc.orderId,
+      p_tax_doc: doc.id,
+      p_amount: doc.total,
+      p_detail: previousFolio ? { folio, previous_folio: previousFolio } : { folio },
+      p_created_by: actor ?? undefined,
+    });
     if (error) throw new Error(error.message);
   }
 

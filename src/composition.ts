@@ -46,6 +46,7 @@ import { ReminderService } from "@/src/application/reminders/reminder-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
 import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
+import { TaxDocService } from "@/src/application/admin/tax-doc-service";
 
 /** Cliente Supabase service-role (servidor). */
 export function db(): SupabaseClient<Database> {
@@ -269,6 +270,11 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
   return new SupabaseAdminRepository(client);
+}
+
+/** Registro de folios SII (la app no emite; anota lo que el dueño emitió en sii.cl). */
+export function taxDocService(client: SupabaseClient<Database> = db()): TaxDocService {
+  return new TaxDocService(adminRepository(client));
 }
 
 /** Postulaciones de DJ (/unete): alta pública + lista/triage del admin. */

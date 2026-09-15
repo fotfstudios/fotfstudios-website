@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
-import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
+import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService, taxDocService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
 import { RESCHEDULE_CHARGE_TTL_MINUTES, type RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -17,12 +17,6 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k));
 
 const REFUND_MODES: readonly RefundMode[] = ["policy", "full", "none", "custom"];
-
-// Campos de texto libre que escribe el admin (folio SII, código de acceso): tope de largo y
-// sin caracteres de control. Defensa en profundidad — el admin es de confianza y React escapa
-// al render, pero acota lo que entra a la DB.
-const MAX_FIELD = 64;
-const badField = (s: string) => s.length > MAX_FIELD || [...s].some((c) => { const n = c.charCodeAt(0); return n < 32 || n === 127; });
 
 export async function cancelBookingAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
@@ -86,10 +80,9 @@ export async function recordBoletaAction(_prev: ActionResult | null, fd: FormDat
   return run(async () => {
     await requirePermission("reservations.boleta");
     const docId = str(fd, "docId");
-    const folio = str(fd, "folio");
     const reservationId = str(fd, "reservationId");
-    if (badField(folio)) throw new Error("Folio inválido.");
-    if (folio) await adminRepository().recordBoleta(docId, folio, null);
+    const actor = (await currentClaims())?.sub ?? null;
+    await taxDocService().recordFolio(docId, str(fd, "folio"), actor);
     revalidatePath(`/admin/reservas/${reservationId}`);
   });
 }

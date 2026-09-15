@@ -5,6 +5,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { TaxDocService } from "@/src/application/admin/tax-doc-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { futureDate } from "@/tests/dates";
@@ -142,5 +143,54 @@ describe("pendingTaxDocsQueue / pendingTaxDocsSummary", () => {
   it("sin pendientes → cola vacía y resumen en cero", async () => {
     expect(await repo.pendingTaxDocsQueue()).toEqual([]);
     expect(await repo.pendingTaxDocsSummary()).toEqual({ count: 0, oldestCreatedAt: null });
+  });
+});
+
+describe("recordFolio (servicio + repo)", () => {
+  const svc = new TaxDocService(repo);
+  const events = async (resId: string) =>
+    (
+      await pg.query<{ type: string; detail: { folio?: string; previous_folio?: string } | null; tax_document_id: string | null }>(
+        "select type, detail, tax_document_id from booking_events where reservation_id=$1 and type in ('boleta_emitted','nota_credito_emitted') order by occurred_at, seq",
+        [resId],
+      )
+    ).rows;
+
+  it("boleta: queda emitida con folio + emitted_at y deja boleta_emitted en el timeline", async () => {
+    const orderId = await paid(600, "f@e.cl");
+    const [b] = await repo.taxDocsForOrder(orderId);
+    await svc.recordFolio(b.id, "1234", null);
+    const after = (await repo.taxDocsForOrder(orderId))[0];
+    expect(after).toMatchObject({ status: "emitida", folio: "1234" });
+    expect(after.emittedAt).not.toBeNull();
+    const ev = await events(await reservationOf(orderId));
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ type: "boleta_emitted", tax_document_id: b.id, detail: { folio: "1234" } });
+  });
+
+  it("NC bloqueada se rechaza; tras el folio de la boleta se registra y loguea", async () => {
+    const orderId = await paid(660, "g@e.cl");
+    await pg.query("select mark_refunded($1, $2, $3)", [orderId, "rf_3", 9990]);
+    const [b, nc] = await repo.taxDocsForOrder(orderId);
+    await expect(svc.recordFolio(nc.id, "77", null)).rejects.toThrow("Primero registra el folio de la boleta");
+    await svc.recordFolio(b.id, "1234", null);
+    await svc.recordFolio(nc.id, "77", null);
+    const docs = await repo.taxDocsForOrder(orderId);
+    expect(docs.find((d) => d.id === nc.id)).toMatchObject({ status: "emitida", folio: "77" });
+    const ev = await events(await reservationOf(orderId));
+    expect(ev.map((e) => e.type)).toEqual(["boleta_emitted", "nota_credito_emitted"]);
+  });
+
+  it("corregir folio conserva emitted_at y loguea previous_folio", async () => {
+    const orderId = await paid(720, "h@e.cl");
+    const [b] = await repo.taxDocsForOrder(orderId);
+    await svc.recordFolio(b.id, "1234", null);
+    const first = (await repo.taxDocsForOrder(orderId))[0].emittedAt;
+    await svc.recordFolio(b.id, "1243", null);
+    const after = (await repo.taxDocsForOrder(orderId))[0];
+    expect(after.folio).toBe("1243");
+    expect(after.emittedAt).toBe(first);
+    const ev = await events(await reservationOf(orderId));
+    expect(ev[1].detail).toEqual({ folio: "1243", previous_folio: "1234" });
   });
 });
