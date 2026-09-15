@@ -19,6 +19,11 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   // Boleta
   pendiente: { label: "Pendiente", tone: "dim" },
   emitida: { label: "Emitida", tone: "gold" },
+  // Documentos tributarios — pasos SII (src/domain/tax/tax-doc-steps.ts). `anulada`
+  // ya existe más abajo (inscripción de curso) con la misma etiqueta y tono.
+  por_emitir: { label: "Por emitir", tone: "gold" },
+  bloqueada: { label: "Bloqueada", tone: "dim" },
+  atrasada: { label: "Atrasada", tone: "sirena" },
   // Ledger de puntos (points_entry_kind)
   earn: { label: "Ganados", tone: "gold" },
   earn_revoke: { label: "Descontados", tone: "mute" },
