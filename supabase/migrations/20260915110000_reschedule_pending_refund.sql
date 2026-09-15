@@ -80,11 +80,15 @@ declare
   v_ids uuid[]; v_amts int[]; v_setts uuid[]; i int; v_to_reverse int; v_retained int; v_remaining int; v_nc uuid; v_bol uuid;
 begin
   select * into r from reschedules where id = p_reschedule for update;
-  if r.id is null or r.status <> 'pending_refund' then return 'noop'; end if;
-  if exists (select 1 from booking_events where reschedule_id = p_reschedule
+  if r.id is null then return 'noop'; end if;
+  -- `duplicate` ANTES que el estado: si el loopback del webhook asentó el ÚLTIMO split y la
+  -- fila ya quedó `applied`, el segundo asiento del mismo refund id es un duplicado, no un
+  -- `noop` (que para el admin significa "la reserva se canceló entre medio").
+  if exists (select 1 from booking_events where reservation_id = r.reservation_id and reschedule_id = p_reschedule
                and type = 'reschedule_refund' and payment_ref = p_refund_id) then
     return 'duplicate';
   end if;
+  if r.status <> 'pending_refund' then return 'noop'; end if;
 
   select coalesce(sum(total - reversed_clp), 0) into v_live_total
     from tax_documents where order_id = r.original_order_id and kind = 'boleta' and reversed_clp < total;

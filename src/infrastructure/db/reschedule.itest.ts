@@ -669,7 +669,7 @@ describe("reschedule_down_move + reschedule_settle_refund (auditoría 2026-09-14
     expect(l.rows[0].subtotal_clp).toBe(9990); // líneas viejas hasta asentar
   });
 
-  it("settle: asienta refunded/NC/boleta/puntos, reescribe líneas y aplica; mismo refund id de nuevo → duplicate; después → noop", async () => {
+  it("settle: asienta refunded/NC/boleta/puntos, reescribe líneas y aplica; mismo refund id tras applied → duplicate; otro id → noop", async () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "pr2");
     const { rescheduleId, settle } = await downOffline(reservationId, addHours(endsAt, 1), addHours(endsAt, 2), linesDown, 2000);
     expect(settle).toBe("applied");
@@ -680,7 +680,11 @@ describe("reschedule_down_move + reschedule_settle_refund (auditoría 2026-09-14
     const l = await pg.query<{ subtotal_clp: number }>("select subtotal_clp from order_lines where order_id=$1", [orderId]);
     expect(l.rows[0].subtotal_clp).toBe(7990);
     const again = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [rescheduleId, "offline:reschedule", 2000]);
-    expect(again.rows[0].reschedule_settle_refund).toBe("noop"); // ya applied
+    // El loopback que asienta el ÚLTIMO split deja la fila applied; el asiento del admin con el
+    // mismo id es un duplicado (no un noop, que significaría "reserva cancelada entre medio").
+    expect(again.rows[0].reschedule_settle_refund).toBe("duplicate");
+    const other = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [rescheduleId, "ref-otro", 2000]);
+    expect(other.rows[0].reschedule_settle_refund).toBe("noop"); // ya applied y refund id nuevo
   });
 
   it("settle parcial (multi-pago): dos asientos por refund id distinto → settled, luego applied; I1′ se cumple en el medio", async () => {
