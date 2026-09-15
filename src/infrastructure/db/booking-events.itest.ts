@@ -71,6 +71,16 @@ const lines1h = JSON.stringify([{ line_type: "room_time", description: "Sala · 
 const linesUp = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 12990, subtotal_clp: 12990 }]);
 const linesDown = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 7990, subtotal_clp: 7990 }]);
 
+/** Baja de precio completa (mover + asentar offline) — reemplaza al viejo reschedule_down en los tests. */
+async function downOffline(reservationId: string, start: string, end: string, lines: string, amount: number) {
+  const m = await pg.query<{ reschedule_down_move: string }>(
+    "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7)", [reservationId, start, end, "{}", lines, amount, null]);
+  const id = m.rows[0].reschedule_down_move;
+  const s = await pg.query<{ reschedule_settle_refund: string }>(
+    "select reschedule_settle_refund($1,$2,$3)", [id, "offline:reschedule", amount]);
+  return { rescheduleId: id, settle: s.rows[0].reschedule_settle_refund };
+}
+
 const cleanup = "truncate reservations, orders, order_lines, payment_intents, webhook_events, tax_documents, reschedules, booking_events, customers cascade";
 
 /** Eventos de una reserva, en el orden del timeline (más reciente primero). */
@@ -116,9 +126,10 @@ describe("booking_events — reagendamientos", () => {
     expect(moved?.category).toBe("Reservas");
   });
 
-  it("reschedule_down → reschedule_refund + nota_credito_issued + boleta_issued + reschedule_moved", async () => {
+  it("reschedule_down_move + settle → reschedule_moved + reschedule_refund + nota_credito_issued + boleta_issued", async () => {
     const { reservationId, endsAt } = await paidBooking(600, "bed1");
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, "mp_r", 2000, null]);
+    const { settle } = await downOffline(reservationId, addHours(endsAt, 1), addHours(endsAt, 2), linesDown, 2000);
+    expect(settle).toBe("applied");
     const e = await events(reservationId);
     expect(types(e)).toEqual(expect.arrayContaining(["reschedule_refund", "nota_credito_issued", "boleta_issued", "reschedule_moved"]));
     expect(e.find((r) => r.type === "reschedule_refund")).toMatchObject({ category: "Pagos", amount_clp: 2000 });

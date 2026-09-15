@@ -1,8 +1,9 @@
 /**
- * Integración del reagendamiento (RPCs reschedule_move / reschedule_down) contra
- * la DB real. Verifica el invariante central de money-safety: reagendar mueve el
- * horario SIN cancelar la reserva ni marcar la orden 'refunded' (a diferencia de
- * mark_refunded). Gateway stub → no necesita MP. Requiere Supabase local.
+ * Integración del reagendamiento (RPCs reschedule_move / reschedule_down_move /
+ * reschedule_settle_refund) contra la DB real. Verifica el invariante central de
+ * money-safety: reagendar mueve el horario SIN cancelar la reserva ni marcar la
+ * orden 'refunded' (a diferencia de mark_refunded). Gateway stub → no necesita MP.
+ * Requiere Supabase local.
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -13,6 +14,7 @@ import type { PaymentGateway, PaymentInfo, PreferenceResult, RefundResult } from
 import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabaseRatePlanRepository } from "./rate-plan-repository";
+import { SupabaseRescheduleRepository } from "./reschedule-repository";
 import { createServiceClient } from "./supabase-client";
 import { SupabaseWebhookRepository } from "./webhook-repository";
 
@@ -144,16 +146,15 @@ describe("reschedule_move (equal)", () => {
   });
 });
 
-describe("reschedule_down (refund delta)", () => {
+describe("reschedule_down (refund delta, vía move + settle offline — H1)", () => {
   it("reembolsa el delta MANTENIENDO paid+confirmed y moviendo el horario; NC + nueva boleta", async () => {
     const { orderId, reservationId, endsAt } = await paidBooking(600, "pd1"); // boleta 9990
     const newStart = addHours(endsAt, 1);
     const newEnd = addHours(endsAt, 2);
 
     // Nuevo slot más barato ($7.990) → delta reembolsado = 2000.
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
-      reservationId, newStart, newEnd, "{}", linesDown, "mp_ref_1", 2000, "Reagendada + reembolso",
-    ]);
+    const { settle } = await downOffline(reservationId, newStart, newEnd, linesDown, 2000);
+    expect(settle).toBe("applied");
 
     const r = await pg.query<{ status: string; starts_at: string }>("select status, starts_at from reservations where id=$1", [reservationId]);
     expect(r.rows[0].status).toBe("confirmed"); // el invariante clave: NO cancelada
@@ -165,31 +166,25 @@ describe("reschedule_down (refund delta)", () => {
     expect(o.rows[0].amount).toBe(9990); // total original intacto
     expect(o.rows[0].refunded).toBe(2000); // delta acumulado → boleta viva = 7990
 
-    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1 order by created_at", [orderId]);
+    // NC y boleta reemitida nacen en la misma tx (mismo created_at): el desempate por kind/total
+    // hace el orden determinista.
+    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1 order by created_at, kind, total", [orderId]);
     expect(docs.rows.map((d) => d.kind)).toContain("nota_credito");
     expect(docs.rows.find((d) => d.kind === "nota_credito")?.total).toBe(9990); // NC por la boleta vieja
     expect(docs.rows.filter((d) => d.kind === "boleta").map((d) => d.total)).toContain(7990); // nueva boleta por el saldo
   });
 
-  it("delta fuera de rango (> boleta viva) → aborta", async () => {
+  it("delta fuera de rango (> boleta viva) → aborta en el MOVE, antes de tocar plata", async () => {
     const { reservationId, endsAt } = await paidBooking(600, "pd2");
     await expect(
-      pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, "mp_x", 99999, null]),
+      pg.query("select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 99999]),
     ).rejects.toThrow();
   });
 
-  it("con p_refund_id NULL (siembra-primero) mueve + NC + boleta del saldo, mp_refund_id queda null", async () => {
-    const { orderId, reservationId, endsAt } = await paidBooking(600, "pd3");
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
-      reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, null, 2000, null,
-    ]);
-    const o = await pg.query<{ status: string; refunded: number; refund_id: string | null }>(
-      "select status, refunded_amount_clp refunded, mp_refund_id refund_id from orders where id=$1", [orderId]);
-    expect(o.rows[0]).toMatchObject({ status: "paid", refunded: 2000, refund_id: null });
-    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1", [orderId]);
-    expect(docs.rows.filter((d) => d.kind === "nota_credito").map((d) => d.total)).toContain(9990);
-    expect(docs.rows.filter((d) => d.kind === "boleta").map((d) => d.total)).toContain(7990);
-  });
+  // El viejo caso "p_refund_id NULL (siembra-primero)" ya no aplica: reschedule_down_move
+  // no recibe refund id (recién existe al ASENTAR, vía reschedule_settle_refund) — el
+  // invariante que importaba (mover sin tocar plata) está cubierto por "move: ... SIN
+  // tocar plata, líneas ni boletas" en la describe de pending_refund más abajo.
 });
 
 // Nuevo horario más caro (cobro diferido): la reserva NO se mueve hasta que el
@@ -204,6 +199,16 @@ const createCharge = (reservationId: string, start: string, end: string) =>
       [reservationId, start, end, "{}", linesUp, 3000, 2521, 479, null],
     )
     .then((r) => r.rows[0]);
+
+/** Baja de precio completa (mover + asentar offline) — reemplaza al viejo reschedule_down en los tests. */
+async function downOffline(reservationId: string, start: string, end: string, lines: string, amount: number) {
+  const m = await pg.query<{ reschedule_down_move: string }>(
+    "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7)", [reservationId, start, end, "{}", lines, amount, null]);
+  const id = m.rows[0].reschedule_down_move;
+  const s = await pg.query<{ reschedule_settle_refund: string }>(
+    "select reschedule_settle_refund($1,$2,$3)", [id, "offline:reschedule", amount]);
+  return { rescheduleId: id, settle: s.rows[0].reschedule_settle_refund };
+}
 
 describe("reschedule charge (más caro, cobro diferido)", () => {
   it("create_reschedule_charge NO mueve la reserva; apply (slot libre) la mueve y dobla el delta", async () => {
@@ -379,9 +384,8 @@ describe("compuesto encarecer→abaratar (multi-boleta)", () => {
 
     // Abaratar 12990 → 8000 (refund 4990). El refund cabe en la boleta original (9990).
     const lines8000 = JSON.stringify([{ line_type: "room_time", description: "Sala · 1h", quantity: 1, unit_price_clp: 8000, subtotal_clp: 8000 }]);
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
-      reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", lines8000, "mp_cmp_ref", 4990, null,
-    ]);
+    const { settle } = await downOffline(reservationId, addHours(endsAt, 3), addHours(endsAt, 4), lines8000, 4990);
+    expect(settle).toBe("applied");
 
     const o = await pg.query<{ amount: number; refunded: number }>(
       "select amount_clp amount, refunded_amount_clp refunded from orders where id=$1", [orderId]);
@@ -399,14 +403,14 @@ describe("compuesto encarecer→abaratar (multi-boleta)", () => {
   });
 });
 
-// A1 reordenó "más barato" a seat-first: reschedule_down se llama con p_refund_id
-// NULL (el refund id de MP aún no existe al momento del asiento). El claw-back de
-// earn quedaba keyed a un ref CONSTANTE ('manual') → un segundo reagendamiento más
-// barato de la MISMA orden colisiona con el unique (order_id, kind, ref) del primero
-// y su revocación incremental se descarta en silencio (el cliente conserva puntos
-// que ya no le corresponden). Repro: dos reschedule_down consecutivos, cada uno con
-// p_refund_id NULL (el camino real).
-describe("reschedule_down — claw-back de earn no colisiona entre reagendamientos sucesivos", () => {
+// A1 reordenó "más barato" a seat-first: reschedule_down (hoy downOffline: move + settle)
+// se llama con un refund id que aún no es el definitivo de MP al momento del asiento.
+// El claw-back de earn quedaba keyed a un ref CONSTANTE ('manual') → un segundo
+// reagendamiento más barato de la MISMA orden colisiona con el unique (order_id, kind, ref)
+// del primero y su revocación incremental se descarta en silencio (el cliente conserva
+// puntos que ya no le corresponden). Repro: dos downOffline consecutivos sobre la misma
+// orden (cada uno crea su propia fila de reschedules, así que el ref queda único por fila).
+describe("reschedule_down_move + settle — claw-back de earn no colisiona entre reagendamientos sucesivos", () => {
   const EARN_CUST_ID = "e0000000-0000-4000-a000-000000000099";
   const EARN_EMAIL = "resched-earn@e.cl";
 
@@ -420,7 +424,7 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
       ).rows[0].s,
     );
 
-  it("dos reschedule_down consecutivos (más barato), ambos con p_refund_id NULL, revocan CADA incremento de earn", async () => {
+  it("dos downOffline consecutivos (más barato) revocan CADA incremento de earn, sin colisión de ref", async () => {
     await insertAuthUser(EARN_CUST_ID, EARN_EMAIL);
     // El id ya no es la clave natural de una ficha: el conflicto que importa es
     // el email (customers_email_key), que `on conflict (id)` dejaría escapar como 23505.
@@ -445,15 +449,11 @@ describe("reschedule_down — claw-back de earn no colisiona entre reagendamient
     ]);
 
     // Reagenda #1 (seat-first, como RescheduleService): 9990 → 7990, delta 2000.
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
-      reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", lines7990, null, 2000, null,
-    ]);
+    await downOffline(reservationId, addHours(endsAt, 1), addHours(endsAt, 2), lines7990, 2000);
     expect(await earnSum(orderId)).toBe(399); // floor(0.05·7990); primer claw-back de -100 aplicado
 
     // Reagenda #2, misma orden, otra vez seat-first: 7990 → 5990, delta 2000.
-    await pg.query("select reschedule_down($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8)", [
-      reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", lines5990, null, 2000, null,
-    ]);
+    await downOffline(reservationId, addHours(endsAt, 3), addHours(endsAt, 4), lines5990, 2000);
 
     // Con la regresión, el segundo claw-back (-100) colisiona en (order_id,'earn_revoke','manual')
     // con el primero y se descarta: earnSum queda en 399 en vez de converger a 299.
@@ -633,6 +633,20 @@ describe("pending charge lifecycle (auditoría 2026-09-14, H2/H3)", () => {
     expect(b.rows[0].cancel_reschedule_charge).toBe(false);
   });
 
+  it("chargeForOrder (repo) encuentra la orden delta de un cobro failed_slot_taken — su reembolso NO debe asentar otra fila pending_refund", async () => {
+    const a = await paidBooking(600, "pc7");
+    const c = await createCharge(a.reservationId, addHours(a.endsAt, 1), addHours(a.endsAt, 2));
+    await paidBooking(720, "pc7b"); // toma el slot destino
+    expect((await pg.query<{ r: string }>("select apply_reschedule_charge($1,$2) r", [c.delta_order_id, "mp_pc7"])).rows[0].r).toBe("slot_taken");
+    const repo = new SupabaseRescheduleRepository(db);
+    expect(await repo.chargeForOrder(c.delta_order_id)).toEqual({ deltaOrderId: c.delta_order_id, rescheduleId: c.reschedule_id });
+    // Un cobro APLICADO ya no es "cobro" para el webhook: su delta es parte del pedido vivo.
+    const b = await paidBooking(840, "pc7c");
+    const c2 = await createCharge(b.reservationId, addHours(b.endsAt, 1), addHours(b.endsAt, 2));
+    await pg.query("select apply_reschedule_charge($1,$2)", [c2.delta_order_id, "mp_pc7c"]);
+    expect(await repo.chargeForOrder(c2.delta_order_id)).toBeNull();
+  });
+
   it("mark_refunded sobre la orden DELTA (slot_taken) NO cancela un cobro pendiente nuevo de la reserva viva", async () => {
     const { reservationId, endsAt } = await paidBooking(600, "pc6");
     const first = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2));
@@ -653,5 +667,167 @@ describe("eventos que faltaban (auditoría 2026-09-14, H5)", () => {
     await pg.query("select cancel_booking($1)", [reservationId]);
     const ev = await pg.query<{ type: string }>("select type from booking_events where reservation_id=$1 and type='cancelled'", [reservationId]);
     expect(ev.rows).toHaveLength(1);
+  });
+});
+
+describe("reschedule_down_move + reschedule_settle_refund (auditoría 2026-09-14, H1)", () => {
+  it("move: mueve el rango y deja pending_refund SIN tocar plata, líneas ni boletas", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pr1");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    const rs = await pg.query<{ status: string; delta_clp: number; settled_clp: number }>("select status, delta_clp, settled_clp from reschedules where id=$1", [m.rows[0].reschedule_down_move]);
+    expect(rs.rows[0]).toEqual({ status: "pending_refund", delta_clp: 2000, settled_clp: 0 });
+    const r = await pg.query<{ starts_at: string }>("select starts_at from reservations where id=$1", [reservationId]);
+    expect(new Date(r.rows[0].starts_at).toISOString()).toBe(addHours(endsAt, 1));
+    const o = await pg.query<{ refunded: number; n_lines: number; n_docs: number }>(
+      "select refunded_amount_clp refunded, (select count(*)::int from order_lines where order_id=o.id) n_lines, (select count(*)::int from tax_documents where order_id=o.id) n_docs from orders o where id=$1", [orderId]);
+    expect(o.rows[0]).toEqual({ refunded: 0, n_lines: 1, n_docs: 1 });
+    const l = await pg.query<{ subtotal_clp: number }>("select subtotal_clp from order_lines where order_id=$1", [orderId]);
+    expect(l.rows[0].subtotal_clp).toBe(9990); // líneas viejas hasta asentar
+  });
+
+  it("settle: asienta refunded/NC/boleta/puntos, reescribe líneas y aplica; mismo refund id tras applied → duplicate; otro id → noop", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pr2");
+    const { rescheduleId, settle } = await downOffline(reservationId, addHours(endsAt, 1), addHours(endsAt, 2), linesDown, 2000);
+    expect(settle).toBe("applied");
+    const o = await pg.query<{ status: string; refunded: number }>("select status, refunded_amount_clp refunded from orders where id=$1", [orderId]);
+    expect(o.rows[0]).toEqual({ status: "paid", refunded: 2000 });
+    // NC y boleta reemitida comparten created_at (misma tx) → se compara como multiset ordenado
+    // por (kind, total), no por orden de creación.
+    const docs = await pg.query<{ kind: string; total: number }>("select kind, total from tax_documents where order_id=$1", [orderId]);
+    const byKindTotal = (a: [string, number], b: [string, number]) => a[0].localeCompare(b[0]) || a[1] - b[1];
+    expect(docs.rows.map((d): [string, number] => [d.kind, d.total]).sort(byKindTotal)).toEqual([["boleta", 7990], ["boleta", 9990], ["nota_credito", 9990]]);
+    const l = await pg.query<{ subtotal_clp: number }>("select subtotal_clp from order_lines where order_id=$1", [orderId]);
+    expect(l.rows[0].subtotal_clp).toBe(7990);
+    const again = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [rescheduleId, "offline:reschedule", 2000]);
+    // El loopback que asienta el ÚLTIMO split deja la fila applied; el asiento del admin con el
+    // mismo id es un duplicado (no un noop, que significaría "reserva cancelada entre medio").
+    expect(again.rows[0].reschedule_settle_refund).toBe("duplicate");
+    const other = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [rescheduleId, "ref-otro", 2000]);
+    expect(other.rows[0].reschedule_settle_refund).toBe("noop"); // ya applied y refund id nuevo
+  });
+
+  it("settle parcial (multi-pago): dos asientos por refund id distinto → settled, luego applied; I1′ se cumple en el medio", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pr3");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2)); // +3000 → boletas 9990 + 3000
+    await pg.query("select apply_reschedule_charge($1,$2)", [c.delta_order_id, "pay-delta"]);
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", linesDown, 11000]);
+    const id = m.rows[0].reschedule_down_move;
+    const s1 = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-A", 9990]);
+    expect(s1.rows[0].reschedule_settle_refund).toBe("settled");
+    const mid = await pg.query<{ live: number; amount: number; refunded: number }>(
+      "select coalesce(sum(total-reversed_clp),0)::int live, (select amount_clp from orders where id=$1) amount, (select refunded_amount_clp from orders where id=$1) refunded from tax_documents where order_id=$1 and kind='boleta'", [orderId]);
+    expect(mid.rows[0].live).toBe(mid.rows[0].amount - mid.rows[0].refunded);
+    const dup = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-A", 9990]);
+    expect(dup.rows[0].reschedule_settle_refund).toBe("duplicate");
+    const s2 = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-B", 1010]);
+    expect(s2.rows[0].reschedule_settle_refund).toBe("applied");
+  });
+
+  it("settle capea al saldo vivo y nunca cancela la reserva", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr4");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    await pg.query("select reschedule_settle_refund($1,$2,$3)", [m.rows[0].reschedule_down_move, "ref-X", 999999]);
+    const r = await pg.query<{ status: string }>("select status from reservations where id=$1", [reservationId]);
+    expect(r.rows[0].status).toBe("confirmed");
+  });
+
+  it("con pending_refund: reschedule_move/create_reschedule_charge/segundo move → reschedule_pending_exists; expire_abandoned_reschedules lo ignora", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr5");
+    await pg.query("select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    await expect(pg.query("select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 5), addHours(endsAt, 6), "{}", linesDown, 1000])).rejects.toThrow(/reschedule_pending_exists/);
+    await pg.query("update reschedules set created_at = now() - interval '80 hours' where reservation_id=$1", [reservationId]);
+    await pg.query("select expire_abandoned_reschedules()");
+    const rs = await pg.query<{ status: string }>("select status from reschedules where reservation_id=$1", [reservationId]);
+    expect(rs.rows[0].status).toBe("pending_refund");
+  });
+
+  it("cancel_booking con pending_refund (vía webhook) → fila cancelled con payment_ref = id en vuelo; settle posterior → cancelled (no noop)", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr6");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    const id = m.rows[0].reschedule_down_move;
+    await pg.query("update reschedules set mp_refund_id='ref-flight', mp_refund_payment_id='pr6' where id=$1", [id]);
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const ev = await pg.query<{ payment_ref: string }>("select payment_ref from booking_events where reschedule_id=$1 and type='reschedule_cancelled'", [id]);
+    expect(ev.rows[0].payment_ref).toBe("ref-flight");
+    const s = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-flight", 2000]);
+    // `cancelled` (no `noop`): el servicio solo asienta sobre la orden cancelada (mark_refunded)
+    // con esta respuesta; un `noop` genérico nunca autoriza cancelar nada.
+    expect(s.rows[0].reschedule_settle_refund).toBe("cancelled");
+    const o = await pg.query<{ refunded: number }>("select refunded_amount_clp refunded from orders where id=(select original_order_id from reschedules where id=$1)", [id]);
+    expect(o.rows[0].refunded).toBe(0); // la RPC no toca plata en ese caso
+  });
+
+  it("settle offline:* suma a offline_settled_clp; un refund id de MP no", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr9");
+    const c = await createCharge(reservationId, addHours(endsAt, 1), addHours(endsAt, 2)); // +3000 → boletas 9990 + 3000
+    await pg.query("select apply_reschedule_charge($1,$2)", [c.delta_order_id, "pay-delta-9"]);
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 3), addHours(endsAt, 4), "{}", linesDown, 11000]);
+    const id = m.rows[0].reschedule_down_move;
+    const s1 = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "offline:reschedule", 9990]);
+    expect(s1.rows[0].reschedule_settle_refund).toBe("settled");
+    let rs = await pg.query<{ settled_clp: number; offline_settled_clp: number }>("select settled_clp, offline_settled_clp from reschedules where id=$1", [id]);
+    expect(rs.rows[0]).toEqual({ settled_clp: 9990, offline_settled_clp: 9990 });
+    const s2 = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-mp-9", 1010]);
+    expect(s2.rows[0].reschedule_settle_refund).toBe("applied");
+    rs = await pg.query<{ settled_clp: number; offline_settled_clp: number }>("select settled_clp, offline_settled_clp from reschedules where id=$1", [id]);
+    expect(rs.rows[0]).toEqual({ settled_clp: 11000, offline_settled_clp: 9990 }); // el split MP no suma a offline
+  });
+
+  it("lease del reembolso (refund_attempt_at): el primer claim toma la fila, el segundo dentro de 5 min no; release la libera", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr10");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    const id = m.rows[0].reschedule_down_move;
+    // Mismo predicado que SupabaseRescheduleRepository.claimRefundAttempt (allí el corte de 5 min
+    // se pasa como ISO desde JS): solo una fila pendiente sin lease, o con lease vencido.
+    const claim = () =>
+      pg.query<{ id: string }>(
+        `update reschedules set refund_attempt_at = now()
+          where id = $1 and status = 'pending_refund'
+            and (refund_attempt_at is null or refund_attempt_at < now() - interval '5 minutes')
+          returning id`,
+        [id],
+      );
+    expect((await claim()).rows).toHaveLength(1);
+    expect((await claim()).rows).toHaveLength(0); // otro emisor dentro de la ventana: no toma la fila
+    // Lease vencido → vuelve a poder tomarse.
+    await pg.query("update reschedules set refund_attempt_at = now() - interval '6 minutes' where id=$1", [id]);
+    expect((await claim()).rows).toHaveLength(1);
+
+    // El repo real, contra PostgREST: claim → false mientras dure el lease; release → claim de nuevo.
+    const repo = new SupabaseRescheduleRepository(db);
+    expect(await repo.claimRefundAttempt(id)).toBe(false); // el claim crudo de arriba sigue vigente
+    await repo.releaseRefundAttempt(id);
+    expect(await repo.claimRefundAttempt(id)).toBe(true);
+    expect(await repo.claimRefundAttempt(id)).toBe(false);
+    // Una fila que ya no está pendiente no se toma nunca.
+    await pg.query("select reschedule_settle_refund($1,$2,$3)", [id, "offline:reschedule", 2000]);
+    await repo.releaseRefundAttempt(id);
+    expect(await repo.claimRefundAttempt(id)).toBe(false);
+  });
+
+  it("settle con p_refund_id null → rechaza (un id nulo rompería la idempotencia por-refund y el ref not null de puntos)", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr7");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    await expect(
+      pg.query("select reschedule_settle_refund($1,$2,$3)", [m.rows[0].reschedule_down_move, null, 2000]),
+    ).rejects.toThrow(/reschedule_bad_refund_id/);
+  });
+
+  it("cancel_booking con pending_refund → el evento reschedule_cancelled cuelga de la orden ORIGINAL (no tiene delta_order_id)", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pr8");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    const id = m.rows[0].reschedule_down_move;
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const ev = await pg.query<{ order_id: string }>(
+      "select order_id from booking_events where reschedule_id=$1 and type='reschedule_cancelled'", [id]);
+    expect(ev.rows[0].order_id).toBe(orderId);
   });
 });

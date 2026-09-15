@@ -1,5 +1,6 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import { formatCLP } from "@/src/domain/money/money";
 import { isSettledRefund, splitRefundAcrossPayments, type BackingBoleta } from "@/src/domain/scheduling/refund-split";
 
 /** Repo mínimo que la cancelación necesita (lo satisface SupabaseAdminRepository). */
@@ -31,6 +32,13 @@ export interface RefundBookingRepo {
   cancelBooking(reservationId: string): Promise<void>;
   /** Orden 100% puntos: cancela + repone puntos (sin MP, sin boleta/NC). */
   refundPointsOrder(orderId: string, restorePoints: number): Promise<void>;
+  /**
+   * Fila `pending_charge`/`pending_refund` viva de esta reserva, si la hay (H1). Cancelar
+   * mientras un reembolso de reagendamiento sigue en vuelo cruzaría dos flujos de plata a
+   * la vez — se bloquea en `cancelBooking`. Un cobro pendiente no bloquea: "Anular cobro"
+   * ya lo cierra antes de reagendar de nuevo.
+   */
+  pendingRescheduleFor(reservationId: string): Promise<{ kind: "charge" | "refund"; amountClp: number } | null>;
 }
 
 /**
@@ -83,6 +91,15 @@ export class RefundService {
     reservationId: string,
     opts: { refundAmount: number | null },
   ): Promise<{ alreadyProcessed: boolean }> {
+    // Reembolso de reagendamiento en vuelo: bloquea ANTES de tocar MP o la DB (H1). Un
+    // cobro pendiente no bloquea — "Anular cobro" ya lo cierra antes de cancelar.
+    const pend = await this.repo.pendingRescheduleFor(reservationId);
+    if (pend?.kind === "refund") {
+      throw new Error(
+        `Hay un reembolso de reagendamiento pendiente por ${formatCLP(pend.amountClp)}. Usa "Reintentar" en la ficha antes de cancelar.`,
+      );
+    }
+
     // Sin reembolso: cancelación simple (orden pagada queda 'paid'; no pagada → 'cancelled').
     if (opts.refundAmount == null) {
       // Si la orden NO está pagada, anula en MP un pago aún no aprobado antes de

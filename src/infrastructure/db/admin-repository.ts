@@ -88,13 +88,16 @@ export interface AdminBookingDetail extends AdminBooking {
   reschedules: {
     id: string;
     kind: string; // equal | refund | charge
-    status: string; // applied | pending_charge | failed_slot_taken | expired | cancelled
+    status: string; // applied | pending_charge | pending_refund | failed_slot_taken | expired | cancelled
     /** Orden del delta (cobro pendiente) — la ficha lo necesita para el link/anular. */
     deltaOrderId: string | null;
     oldStartsAt: string;
     newStartsAt: string;
     newEndsAt: string;
     deltaClp: number;
+    /** `pending_refund`: cuánto del delta ya se asentó, y cuánto de eso fue devuelto en mano (offline). */
+    settledClp: number;
+    offlineSettledClp: number;
     createdAt: string;
     appliedAt: string | null;
   }[];
@@ -664,7 +667,7 @@ export class SupabaseAdminRepository {
     // Eventos de reagendamiento (keyed por reserva; los bloqueos no tienen).
     const { data: moves } = await this.db
       .from("reschedules")
-      .select("id, kind, status, delta_order_id, old_starts_at, new_starts_at, new_ends_at, delta_clp, created_at, applied_at")
+      .select("id, kind, status, delta_order_id, old_starts_at, new_starts_at, new_ends_at, delta_clp, settled_clp, offline_settled_clp, created_at, applied_at")
       .eq("reservation_id", id)
       .order("created_at", { ascending: true });
     const reschedules = (moves ?? []).map((m) => ({
@@ -676,6 +679,8 @@ export class SupabaseAdminRepository {
       newStartsAt: m.new_starts_at,
       newEndsAt: m.new_ends_at,
       deltaClp: m.delta_clp,
+      settledClp: m.settled_clp,
+      offlineSettledClp: m.offline_settled_clp,
       createdAt: m.created_at,
       appliedAt: m.applied_at,
     }));
@@ -842,6 +847,21 @@ export class SupabaseAdminRepository {
       pointsRedeemedClp: o.points_redeemed_clp ?? 0,
       startsAt: r.starts_at,
     };
+  }
+
+  /** Fila `pending_charge`/`pending_refund` viva de esta reserva, si la hay (H1). */
+  async pendingRescheduleFor(reservationId: string): Promise<{ kind: "charge" | "refund"; amountClp: number } | null> {
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("status, delta_clp")
+      .eq("reservation_id", reservationId)
+      .in("status", ["pending_charge", "pending_refund"])
+      .maybeSingle();
+    // Es una guarda de cancelación: un error de lectura tiene que CERRAR (lanzar), no abrir
+    // (null = "no hay nada pendiente" y se cancelaría encima de un reembolso en vuelo).
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return { kind: data.status === "pending_charge" ? "charge" : "refund", amountClp: data.delta_clp };
   }
 
   /**

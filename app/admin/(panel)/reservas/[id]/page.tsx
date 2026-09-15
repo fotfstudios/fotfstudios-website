@@ -137,10 +137,10 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
   const canReassign = !isBlock && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
 
-  // Cobro (o, desde una PR futura, reembolso) de reagendamiento pendiente: a lo
-  // más UNA fila por reserva (índice único en la migración H3/H5) — mientras
-  // exista, la reserva sigue en su horario ORIGINAL y no se puede reagendar de
-  // nuevo hasta que se pague, anule o (pending_refund) confirme el reembolso.
+  // Cobro o reembolso de reagendamiento pendiente: a lo más UNA fila por reserva
+  // (índice único en la migración H3/H5). Con `pending_charge` la reserva sigue en su
+  // horario ORIGINAL hasta que se pague o se anule; con `pending_refund` YA se movió y
+  // falta que MP devuelva la diferencia. En ambos casos no se puede reagendar de nuevo.
   const pending = b.reschedules.find((m) => m.status === "pending_charge" || m.status === "pending_refund") ?? null;
 
   // Reagendar: reservas pagadas (sin puntos, ≥12 h de anticipación) o cortesías
@@ -152,9 +152,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
     ((isPaid && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed) ||
       (isCourtesy && b.status === "confirmed"));
   const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
-  // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a
-  // la vez (PR2 lo resuelve); un cobro pendiente sí se puede cancelar — "Anular
-  // cobro" ya lo cierra primero.
+  // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a la
+  // vez: bloqueado acá y en RefundService.cancelBooking (H1) hasta que "Reintentar" lo
+  // resuelva; un cobro pendiente sí se puede cancelar — "Anular cobro" ya lo cierra primero.
   const canCancel = b.status !== "cancelled" && pending?.status !== "pending_refund";
 
 
@@ -163,7 +163,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Enriquecimiento del render que depende del pedido (no vive en cada evento):
   // el origen de "Reserva creada" y el método de "Pago confirmado". El horario
   // original es el del primer reagendamiento aplicado (si lo hubo).
-  const firstApplied = b.reschedules.find((m) => m.status === "applied");
+  const firstApplied = b.reschedules.find((m) => m.status === "applied" || m.status === "pending_refund");
   const originalStart = firstApplied ? firstApplied.oldStartsAt : b.startsAt;
   const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
   const snapshotMethod = b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";

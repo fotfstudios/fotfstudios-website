@@ -1,8 +1,10 @@
 "use client";
 
-import { cancelRescheduleChargeAction } from "../actions";
+import { cancelRescheduleChargeAction, retryRescheduleRefundAction } from "../actions";
+import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
+import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { formatSessionWhen } from "@/src/application/notifications/format-when";
 import type { AdminBookingDetail } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
@@ -10,15 +12,12 @@ import { formatCLP } from "@/src/domain/money/money";
 type Pending = AdminBookingDetail["reschedules"][number];
 
 /**
- * Reagendamiento pendiente (H3/H5): a lo más UNA fila `pending_charge`/`pending_refund`
- * por reserva (índice único de la migración) — mientras exista, la sesión sigue en su
- * horario ORIGINAL y no se puede reagendar de nuevo. "Anular cobro" cierra la orden
- * delta y libera la reserva para un nuevo intento; el reagendamiento vuelve a
- * habilitarse solo cuando esta fila deja de estar pendiente.
- *
- * `kind` decide el copy: hoy solo existe `charge` (cobro por un horario más caro). El
- * reembolso diferido (`pending_refund`, PR2) llega con su propia rama — por ahora cae
- * al fallback y no debería ocurrir en datos reales.
+ * Reagendamiento pendiente (H3/H5/H1): a lo más UNA fila `pending_charge`/`pending_refund`
+ * por reserva (índice único de la migración). `pending_charge`: la sesión sigue en su
+ * horario ORIGINAL hasta que el cliente pague o se anule el cobro. `pending_refund`
+ * (H1): la sesión YA se movió al horario nuevo; lo que falta es que Mercado Pago
+ * devuelva la diferencia — mientras tanto cancelar y reagendar quedan bloqueados
+ * (page.tsx) para no cruzar dos flujos de plata a la vez.
  */
 export function PendingRescheduleCard({
   reservationId,
@@ -48,6 +47,36 @@ export function PendingRescheduleCard({
               cta="Anular cobro"
               success="Cobro anulado."
             />
+          </div>
+        </Card>
+      );
+    case "refund":
+      return (
+        <Card title="Reagendamiento pendiente">
+          <p className="text-sm leading-relaxed text-bone-dim">
+            Reembolso de reagendamiento pendiente · {formatCLP(pending.deltaClp)}. La sesión ya se movió a{" "}
+            {formatSessionWhen(pending.newStartsAt, tz, { endsAt: pending.newEndsAt })}; Mercado Pago aún no
+            devolvió la diferencia.
+          </p>
+          {pending.offlineSettledClp > 0 && (
+            // Pedido mixto (original offline + delta por MP): la parte en mano ya está asentada;
+            // lo que falta es solo la parte de MP — que no se devuelva el total dos veces.
+            <p className="mt-2 text-sm leading-relaxed text-bone-dim">
+              Ya registraste {formatCLP(pending.offlineSettledClp)} devueltos en efectivo/transferencia; faltan{" "}
+              {formatCLP(pending.deltaClp - pending.settledClp)} por Mercado Pago.
+            </p>
+          )}
+          <p className="mt-2 label-sm text-bone-quiet">
+            Cancelar y reagendar quedan deshabilitados hasta que el reembolso se resuelva.
+          </p>
+          <div className="mt-4">
+            <ActionForm action={retryRescheduleRefundAction}>
+              <input type="hidden" name="reservationId" value={reservationId} />
+              <input type="hidden" name="rescheduleId" value={pending.id} />
+              <SubmitButton size="sm" pendingLabel="Reintentando…">
+                Reintentar reembolso
+              </SubmitButton>
+            </ActionForm>
           </div>
         </Card>
       );

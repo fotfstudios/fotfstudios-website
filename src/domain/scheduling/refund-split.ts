@@ -4,7 +4,7 @@
  * Un pedido encarecido tiene VARIAS boletas vivas, cada una financiada por un pago MP
  * distinto (la original + la orden de delta). MP rechaza reembolsar a un pago más de lo
  * que capturó, así que el reembolso se reparte por-pago. Camina las boletas
- * MÁS-ANTIGUA-PRIMERO —el mismo orden en que `reschedule_down` / `mark_refunded`
+ * MÁS-ANTIGUA-PRIMERO —el mismo orden en que `reschedule_settle_refund` / `mark_refunded`
  * emiten las NC en la DB— de modo que el dinero y el asiento contable coinciden.
  */
 export interface BackingBoleta {
