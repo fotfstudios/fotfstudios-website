@@ -183,13 +183,18 @@ export async function retryPendingRescheduleRefunds(client: SupabaseClient<Datab
   const repo = new SupabaseRescheduleRepository(client);
   const svc = rescheduleService(client);
   let n = 0;
+  const stillPending: { rescheduleId: string; reason: string }[] = [];
   for (const id of await repo.pendingRefundIds({ olderThanMinutes: 10 })) {
     const r = await svc.retryRefund(id).catch((e) => {
       console.error("[reconcile:reschedule-refund]", id, e);
       return null;
     });
     if (r?.ok && r.value.kind === "refunded") n++;
+    if (r?.ok && r.value.kind === "refund_pending") stillPending.push({ rescheduleId: id, reason: r.value.reason });
   }
+  // Lo que sigue pendiente tras el barrido queda a la vista en los logs de Vercel: un
+  // `in_process` que no se destraba en varios ticks es para mirar en el panel de MP.
+  for (const p of stillPending) console.warn("[reconcile:reschedule-refund] sigue pendiente", p);
   return n;
 }
 

@@ -80,9 +80,21 @@ export class WebhookService {
       // podría asentar por error una fila pending_refund MÁS NUEVA de la misma reserva
       // (H1 de 2º orden). Para pagos de cobro se sigue el mark_refunded de siempre.
       const pend = !isChargeOrder && this.finalizer ? await this.finalizer.pendingRefundForOrder(orderId) : null;
-      if (pend) {
+      if (pend && r.amount > pend.remainingClp) {
+        // Más plata que la que falta del reagendamiento: no es el loopback de nuestro
+        // reembolso (ese cabe justo) sino un reembolso total/mayor desde el panel de MP. La
+        // RPC lo capearía al saldo y el resto quedaría sin asiento → se trata como el reembolso
+        // completo de siempre (cancela + NC por el monto).
+        console.error("[webhook] reembolso mayor al pendiente de reagendamiento", {
+          orderId,
+          refundId: r.id,
+          amount: r.amount,
+          remainingClp: pend.remainingClp,
+        });
+      } else if (pend) {
         const res = await this.finalizer!.settleRefund(pend.rescheduleId, r.id, r.amount);
-        if (res !== "noop") {
+        // `cancelled`/`noop`: la fila ya no está pendiente → cae al mark_refunded de siempre.
+        if (res !== "noop" && res !== "cancelled") {
           settledReschedule = true;
           refundedAmount += r.amount;
           continue;

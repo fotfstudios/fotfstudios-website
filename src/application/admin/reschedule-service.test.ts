@@ -67,10 +67,13 @@ function makeRepo(ctx: RescheduleContext | null, backing?: { liveAmount: number;
       reservationId: "r1",
       deltaClp: vi.mocked(repo.moveDown).mock.calls.at(-1)?.[0].refundAmount ?? 0,
       settledClp: 0,
+      offlineSettledClp: 0,
       inFlight: null,
     })),
     settleRefund: vi.fn(async (): Promise<SettleOutcome> => "applied"),
     markRefundInFlight: vi.fn(async () => {}),
+    claimRefundAttempt: vi.fn(async () => true),
+    releaseRefundAttempt: vi.fn(async () => {}),
     pendingRefundIds: vi.fn(async () => []),
     unrefundedFailedCharges: vi.fn(async () => []),
     createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
@@ -174,7 +177,7 @@ describe("RescheduleService.reschedule", () => {
       }),
     });
     const { service, inbox } = svc({ pricing: makePricing(7990), gw, repo });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error" }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error", offlineAmount: 0 }));
     expect(repo.moveDown).toHaveBeenCalledOnce(); // la reserva SÍ se movió; solo la plata quedó pendiente
     expect(inbox.recordEvent).not.toHaveBeenCalled();
     expect(repo.settleRefund).not.toHaveBeenCalled();
@@ -187,13 +190,14 @@ describe("RescheduleService.reschedule", () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     const gw = makeGateway({ refundPayment: vi.fn(async () => ({ id: "ref_ip", status: "in_process", amount: 2000 })) });
     const { service, inbox } = svc({ pricing: makePricing(7990), gw, repo });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process" }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process", offlineAmount: 0 }));
     expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", { paymentId: "mp_123", refundId: "ref_ip" });
     expect(inbox.recordEvent).not.toHaveBeenCalled();
     expect(repo.settleRefund).not.toHaveBeenCalled();
   });
 
-  it("loopback asentó el ÚLTIMO split primero (inbox no fresco + settle duplicate, fila ya applied) → refunded igual, sin error", async () => {
+  it("loopback asentó el ÚLTIMO split primero (inbox no fresco + settle duplicate, fila ya applied) → refunded igual, con rastro en el log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.settleRefund = vi.fn(async () => "duplicate" as const);
     const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
@@ -201,11 +205,14 @@ describe("RescheduleService.reschedule", () => {
     expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "ref_9", 2000);
     expect(inbox.markRefunded).not.toHaveBeenCalled();
+    // La plata salió y la fila la completó el loopback; queda rastro de que la última cuota no aplicó acá.
+    expect(log).toHaveBeenCalledWith("[reschedule:refund] última cuota no aplicó", expect.objectContaining({ rescheduleId: "rs1", last: "partial" }));
+    log.mockRestore();
   });
 
-  it("settle noop (reserva cancelada entre medio) con inbox fresco → markRefunded una vez → refund_looped_back", async () => {
+  it("settle cancelled (reserva cancelada entre medio) con inbox fresco → markRefunded una vez → refund_looped_back", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
-    repo.settleRefund = vi.fn(async () => "noop" as const);
+    repo.settleRefund = vi.fn(async () => "cancelled" as const);
     const inbox = makeInbox({ recordEvent: vi.fn(async () => true), markRefunded: vi.fn(async () => {}) });
     const { service } = svc({ pricing: makePricing(7990), repo, inbox });
     expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_looped_back" }));
@@ -213,13 +220,71 @@ describe("RescheduleService.reschedule", () => {
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_9", 2000);
   });
 
-  it("settle noop con inbox NO fresco → refund_looped_back sin markRefunded (nunca cancelar por un loopback)", async () => {
+  it("settle cancelled con inbox NO fresco → refund_looped_back sin markRefunded (el webhook ya lo asentó)", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
-    repo.settleRefund = vi.fn(async () => "noop" as const);
+    repo.settleRefund = vi.fn(async () => "cancelled" as const);
     const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
     const { service } = svc({ pricing: makePricing(7990), repo, inbox });
     expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_looped_back" }));
     expect(inbox.markRefunded).not.toHaveBeenCalled();
+  });
+
+  it("settle noop con inbox fresco → refund_unaccounted: NUNCA markRefunded (la reserva está viva), error en el log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.settleRefund = vi.fn(async () => "noop" as const);
+    const inbox = makeInbox({ recordEvent: vi.fn(async () => true) });
+    const { service } = svc({ pricing: makePricing(7990), repo, inbox });
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_unaccounted", refundId: "ref_9", amount: 2000 }));
+    expect(inbox.markRefunded).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[reschedule:refund] reembolso aprobado sin fila pendiente", { rescheduleId: "rs1", refundId: "ref_9", amount: 2000 });
+    log.mockRestore();
+  });
+
+  it("settle noop con inbox NO fresco → el loopback ya completó la fila → refunded, sin markRefunded", async () => {
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.settleRefund = vi.fn(async () => "noop" as const);
+    const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
+    const { service } = svc({ pricing: makePricing(7990), repo, inbox });
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
+    expect(inbox.markRefunded).not.toHaveBeenCalled();
+  });
+
+  it("lease tomado por otro emisor (claim false) → refund_pending(in_process) sin tocar MP ni soltar el lease ajeno", async () => {
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.claimRefundAttempt = vi.fn(async () => false);
+    const { service, gw, inbox } = svc({ pricing: makePricing(7990), repo });
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process", offlineAmount: 0 }));
+    expect(repo.moveDown).toHaveBeenCalledOnce(); // la reserva sí se movió; la plata la está devolviendo el otro
+    expect(gw.refundPayment).not.toHaveBeenCalled();
+    expect(inbox.recordEvent).not.toHaveBeenCalled();
+    expect(repo.settleRefund).not.toHaveBeenCalled();
+    expect(repo.releaseRefundAttempt).not.toHaveBeenCalled(); // el lease es del otro emisor
+  });
+
+  it("lease tomado (claim true) + MP lanza → el lease se suelta igual (finally)", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    const gw = makeGateway({
+      refundPayment: vi.fn(async () => {
+        throw new Error("MP down");
+      }),
+    });
+    const { service } = svc({ pricing: makePricing(7990), gw, repo });
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error", offlineAmount: 0 }));
+    expect(repo.claimRefundAttempt).toHaveBeenCalledWith("rs1");
+    expect(repo.releaseRefundAttempt).toHaveBeenCalledWith("rs1");
+    log.mockRestore();
+  });
+
+  it("lease tomado + el repo lanza (settle) → el lease se suelta igual y el error sube", async () => {
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.settleRefund = vi.fn(async () => {
+      throw new Error("db down");
+    });
+    const { service } = svc({ pricing: makePricing(7990), repo });
+    await expect(service.reschedule(input)).rejects.toThrow("db down");
+    expect(repo.releaseRefundAttempt).toHaveBeenCalledWith("rs1");
   });
 
   it("multi-pago: dos splits, claves por pago, settled → applied; si el primero queda in_process el segundo NO se intenta", async () => {
@@ -248,9 +313,27 @@ describe("RescheduleService.reschedule", () => {
     });
     const repo2 = makeRepo({ ...CTX, order: { ...CTX.order!, amountClp: 12990 } }, backing);
     const { service: s2 } = svc({ pricing: makePricing(1990), gw: gw2, repo: repo2 });
-    expect(await s2.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 11000, reason: "in_process" }));
+    expect(await s2.reschedule(input)).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 11000, reason: "in_process", offlineAmount: 0 }));
     expect(gw2.refundPayment).toHaveBeenCalledTimes(1);
     expect(repo2.markRefundInFlight).toHaveBeenCalledWith("rs1", { paymentId: "mp_1", refundId: "ref_mp_1" });
+  });
+
+  it("multi-pago: si la fila queda applied ANTES de la última cuota (otro reembolso la completó) se corta: sin segundo refundPayment", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = makeRepo({ ...CTX, order: { ...CTX.order!, amountClp: 12990 } }, [
+      { liveAmount: 9990, paymentId: "mp_1" },
+      { liveAmount: 3000, paymentId: "mp_2" },
+    ]);
+    repo.settleRefund = vi.fn(async (): Promise<SettleOutcome> => "applied");
+    const gw = makeGateway({
+      refundPayment: vi.fn(async (pid: string, amt?: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })),
+    });
+    const { service } = svc({ pricing: makePricing(1990), gw, repo });
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 11000, offline: false, offlineAmount: 0 }));
+    expect(gw.refundPayment).toHaveBeenCalledTimes(1); // la 2ª cuota ya no tiene dónde asentarse
+    expect(repo.settleRefund).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("[reschedule:refund] fila aplicada antes de la última cuota", { rescheduleId: "rs1", split: 1, of: 2 });
+    log.mockRestore();
   });
 
   it("más barato OFFLINE → moveDown + settleRefund(offline:reschedule), sin MP ni inbox", async () => {
@@ -290,6 +373,21 @@ describe("RescheduleService.reschedule", () => {
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_delta", 1010, "refund:mp_delta:1010:rs1");
     expect(repo.settleRefund).toHaveBeenNthCalledWith(2, "rs1", "ref_mp_delta", 1010);
     expect(inbox.recordEvent).toHaveBeenCalledTimes(1); // solo el reembolso MP pasa por el inbox
+  });
+
+  it("mixto: la porción offline se asienta y el reembolso MP queda in_process → refund_pending con offlineAmount", async () => {
+    const repo = makeRepo({ ...CTX, order: { ...CTX.order!, amountClp: 12990, mpPaymentId: "offline:efectivo" } }, [
+      { liveAmount: 9990, paymentId: "offline:efectivo" },
+      { liveAmount: 3000, paymentId: "mp_delta" },
+    ]);
+    repo.settleRefund = vi.fn(async (): Promise<SettleOutcome> => "settled");
+    const gw = makeGateway({ refundPayment: vi.fn(async () => ({ id: "ref_ip", status: "in_process", amount: 1010 })) });
+    const { service } = svc({ pricing: makePricing(1990), gw, repo });
+    expect(await service.reschedule(input)).toEqual(
+      ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 11000, reason: "in_process", offlineAmount: 9990 }),
+    );
+    expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "offline:reschedule", 9990);
+    expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", { paymentId: "mp_delta", refundId: "ref_ip" });
   });
 
   it("slot tomado en moveDown (lanza) → NO se toca MP", async () => {
@@ -367,7 +465,7 @@ describe("RescheduleService.reschedule", () => {
 });
 
 describe("RescheduleService.retryRefund", () => {
-  const row: PendingRefundRow = { rescheduleId: "rs1", orderId: "o1", reservationId: "r1", deltaClp: 2000, settledClp: 0, inFlight: null };
+  const row: PendingRefundRow = { rescheduleId: "rs1", orderId: "o1", reservationId: "r1", deltaClp: 2000, settledClp: 0, offlineSettledClp: 0, inFlight: null };
 
   it("sin in-flight → misma clave que el primer intento → inbox → settle → refunded", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
@@ -427,12 +525,27 @@ describe("RescheduleService.retryRefund", () => {
     expect(repo.settleRefund).toHaveBeenNthCalledWith(2, "rs1", "ref_mp_2", 1010);
   });
 
+  it("in-flight aprobado pero sin monto (MP no lo trae → 0) → ni inbox ni settle; refund_pending(in_process)", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
+    const gw = makeGateway({ getRefund: vi.fn(async () => ({ id: "ref_ip", status: "approved", amount: 0 })) });
+    const { service, inbox } = svc({ repo, gw });
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process", offlineAmount: 0 }));
+    expect(inbox.recordEvent).not.toHaveBeenCalled();
+    expect(repo.settleRefund).not.toHaveBeenCalled();
+    expect(gw.refundPayment).not.toHaveBeenCalled(); // tampoco se emite otro: el de MP sigue siendo el válido
+    expect(repo.markRefundInFlight).not.toHaveBeenCalled(); // la marca queda para releerlo
+    expect(log).toHaveBeenCalledWith("[reschedule:refund] reembolso aprobado sin monto", { rescheduleId: "rs1", refundId: "ref_ip" });
+    log.mockRestore();
+  });
+
   it("in-flight sigue in_process → refund_pending sin tocar MP", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
     const gw = makeGateway({ getRefund: vi.fn(async () => ({ id: "ref_ip", status: "in_process", amount: 2000 })) });
     const { service, inbox } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process" }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process", offlineAmount: 0 }));
     expect(gw.refundPayment).not.toHaveBeenCalled();
     expect(inbox.recordEvent).not.toHaveBeenCalled();
     expect(repo.settleRefund).not.toHaveBeenCalled();
@@ -476,7 +589,7 @@ describe("RescheduleService.retryRefund", () => {
       }),
     });
     const { service, inbox } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error" }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error", offlineAmount: 0 }));
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1:after:ref_ip");
     // Sin la marca, el próximo reintento no sabría del rechazo y volvería a la clave sin sal.
     expect(repo.markRefundInFlight).not.toHaveBeenCalled();
@@ -493,7 +606,7 @@ describe("RescheduleService.retryRefund", () => {
       refundPayment: vi.fn(async () => ({ id: "ref_ip2", status: "in_process", amount: 2000 })),
     });
     const { service } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process" }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process", offlineAmount: 0 }));
     expect(repo.markRefundInFlight).toHaveBeenCalledTimes(1);
     expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", { paymentId: "mp_123", refundId: "ref_ip2" });
   });
