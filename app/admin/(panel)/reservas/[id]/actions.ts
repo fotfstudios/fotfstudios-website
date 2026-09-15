@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
-import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService, taxDocService } from "@/src/composition";
+import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
+import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
 import { RESCHEDULE_CHARGE_TTL_MINUTES, type RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -76,15 +77,9 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
   });
 }
 
-export async function recordBoletaAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("reservations.boleta");
-    const docId = str(fd, "docId");
-    const reservationId = str(fd, "reservationId");
-    const actor = (await currentClaims())?.sub ?? null;
-    await taxDocService().recordFolio(docId, str(fd, "folio"), actor);
-    revalidatePath(`/admin/reservas/${reservationId}`);
-  });
+/** Registrar folio SII de un documento de la reserva — cuerpo compartido en components/admin/tax-docs/record-folio.ts. */
+export async function recordTaxDocFolioAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(() => recordTaxDocFolioFromForm(fd));
 }
 
 /**

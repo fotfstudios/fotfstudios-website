@@ -1,23 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
-import { cancelBookingAction, recordBoletaAction } from "./actions";
+import { cancelBookingAction, recordTaxDocFolioAction } from "./actions";
 import { fmtDate, fmtDateTime, fmtDateTimeSec } from "@/components/admin/format";
-import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { CopyButton } from "@/components/admin/ui/CopyButton";
-import { Input } from "@/components/admin/ui/Field";
 import { Icon } from "@/components/admin/ui/icons";
 import { btn } from "@/components/admin/ui/styles";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { SubmitButton } from "@/components/admin/ui/SubmitButton";
+import { TaxDocsCard } from "@/components/admin/tax-docs/TaxDocsCard";
 import { adminRepository, pricingService } from "@/src/composition";
 import type { AdminBookingDetail, BookingTimelineEvent, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { describeTaxDocs } from "@/src/domain/tax/tax-doc-steps";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
 import { AccessCodeCard } from "./_components/AccessCodeCard";
@@ -101,11 +100,15 @@ function timelineEntry(
     case "boleta_issued":
       return { label: "Boleta generada", detail: clp(e.amountClp) };
     case "boleta_emitted":
-      return { label: "Boleta emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
+      return e.detail?.previous_folio
+        ? { label: "Folio de boleta corregido", detail: `${e.detail.previous_folio} → ${e.detail.folio}` }
+        : { label: "Boleta emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
     case "nota_credito_issued":
       return { label: "Nota de crédito generada", detail: clp(e.amountClp) };
     case "nota_credito_emitted":
-      return { label: "Nota de crédito emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
+      return e.detail?.previous_folio
+        ? { label: "Folio de nota de crédito corregido", detail: `${e.detail.previous_folio} → ${e.detail.folio}` }
+        : { label: "Nota de crédito emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
     case "points_earned":
       return { label: "Puntos otorgados", detail: e.amountClp != null ? `+${e.amountClp} pts` : undefined };
     case "points_revoked":
@@ -176,7 +179,10 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const isCourtesy = !isBlock && !b.orderId;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
   // Solo para "Ver ficha ↗": /admin/clientes exige este permiso y sin él daría 403.
-  const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
+  const claims = await currentClaims();
+  const canManageCustomers = hasPermission(claims, "customers.manage");
+  const canRecordFolio = hasPermission(claims, "reservations.boleta");
+  const taxSteps = describeTaxDocs(b.taxDocs, { now: new Date().toISOString() });
   // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
   const canReassign = !isBlock && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
 
@@ -278,35 +284,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 accessRemovedAt={b.accessRemovedAt}
               />
 
-              {b.taxDocs.length > 0 && (
-                <Card title="Documentos tributarios">
-                  <ul className="flex flex-col divide-y divide-bone/10">
-                    {b.taxDocs.map((d) => (
-                      <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                        <div>
-                          <p className="text-sm text-bone">
-                            {taxDocLabel(d.kind)} · {formatCLP(d.total)}
-                          </p>
-                          <div className="mt-1 flex items-center gap-2">
-                            <StatusPill status={d.status} />
-                            {d.folio && <span className="font-mono text-xs text-bone-dim">Folio {d.folio}</span>}
-                          </div>
-                        </div>
-                        {d.status === "pendiente" && (
-                          <ActionForm action={recordBoletaAction} success="Documento marcado como emitido.">
-                            <input type="hidden" name="docId" value={d.id} />
-                            <input type="hidden" name="reservationId" value={b.id} />
-                            <div className="flex items-center gap-2">
-                              <Input name="folio" placeholder="N° folio" />
-                              <SubmitButton size="sm">Emitir</SubmitButton>
-                            </div>
-                          </ActionForm>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              )}
+              <TaxDocsCard steps={taxSteps} action={recordTaxDocFolioAction} backPath={`/admin/reservas/${b.id}`} canRecord={canRecordFolio} />
             </div>
           )}
         </div>
@@ -627,10 +605,6 @@ const MP_PTYPE: Record<string, string> = {
   ticket: "efectivo",
   bank_transfer: "transferencia",
 };
-
-function taxDocLabel(kind: string): string {
-  return kind === "nota_credito" ? "Nota de crédito" : kind === "boleta" ? "Boleta" : kind;
-}
 
 function mpMethodLabel(s: PaymentSnapshot): string {
   const parts: string[] = [];
