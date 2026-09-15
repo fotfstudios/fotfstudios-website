@@ -171,6 +171,8 @@ function rescheduleErrorMessage(code: string): string {
       return "El nuevo horario cuesta más y el cobro del extra aún no está disponible.";
     case "reschedule_pending":
       return "Hay un reagendamiento pendiente en esta reserva. Anúlalo o espera a que se pague antes de mover la sesión.";
+    case "noop":
+      return "Este reembolso ya no está pendiente.";
     default:
       return code; // errores de la RPC (p. ej. "Ese horario ya está tomado.") ya vienen en es-CL
   }
@@ -194,12 +196,14 @@ export async function rescheduleAction(input: {
 
     // Aviso al cliente del cambio de horario (best-effort). El loopback raro
     // (refund_looped_back) canceló la reserva vía webhook: ahí no avisamos "reagendada".
+    // Con el reembolso pendiente la reserva SÍ se movió: se avisa igual, con el monto
+    // que se le va a devolver (el reintento no vuelve a mandar correo).
     if (res.value.kind !== "refund_looped_back") {
       const target = await adminRepository().orderForReservation(reservationId).catch(() => null);
       if (target) {
         await notificationService()
           .notifyReschedule(target.orderId, {
-            refundAmount: res.value.kind === "refunded" ? res.value.amount : 0,
+            refundAmount: res.value.kind === "refunded" || res.value.kind === "refund_pending" ? res.value.amount : 0,
           })
           .catch((e) => console.error("[reschedule:email]", e));
       }

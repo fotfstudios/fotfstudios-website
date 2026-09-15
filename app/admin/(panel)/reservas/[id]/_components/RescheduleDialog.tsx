@@ -308,6 +308,11 @@ function ReschedulePicker({
             ? `Registra la devolución de ${formatCLP(res.data.amount)} al cliente (pago offline: la haces tú por transferencia/efectivo).`
             : `Se reembolsaron ${formatCLP(res.data.amount)} al medio de pago original.`,
         });
+      } else if (res.data.kind === "refund_pending") {
+        setDone({
+          message: `Reserva reagendada a ${movedTo}.`,
+          detail: "El reembolso quedó pendiente en Mercado Pago — reintenta desde la ficha.",
+        });
       } else if (res.data.kind === "refund_looped_back") {
         setDone({
           message: "El reembolso ya había sido procesado por Mercado Pago.",
