@@ -126,6 +126,14 @@ export class MercadoPagoGateway implements PaymentGateway {
       const r = await refunds.get({ payment_id: paymentId, refund_id: refundId });
       return r?.id ? toRefundInfo(r) : null;
     } catch (e) {
+      // Un 404 (id de otro ambiente, o el reembolso nunca se llegó a crear) es un
+      // reembolso INEXISTENTE, no un error de la pasarela: se mapea a null para que
+      // `isDeadRefund(null)` en RescheduleService lo trate como muerto y reintente con
+      // una clave nueva, en vez de tumbar el retry con una excepción sin manejar.
+      if (e && typeof e === "object") {
+        const o = e as { status?: unknown; error?: unknown };
+        if (o.status === 404 || o.error === "not_found") return null;
+      }
       throw new Error(`No se pudo obtener el reembolso en Mercado Pago: ${mpErrorMessage(e)}`);
     }
   }
@@ -191,10 +199,16 @@ export class MercadoPagoGateway implements PaymentGateway {
 }
 
 /** Mensaje legible del error del SDK de MP (que a veces lanza un objeto, no un Error). */
-function mpErrorMessage(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message;
+export function mpErrorMessage(e: unknown): string {
   if (e && typeof e === "object") {
-    const o = e as { message?: unknown; cause?: unknown };
+    const o = e as { status?: unknown; error?: unknown; message?: unknown; cause?: unknown };
+    // El 404 de MP para un id de pago inexistente (u otro ambiente) trae un mensaje
+    // genérico de "conoce los recursos de la API" que no dice nada al dueño — lo
+    // mapeamos antes de caer en el genérico `message` de abajo.
+    if (o.status === 404 || o.error === "not_found") {
+      return "Mercado Pago no encuentra el pago (id inválido o de otro ambiente)";
+    }
+    if (e instanceof Error && e.message) return e.message;
     if (typeof o.message === "string" && o.message) return o.message;
     if (Array.isArray(o.cause) && o.cause[0] && typeof o.cause[0] === "object") {
       const c = o.cause[0] as { description?: unknown };

@@ -309,10 +309,31 @@ export function customerCourtesyRescheduled(
   return { template: "customerCourtesyRescheduled", subject: `Sesión reagendada · ${v.when}`, html, text };
 }
 
+/**
+ * Email al cliente cuando el cobro de un reagendamiento se devolvió sin aplicarse.
+ * `kept` distingue dos historias reales (FR2, auditoría 2026-09-14):
+ *  - true (el caso típico): el slot pedido ya estaba tomado — la reserva original
+ *    SIGUE viva en su horario de siempre.
+ *  - false: la reserva ya estaba cancelada cuando llegó el pago del cambio de
+ *    horario (`reservation_gone`/`charge_void` tras cancelarla, o un reembolso
+ *    manual sobre un cobro que ya no aplica) — decir "mantuvimos tu reserva" acá
+ *    sería falso, así que cambia el h1/cuerpo/asunto entero (mismo `template` name:
+ *    el pin de nombres de plantilla sigue verde).
+ */
 export function customerRescheduleFailed(
-  v: { name: string | null; when: string; refunded: string },
+  v: { name: string | null; when: string; refunded: string; kept: boolean },
   ctx: { whatsappUrl: string },
 ): EmailContent {
+  if (!v.kept) {
+    const html = shell(
+      `<h1 style="font-size:24px;margin:0 0 8px">Devolvimos el cobro del cambio de horario</h1>
+       <p style="color:${T.boneDim};margin:0 0 16px">Tu reserva ya estaba cancelada cuando llegó el pago del cambio de horario, así que te devolvimos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original (si pagaste con tarjeta, el abono puede tardar unos días).</p>
+       <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos si tienes dudas</a>`,
+      `Te devolvimos ${v.refunded}`,
+    );
+    const text = `Tu reserva ya estaba cancelada cuando llegó el pago del cambio de horario, así que te devolvimos ${v.refunded} al medio de pago original (si pagaste con tarjeta, el abono puede tardar unos días). Escríbenos: ${ctx.whatsappUrl}`;
+    return { template: "customerRescheduleFailed", subject: `Te devolvimos ${v.refunded} · cambio de horario`, html, text };
+  }
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">No pudimos cambiar tu horario</h1>
      <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "el")} horario que pediste ya estaba tomado cuando se procesó el pago. Mantuvimos tu reserva original del <strong style="color:${T.bone}">${esc(v.when)}</strong> y te devolvimos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago.</p>

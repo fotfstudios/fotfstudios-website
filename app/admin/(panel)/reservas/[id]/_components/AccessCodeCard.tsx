@@ -49,7 +49,9 @@ export function AccessCodeCard(p: AccessCodeCardProps) {
           <p className="label-sm text-bone-quiet">
             {confirmed
               ? "El PIN se genera solo en minutos. Si lo necesitas ya, genera uno ahora."
-              : "El PIN se genera cuando la reserva quede confirmada."}
+              : p.status === "cancelled"
+                ? "Reserva cancelada — sin PIN."
+                : "El PIN se genera cuando la reserva quede confirmada."}
           </p>
           {confirmed && (
             <ActionForm action={regenerateAccessCodeAction} success="PIN generado." className="mt-3">

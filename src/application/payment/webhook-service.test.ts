@@ -536,7 +536,13 @@ describe("WebhookService — reembolso sobre reserva con reagendamiento pendient
     return row ? { deltaOrderId: row.delta_order_id, rescheduleId: row.id } : null;
   });
 
-  it("reembolso sobre el pago de un cobro FALLIDO (failed_slot_taken) → mark_refunded, no settle", async () => {
+  // FR1 (auditoría 2026-09-14): un reembolso FRESCO sobre el pago de un cobro de
+  // reagendamiento (isChargeOrder true, cualquiera sea su status — acá failed_slot_taken)
+  // sigue asentando mark_refunded como siempre, pero el OUTCOME ya no es "refunded": esa
+  // etiqueta dispara notifyCancellation("Reserva cancelada...") en el route, y `orderId` acá
+  // es la orden de DELTA — la reserva puede seguir viva. `reschedule_charge_refunded` deja
+  // que el route decida el aviso correcto (ver rescheduleNotifyInfo).
+  it("reembolso fresco sobre el pago de un cobro → reschedule_charge_refunded (no 'refunded')", async () => {
     const repo = makeRepo();
     const fin = makeFinalizer({
       chargeForOrder: chargeForOrderLike,
@@ -550,7 +556,7 @@ describe("WebhookService — reembolso sobre reserva con reagendamiento pendient
       refunds: [{ id: "ref_d", status: "approved", amount: 3000 }],
     });
     const r = await new WebhookService(gw, repo, fin).handlePaymentNotification("payd");
-    expect(r).toEqual({ result: "refunded", orderId: "do1", refundedAmount: 3000 });
+    expect(r).toEqual({ result: "reschedule_charge_refunded", orderId: "do1", refundedAmount: 3000 });
     expect(chargeForOrderLike).toHaveBeenCalledWith("do1");
     expect(fin.pendingRefundForOrder).not.toHaveBeenCalled();
     expect(fin.settleRefund).not.toHaveBeenCalled();

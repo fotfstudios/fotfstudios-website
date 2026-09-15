@@ -215,7 +215,10 @@ export async function retryFailedChargeRefunds(client: SupabaseClient<Database> 
         const info = await rescheduleNotifyInfo(row.deltaOrderId, client).catch(() => null);
         if (info) {
           await notificationService(client)
-            .notifyRescheduleFailed(info.originalOrderId, { refundAmount: info.delta })
+            .notifyRescheduleFailed(info.originalOrderId, {
+              refundAmount: info.delta,
+              kept: info.reservationStatus === "confirmed",
+            })
             .catch((e) => console.error("[reconcile:charge-refund-email]", e));
         }
       }
@@ -336,19 +339,35 @@ export async function expireAbandonedCourseHolds(client: SupabaseClient<Database
   return data ?? 0;
 }
 
-/** Mapea una orden de delta → orden original + monto del delta (para el aviso del webhook). */
+/**
+ * Mapea una orden de delta → orden original + monto del delta + estado del reagendamiento
+ * y de la reserva (para que el webhook decida CÓMO avisar: FR1/FR2, auditoría 2026-09-14).
+ * `reservationStatus` viene de una segunda consulta chica (join manual, sin embed) porque
+ * el tipo generado no calza limpio con el embed de PostgREST acá.
+ */
 export async function rescheduleNotifyInfo(
   deltaOrderId: string,
   client: SupabaseClient<Database> = db(),
-): Promise<{ originalOrderId: string; delta: number } | null> {
+): Promise<{ originalOrderId: string; delta: number; status: string; reservationStatus: string | null } | null> {
   const { data } = await client
     .from("reschedules")
-    .select("original_order_id, delta_clp")
+    .select("original_order_id, delta_clp, status, reservation_id")
     .eq("delta_order_id", deltaOrderId)
     .maybeSingle();
   // original_order_id es null solo en movimientos de cortesía (sin orden), que
   // nunca tienen delta_order_id — pero el tipo lo exige.
-  return data?.original_order_id ? { originalOrderId: data.original_order_id, delta: data.delta_clp } : null;
+  if (!data?.original_order_id) return null;
+  const { data: reservation } = await client
+    .from("reservations")
+    .select("status")
+    .eq("id", data.reservation_id)
+    .maybeSingle();
+  return {
+    originalOrderId: data.original_order_id,
+    delta: data.delta_clp,
+    status: data.status,
+    reservationStatus: reservation?.status ?? null,
+  };
 }
 
 /** Cuenta del cliente: perfil, puntos (retro incluido) y reservas por email verificado. */

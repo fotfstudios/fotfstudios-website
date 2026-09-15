@@ -344,48 +344,63 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
-          {b.orderId && (b.mpPaymentId || b.paymentSnapshot) && (
-            <Card title="Mercado Pago">
-              {b.paymentSnapshot && (
-                <div className="flex flex-col gap-2.5">
-                  <MpRow label="Método" value={mpMethodLabel(b.paymentSnapshot)} />
-                  {b.paymentSnapshot.fee_amount != null && (
-                    <MpRow label="Comisión MP" value={`−${formatCLP(b.paymentSnapshot.fee_amount)}`} />
-                  )}
-                  {b.paymentSnapshot.net_received_amount != null && (
-                    <MpRow label="Neto recibido" value={formatCLP(b.paymentSnapshot.net_received_amount)} />
-                  )}
+          {b.orderId && (b.mpPaymentId || b.paymentSnapshot) && (() => {
+            // Pago manual (offline): efectivo/transferencia/puntos, sin operación real en
+            // MP — el link "Ver actividad" y la referencia interna del pedido no aplican.
+            const isOfflinePayment = b.mpPaymentId?.startsWith("offline:") ?? false;
+            const isPointsPayment = b.mpPaymentId === "offline:puntos";
+            // Una orden 100% puntos no tiene reembolso en pesos: refund_points_order marca
+            // refunded_at pero nunca refunded_amount_clp (no hay boleta/NC de por medio), así
+            // que la fila "Reembolsado" mostraría siempre $0. El timeline (points_restored) ya
+            // deja constancia de los puntos repuestos — acá se oculta en vez de mostrar $0.
+            const isPointsOrder = (b.amount ?? 0) === 0 && b.pointsRedeemedClp > 0;
+            return (
+              <Card title={isOfflinePayment ? "Pago manual" : "Mercado Pago"}>
+                {isPointsPayment ? (
+                  <p className="text-sm text-bone">Pagado 100 % con Puntos FOTF</p>
+                ) : (
+                  b.paymentSnapshot && (
+                    <div className="flex flex-col gap-2.5">
+                      <MpRow label="Método" value={mpMethodLabel(b.paymentSnapshot)} />
+                      {b.paymentSnapshot.fee_amount != null && (
+                        <MpRow label="Comisión MP" value={`−${formatCLP(b.paymentSnapshot.fee_amount)}`} />
+                      )}
+                      {b.paymentSnapshot.net_received_amount != null && (
+                        <MpRow label="Neto recibido" value={formatCLP(b.paymentSnapshot.net_received_amount)} />
+                      )}
+                    </div>
+                  )
+                )}
+
+                {b.refundedAt && !isPointsOrder && (
+                  <div className="mt-3 border-t hairline pt-3">
+                    <MpRow
+                      label="Reembolsado"
+                      value={`${formatCLP(b.refundedAmount && b.refundedAmount > 0 ? b.refundedAmount : (b.amount ?? 0))} · ${fmtDateTime(b.refundedAt)}`}
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-2 border-t hairline pt-4">
+                  {b.mpPaymentId && <MpIdRow label="Operación #" value={b.mpPaymentId} />}
+                  {b.mpRefundId && <MpIdRow label="Reembolso #" value={b.mpRefundId} />}
+                  {b.mpPreferenceId && <MpIdRow label="Preferencia" value={b.mpPreferenceId} />}
+                  {b.orderId && !isOfflinePayment && <MpIdRow label="Pedido (ref)" value={b.orderId} />}
                 </div>
-              )}
 
-              {b.refundedAt && (
-                <div className="mt-3 border-t hairline pt-3">
-                  <MpRow
-                    label="Reembolsado"
-                    value={`${formatCLP(b.refundedAmount && b.refundedAmount > 0 ? b.refundedAmount : (b.amount ?? 0))} · ${fmtDateTime(b.refundedAt)}`}
-                  />
-                </div>
-              )}
-
-              <div className="mt-4 flex flex-col gap-2 border-t hairline pt-4">
-                {b.mpPaymentId && <MpIdRow label="Operación #" value={b.mpPaymentId} />}
-                {b.mpRefundId && <MpIdRow label="Reembolso #" value={b.mpRefundId} />}
-                {b.mpPreferenceId && <MpIdRow label="Preferencia" value={b.mpPreferenceId} />}
-                {b.orderId && <MpIdRow label="Pedido (ref)" value={b.orderId} />}
-              </div>
-
-              {b.mpPaymentId && (
-                <a
-                  href="https://www.mercadopago.cl/activities"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
-                >
-                  Ver actividad en Mercado Pago <Icon name="external" size={14} />
-                </a>
-              )}
-            </Card>
-          )}
+                {b.mpPaymentId && !isOfflinePayment && (
+                  <a
+                    href="https://www.mercadopago.cl/activities"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 border hairline px-4 py-2 label-sm text-bone transition-colors hover:border-gold hover:text-gold"
+                  >
+                    Ver actividad en Mercado Pago <Icon name="external" size={14} />
+                  </a>
+                )}
+              </Card>
+            );
+          })()}
 
           {pending && <PendingRescheduleCard reservationId={b.id} pending={pending} tz={TZ} />}
 
@@ -407,8 +422,14 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               {isPaid ? (
                 (() => {
                   // Política de cancelación calculada en el server (force-dynamic):
-                  // sugiere el reembolso; el dueño decide en el dialog.
-                  const liveBoleta = (b.amount ?? 0) - (b.refundedAmount ?? 0);
+                  // sugiere el reembolso; el dueño decide en el dialog. Una orden pagada
+                  // 100% con puntos no tiene plata que reembolsar: la "boleta viva" son
+                  // los puntos canjeados, y no hay devolución offline que registrar.
+                  const isPointsOrder = (b.amount ?? 0) === 0 && b.pointsRedeemedClp > 0;
+                  const liveBoleta = isPointsOrder
+                    ? b.pointsRedeemedClp
+                    : (b.amount ?? 0) - (b.refundedAmount ?? 0);
+                  const unit: "clp" | "points" = isPointsOrder ? "points" : "clp";
                   const tier = refundPolicy(b.startsAt);
                   return (
                     <>
@@ -421,12 +442,13 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                         <CancelBookingDialog
                           reservationId={b.id}
                           liveBoleta={liveBoleta}
+                          unit={unit}
                           policy={{
                             label: tier.label,
                             hoursUntil: tier.hoursUntil,
                             suggested: suggestedRefund(tier, liveBoleta),
                           }}
-                          isOffline={!b.mpPaymentId || b.mpPaymentId.startsWith("offline:")}
+                          isOffline={!isPointsOrder && (!b.mpPaymentId || b.mpPaymentId.startsWith("offline:"))}
                         />
                       </div>
                     </>
@@ -507,6 +529,11 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
     today,
     maxDate: DateTime.fromISO(today).plus({ days: 180 }).toFormat("yyyy-MM-dd"),
     initialMonth: today.slice(0, 7),
+    // Arranca el picker en la duración real de la reserva, no siempre en 1h.
+    initialDuration: Math.max(
+      1,
+      Math.round(DateTime.fromISO(b.endsAt).diff(DateTime.fromISO(b.startsAt), "hours").hours),
+    ),
     addonKeys: b.addonKeys,
     concessionClp: b.concessionClp,
     concessionLabel: b.concessionLabel,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MercadoPagoGateway, toRefundInfo } from "./mercadopago-gateway";
+import { MercadoPagoGateway, mpErrorMessage, toRefundInfo } from "./mercadopago-gateway";
 
 /**
  * El adaptador es glue delgado sobre el SDK (se ejercita en el .itest sandbox);
@@ -23,8 +23,40 @@ describe("toRefundInfo", () => {
   });
 });
 
+describe("mpErrorMessage", () => {
+  it("mapea el 404 de MP (id de pago inexistente/otro ambiente) por status", () => {
+    expect(
+      mpErrorMessage({
+        message: "Si quieres conocer los recursos de la API...",
+        error: "not_found",
+        status: 404,
+      }),
+    ).toBe("Mercado Pago no encuentra el pago (id inválido o de otro ambiente)");
+  });
+
+  it("mapea el 404 aunque solo venga error:'not_found' sin status", () => {
+    expect(mpErrorMessage({ error: "not_found" })).toBe(
+      "Mercado Pago no encuentra el pago (id inválido o de otro ambiente)",
+    );
+  });
+
+  it("usa el message del Error cuando no es un 404 de MP", () => {
+    expect(mpErrorMessage(new Error("boom"))).toBe("boom");
+  });
+
+  it("usa el message genérico del objeto cuando no matchea el caso 404", () => {
+    expect(mpErrorMessage({ message: "otro error" })).toBe("otro error");
+  });
+
+  it("cae a 'error desconocido' sin nada útil", () => {
+    expect(mpErrorMessage(null)).toBe("error desconocido");
+  });
+});
+
 // El SDK es la frontera: se mockea solo PaymentRefund para ver qué clave viaja a MP.
 const refundCreate = vi.fn(async () => ({ id: 777, status: "approved", amount: 5000 }));
+// Default que no usan los tests de idempotencia; los de getRefund lo reconfiguran por caso.
+const refundGet = vi.fn(async () => ({ id: 999, status: "approved", amount: 3000 }));
 vi.mock("mercadopago", async (importOriginal) => {
   const mod = await importOriginal<typeof import("mercadopago")>();
   return {
@@ -32,8 +64,45 @@ vi.mock("mercadopago", async (importOriginal) => {
     PaymentRefund: class {
       create = refundCreate;
       total = vi.fn(async () => ({ id: 778, status: "approved" }));
+      get = refundGet;
     },
   };
+});
+
+describe("MercadoPagoGateway.getRefund — 404 → null", () => {
+  it("mapea un 404 de MP (id de otro ambiente / reembolso inexistente) a null en vez de lanzar", async () => {
+    // Forma real del objeto que lanza el SDK de MP ante un 404 (ver mpErrorMessage).
+    refundGet.mockRejectedValueOnce({
+      status: 404,
+      error: "not_found",
+      message: "Si quieres conocer los recursos de la API...",
+    });
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await expect(gw.getRefund("123", "999")).resolves.toBeNull();
+  });
+
+  it("mapea el 404 aunque solo venga error:'not_found' sin status", async () => {
+    refundGet.mockRejectedValueOnce({ error: "not_found" });
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await expect(gw.getRefund("123", "999")).resolves.toBeNull();
+  });
+
+  it("otros errores del SDK siguen lanzando (no se confunden con un 404)", async () => {
+    refundGet.mockRejectedValueOnce({ message: "MP caído" });
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await expect(gw.getRefund("123", "999")).rejects.toThrow(/MP caído/);
+  });
+
+  it("un reembolso encontrado se mapea normal (sin cambios)", async () => {
+    refundGet.mockResolvedValueOnce({ id: 999, status: "approved", amount: 3000 });
+    const gw = new MercadoPagoGateway("APP_USR-test");
+    await expect(gw.getRefund("123", "999")).resolves.toEqual({
+      id: "999",
+      amount: 3000,
+      status: "approved",
+      dateCreated: undefined,
+    });
+  });
 });
 
 describe("MercadoPagoGateway.refundPayment — clave de idempotencia", () => {
