@@ -1,6 +1,6 @@
 import { fmtDate } from "@/components/admin/format";
 import { formatCLP } from "@/src/domain/money/money";
-import type { TaxDocStep } from "@/src/domain/tax/tax-doc-steps";
+import { blockedNcMessage, type TaxDocStep } from "@/src/domain/tax/tax-doc-steps";
 
 /** Copy de cada paso SII en la voz del dueño. Puro: la fila y la cola lo comparten. */
 
@@ -14,7 +14,7 @@ export function stepTitle(s: TaxDocStep): string {
 
 export function stepDetail(s: TaxDocStep): string | null {
   if (s.kind === "nota_credito") {
-    if (s.state === "bloqueada") return `Primero registra el folio de la boleta de ${formatCLP(s.parentTotal ?? 0)}.`;
+    if (s.state === "bloqueada") return blockedNcMessage(s.parentTotal ?? 0);
     if (s.parentFolio) return `Anula la boleta folio ${s.parentFolio}.`;
     return `Anula una boleta de ${formatCLP(s.parentTotal ?? s.total)} de este pedido (sin vínculo).`;
   }

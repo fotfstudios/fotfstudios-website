@@ -170,6 +170,8 @@ describe("describeTaxDocs — casos raros", () => {
     ], { now: NOW });
     expect(stepOf(steps, "bs").role).toBe("saldo");
     expect(stepOf(steps, "bs").saldoOfFolio).toBe("11");
+    expect(stepOf(steps, "nc2").razonReferencia).toBe("Anula boleta N° 11. Reembolso parcial: se reemite boleta por el saldo.");
+    expect(stepOf(steps, "nc1").razonReferencia).toBe("Anula boleta N° 10. Anulación total.");
   });
 
   it("orden cronológico estable por created_at y luego id", () => {

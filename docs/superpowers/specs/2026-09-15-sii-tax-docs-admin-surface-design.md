@@ -66,7 +66,9 @@ parseFolio(raw: string) → { ok: true; folio: string } | { ok: false; error: st
 documentos del pedido: `id, kind, status, folio, neto, iva, total, created_at, emitted_at,
 reverses_document_id, is_live, settlement_order_id, order_id`.
 
-**Salida** (`TaxDocStep`, uno por documento, orden cronológico `created_at, id`):
+**Salida** (`TaxDocStep`, uno por documento, orden cronológico `created_at`, luego `nota_credito`
+antes que `boleta` en empates (misma transacción: la NC que anula precede al saldo que reemite),
+luego `id`):
 
 | `state` | Condición | Qué ve el dueño |
 |---|---|---|

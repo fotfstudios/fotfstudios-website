@@ -48,9 +48,9 @@ export function TaxDocStepRow({
       </div>
 
       {step.razonReferencia && step.state === "por_emitir" && (
-        <p className="flex flex-wrap items-center gap-2 label-sm text-bone-quiet">
-          Razón de referencia:
-          <span className="font-mono text-bone-dim">{step.razonReferencia}</span>
+        <p className="flex flex-wrap items-center gap-2 text-bone-quiet">
+          <span className="label-sm">Razón de referencia:</span>
+          <span className="font-mono text-xs normal-case tracking-normal text-bone-dim">{step.razonReferencia}</span>
           <CopyButton value={step.razonReferencia} label="Razón copiada" />
         </p>
       )}

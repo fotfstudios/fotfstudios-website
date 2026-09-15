@@ -122,6 +122,19 @@ describe("taxDocsForReservation / taxDocsForOrderOf", () => {
     const viaDelta = await repo.taxDocsForReservation(resId, deltaOrder);
     expect(viaDelta).toHaveLength(1);
     expect(viaDelta[0]).toMatchObject({ orderId: deltaOrder, settlementOrderId: deltaOrder });
+
+    // Registrar el folio de la boleta de delta también debe dejar el evento en el
+    // timeline de LA RESERVA (booking_events se ancla por reservation_id, no por
+    // order_id): el fallback de lectura no basta, el lado de escritura tiene que
+    // resolver la misma reserva para una boleta que vive en la orden de delta.
+    const deltaBoletaId = viaDelta[0].id;
+    await new TaxDocService(repo).recordFolio(deltaBoletaId, "5", null);
+    const deltaEvents = await pg.query<{ type: string; tax_document_id: string | null }>(
+      "select type, tax_document_id from booking_events where reservation_id=$1 and type='boleta_emitted'",
+      [resId],
+    );
+    expect(deltaEvents.rows).toHaveLength(1);
+    expect(deltaEvents.rows[0]).toMatchObject({ type: "boleta_emitted", tax_document_id: deltaBoletaId });
   });
 });
 

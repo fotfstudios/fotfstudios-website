@@ -4,6 +4,8 @@ import { currentClaims, requirePermission } from "@/src/infrastructure/auth/requ
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Cuerpo compartido de las tres server actions "Registrar folio" (reserva, curso,
  * cola SII). La app no emite nada: el dueño emite en sii.cl y acá se anota el folio.
@@ -18,6 +20,7 @@ export async function recordTaxDocFolioFromForm(fd: FormData): Promise<void> {
   const docId = str(fd, "docId");
   const backPath = str(fd, "backPath");
   if (!/^\/admin(\/|$)/.test(backPath)) throw new Error("Ruta inválida.");
+  if (!UUID_RE.test(docId)) throw new Error("Documento no encontrado.");
   const actor = (await currentClaims())?.sub ?? null;
   await taxDocService().recordFolio(docId, str(fd, "folio"), actor);
   revalidatePath(backPath);

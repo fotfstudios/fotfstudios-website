@@ -42,13 +42,13 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
   const inscripcion = await repo.enrollmentById(id);
   if (!inscripcion) notFound();
 
-  const [compañeros, boletas, sesiones] = await Promise.all([
+  const [compañeros, taxDocs, sesiones] = await Promise.all([
     inscripcion.orderId ? repo.enrollmentsByOrder(inscripcion.orderId) : Promise.resolve([inscripcion]),
     inscripcion.orderId ? adminRepository().taxDocsForOrder(inscripcion.orderId) : Promise.resolve([]),
     repo.listSessions(inscripcion.generationId),
   ]);
   const canRecordFolio = hasPermission(await currentClaims(), "reservations.boleta");
-  const taxSteps = describeTaxDocs(boletas, { now: new Date().toISOString() });
+  const taxSteps = describeTaxDocs(taxDocs, { now: new Date().toISOString() });
   const practicas = await repo.practiceRedemptions(inscripcion.id);
   // Destinos posibles del traslado: cualquier otra generación que reciba gente.
   const destinos = (await repo.listGenerations())

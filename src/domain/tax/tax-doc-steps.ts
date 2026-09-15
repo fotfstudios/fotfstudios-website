@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { formatCLP } from "@/src/domain/money/money";
 
 /**
  * Cada fila de `tax_documents` traducida al PASO que el dueño tiene que hacer en
@@ -80,6 +81,9 @@ export interface TaxDocStep {
   canRecord: boolean;
 }
 
+/** Mensaje de bloqueo compartido: el guard real (`TaxDocService`) y la copia estática (`step-copy`). */
+export const blockedNcMessage = (parentTotal: number) => `Primero registra el folio de la boleta de ${formatCLP(parentTotal)}.`;
+
 export function parseFolio(raw: string): { ok: true; folio: string } | { ok: false; error: string } {
   const s = raw.trim();
   if (!s) return { ok: false, error: "Ingresa el folio que asignó el SII." };
@@ -132,7 +136,14 @@ export function describeTaxDocs(docs: TaxDocRaw[], opts: { now: string }): TaxDo
       const parent = parentOf(d);
       const state: TaxDocStepState =
         d.status === "emitida" ? "emitida" : parent && !parent.folio ? "bloqueada" : "por_emitir";
-      const hasSaldoTwin = sorted.some((x) => x.kind === "boleta" && x.orderId === d.orderId && x.createdAt === d.createdAt);
+      const parentSett = parent?.settlementOrderId ?? null;
+      const hasSaldoTwin = sorted.some(
+        (x) =>
+          x.kind === "boleta" &&
+          x.orderId === d.orderId &&
+          x.createdAt === d.createdAt &&
+          (parentSett === null || x.settlementOrderId === parentSett),
+      );
       const razon =
         state === "por_emitir"
           ? `${parent?.folio ? `Anula boleta N° ${parent.folio}.` : "Anula boleta de este pedido."} ${hasSaldoTwin ? "Reembolso parcial: se reemite boleta por el saldo." : "Anulación total."}`

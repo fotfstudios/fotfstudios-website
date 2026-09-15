@@ -1,6 +1,5 @@
 import type { TaxDocRepository } from "@/src/application/ports/tax-docs";
-import { formatCLP } from "@/src/domain/money/money";
-import { describeTaxDocs, parseFolio } from "@/src/domain/tax/tax-doc-steps";
+import { blockedNcMessage, describeTaxDocs, parseFolio } from "@/src/domain/tax/tax-doc-steps";
 
 /**
  * Registrar el folio que el SII asignó a un documento. La app NO emite nada: el
@@ -21,7 +20,7 @@ export class TaxDocService {
 
     const step = describeTaxDocs(docs, { now: new Date().toISOString() }).find((s) => s.id === docId)!;
     if (step.state === "bloqueada") {
-      throw new Error(`Primero registra el folio de la boleta de ${formatCLP(step.parentTotal ?? 0)}.`);
+      throw new Error(blockedNcMessage(step.parentTotal ?? 0));
     }
     const previous = doc.folio;
     if (previous === parsed.folio) return { corrected: false };
