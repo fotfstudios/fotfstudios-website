@@ -1275,14 +1275,16 @@ export class SupabaseAdminRepository {
       .select("id")
       .single();
     if (error) throw new Error(error.code === "23P01" ? "slot_taken" : error.message);
-    // El timeline ES el log de auditoría: a diferencia de los avisos por email (best-effort
-    // en otros lados), un evento que no queda registrado es un hueco silencioso en la
-    // ficha — así que esto SÍ lanza si falla, no se traga el error.
+    // Best-effort, NO throw: la reserva YA existe (el insert de arriba ya hizo commit).
+    // Si esto lanzara, el caller vería "No se pudo crear la reserva" sobre una cortesía
+    // que sí se creó — mismo criterio que el email de cortesía (notifyCourtesyCancelled
+    // más abajo en el archivo de actions): un fallo del log no puede convertir un éxito
+    // en un error, solo dejar un hueco en el timeline que se puede reconstruir a mano.
     const { error: eventErr } = await this.db.rpc("log_booking_event", {
       p_reservation: data.id,
       p_type: "courtesy_confirmed",
     });
-    if (eventErr) throw new Error(eventErr.message);
+    if (eventErr) console.error("[cortesia:event]", eventErr);
     return data.id;
   }
 
