@@ -358,3 +358,103 @@ describe("WebhookService — estado del reembolso", () => {
     expect(repo.markRefunded).not.toHaveBeenCalled();
   });
 });
+
+describe("WebhookService — reembolso sobre reserva con reagendamiento pendiente", () => {
+  it("reembolso fresco + fila pending_refund → settleRefund, NO mark_refunded → reschedule_refund_settled", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({
+      chargeForOrder: vi.fn(async () => null),
+      pendingRefundForOrder: vi.fn(async () => ({ rescheduleId: "rs1", originalOrderId: "o1" })),
+      settleRefund: vi.fn(async () => "applied" as const),
+    });
+    const gw = makeGateway({
+      id: "p1",
+      status: "approved",
+      externalReference: "o1",
+      amount: 9990,
+      refunds: [{ id: "ref_w", status: "approved", amount: 2000 }],
+    });
+    const r = await new WebhookService(gw, repo, fin).handlePaymentNotification("p1");
+    expect(r).toEqual({ result: "reschedule_refund_settled", orderId: "o1", refundedAmount: 2000 });
+    expect(fin.settleRefund).toHaveBeenCalledWith("rs1", "ref_w", 2000);
+    expect(repo.markRefunded).not.toHaveBeenCalled();
+  });
+
+  it("settle noop (la fila ya no está pendiente) → cae a mark_refunded como hoy", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({
+      chargeForOrder: vi.fn(async () => null),
+      pendingRefundForOrder: vi.fn(async () => ({ rescheduleId: "rs1", originalOrderId: "o1" })),
+      settleRefund: vi.fn(async () => "noop" as const),
+    });
+    const gw = makeGateway({
+      id: "p1",
+      status: "approved",
+      externalReference: "o1",
+      amount: 9990,
+      refunds: [{ id: "ref_w", status: "approved", amount: 2000 }],
+    });
+    const r = await new WebhookService(gw, repo, fin).handlePaymentNotification("p1");
+    expect(r).toEqual({ result: "refunded", orderId: "o1", refundedAmount: 2000 });
+    expect(repo.markRefunded).toHaveBeenCalledWith("o1", "ref_w", 2000);
+  });
+
+  it("sin fila pendiente → mark_refunded (sin cambios)", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({
+      chargeForOrder: vi.fn(async () => null),
+      pendingRefundForOrder: vi.fn(async () => null),
+    });
+    const gw = makeGateway({
+      id: "p1",
+      status: "approved",
+      externalReference: "o1",
+      amount: 9990,
+      refunds: [{ id: "ref_w", status: "approved", amount: 2000 }],
+    });
+    const r = await new WebhookService(gw, repo, fin).handlePaymentNotification("p1");
+    expect(r).toEqual({ result: "refunded", orderId: "o1", refundedAmount: 2000 });
+    expect(repo.markRefunded).toHaveBeenCalledWith("o1", "ref_w", 2000);
+    expect(fin.settleRefund).not.toHaveBeenCalled();
+  });
+
+  it("reembolso duplicado → ni lookup ni settle", async () => {
+    const repo = makeRepo({ recordEvent: vi.fn(async () => false) });
+    const fin = makeFinalizer({ chargeForOrder: vi.fn(async () => null) });
+    const gw = makeGateway({
+      id: "p1",
+      status: "approved",
+      externalReference: "o1",
+      amount: 9990,
+      refunds: [{ id: "ref_w", status: "approved", amount: 2000 }],
+    });
+    await new WebhookService(gw, repo, fin).handlePaymentNotification("p1");
+    expect(fin.pendingRefundForOrder).not.toHaveBeenCalled();
+    expect(fin.settleRefund).not.toHaveBeenCalled();
+    expect(repo.markRefunded).not.toHaveBeenCalled();
+  });
+
+  // H1 de 2º orden: el reembolso del propio cobro fallido (H9) llega en `payment.refunds[]`
+  // de una re-entrega posterior sobre la orden de DELTA. `pendingRefundForOrder` resuelve por
+  // RESERVA (original o delta) — si se consultara acá podría asentar por error una fila
+  // pending_refund MÁS NUEVA de la misma reserva en vez del mark_refunded de siempre.
+  it("reembolso sobre el pago de un cobro fallido → mark_refunded, no settle", async () => {
+    const repo = makeRepo();
+    const fin = makeFinalizer({
+      chargeForOrder: vi.fn(async () => ({ deltaOrderId: "do1", rescheduleId: "rs1" })),
+      pendingRefundForOrder: vi.fn(async () => ({ rescheduleId: "rs2", originalOrderId: "o-other" })),
+    });
+    const gw = makeGateway({
+      id: "payd",
+      status: "approved",
+      externalReference: "do1",
+      amount: 3000,
+      refunds: [{ id: "ref_d", status: "approved", amount: 3000 }],
+    });
+    const r = await new WebhookService(gw, repo, fin).handlePaymentNotification("payd");
+    expect(r).toEqual({ result: "refunded", orderId: "do1", refundedAmount: 3000 });
+    expect(fin.pendingRefundForOrder).not.toHaveBeenCalled();
+    expect(fin.settleRefund).not.toHaveBeenCalled();
+    expect(repo.markRefunded).toHaveBeenCalledWith("do1", "ref_d", 3000);
+  });
+});

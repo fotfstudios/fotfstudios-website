@@ -14,6 +14,7 @@ export type WebhookOutcome =
   | "ignored"
   | "reschedule_applied"
   | "reschedule_charge_failed"
+  | "reschedule_refund_settled"
   | "course_paid";
 
 export interface WebhookResult {
@@ -57,19 +58,42 @@ export class WebhookService {
     // Un reembolso iniciado desde el ADMIN ya viene registrado en el inbox
     // (RefundService, inbox-first) → aquí cae como duplicado: sin doble NC/email.
     let refunded = false;
+    let settledReschedule = false;
     let refundedAmount = 0;
+    // Si `orderId` es la orden de delta de un COBRO (chargeForOrder no-null), no cambia
+    // entre reembolsos del mismo pago: se resuelve una sola vez, perezoso (solo si hay
+    // algún reembolso fresco que lo necesite).
+    let isChargeOrder: boolean | null = null;
     for (const r of payment.refunds ?? []) {
       // Solo `approved` es plata devuelta. Un `in_process`/`rejected` NO toca el inbox:
       // así, cuando MP lo notifique ya aprobado, el mismo id entra fresco y se asienta.
       if (!isSettledRefund(r)) continue;
       const freshRefund = await this.repo.recordEvent(`refund:${r.id}`, "refund", r);
-      if (freshRefund && orderId) {
-        await this.repo.markRefunded(orderId, r.id, r.amount);
-        refunded = true;
-        refundedAmount += r.amount;
+      if (!freshRefund || !orderId) continue;
+      if (isChargeOrder === null) {
+        isChargeOrder = this.finalizer ? (await this.finalizer.chargeForOrder(orderId)) != null : false;
       }
+      // Un reembolso sobre una reserva con reagendamiento pendiente ASIENTA el reagendamiento
+      // (el dueño lo devolvió desde el panel, o es el loopback del nuestro): jamás cancela.
+      // Excepción: la orden de delta de un COBRO fallido (H9) tiene su propio reembolso, y
+      // `pendingRefundForOrder` resuelve por RESERVA (original o delta) — consultarlo acá
+      // podría asentar por error una fila pending_refund MÁS NUEVA de la misma reserva
+      // (H1 de 2º orden). Para pagos de cobro se sigue el mark_refunded de siempre.
+      const pend = !isChargeOrder && this.finalizer ? await this.finalizer.pendingRefundForOrder(orderId) : null;
+      if (pend) {
+        const res = await this.finalizer!.settleRefund(pend.rescheduleId, r.id, r.amount);
+        if (res !== "noop") {
+          settledReschedule = true;
+          refundedAmount += r.amount;
+          continue;
+        }
+      }
+      await this.repo.markRefunded(orderId, r.id, r.amount);
+      refunded = true;
+      refundedAmount += r.amount;
     }
     if (refunded) return { result: "refunded", orderId, refundedAmount };
+    if (settledReschedule) return { result: "reschedule_refund_settled", orderId, refundedAmount };
     // Pago ya reembolsado del todo y nada fresco: es una re-entrega (o el loopback de un
     // reembolso admin), no un pago "pendiente".
     if (payment.status === "refunded") return { result: "duplicate", orderId };

@@ -115,6 +115,11 @@ export async function POST(req: Request): Promise<Response> {
           .notifyReschedule(info.originalOrderId, { refundAmount: 0 })
           .catch((e) => console.error("[mp-webhook:reschedule-email]", e));
       }
+    } else if (result === "reschedule_refund_settled" && orderId) {
+      // El reembolso se asentó sobre la fila pending_refund (loopback nuestro o el dueño
+      // devolviendo desde el panel de MP): la reserva sigue viva, sin email — el aviso
+      // "Reserva reagendada" ya lo mandó la acción del admin al mover la reserva.
+      console.log("[mp-webhook] reembolso de reagendamiento asentado", orderId);
     } else if (result === "reschedule_charge_failed" && orderId) {
       if (chargeFailure?.refund === "done") {
         // El excedente ya se devolvió; la reserva NO se movió. Avisar al cliente

@@ -132,7 +132,13 @@ export async function reconcileOrder(
  */
 export async function reconcilePending(
   client: SupabaseClient<Database> = db(),
-): Promise<{ scanned: number; paid: number; unreserved: number }> {
+): Promise<{
+  scanned: number;
+  paid: number;
+  unreserved: number;
+  rescheduleRefundsRetried: number;
+  chargeRefundsRetried: number;
+}> {
   const orders = new SupabaseOrderRepository(client);
   const ids = await orders.pendingOrderIds({ olderThanMinutes: 11, withinHours: 72 });
   let paid = 0;
@@ -155,7 +161,64 @@ export async function reconcilePending(
   await expireAbandonedReschedules(client).catch((e) => console.error("[reconcile:reschedules]", e));
   // Barre reservas manuales pendientes abandonadas (hold firme, best-effort).
   await expireAbandonedManualHolds(client).catch((e) => console.error("[reconcile:manual-holds]", e));
-  return { scanned: ids.length, paid, unreserved };
+  // H1/H9: reintenta reembolsos de reagendamiento que quedaron pendientes (MP falló o los
+  // dejó en contingencia) y cobros fallidos cuyo delta se capturó pero nunca se devolvió.
+  const rescheduleRefundsRetried = await retryPendingRescheduleRefunds(client).catch((e) => {
+    console.error("[reconcile:reschedule-refunds]", e);
+    return 0;
+  });
+  const chargeRefundsRetried = await retryFailedChargeRefunds(client).catch((e) => {
+    console.error("[reconcile:charge-refunds]", e);
+    return 0;
+  });
+  return { scanned: ids.length, paid, unreserved, rescheduleRefundsRetried, chargeRefundsRetried };
+}
+
+/**
+ * H1: reintenta reembolsos de reagendamiento que quedaron pendientes (fila `pending_refund`
+ * viva) porque MP falló o los dejó en contingencia (`in_process`) — respaldo del "Reintentar"
+ * manual del admin. Por fila, no por lote: un `getRefund` que lanza no debe tumbar el resto.
+ */
+export async function retryPendingRescheduleRefunds(client: SupabaseClient<Database> = db()): Promise<number> {
+  const repo = new SupabaseRescheduleRepository(client);
+  const svc = rescheduleService(client);
+  let n = 0;
+  for (const id of await repo.pendingRefundIds({ olderThanMinutes: 10 })) {
+    const r = await svc.retryRefund(id).catch((e) => {
+      console.error("[reconcile:reschedule-refund]", id, e);
+      return null;
+    });
+    if (r?.ok && r.value.kind === "refunded") n++;
+  }
+  return n;
+}
+
+/**
+ * H9: reintenta devolver el delta de cobros de reagendamiento que no se aplicaron (slot
+ * tomado / reserva cancelada / link anulado) y cuyo dinero se capturó en MP pero el webhook
+ * no logró devolverlo (MP caído en ese momento). Manda el email "no se pudo reagendar" recién
+ * cuando el reembolso queda hecho — antes no hay nada nuevo que avisarle al cliente.
+ */
+export async function retryFailedChargeRefunds(client: SupabaseClient<Database> = db()): Promise<number> {
+  const repo = new SupabaseRescheduleRepository(client);
+  const svc = rescheduleService(client);
+  let n = 0;
+  for (const row of await repo.unrefundedFailedCharges()) {
+    try {
+      if ((await svc.retryFailedChargeRefund(row)) === "done") {
+        n++;
+        const info = await rescheduleNotifyInfo(row.deltaOrderId, client).catch(() => null);
+        if (info) {
+          await notificationService(client)
+            .notifyRescheduleFailed(info.originalOrderId, { refundAmount: info.delta })
+            .catch((e) => console.error("[reconcile:charge-refund-email]", e));
+        }
+      }
+    } catch (e) {
+      console.error("[reconcile:charge-refund]", row.rescheduleId, e);
+    }
+  }
+  return n;
 }
 
 /** Bitácora de correos: cada intento (ok o fallo) queda en notification_log; /admin la muestra. */
