@@ -697,6 +697,39 @@ export type Database = {
         }
         Relationships: []
       }
+      guide_leads: {
+        Row: {
+          created_at: string
+          download_token: string
+          email: string
+          id: string
+          last_downloaded_at: string | null
+          last_requested_at: string
+          request_count: number
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          download_token?: string
+          email: string
+          id?: string
+          last_downloaded_at?: string | null
+          last_requested_at?: string
+          request_count?: number
+          source: string
+        }
+        Update: {
+          created_at?: string
+          download_token?: string
+          email?: string
+          id?: string
+          last_downloaded_at?: string | null
+          last_requested_at?: string
+          request_count?: number
+          source?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           active: boolean
@@ -1747,6 +1780,14 @@ export type Database = {
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
       first_booking_promo_used: { Args: { p_email: string }; Returns: boolean }
       generate_access_code: { Args: never; Returns: string }
+      guide_lead_request: {
+        Args: { p_email: string; p_source: string }
+        Returns: {
+          download_token: string
+          id: string
+          request_count: number
+        }[]
+      }
       immutable_unaccent: { Args: { p_text: string }; Returns: string }
       log_booking_event: {
         Args: {

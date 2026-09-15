@@ -156,6 +156,12 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
 7. **JWT con claves asimétricas** (Auth → JWT Keys): `getClaims()` verifica la firma **localmente**
    solo con claves asimétricas; con el secreto HS256 legacy hace un round-trip al servidor. Todo el
    modelo de authz (middleware, `require-admin`, `/auth/callback`) descansa en esta suposición.
+8. **Storage → bucket `guias` → subir `guia-iniciacion-djing.pdf`** (la guía gratis de
+   `/guia-dj`). La migración `20260915130000_guia_dj.sql` crea el bucket (privado, solo PDF) y
+   la tabla `guide_leads`, pero el archivo NO va a git (repo público): se sube a mano en
+   **Storage → guias** de cada proyecto (prod y staging) con ese nombre exacto. Sin el archivo
+   la landing igual guarda el lead y manda el correo, pero el link muestra "no disponible".
+   Local: mismo nombre, en el Studio local (`http://127.0.0.1:54423`) tras `db:reset`.
 
 > El detalle de esta checklist nació en
 > [docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md](docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md).
