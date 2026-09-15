@@ -13,7 +13,8 @@
  *              NEXT_PUBLIC_GTM_FORCE (opt-in local: carga GTM fuera de prod; nunca en Vercel)
  *   Secretas:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MP_ACCESS_TOKEN,
  *              MP_WEBHOOK_SECRET, RESEND_API_KEY, CRON_SECRET, EMAIL_FROM, OWNER_EMAIL
- *   Opcional (solo dev): MP_NOTIFICATION_URL — notification_url por-preference
+ *   Opcional (solo dev): SMTP_URL — entrega de correos por SMTP al Mailpit local
+ *              (smtp://127.0.0.1:54325); prod usa Resend. MP_NOTIFICATION_URL — notification_url por-preference
  *              (túnel alternativo); vacía en prod para que MP notifique vía los
  *              Webhooks del panel (firma validable).
  *
@@ -22,7 +23,7 @@
  * desde `instrumentation.ts`) para fallar temprano con un mensaje claro en vez de a
  * mitad de un request. Las condicionales (Mercado Pago, Resend, cron) se exigen en
  * su punto de uso con `requireEnv`, respetando la degradación elegante (p. ej. sin
- * `RESEND_API_KEY` se usa el NoopMailer) y el feature flag de reservas.
+ * `RESEND_API_KEY` se usa SMTP_URL si existe, y si no el NoopMailer) y el feature flag de reservas.
  */
 
 /** Lee una variable requerida; lanza un error claro si falta o está vacía. */

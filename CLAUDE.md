@@ -28,7 +28,10 @@ Always restart `npm run dev` after a `npm run build` — the build rewrites `.ne
 a running dev server in a broken state.
 
 **Supabase local:** este repo usa puertos **544xx** (API 54421, DB 54422, Studio 54423,
-Mailpit 54424) para no chocar con otro proyecto Supabase local. Las migraciones en
+Mailpit 54424 web / 54325 SMTP) para no chocar con otro proyecto Supabase local. **Todos los
+correos locales** (códigos de login vía el Send Email Hook y los transaccionales) llegan a Mailpit
+con `SMTP_URL=smtp://127.0.0.1:54325` en `.env.local` (SmtpMailer; sin ella, solo `[email:noop]`
+en el log del dev server). Las migraciones en
 `supabase/migrations/` son la **fuente de verdad** del esquema; el proyecto remoto se crea recién
 al desplegar. Flujo: editar/crear migración → `db:reset` → `db:types` → tests.
 

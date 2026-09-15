@@ -106,8 +106,9 @@ openai_api_key = "env(OPENAI_API_KEY)"
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54424
-# Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54325
+# SMTP publicado para que la app (SmtpMailer, SMTP_URL en .env.local) entregue aquí TODOS sus
+# correos en local: los de Auth vía el Send Email Hook y los transaccionales.
+smtp_port = 54325
 # pop3_port = 54326
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
@@ -296,8 +297,9 @@ max_frequency = "5s"
 # pide el correo a /api/auth/send-email y sale por nuestro Mailer (plantillas versionadas,
 # bitácora). En local el secreto es FIJO y público — solo vale para este stack; .env.example
 # trae el mismo valor para que el route lo verifique. Consecuencia: iniciar sesión en local
-# exige el dev server arriba (sin app no hay correo; en Mailpit no llega nada). Sin
-# RESEND_API_KEY local el envío es NoopMailer: el código queda en el log del dev server
+# exige el dev server arriba (sin app no hay correo). Con SMTP_URL=smtp://127.0.0.1:54325 en
+# .env.local el Mailer entrega en Mailpit (http://127.0.0.1:54424) — código y link clickeable —
+# y sin SMTP_URL ni RESEND_API_KEY cae al NoopMailer: el código queda en el log del dev server
 # ("[email:noop] Tu código para iniciar sesión…") y en notification_log.
 # En staging/prod se configura en el Dashboard (Auth → Hooks → Send Email) con su propio secreto.
 [auth.hook.send_email]
