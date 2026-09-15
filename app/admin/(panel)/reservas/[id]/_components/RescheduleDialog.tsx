@@ -238,18 +238,18 @@ function ReschedulePicker({
         ? (close - open) / 60
         : 8,
   );
-  // La duración inicial es la de la reserva actual, que puede no caber en el
-  // nuevo horario elegido (p. ej. una sesión de 4h movida a un hueco de 2h).
-  // requestAnimationFrame evita el setState síncrono en el efecto (regla
-  // react-hooks/set-state-in-effect), igual que en ConsentBanner.
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setDuration((d) => Math.min(d, maxDuration)));
-    return () => cancelAnimationFrame(raf);
-  }, [maxDuration]);
+  // Duración a usar aguas abajo (cotización, confirmación, labels): DERIVADA, no vía
+  // efecto. Antes de elegir horario (o mientras el día sigue cargando) maxDuration cae
+  // al fallback de 8h — un efecto que escribiera ese recorte en el estado dejaría
+  // `duration` pegado en 8 para una sesión más larga y nunca se recuperaría cuando
+  // llega la ventana real (13–14h) del horario elegido. Al derivar, el estado crudo
+  // (la duración original de la reserva) queda intacto y el recorte se recalcula solo
+  // — y desaparece solo — con cada horario que el dueño prueba.
+  const effectiveDuration = selectedStart !== null ? Math.min(duration, maxDuration) : duration;
 
   // Cotización en vivo (debounce + abort). Delta = classify(oldLive, total).
   // Cortesía: sin plata no hay cotización (quoteKey null → el effect no corre).
-  const quoteKey = !isCourtesy && selectedStart !== null ? `${date}|${selectedStart}|${duration}` : null;
+  const quoteKey = !isCourtesy && selectedStart !== null ? `${date}|${selectedStart}|${effectiveDuration}` : null;
   useEffect(() => {
     if (quoteKey === null || selectedStart === null) return;
     const ctrl = new AbortController();
@@ -258,7 +258,7 @@ function ReschedulePicker({
         resource: resourceId,
         date,
         start: String(selectedStart),
-        duration: String(duration),
+        duration: String(effectiveDuration),
         addons: addonKeys.join(","),
       });
       void (async () => {
@@ -276,7 +276,7 @@ function ReschedulePicker({
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [quoteKey, resourceId, date, selectedStart, duration, addonKeys]);
+  }, [quoteKey, resourceId, date, selectedStart, effectiveDuration, addonKeys]);
 
   const quote = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.quote : null;
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
@@ -293,7 +293,7 @@ function ReschedulePicker({
     if (selectedStart === null) return;
     setSubmitError(null);
     startTransition(async () => {
-      const res = await rescheduleAction({ reservationId, date, startMinute: selectedStart, durationHours: duration });
+      const res = await rescheduleAction({ reservationId, date, startMinute: selectedStart, durationHours: effectiveDuration });
       if (!res.ok) {
         setSubmitError(res.error);
         toast({ tone: "error", message: res.error });
@@ -310,7 +310,7 @@ function ReschedulePicker({
       // durante la espera la vista está acá, no en la esquina): queda a la vista
       // hasta que el dueño cierre con "Listo".
       const movedTo = `${DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL")} · ${hhmm(selectedStart)}–${hhmm(
-        selectedStart + duration * 60,
+        selectedStart + effectiveDuration * 60,
       )}`;
       if (res.data.kind === "refunded") {
         const { amount, offline, offlineAmount } = res.data;
@@ -351,7 +351,9 @@ function ReschedulePicker({
 
   const dayLabel = DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL");
   const selectionLabel =
-    selectedStart !== null ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${duration}h` : null;
+    selectedStart !== null
+      ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + effectiveDuration * 60)} · ${effectiveDuration}h`
+      : null;
 
   if (done) {
     return (
@@ -418,7 +420,12 @@ function ReschedulePicker({
           <div>
             <span className="label-sm text-bone-quiet">Duración</span>
             <div className="mt-2">
-              <DurationStepper duration={duration} maxDuration={maxDuration} volumeDiscounts={volumeDiscounts} onChange={setDuration} />
+              <DurationStepper
+                duration={effectiveDuration}
+                maxDuration={maxDuration}
+                volumeDiscounts={volumeDiscounts}
+                onChange={setDuration}
+              />
             </div>
           </div>
           <div>
@@ -457,7 +464,7 @@ function ReschedulePicker({
           open={open}
           close={close}
           occupancy={occupancy}
-          selection={selectedStart !== null ? { start: selectedStart, end: selectedStart + duration * 60 } : null}
+          selection={selectedStart !== null ? { start: selectedStart, end: selectedStart + effectiveDuration * 60 } : null}
         />
       )}
 

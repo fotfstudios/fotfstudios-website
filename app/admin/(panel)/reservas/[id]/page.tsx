@@ -349,6 +349,11 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             // MP — el link "Ver actividad" y la referencia interna del pedido no aplican.
             const isOfflinePayment = b.mpPaymentId?.startsWith("offline:") ?? false;
             const isPointsPayment = b.mpPaymentId === "offline:puntos";
+            // Una orden 100% puntos no tiene reembolso en pesos: refund_points_order marca
+            // refunded_at pero nunca refunded_amount_clp (no hay boleta/NC de por medio), así
+            // que la fila "Reembolsado" mostraría siempre $0. El timeline (points_restored) ya
+            // deja constancia de los puntos repuestos — acá se oculta en vez de mostrar $0.
+            const isPointsOrder = (b.amount ?? 0) === 0 && b.pointsRedeemedClp > 0;
             return (
               <Card title={isOfflinePayment ? "Pago manual" : "Mercado Pago"}>
                 {isPointsPayment ? (
@@ -367,7 +372,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                   )
                 )}
 
-                {b.refundedAt && (
+                {b.refundedAt && !isPointsOrder && (
                   <div className="mt-3 border-t hairline pt-3">
                     <MpRow
                       label="Reembolsado"
