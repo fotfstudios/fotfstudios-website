@@ -120,7 +120,18 @@ export interface RescheduleFinalizer {
   applyCharge(deltaOrderId: string, paymentId: string): Promise<ApplyChargeOutcome>;
   /** Reembolsa el asiento del delta cuando el cobro no se aplicó (mark_refunded sobre la orden de delta). */
   markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void>;
-  /** Fila pending_refund de la reserva a la que pertenece `orderId` (original o delta), vía reservation_for_order. */
+  /**
+   * Fila pending_refund de la reserva a la que pertenece `orderId` (original o delta), vía
+   * reservation_for_order. Dependencia de orden con RescheduleService: el webhook es
+   * inbox-first, así que si el loopback asienta por acá, el asiento del admin del mismo
+   * refund id llega con el inbox NO fresco (y `duplicate` del RPC) — nunca cae en
+   * `mark_refunded`, que cancelaría una reserva confirmada.
+   */
   pendingRefundForOrder(orderId: string): Promise<{ rescheduleId: string; originalOrderId: string } | null>;
+  /**
+   * Asienta el reembolso sobre la fila pending_refund en vez de cancelar (RPC
+   * reschedule_settle_refund; `duplicate` se evalúa antes que el estado, así el último
+   * split asentado por el loopback no se lee como "reserva cancelada").
+   */
   settleRefund(rescheduleId: string, refundId: string, amount: number): Promise<SettleOutcome>;
 }

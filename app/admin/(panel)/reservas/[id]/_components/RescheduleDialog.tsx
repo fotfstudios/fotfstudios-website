@@ -302,11 +302,17 @@ function ReschedulePicker({
         selectedStart + duration * 60,
       )}`;
       if (res.data.kind === "refunded") {
+        const { amount, offline, offlineAmount } = res.data;
+        // Mixto (pago original offline + delta por MP): la parte MP ya salió; la parte en
+        // mano la tiene que devolver el dueño y no puede quedar escondida.
+        const mixed = offlineAmount > 0 && offlineAmount < amount;
         setDone({
           message: `Reserva reagendada a ${movedTo}.`,
-          detail: res.data.offline
-            ? `Registra la devolución de ${formatCLP(res.data.amount)} al cliente (pago offline: la haces tú por transferencia/efectivo).`
-            : `Se reembolsaron ${formatCLP(res.data.amount)} al medio de pago original.`,
+          detail: mixed
+            ? `Se reembolsaron ${formatCLP(amount - offlineAmount)} por Mercado Pago; registra ${formatCLP(offlineAmount)} devueltos en efectivo/transferencia al cliente.`
+            : offline
+              ? `Registra la devolución de ${formatCLP(amount)} al cliente (pago offline: la haces tú por transferencia/efectivo).`
+              : `Se reembolsaron ${formatCLP(amount)} al medio de pago original.`,
         });
       } else if (res.data.kind === "refund_pending") {
         setDone({

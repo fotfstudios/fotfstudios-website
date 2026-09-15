@@ -38,7 +38,11 @@ export interface RescheduleInput {
 
 export type RescheduleOutcome =
   | { kind: "moved" }
-  | { kind: "refunded"; amount: number; offline: boolean }
+  /**
+   * `offlineAmount`: parte del delta asentada como devolución en mano (la hace el dueño).
+   * 0 si todo salió por MP; igual a `amount` (con `offline: true`) si todo fue offline.
+   */
+  | { kind: "refunded"; amount: number; offline: boolean; offlineAmount: number }
   /**
    * La reserva YA se movió; el reembolso quedó pendiente: MP falló (`mp_error`) o lo dejó
    * en contingencia (`in_process`). Se completa con `retryRefund` (admin) o el cron.
@@ -246,14 +250,26 @@ export class RescheduleService {
    * sigue desde donde quedó (in-flight, parcial o desde cero).
    */
   private async refundRemaining(row: PendingRefundRow): Promise<Result<RescheduleOutcome, string>> {
+    // Lo asentado como offline EN ESTA PASADA: es la plata que el dueño devuelve en mano y el
+    // admin debe ver aparte. (Lo offline de una pasada anterior no se distingue en la fila.)
+    let offlineAmount = 0;
     const refunded = (offline: boolean): Result<RescheduleOutcome, string> =>
-      ok({ kind: "refunded", amount: row.deltaClp, offline });
+      ok({ kind: "refunded", amount: row.deltaClp, offline, offlineAmount });
     const pending = (reason: "mp_error" | "in_process"): Result<RescheduleOutcome, string> =>
       ok({ kind: "refund_pending", rescheduleId: row.rescheduleId, amount: row.deltaClp, reason });
 
     // Un reembolso quedó en vuelo (in_process) en un intento anterior: antes de emitir
     // otro hay que saber en qué quedó, o se devuelve dos veces.
     let salt = "";
+    // Marca en vuelo de un reembolso muerto: se conserva hasta que la re-emisión salada
+    // RESPONDA. Si se borrara antes y MP lanzara, el próximo reintento ya no sabría del
+    // rechazo y volvería a la clave sin sal (MP devolvería el reembolso muerto).
+    let stale = false;
+    const dropStale = async () => {
+      if (!stale) return;
+      await this.repo.markRefundInFlight(row.rescheduleId, null);
+      stale = false;
+    };
     if (row.inFlight) {
       const r = await this.gateway.getRefund(row.inFlight.paymentId, row.inFlight.refundId);
       if (r && isSettledRefund(r)) {
@@ -268,9 +284,10 @@ export class RescheduleService {
         if (row.inFlight) await this.repo.markRefundInFlight(row.rescheduleId, null);
       } else if (isDeadRefund(r)) {
         // Rechazado/anulado/inexistente: clave NUEVA para el mismo intento (MP dedupea la
-        // vieja y devolvería el reembolso muerto), y la fila deja de apuntarle.
+        // vieja y devolvería el reembolso muerto). La fila sigue apuntándole hasta que la
+        // re-emisión responda (ver `stale`).
         salt = `:after:${row.inFlight.refundId}`;
-        await this.repo.markRefundInFlight(row.rescheduleId, null);
+        stale = true;
       } else {
         return pending("in_process");
       }
@@ -291,8 +308,10 @@ export class RescheduleService {
       if (!isRealMpPayment(s.paymentId)) {
         // Porción offline: sin MP ni inbox (la devolución física la hace el dueño); se
         // asienta directo. Un pedido tiene a lo más un pago offline → un solo asiento así.
+        await dropStale();
         const step = await this.settleOne(row, OFFLINE_REFUND_ID, s.amount);
         if (typeof step !== "string") return step;
+        offlineAmount += s.amount;
         continue;
       }
       let refund: RefundResult;
@@ -301,16 +320,19 @@ export class RescheduleService {
         // devuelve el mismo reembolso sin duplicar; el `salt` la renueva tras uno muerto.
         refund = await this.gateway.refundPayment(s.paymentId, s.amount, `refund:${s.paymentId}:${s.amount}:${row.rescheduleId}${salt}`);
       } catch (e) {
-        // La reserva ya está movida; la plata queda pendiente y se reintenta con la misma clave.
+        // La reserva ya está movida; la plata queda pendiente y se reintenta con la misma
+        // clave (y con la marca en vuelo intacta, si la había).
         console.error("[reschedule:refund]", e);
         return pending("mp_error");
       }
       if (!isSettledRefund(refund)) {
-        // Contingencia MP: se recuerda el id en vuelo y NO se sigue con el próximo split
-        // (si este se rechaza, el orden de las NC ya no coincidiría con la plata).
+        // Contingencia MP: se recuerda el id en vuelo (reemplazando al muerto, si lo había)
+        // y NO se sigue con el próximo split (si este se rechaza, el orden de las NC ya no
+        // coincidiría con la plata).
         await this.repo.markRefundInFlight(row.rescheduleId, { paymentId: s.paymentId, refundId: refund.id });
         return pending("in_process");
       }
+      await dropStale();
       const step = await this.settleOne(row, refund.id, refund.amount ?? s.amount);
       if (typeof step !== "string") return step;
     }
@@ -335,6 +357,10 @@ export class RescheduleService {
     if (res === "settled" || res === "duplicate") return "partial";
     // noop: la fila dejó de estar pendiente entre medio (reserva cancelada). Si el reembolso
     // es nuestro (fresco), la plata igual salió: se asienta sobre la orden cancelada.
+    // Dependencia de orden: el webhook también es inbox-first, así que una fila que el
+    // loopback ya asentó llega acá SIEMPRE con `!fresh` (y además como `duplicate`, no
+    // `noop`). `mark_refunded` cancela una reserva confirmada — solo es correcto porque la
+    // fila ya no está pendiente (cancelada); jamás llamarlo por un loopback.
     if (fresh && !offline) await this.inbox.markRefunded(row.orderId, refundId, amount);
     return ok({ kind: "refund_looped_back" });
   }

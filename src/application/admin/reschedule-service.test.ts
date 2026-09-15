@@ -157,7 +157,7 @@ describe("RescheduleService.reschedule", () => {
       }),
     });
     const { service } = svc({ pricing: makePricing(7990), gw, repo, inbox });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(calls).toEqual(["move", "mp", "inbox", "settle"]);
     expect(repo.moveDown).toHaveBeenCalledWith(expect.objectContaining({ reservationId: "r1", refundAmount: 2000, createdBy: null }));
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1");
@@ -193,12 +193,12 @@ describe("RescheduleService.reschedule", () => {
     expect(repo.settleRefund).not.toHaveBeenCalled();
   });
 
-  it("loopback ganó (inbox no fresco + settle duplicate) → refunded igual, sin error", async () => {
+  it("loopback asentó el ÚLTIMO split primero (inbox no fresco + settle duplicate, fila ya applied) → refunded igual, sin error", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.settleRefund = vi.fn(async () => "duplicate" as const);
     const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
     const { service } = svc({ pricing: makePricing(7990), repo, inbox });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "ref_9", 2000);
     expect(inbox.markRefunded).not.toHaveBeenCalled();
   });
@@ -213,7 +213,7 @@ describe("RescheduleService.reschedule", () => {
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "ref_9", 2000);
   });
 
-  it("settle noop con inbox NO fresco → el loopback ya asentó: refund_looped_back sin markRefunded", async () => {
+  it("settle noop con inbox NO fresco → refund_looped_back sin markRefunded (nunca cancelar por un loopback)", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.settleRefund = vi.fn(async () => "noop" as const);
     const inbox = makeInbox({ recordEvent: vi.fn(async () => false) });
@@ -237,7 +237,7 @@ describe("RescheduleService.reschedule", () => {
       refundPayment: vi.fn(async (pid: string, amt?: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })),
     });
     const { service } = svc({ pricing: makePricing(1990), gw, repo });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 11000, offline: false }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 11000, offline: false, offlineAmount: 0 }));
     // Cada pago recibe solo lo que capturó (MP rechaza sobre-reembolsos), más-antigua-primero.
     expect(vi.mocked(gw.refundPayment).mock.calls.map((c) => c[2])).toEqual(["refund:mp_1:9990:rs1", "refund:mp_2:1010:rs1"]);
     expect(repo.settleRefund).toHaveBeenNthCalledWith(1, "rs1", "ref_mp_1", 9990);
@@ -258,7 +258,7 @@ describe("RescheduleService.reschedule", () => {
       { liveAmount: 9990, paymentId: "offline:efectivo" },
     ]);
     const { service, inbox, gw } = svc({ pricing: makePricing(7990), repo });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: true }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 2000, offline: true, offlineAmount: 2000 }));
     expect(repo.moveDown).toHaveBeenCalledOnce();
     expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "offline:reschedule", 2000);
     expect(gw.refundPayment).not.toHaveBeenCalled();
@@ -284,7 +284,7 @@ describe("RescheduleService.reschedule", () => {
       }),
     });
     const { service, inbox } = svc({ pricing: makePricing(1990), gw, repo });
-    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 11000, offline: false }));
+    expect(await service.reschedule(input)).toEqual(ok({ kind: "refunded", amount: 11000, offline: false, offlineAmount: 9990 }));
     expect(calls).toEqual(["settle:offline:reschedule", "mp:mp_delta", "settle:ref_mp_delta"]);
     expect(repo.settleRefund).toHaveBeenNthCalledWith(1, "rs1", "offline:reschedule", 9990);
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_delta", 1010, "refund:mp_delta:1010:rs1");
@@ -373,7 +373,7 @@ describe("RescheduleService.retryRefund", () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.pendingRefundRow = vi.fn(async () => row);
     const { service, gw, inbox } = svc({ repo });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(gw.getRefund).not.toHaveBeenCalled();
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1");
     expect(inbox.recordEvent).toHaveBeenCalledWith("refund:ref_9", "refund", expect.anything());
@@ -391,7 +391,7 @@ describe("RescheduleService.retryRefund", () => {
     repo.backingBoletas = vi.fn(async () => [{ liveAmount: 3000, paymentId: "mp_2" }]);
     const gw = makeGateway({ refundPayment: vi.fn(async (pid: string, amt?: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })) });
     const { service } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 11000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 11000, offline: false, offlineAmount: 0 }));
     expect(gw.refundPayment).toHaveBeenCalledTimes(1);
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_2", 1010, "refund:mp_2:1010:rs1");
     expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "ref_mp_2", 1010);
@@ -402,7 +402,7 @@ describe("RescheduleService.retryRefund", () => {
     repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
     const gw = makeGateway({ getRefund: vi.fn(async () => ({ id: "ref_ip", status: "approved", amount: 2000 })) });
     const { service, inbox } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(gw.getRefund).toHaveBeenCalledWith("mp_123", "ref_ip");
     expect(gw.refundPayment).not.toHaveBeenCalled();
     expect(inbox.recordEvent).toHaveBeenCalledWith("refund:ref_ip", "refund", expect.anything());
@@ -421,7 +421,7 @@ describe("RescheduleService.retryRefund", () => {
       refundPayment: vi.fn(async (pid: string, amt?: number) => ({ id: `ref_${pid}`, status: "approved", amount: amt })),
     });
     const { service } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 11000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 11000, offline: false, offlineAmount: 0 }));
     expect(repo.settleRefund).toHaveBeenNthCalledWith(1, "rs1", "ref_ip", 9990);
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_2", 1010, "refund:mp_2:1010:rs1");
     expect(repo.settleRefund).toHaveBeenNthCalledWith(2, "rs1", "ref_mp_2", 1010);
@@ -439,22 +439,70 @@ describe("RescheduleService.retryRefund", () => {
     expect(repo.markRefundInFlight).not.toHaveBeenCalled();
   });
 
-  it("in-flight rechazado → nuevo intento con clave salada ':after:ref_ip'", async () => {
+  it("in-flight rechazado → nuevo intento con clave salada ':after:ref_ip'; la marca en vuelo se borra DESPUÉS de que MP responda", async () => {
+    const calls: string[] = [];
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
-    const gw = makeGateway({ getRefund: vi.fn(async () => ({ id: "ref_ip", status: "rejected", amount: 2000 })) });
+    repo.markRefundInFlight = vi.fn(async (_id: string, ref) => {
+      calls.push(ref ? "inflight:set" : "inflight:clear");
+    });
+    repo.settleRefund = vi.fn(async (): Promise<SettleOutcome> => {
+      calls.push("settle");
+      return "applied";
+    });
+    const gw = makeGateway({
+      getRefund: vi.fn(async () => ({ id: "ref_ip", status: "rejected", amount: 2000 })),
+      refundPayment: vi.fn(async () => {
+        calls.push("mp");
+        return { id: "ref_9", status: "approved", amount: 2000 };
+      }),
+    });
     const { service } = svc({ repo, gw });
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", null);
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1:after:ref_ip");
     expect(repo.settleRefund).toHaveBeenCalledWith("rs1", "ref_9", 2000);
+    expect(calls).toEqual(["mp", "inflight:clear", "settle"]); // MP primero; recién con respuesta se suelta la marca
+  });
+
+  it("in-flight rechazado + la re-emisión salada LANZA → la marca en vuelo queda intacta y refund_pending(mp_error)", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
+    const gw = makeGateway({
+      getRefund: vi.fn(async () => ({ id: "ref_ip", status: "rejected", amount: 2000 })),
+      refundPayment: vi.fn(async () => {
+        throw new Error("MP down");
+      }),
+    });
+    const { service, inbox } = svc({ repo, gw });
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "mp_error" }));
+    expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1:after:ref_ip");
+    // Sin la marca, el próximo reintento no sabría del rechazo y volvería a la clave sin sal.
+    expect(repo.markRefundInFlight).not.toHaveBeenCalled();
+    expect(inbox.recordEvent).not.toHaveBeenCalled();
+    expect(repo.settleRefund).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("in-flight rechazado + la re-emisión salada queda in_process → la marca pasa al reembolso nuevo", async () => {
+    const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
+    repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
+    const gw = makeGateway({
+      getRefund: vi.fn(async () => ({ id: "ref_ip", status: "rejected", amount: 2000 })),
+      refundPayment: vi.fn(async () => ({ id: "ref_ip2", status: "in_process", amount: 2000 })),
+    });
+    const { service } = svc({ repo, gw });
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refund_pending", rescheduleId: "rs1", amount: 2000, reason: "in_process" }));
+    expect(repo.markRefundInFlight).toHaveBeenCalledTimes(1);
+    expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", { paymentId: "mp_123", refundId: "ref_ip2" });
   });
 
   it("in-flight que MP ya no encuentra (null) → misma salida que rechazado", async () => {
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     repo.pendingRefundRow = vi.fn(async () => ({ ...row, inFlight: { paymentId: "mp_123", refundId: "ref_ip" } }));
     const { service, gw } = svc({ repo }); // getRefund por defecto → null
-    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false }));
+    expect(await service.retryRefund("rs1")).toEqual(ok({ kind: "refunded", amount: 2000, offline: false, offlineAmount: 0 }));
     expect(repo.markRefundInFlight).toHaveBeenCalledWith("rs1", null);
     expect(gw.refundPayment).toHaveBeenCalledWith("mp_123", 2000, "refund:mp_123:2000:rs1:after:ref_ip");
   });
