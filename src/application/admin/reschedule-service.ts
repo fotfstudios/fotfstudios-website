@@ -63,6 +63,9 @@ export class RescheduleService {
     const ctx = await this.repo.loadContext(input.reservationId);
     if (!ctx) return err("not_found");
     if (ctx.reservation.status !== "confirmed" || ctx.reservation.kind !== "booking") return err("not_active");
+    // A lo más UN reagendamiento pendiente por reserva (cobro por pagar o —futuro—
+    // reembolso por asentar): cotizar/mover encima de esa fila la dejaría huérfana.
+    if (ctx.pending) return err("reschedule_pending");
 
     // Cortesía (sin orden): movimiento puro de calendario — sin plata no hay
     // cotización, MP ni política de 12 h (misma flexibilidad que crearla). El
@@ -170,5 +173,10 @@ export class RescheduleService {
     });
     if (!pref.ok) return err(pref.error);
     return ok({ kind: "charge_pending", deltaOrderId, rescheduleId, initPoint: pref.value.initPoint, amount: delta.amount });
+  }
+
+  /** Anula el cobro pendiente de un reagendamiento, liberando la reserva para reagendar de nuevo. */
+  async cancelPendingCharge(rescheduleId: string, createdBy: string | null): Promise<boolean> {
+    return this.repo.cancelCharge(rescheduleId, createdBy);
   }
 }

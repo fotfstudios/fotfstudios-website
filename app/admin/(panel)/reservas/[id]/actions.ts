@@ -151,6 +151,8 @@ function rescheduleErrorMessage(code: string): string {
       return "Ese horario ya pasó. Elige otro.";
     case "charge_unsupported":
       return "El nuevo horario cuesta más y el cobro del extra aún no está disponible.";
+    case "reschedule_pending":
+      return "Hay un reagendamiento pendiente en esta reserva. Anúlalo o espera a que se pague antes de mover la sesión.";
     default:
       return code; // errores de la RPC (p. ej. "Ese horario ya está tomado.") ya vienen en es-CL
   }

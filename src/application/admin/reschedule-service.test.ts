@@ -4,7 +4,7 @@ import type { ReschedulePort, RescheduleContext } from "@/src/application/ports/
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PricingService } from "@/src/application/pricing/pricing-service";
 import type { Quote } from "@/src/domain/pricing/types";
-import { ok } from "@/src/domain/shared/result";
+import { err, ok } from "@/src/domain/shared/result";
 
 const NOW = new Date("2026-07-10T12:00:00Z");
 const OLD_START = "2026-07-12T18:00:00Z"; // >12 h ⇒ política permite
@@ -48,6 +48,7 @@ function makeRepo(ctx: RescheduleContext | null, backing?: { liveAmount: number;
     createCharge: vi.fn(async () => ({ rescheduleId: "rs1", deltaOrderId: "do1" })),
     moveCourtesy: vi.fn(async () => {}),
     backingBoletas: vi.fn(async () => boletas),
+    cancelCharge: vi.fn(async () => true),
   };
 }
 
@@ -66,6 +67,7 @@ const CTX: RescheduleContext = {
   concessionClp: 0,
   concessionLabel: "",
   timezone: "America/Santiago",
+  pending: null,
 };
 
 const COURTESY: RescheduleContext = { ...CTX, order: null };
@@ -199,6 +201,29 @@ describe("RescheduleService.reschedule", () => {
     expect(await guard({ ...CTX, reservation: { ...CTX.reservation, status: "cancelled" } })).toBe(false); // no activa
     expect(await guard({ ...CTX, order: { ...CTX.order!, pointsRedeemedClp: 5000 } })).toBe(false); // puntos
     expect(await guard({ ...CTX, reservation: { ...CTX.reservation, startsAt: "2026-07-10T18:00:00Z" } })).toBe(false); // <12h
+  });
+
+  it("con un cobro pendiente NO se cotiza ni se mueve → reschedule_pending", async () => {
+    const pending = { kind: "charge" as const, rescheduleId: "rs0", deltaOrderId: "do0", amountClp: 3000, newStartsAt: NEW_START, newEndsAt: NEW_END };
+    const { service, repo } = svc({ repo: makeRepo({ ...CTX, pending }) });
+    expect(await service.reschedule(input)).toEqual(err("reschedule_pending"));
+    expect(repo.moveEqual).not.toHaveBeenCalled();
+    expect(repo.createCharge).not.toHaveBeenCalled();
+  });
+
+  it("cortesía con fila pendiente también se bloquea", async () => {
+    const pending = { kind: "charge" as const, rescheduleId: "rs0", deltaOrderId: "do0", amountClp: 0, newStartsAt: NEW_START, newEndsAt: NEW_END };
+    const { service, repo } = svc({ repo: makeRepo({ ...COURTESY, pending }) });
+    expect(await service.reschedule(input)).toEqual(err("reschedule_pending"));
+    expect(repo.moveCourtesy).not.toHaveBeenCalled();
+  });
+});
+
+describe("RescheduleService.cancelPendingCharge", () => {
+  it("cancelPendingCharge delega en el repo", async () => {
+    const { service, repo } = svc();
+    expect(await service.cancelPendingCharge("rs0", "admin-1")).toBe(true);
+    expect(repo.cancelCharge).toHaveBeenCalledWith("rs0", "admin-1");
   });
 });
 

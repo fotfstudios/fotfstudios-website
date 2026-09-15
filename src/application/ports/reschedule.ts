@@ -26,6 +26,19 @@ export interface RescheduleContext {
   concessionLabel: string;
   /** Zona horaria de la sala — para armar el rango destino sin cotizar (cortesías). */
   timezone: string;
+  /**
+   * Fila `pending_charge`/`pending_refund` viva de esta reserva, si la hay. El índice único
+   * parcial garantiza a lo más una — con ella presente NO se cotiza ni se mueve: hay que
+   * anularla (o esperar a que se pague) antes de reagendar de nuevo.
+   */
+  pending: {
+    kind: "charge" | "refund";
+    rescheduleId: string;
+    deltaOrderId: string | null;
+    amountClp: number;
+    newStartsAt: string;
+    newEndsAt: string;
+  } | null;
 }
 
 export interface RescheduleMoveParams {
@@ -64,6 +77,8 @@ export interface ReschedulePort {
   createCharge(p: RescheduleChargeParams): Promise<{ rescheduleId: string; deltaOrderId: string }>;
   /** Cortesía (sin orden): movimiento puro de calendario (RPC reschedule_courtesy). */
   moveCourtesy(p: { reservationId: string; startsAt: string; endsAt: string; note: string | null }): Promise<void>;
+  /** Anula el cobro pendiente de un reagendamiento (RPC cancel_reschedule_charge), liberando la reserva para reagendar de nuevo. */
+  cancelCharge(rescheduleId: string, createdBy: string | null): Promise<boolean>;
 }
 
 /** Resultado de aplicar un cobro de reagendamiento diferido (RPC apply_reschedule_charge). */

@@ -23,6 +23,8 @@ function rescheduleError(message: string): string {
   if (/reschedule_not_active|reschedule_not_eligible/i.test(message))
     return "Esta reserva ya no se puede reagendar (debe estar pagada y activa).";
   if (/reschedule_bad_delta/i.test(message)) return "El monto del reembolso no corresponde al cambio.";
+  if (/reschedule_pending_exists/i.test(message))
+    return "Hay un reagendamiento pendiente en esta reserva. Anúlalo o espera a que se pague antes de mover la sesión.";
   return message;
 }
 
@@ -68,6 +70,25 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       }
     }
 
+    // Al menos un reagendamiento pendiente (cobro por pagar, o —futuro— reembolso por
+    // asentar) bloquea uno nuevo: el índice único parcial garantiza a lo más una fila.
+    const { data: p } = await this.db
+      .from("reschedules")
+      .select("id, kind, delta_order_id, delta_clp, new_starts_at, new_ends_at, status")
+      .eq("reservation_id", reservationId)
+      .in("status", ["pending_charge", "pending_refund"])
+      .maybeSingle();
+    const pending = p
+      ? {
+          kind: p.status === "pending_charge" ? ("charge" as const) : ("refund" as const),
+          rescheduleId: p.id,
+          deltaOrderId: p.delta_order_id,
+          amountClp: p.delta_clp,
+          newStartsAt: p.new_starts_at,
+          newEndsAt: p.new_ends_at,
+        }
+      : null;
+
     return {
       reservation: { id: r.id, resourceId: r.resource_id, startsAt: r.starts_at, status: r.status, kind: r.kind },
       order,
@@ -75,6 +96,7 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       concessionClp: concession.amount,
       concessionLabel: concession.description,
       timezone,
+      pending,
     };
   }
 
@@ -151,6 +173,15 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
     const row = data?.[0];
     if (!row) throw new Error("No se pudo crear el cobro de reagendamiento.");
     return { rescheduleId: row.reschedule_id, deltaOrderId: row.delta_order_id };
+  }
+
+  async cancelCharge(rescheduleId: string, createdBy: string | null): Promise<boolean> {
+    const { data, error } = await this.db.rpc("cancel_reschedule_charge", {
+      p_reschedule: rescheduleId,
+      p_created_by: createdBy ?? undefined,
+    });
+    if (error) throw new Error(rescheduleError(error.message));
+    return !!data;
   }
 
   // ── RescheduleFinalizer (webhook) ──
