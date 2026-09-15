@@ -1599,6 +1599,18 @@ export type Database = {
         Args: { p_created_by?: string; p_session: string }
         Returns: undefined
       }
+      cancel_pending_reschedules: {
+        Args: { p_created_by?: string; p_reservation: string }
+        Returns: number
+      }
+      cancel_reschedule_charge: {
+        Args: { p_created_by?: string; p_reschedule: string }
+        Returns: boolean
+      }
+      cancel_reschedule_row: {
+        Args: { p_created_by?: string; p_reschedule: string }
+        Returns: boolean
+      }
       cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
       confirm_course_payment: {
         Args: { p_method?: string; p_order: string; p_payment_id: string }
