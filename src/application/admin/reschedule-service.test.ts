@@ -166,6 +166,7 @@ describe("RescheduleService.reschedule", () => {
   });
 
   it("MP lanza tras mover → refund_pending(mp_error): sin inbox, sin settle, sin in-flight", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const repo = makeRepo(CTX, [{ liveAmount: 9990, paymentId: "mp_123" }]);
     const gw = makeGateway({
       refundPayment: vi.fn(async () => {
@@ -178,6 +179,8 @@ describe("RescheduleService.reschedule", () => {
     expect(inbox.recordEvent).not.toHaveBeenCalled();
     expect(repo.settleRefund).not.toHaveBeenCalled();
     expect(repo.markRefundInFlight).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[reschedule:refund]", expect.any(Error));
+    log.mockRestore();
   });
 
   it("MP responde in_process → guarda el id en vuelo y refund_pending(in_process); sin inbox ni settle", async () => {
@@ -489,6 +492,7 @@ describe("RescheduleService.retryFailedChargeRefund (H9)", () => {
   });
 
   it("MP lanza → failed; sin inbox ni mark", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const repo = makeRepo(CTX);
     const gw = makeGateway({
       refundPayment: vi.fn(async () => {
@@ -499,6 +503,8 @@ describe("RescheduleService.retryFailedChargeRefund (H9)", () => {
     expect(await service.retryFailedChargeRefund(row)).toBe("failed");
     expect(inbox.recordEvent).not.toHaveBeenCalled();
     expect(repo.markChargeRefunded).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[reschedule:charge-refund-retry]", expect.any(Error));
+    log.mockRestore();
   });
 });
 
