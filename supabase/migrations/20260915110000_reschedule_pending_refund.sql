@@ -18,14 +18,16 @@ create or replace function cancel_reschedule_row(p_reschedule uuid, p_created_by
 returns boolean language plpgsql set search_path = public, pg_temp as $$
 declare r record;
 begin
-  select id, reservation_id, status, kind, delta_order_id, delta_clp, old_starts_at, new_starts_at, mp_refund_id
+  select id, reservation_id, status, kind, original_order_id, delta_order_id, delta_clp, old_starts_at, new_starts_at, mp_refund_id
     into r from reschedules where id = p_reschedule for update;
   if r.id is null or r.status not in ('pending_charge', 'pending_refund') then return false; end if;
   if r.status = 'pending_charge' then
     update orders set status = 'cancelled' where id = r.delta_order_id and status = 'pending_payment';
   end if;
   update reschedules set status = 'cancelled' where id = r.id;
-  perform log_booking_event(r.reservation_id, 'reschedule_cancelled', p_order => r.delta_order_id,
+  -- `pending_refund` no tiene delta_order_id (el reembolso vive en la orden original): el
+  -- evento igual necesita colgar de una orden.
+  perform log_booking_event(r.reservation_id, 'reschedule_cancelled', p_order => coalesce(r.delta_order_id, r.original_order_id),
     p_reschedule => r.id, p_amount => r.delta_clp, p_payment_ref => r.mp_refund_id, p_created_by => p_created_by,
     p_detail => jsonb_build_object('kind', r.kind, 'old_starts_at', r.old_starts_at, 'new_starts_at', r.new_starts_at));
   return true;
@@ -81,6 +83,9 @@ declare
 begin
   select * into r from reschedules where id = p_reschedule for update;
   if r.id is null then return 'noop'; end if;
+  -- Un refund id NULL/vacío rompería la idempotencia por-refund de abajo y viola
+  -- `points_ledger.ref not null` en el earn_revoke de más abajo.
+  if p_refund_id is null or p_refund_id = '' then raise exception 'reschedule_bad_refund_id'; end if;
   -- `duplicate` ANTES que el estado: si el loopback del webhook asentó el ÚLTIMO split y la
   -- fila ya quedó `applied`, el segundo asiento del mismo refund id es un duplicado, no un
   -- `noop` (que para el admin significa "la reserva se canceló entre medio").

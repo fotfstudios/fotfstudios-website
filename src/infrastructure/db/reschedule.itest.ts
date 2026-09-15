@@ -736,4 +736,24 @@ describe("reschedule_down_move + reschedule_settle_refund (auditoría 2026-09-14
     const s = await pg.query<{ reschedule_settle_refund: string }>("select reschedule_settle_refund($1,$2,$3)", [id, "ref-flight", 2000]);
     expect(s.rows[0].reschedule_settle_refund).toBe("noop");
   });
+
+  it("settle con p_refund_id null → rechaza (un id nulo rompería la idempotencia por-refund y el ref not null de puntos)", async () => {
+    const { reservationId, endsAt } = await paidBooking(600, "pr7");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    await expect(
+      pg.query("select reschedule_settle_refund($1,$2,$3)", [m.rows[0].reschedule_down_move, null, 2000]),
+    ).rejects.toThrow(/reschedule_bad_refund_id/);
+  });
+
+  it("cancel_booking con pending_refund → el evento reschedule_cancelled cuelga de la orden ORIGINAL (no tiene delta_order_id)", async () => {
+    const { orderId, reservationId, endsAt } = await paidBooking(600, "pr8");
+    const m = await pg.query<{ reschedule_down_move: string }>(
+      "select reschedule_down_move($1,$2,$3,$4::jsonb,$5::jsonb,$6)", [reservationId, addHours(endsAt, 1), addHours(endsAt, 2), "{}", linesDown, 2000]);
+    const id = m.rows[0].reschedule_down_move;
+    await pg.query("select cancel_booking($1)", [reservationId]);
+    const ev = await pg.query<{ order_id: string }>(
+      "select order_id from booking_events where reschedule_id=$1 and type='reschedule_cancelled'", [id]);
+    expect(ev.rows[0].order_id).toBe(orderId);
+  });
 });

@@ -20,7 +20,7 @@ export type WebhookOutcome =
 export interface WebhookResult {
   result: WebhookOutcome;
   orderId: string | null;
-  /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded"). */
+  /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded" o "reschedule_refund_settled"). */
   refundedAmount?: number;
   /** Detalle del cobro de reagendamiento no aplicado (solo cuando result === "reschedule_charge_failed"). */
   chargeFailure?: {

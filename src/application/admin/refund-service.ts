@@ -1,5 +1,6 @@
 import type { PaymentGateway } from "@/src/application/ports/payment";
 import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import { formatCLP } from "@/src/domain/money/money";
 import { isSettledRefund, splitRefundAcrossPayments, type BackingBoleta } from "@/src/domain/scheduling/refund-split";
 
 /** Repo mínimo que la cancelación necesita (lo satisface SupabaseAdminRepository). */
@@ -95,7 +96,7 @@ export class RefundService {
     const pend = await this.repo.pendingRescheduleFor(reservationId);
     if (pend?.kind === "refund") {
       throw new Error(
-        `Hay un reembolso de reagendamiento pendiente por $${pend.amountClp}. Usa "Reintentar" en la ficha antes de cancelar.`,
+        `Hay un reembolso de reagendamiento pendiente por ${formatCLP(pend.amountClp)}. Usa "Reintentar" en la ficha antes de cancelar.`,
       );
     }
 
