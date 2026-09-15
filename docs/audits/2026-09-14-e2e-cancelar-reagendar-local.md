@@ -1,7 +1,8 @@
 # Auditoría E2E de cancelación y reagendamiento (stack local)
 
-**Fecha:** 2026-09-14, 20:40–21:10 (America/Santiago). **Estado:** hallazgos abiertos, sin
-corregir. Stack: Docker + Supabase CLI (53/53 migraciones, seed intacto) + `next dev` 15.5.20 +
+**Fecha:** 2026-09-14, 20:40–21:10 (America/Santiago). **Estado:** H2/H3/H5 corregidos en
+PR #178; H1/H9 en este PR (branch `fix/reschedule-pending-refund`: mover → MP → asentar con
+fila `pending_refund`, reintento admin/cron, loopback que asienta en vez de cancelar). Stack: Docker + Supabase CLI (53/53 migraciones, seed intacto) + `next dev` 15.5.20 +
 credenciales de prueba de MP (solo para crear la preference del delta). Sin Resend (`NoopMailer`
 → los emails se verifican en `notification_log` y en el log del dev server).
 
@@ -62,11 +63,13 @@ Fixtures: `scratchpad/fixtures.ts` (CheckoutService real + `confirm_payment(offl
 
 ### H1 — Reagendar más barato con pago MP: asiento sin reembolso real (alta)
 
-`RescheduleService.reschedule` (`src/application/admin/reschedule-service.ts:136-148`) llama
-`settleDown` (RPC `reschedule_down`, que **commitea** la movida, `refunded_amount_clp`, NC,
-boleta nueva y revoke de puntos) y **recién después** `gateway.refundPayment`. El orden está
-elegido a propósito (I2: no reembolsar si el GiST rechaza el slot), pero deja el caso inverso sin
-compensación.
+Antes de PR2 (`fix/reschedule-pending-refund`), `RescheduleService.reschedule`
+(`src/application/admin/reschedule-service.ts:136-148` de entonces) llamaba `settleDown` (RPC
+`reschedule_down`, que **commiteaba** la movida, `refunded_amount_clp`, NC, boleta nueva y revoke
+de puntos) y **recién después** `gateway.refundPayment`. El orden estaba elegido a propósito (I2:
+no reembolsar si el GiST rechaza el slot), pero dejaba el caso inverso sin compensación. PR2 lo
+parte en `reschedule_down_move` (mover, sin plata) → MP → `reschedule_settle_refund` (asentar por
+reembolso aprobado).
 
 Reproducido con b3 (89.970, `mp_demo_0003`) → mié 16 10:00–12:00: el admin ve "No se pudo
 reembolsar en Mercado Pago", pero la DB quedó así:

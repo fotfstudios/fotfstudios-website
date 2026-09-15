@@ -58,6 +58,14 @@ export function PendingRescheduleCard({
             {formatSessionWhen(pending.newStartsAt, tz, { endsAt: pending.newEndsAt })}; Mercado Pago aún no
             devolvió la diferencia.
           </p>
+          {pending.offlineSettledClp > 0 && (
+            // Pedido mixto (original offline + delta por MP): la parte en mano ya está asentada;
+            // lo que falta es solo la parte de MP — que no se devuelva el total dos veces.
+            <p className="mt-2 text-sm leading-relaxed text-bone-dim">
+              Ya registraste {formatCLP(pending.offlineSettledClp)} devueltos en efectivo/transferencia; faltan{" "}
+              {formatCLP(pending.deltaClp - pending.settledClp)} por Mercado Pago.
+            </p>
+          )}
           <p className="mt-2 label-sm text-bone-quiet">
             Cancelar y reagendar quedan deshabilitados hasta que el reembolso se resuelva.
           </p>

@@ -8,6 +8,7 @@ import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/ca
 import type { RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
+import { formatCLP } from "@/src/domain/money/money";
 import { hostFromHeaders } from "@/lib/urls";
 import { getRescheduleDay } from "./reschedule-data";
 import type { DayConsoleData } from "../nueva/types";
@@ -157,7 +158,9 @@ export async function cancelRescheduleChargeAction(_prev: ActionResult | null, f
  * contingencia la primera vez y quedó por reintentar desde la ficha. `noop` es una
  * carrera benigna (el cron o otro reintento ya la resolvió) — se traduce vía
  * `rescheduleErrorMessage`. Si MP vuelve a fallar, la fila sigue pendiente y se avisa
- * con el motivo (mp_error/in_process) en vez de un error genérico.
+ * con el motivo (mp_error/in_process) en vez de un error genérico. Los desenlaces que NO
+ * son "reembolso hecho" (reserva cancelada entre medio, reembolso sin fila) se lanzan
+ * como error para que el admin los vea persistentes, no como un toast verde.
  */
 export async function retryRescheduleRefundAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
@@ -165,6 +168,9 @@ export async function retryRescheduleRefundAction(_prev: ActionResult | null, fd
     const reservationId = str(fd, "reservationId");
     const res = await rescheduleService().retryRefund(str(fd, "rescheduleId"));
     if (!res.ok) throw new Error(rescheduleErrorMessage(res.error));
+    // Se revalida ANTES de lanzar: la fila cambió de estado en varios de estos desenlaces
+    // (cancelada, asentada por el loopback) y la ficha tiene que reflejarlo con el error.
+    revalidatePath(`/admin/reservas/${reservationId}`);
     if (res.value.kind === "refund_pending") {
       throw new Error(
         res.value.reason === "in_process"
@@ -172,8 +178,16 @@ export async function retryRescheduleRefundAction(_prev: ActionResult | null, fd
           : "Mercado Pago no respondió. Vuelve a intentar en unos minutos.",
       );
     }
-    revalidatePath(`/admin/reservas/${reservationId}`);
+    if (res.value.kind === "refund_looped_back") {
+      throw new Error("La reserva quedó cancelada por un reembolso completo desde Mercado Pago; no hay nada que reintentar.");
+    }
+    if (res.value.kind === "refund_unaccounted") throw new Error(refundUnaccountedMessage(res.value));
   });
+}
+
+/** MP devolvió plata nuestra que no calza con ninguna fila pendiente: nunca se cancela nada; el dueño revisa MP. */
+function refundUnaccountedMessage(v: { refundId: string; amount: number }): string {
+  return `Mercado Pago aprobó un reembolso de ${formatCLP(v.amount)} (id ${v.refundId}) que no calza con ningún reagendamiento pendiente. Revísalo en el panel de MP antes de seguir.`;
 }
 
 /** Códigos del servicio de reagendamiento → mensaje es-CL para el admin. */
@@ -215,8 +229,16 @@ export async function rescheduleAction(input: {
     if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1440) throw new Error("Hora inválida.");
     if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 16) throw new Error("Duración inválida.");
 
-    const res = await rescheduleService().reschedule({ reservationId, date, startMinute, durationHours });
+    const createdBy = (await currentClaims())?.sub ?? null;
+    const res = await rescheduleService().reschedule({ reservationId, date, startMinute, durationHours, createdBy });
     if (!res.ok) throw new Error(rescheduleErrorMessage(res.error));
+    // La reserva se movió y MP devolvió plata que no calza con la fila: error persistente
+    // para el admin, sin email (no hay un "monto devuelto" del que avisar con certeza).
+    if (res.value.kind === "refund_unaccounted") {
+      revalidatePath(`/admin/reservas/${reservationId}`);
+      revalidatePath("/admin/reservas");
+      throw new Error(refundUnaccountedMessage(res.value));
+    }
 
     // Aviso al cliente del cambio de horario (best-effort). El loopback raro
     // (refund_looped_back) canceló la reserva vía webhook: ahí no avisamos "reagendada".

@@ -315,9 +315,15 @@ function ReschedulePicker({
               : `Se reembolsaron ${formatCLP(amount)} al medio de pago original.`,
         });
       } else if (res.data.kind === "refund_pending") {
+        const { amount, offlineAmount } = res.data;
+        // Mixto: la parte en mano ya quedó asentada en esta pasada; que no se pierda de vista
+        // que el resto sigue pendiente en MP (y que no hay que devolver el total a mano).
         setDone({
           message: `Reserva reagendada a ${movedTo}.`,
-          detail: "El reembolso quedó pendiente en Mercado Pago — reintenta desde la ficha.",
+          detail:
+            offlineAmount > 0
+              ? `El reembolso quedó pendiente en Mercado Pago — reintenta desde la ficha. Ya quedaron registrados ${formatCLP(offlineAmount)} devueltos en efectivo/transferencia; ${formatCLP(amount - offlineAmount)} siguen pendientes en Mercado Pago.`
+              : "El reembolso quedó pendiente en Mercado Pago — reintenta desde la ficha.",
         });
       } else if (res.data.kind === "refund_looped_back") {
         setDone({
