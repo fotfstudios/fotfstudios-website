@@ -42,6 +42,8 @@ export function RescheduleDialog(props: {
   initialMonth: string;
   /** Duración real de la reserva actual (horas enteras) — el picker parte ahí, no en 1h. */
   initialDuration: number;
+  /** Horario actual (fecha local + minutos): se dibuja aparte y no se puede "reagendar" a sí mismo. */
+  current: { date: string; start: number; end: number };
   addonKeys: string[];
   isOffline: boolean;
   /**
@@ -87,6 +89,7 @@ function ReschedulePicker({
   isCourtesy,
   customerPhone,
   volumeDiscounts,
+  current,
   onClose,
 }: Parameters<typeof RescheduleDialog>[0] & { onClose: () => void }) {
   const toast = useToast();
@@ -287,7 +290,15 @@ function ReschedulePicker({
   const newTotal = quote ? quote.total - carried : 0;
   const delta = quote ? classifyReschedule(oldLive, newTotal) : null;
 
-  const canSubmit = selectedStart !== null && (isCourtesy || quote !== null) && !pending && !loadingDay;
+  // El propio horario aparece libre a propósito (getRescheduleDay lo saca de la ocupación
+  // para poder mover dentro/alrededor de él), así que hay que evitar el "reagendamiento"
+  // a exactamente el mismo horario: sería un movimiento vacío con evento y email.
+  const isSameSlot =
+    selectedStart !== null &&
+    date === current.date &&
+    selectedStart === current.start &&
+    selectedStart + effectiveDuration * 60 === current.end;
+  const canSubmit = selectedStart !== null && (isCourtesy || quote !== null) && !pending && !loadingDay && !isSameSlot;
 
   const submit = () => {
     if (selectedStart === null) return;
@@ -464,6 +475,7 @@ function ReschedulePicker({
           open={open}
           close={close}
           occupancy={occupancy}
+          current={date === current.date ? { start: current.start, end: current.end } : null}
           selection={selectedStart !== null ? { start: selectedStart, end: selectedStart + effectiveDuration * 60 } : null}
         />
       )}
@@ -474,7 +486,9 @@ function ReschedulePicker({
           <>
             <p className="text-sm text-bone">{selectionLabel}</p>
             <div className="mt-2 label-sm">
-              {isCourtesy ? (
+              {isSameSlot ? (
+                <span className="text-sirena">Es el mismo horario que tiene hoy: elige otro día u hora.</span>
+              ) : isCourtesy ? (
                 <span className="text-bone-dim">
                   Cortesía — se moverá sin cobro.
                   {selectedOoh && <span className="text-sirena"> Fuera del horario de apertura.</span>}

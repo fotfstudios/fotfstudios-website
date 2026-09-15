@@ -15,11 +15,14 @@ export function DayStrip({
   close,
   occupancy,
   selection,
+  current = null,
 }: {
   open: number;
   close: number;
   occupancy: OccupancyEntry[];
   selection: { start: number; end: number } | null;
+  /** Reagendar: el horario ACTUAL de la reserva que se mueve — se dibuja aparte, no cuenta como ocupado. */
+  current?: { start: number; end: number } | null;
 }) {
   const hours: number[] = [];
   for (let m = open; m + 60 <= close; m += 60) hours.push(m);
@@ -27,6 +30,7 @@ export function DayStrip({
   const cellCls = (m: number): string => {
     const hour = { start: m, end: m + 60 };
     if (selection && overlaps(hour, selection)) return "bg-gold/15 border-l-2 border-gold";
+    if (current && overlaps(hour, current)) return "bg-gold/5 border-l-2 border-dashed border-gold/60";
     const hit = occupancy.find((o) => overlaps(hour, o));
     if (hit && isRoomBlock(hit.kind)) return "bg-ink-soft border-l-2 border-bone-mute/40 opacity-70";
     if (hit) return "bg-bone-dim/15 border-l-2 border-bone-dim";
@@ -55,10 +59,21 @@ export function DayStrip({
         </div>
       )}
 
-      {sorted.length === 0 ? (
+      {sorted.length === 0 && !current ? (
         <p className="label-sm mt-4 text-bone-quiet">Día libre. Sin reservas.</p>
       ) : (
         <ul className="mt-3">
+          {current && (
+            <li className="flex items-center justify-between gap-3 border-b hairline px-1 py-3">
+              <span className="flex min-w-0 items-baseline gap-3">
+                <span className="shrink-0 font-mono text-xs text-bone">
+                  {hhmm(current.start)}–{hhmm(current.end)}
+                </span>
+                <span className="truncate text-xs text-bone-dim">Tu reserva actual — se mueve</span>
+              </span>
+              <span className="label-sm shrink-0 text-gold">Actual</span>
+            </li>
+          )}
           {sorted.map((o) => (
             <li key={o.id} className="border-b hairline last:border-0">
               <Link

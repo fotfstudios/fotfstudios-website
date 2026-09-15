@@ -577,6 +577,13 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
       1,
       Math.round(DateTime.fromISO(b.endsAt).diff(DateTime.fromISO(b.startsAt), "hours").hours),
     ),
+    // Horario ACTUAL en minutos locales: el picker lo dibuja como "tu reserva actual" (sigue
+    // elegible, para mover dentro/alrededor de sí misma) y bloquea confirmar el mismo horario.
+    current: (() => {
+      const s = DateTime.fromISO(b.startsAt).setZone(resource.timezone);
+      const e = DateTime.fromISO(b.endsAt).setZone(resource.timezone);
+      return { date: s.toFormat("yyyy-MM-dd"), start: s.hour * 60 + s.minute, end: e.hour * 60 + e.minute };
+    })(),
     addonKeys: b.addonKeys,
     concessionClp: b.concessionClp,
     concessionLabel: b.concessionLabel,
