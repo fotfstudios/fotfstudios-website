@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { CopyButton } from "@/components/admin/ui/CopyButton";
 import { Input } from "@/components/admin/ui/Field";
 import { Icon } from "@/components/admin/ui/icons";
+import { btn } from "@/components/admin/ui/styles";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { adminRepository, pricingService } from "@/src/composition";
@@ -128,6 +129,48 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const b = await adminRepository().getBooking(id);
   if (!b) notFound();
+
+  // Hold del cupo de un reagendamiento pendiente (migración 20260915120000): no es una
+  // reserva propia — es el horario NUEVO que se le guarda al cliente mientras paga la
+  // diferencia. No tiene orden ni acciones; todo se maneja desde la ficha original.
+  if (b.holdOf) {
+    const original = b.holdOf;
+    return (
+      <>
+        <nav className="flex items-center gap-2 label-sm text-bone-quiet">
+          <Link href="/admin/reservas" className="transition-colors hover:text-gold">
+            Reservas
+          </Link>
+          <Icon name="chevron" size={12} className="text-bone-quiet/50" />
+          <span className="text-bone-dim">{fmtDate(b.startsAt)}</span>
+        </nav>
+        <header className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b hairline pb-6">
+          <div>
+            <h1 className="font-display text-3xl text-bone sm:text-4xl">{fmtDateTime(b.startsAt)}</h1>
+            <p className="mt-2 flex items-center gap-2">
+              <StatusPill status={b.status} />
+              <span className="label-sm text-gold">Cupo de reagendamiento</span>
+            </p>
+          </div>
+        </header>
+        <div className="mt-8 max-w-xl">
+          <Card title="Cupo reservado para un reagendamiento pendiente">
+            <p className="text-sm leading-relaxed text-bone-dim">
+              {b.customerName ?? "El cliente"} pidió mover su sesión a este horario y debe pagar{" "}
+              {formatCLP(original.deltaClp)} de diferencia. Mientras tanto el cupo queda reservado a su nombre
+              {b.status === "expired" ? " (venció el plazo del link: el cupo ya se liberó)" : ""}. Cuando pague, la reserva
+              original se mueve acá y este hold desaparece; si el cobro se anula o vence, también.
+            </p>
+            <p className="mt-4">
+              <Link href={`/admin/reservas/${original.reservationId}`} className={btn("secondary", "sm")}>
+                Ver la reserva original <Icon name="external" size={14} />
+              </Link>
+            </p>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   const isBlock = isRoomBlock(b.kind);
   const isCourtesy = !isBlock && !b.orderId;
@@ -402,7 +445,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             );
           })()}
 
-          {pending && <PendingRescheduleCard reservationId={b.id} pending={pending} tz={TZ} />}
+          {pending && <PendingRescheduleCard reservationId={b.id} pending={pending} tz={TZ} customerPhone={b.customerPhone} />}
 
           {reschedProps && (
             <Card title="Reagendar">

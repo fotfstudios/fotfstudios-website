@@ -74,6 +74,7 @@ export class PaymentService {
         orderId: order.id,
         provider: "mercadopago",
         preferenceId: pref.preferenceId,
+        initPoint: pref.initPoint,
         amount: order.amount,
         currency: order.currency,
       });

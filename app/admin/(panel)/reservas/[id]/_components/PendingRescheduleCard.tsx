@@ -4,7 +4,11 @@ import { cancelRescheduleChargeAction, retryRescheduleRefundAction } from "../ac
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
+import { CopyButton } from "@/components/admin/ui/CopyButton";
+import { Icon } from "@/components/admin/ui/icons";
+import { btn } from "@/components/admin/ui/styles";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
+import { waLink } from "@/lib/whatsapp";
 import { formatSessionWhen } from "@/src/application/notifications/format-when";
 import type { AdminBookingDetail } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
@@ -23,13 +27,20 @@ export function PendingRescheduleCard({
   reservationId,
   pending,
   tz,
+  customerPhone,
 }: {
   reservationId: string;
   pending: Pending;
   tz: string;
+  customerPhone: string | null;
 }) {
   switch (pending.kind) {
-    case "charge":
+    case "charge": {
+      const waMsg = pending.initPoint
+        ? `Hola, para confirmar tu nuevo horario en FOTF Studios necesitamos un cobro adicional de ${formatCLP(pending.deltaClp)}. Paga aquí: ${pending.initPoint}`
+        : null;
+      const waHref = waMsg && customerPhone ? waLink(customerPhone, waMsg) : null;
+      const holdUntil = pending.holdExpiresAt ? formatSessionWhen(pending.holdExpiresAt, tz) : null;
       return (
         <Card title="Reagendamiento pendiente">
           <p className="text-sm leading-relaxed text-bone-dim">
@@ -37,6 +48,31 @@ export function PendingRescheduleCard({
             {formatSessionWhen(pending.newStartsAt, tz, { endsAt: pending.newEndsAt })}. La reserva se mueve
             cuando el cliente pague.
           </p>
+          {/* El cupo nuevo está reservado por un hold sin orden (migración 20260915120000): nadie
+              más lo puede tomar mientras dure el link. Si venció, el pago igual intenta mover
+              la reserva y, si el cupo ya no está, se devuelve solo. */}
+          <p className="mt-2 label-sm text-bone-quiet">
+            {holdUntil
+              ? `Cupo reservado para el cliente hasta el ${holdUntil}.`
+              : "El cupo ya no está reservado (venció el plazo): si el cliente paga y el horario sigue libre, se mueve igual; si no, se le devuelve el cobro."}
+          </p>
+          {pending.initPoint && (
+            <div className="mt-3 flex flex-col gap-2.5">
+              <a href={pending.initPoint} target="_blank" rel="noreferrer" className={btn("secondary", "sm")}>
+                <Icon name="external" size={14} /> Abrir link de pago
+              </a>
+              {waHref ? (
+                <a href={waHref} target="_blank" rel="noreferrer" className={btn("secondary", "sm")}>
+                  <Icon name="whatsapp" size={14} /> Enviar por WhatsApp
+                </a>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="label-sm text-bone-quiet">Sin teléfono del cliente; copia el link.</p>
+                  <CopyButton value={pending.initPoint} />
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-4">
             <ConfirmForm
               action={cancelRescheduleChargeAction}
@@ -50,6 +86,7 @@ export function PendingRescheduleCard({
           </div>
         </Card>
       );
+    }
     case "refund":
       return (
         <Card title="Reagendamiento pendiente">
