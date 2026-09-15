@@ -300,6 +300,27 @@ export function customerRescheduleFailed(
 }
 
 /**
+ * Email al cliente: el nuevo horario de un reagendamiento cuesta más — falta pagar el
+ * excedente. La reserva sigue en su horario ORIGINAL hasta que pague (mismo patrón que
+ * `bookingPaymentPending`); `oldWhen` dice qué horario se mantiene mientras tanto.
+ */
+export function customerReschedulePaymentLink(
+  v: { name: string | null; oldWhen: string; newWhen: string; amount: string; initPoint: string; expiresInHours: number },
+  ctx: { whatsappUrl: string; termsUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Confirma tu nuevo horario</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "pediste")} mover tu sesión del <strong style="color:${T.bone}">${esc(v.oldWhen)}</strong> al <strong style="color:${T.bone}">${esc(v.newWhen)}</strong>. El nuevo horario cuesta <strong style="color:${T.bone}">${esc(v.amount)}</strong> más.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Tu reserva se mueve sola apenas pagues la diferencia. El link vence en ${v.expiresInHours} h; mientras tanto se mantiene tu horario actual.</p>
+     <a href="${esc(v.initPoint)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Pagar la diferencia</a>
+     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Aplican los <a href="${esc(ctx.termsUrl)}" style="color:${T.bone}">términos de reagendamiento</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `Nuevo horario: ${v.newWhen} · falta pagar ${v.amount}`,
+  );
+  const text = `Pediste mover tu sesión del ${v.oldWhen} al ${v.newWhen}. Cuesta ${v.amount} más; paga aquí y la reserva se mueve sola: ${v.initPoint} (vence en ${v.expiresInHours} h). Mientras tanto se mantiene tu horario actual. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerReschedulePaymentLink", subject: `Confirma tu nuevo horario · ${v.newWhen}`, html, text };
+}
+
+/**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.
  * Sirena (${T.sirena}) es legítima aquí: es urgencia real, no decoración.

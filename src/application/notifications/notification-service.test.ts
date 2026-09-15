@@ -659,3 +659,62 @@ describe("calendario también en cortesía y reagendamiento", () => {
     expect(msg.html).toContain("https://calendar.google.com/calendar/render?action=TEMPLATE");
   });
 });
+
+describe("notifyReschedulePaymentLink — cobro de reagendamiento pendiente (H4)", () => {
+  it("notifyReschedulePaymentLink: asunto con el horario NUEVO, monto y link; sin .ics", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: "c@e.cl",
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(
+      await service.notifyReschedulePaymentLink("o1", {
+        newStartsAt: "2026-09-19T18:00:00Z",
+        newEndsAt: "2026-09-19T20:00:00Z",
+        amount: 6000,
+        initPoint: "https://mp/x",
+        expiresInHours: 24,
+      }),
+    ).toBe(true);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.subject).toMatch(/Confirma tu nuevo horario · sábado 19 de septiembre, 15:00–17:00 h/);
+    expect(msg.html).toContain("$6.000");
+    expect(msg.html).toContain("https://mp/x");
+    expect(msg.html).toContain("miércoles 16 de septiembre, 16:00–18:00 h");
+    expect(msg.attachments).toBeUndefined();
+  });
+
+  it("sin email en la orden no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1",
+      kind: "booking",
+      email: null,
+      name: "Cata",
+      amount: 29980,
+      currency: "CLP",
+      startsAt: "2026-09-16T19:00:00Z",
+      endsAt: "2026-09-16T21:00:00Z",
+      notifiedAt: null,
+      lines: [],
+    });
+    expect(
+      await service.notifyReschedulePaymentLink("o1", {
+        newStartsAt: "2026-09-19T18:00:00Z",
+        newEndsAt: "2026-09-19T20:00:00Z",
+        amount: 6000,
+        initPoint: "https://mp/x",
+        expiresInHours: 24,
+      }),
+    ).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+});

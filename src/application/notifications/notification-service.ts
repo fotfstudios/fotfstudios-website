@@ -13,6 +13,7 @@ import {
   customerConfirmation,
   customerCourtesyConfirmation,
   customerReschedule,
+  customerReschedulePaymentLink,
   customerRescheduleFailed,
   customerReminder,
   customerCourtesyCancelled,
@@ -460,6 +461,34 @@ export class NotificationService {
       ...bookingPaymentPending(
         { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours },
         { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Manda al cliente el link de pago del EXCEDENTE de un reagendamiento (H4): el
+   * nuevo horario cuesta más y la reserva sigue en su horario ORIGINAL hasta que
+   * pague. Best-effort, como el resto de los avisos.
+   */
+  async notifyReschedulePaymentLink(
+    orderId: string,
+    v: { newStartsAt: string; newEndsAt: string; amount: number; initPoint: string; expiresInHours: number },
+  ): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    await this.mailer.send({
+      to: o.email,
+      ...customerReschedulePaymentLink(
+        {
+          name: o.name,
+          oldWhen: this.when(o.startsAt, o.endsAt),
+          newWhen: this.when(v.newStartsAt, v.newEndsAt),
+          amount: formatCLP(v.amount),
+          initPoint: v.initPoint,
+          expiresInHours: v.expiresInHours,
+        },
+        { whatsappUrl: this.config.whatsappUrl, termsUrl: this.config.termsUrl },
       ),
     });
     return true;

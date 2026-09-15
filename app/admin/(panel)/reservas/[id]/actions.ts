@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { adminRepository, db, notificationService, paymentService, refundService, rescheduleService } from "@/src/composition";
 import { resolveRefundAmount, type RefundMode } from "@/src/domain/scheduling/cancellation-policy";
-import type { RescheduleOutcome } from "@/src/application/admin/reschedule-service";
+import { RESCHEDULE_CHARGE_TTL_MINUTES, type RescheduleOutcome } from "@/src/application/admin/reschedule-service";
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
@@ -243,10 +243,22 @@ export async function rescheduleAction(input: {
     // Aviso al cliente del cambio de horario (best-effort). El loopback raro
     // (refund_looped_back) canceló la reserva vía webhook: ahí no avisamos "reagendada".
     // Con el reembolso pendiente la reserva SÍ se movió: se avisa igual, con el monto
-    // que se le va a devolver (el reintento no vuelve a mandar correo).
+    // que se le va a devolver (el reintento no vuelve a mandar correo). El cobro
+    // diferido (charge_pending) NO movió la reserva: el aviso es el link de pago del
+    // excedente (H4), no "reserva reagendada".
     if (res.value.kind !== "refund_looped_back") {
       const target = await adminRepository().orderForReservation(reservationId).catch(() => null);
-      if (target) {
+      if (target && res.value.kind === "charge_pending") {
+        await notificationService()
+          .notifyReschedulePaymentLink(target.orderId, {
+            newStartsAt: res.value.newStartsAt,
+            newEndsAt: res.value.newEndsAt,
+            amount: res.value.amount,
+            initPoint: res.value.initPoint,
+            expiresInHours: RESCHEDULE_CHARGE_TTL_MINUTES / 60,
+          })
+          .catch((e) => console.error("[reschedule:payment-link-email]", e));
+      } else if (target) {
         await notificationService()
           .notifyReschedule(target.orderId, {
             refundAmount: res.value.kind === "refunded" || res.value.kind === "refund_pending" ? res.value.amount : 0,
