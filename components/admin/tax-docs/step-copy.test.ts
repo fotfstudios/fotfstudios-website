@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TaxDocStep } from "@/src/domain/tax/tax-doc-steps";
-import { stepDetail, stepMeta, stepTitle } from "./step-copy";
+import { stepAmounts, stepDetail, stepKindLabel, stepMeta, stepReference, stepTitle, stepWhen } from "./step-copy";
 
 function step(over: Partial<TaxDocStep>): TaxDocStep {
   return {
@@ -39,5 +39,33 @@ describe("step copy", () => {
     expect(stepMeta(step({ kind: "nota_credito", role: "nc" }))).toBe("Neto $8.395 · IVA $1.595 · generada el dom 13 sept (hace 2 días)");
     expect(stepMeta(step({ ageDays: 0 }))).toBe("Neto $8.395 · IVA $1.595 · pagada el dom 13 sept (hoy)");
     expect(stepMeta(step({ ageDays: 1 }))).toBe("Neto $8.395 · IVA $1.595 · pagada el dom 13 sept (hace 1 día)");
+  });
+});
+
+describe("copy de la cola (tabla)", () => {
+  it("stepKindLabel nombra el documento y su rol", () => {
+    expect(stepKindLabel(step({}))).toBe("Boleta afecta");
+    expect(stepKindLabel(step({ role: "saldo" }))).toBe("Boleta afecta · saldo");
+    expect(stepKindLabel(step({ role: "delta" }))).toBe("Boleta afecta · delta");
+    expect(stepKindLabel(step({ kind: "nota_credito", role: "nc" }))).toBe("Nota de crédito");
+  });
+
+  it("stepReference resume qué anula o de qué es saldo, sin punto final", () => {
+    expect(stepReference(step({}))).toBeNull();
+    expect(stepReference(step({ role: "delta" }))).toBe("Cobro adicional por reagendamiento");
+    expect(stepReference(step({ role: "saldo", saldoOfFolio: "1002", saldoOfTotal: 9990 }))).toBe("Saldo de la boleta folio 1002");
+    expect(stepReference(step({ role: "saldo", saldoOfTotal: 9990 }))).toBe("Saldo de la boleta de $9.990 (sin folio aún)");
+    expect(stepReference(step({ kind: "nota_credito", role: "nc", parentFolio: "1002", parentTotal: 9990 }))).toBe("Anula la boleta folio 1002");
+    expect(stepReference(step({ kind: "nota_credito", role: "nc", state: "bloqueada", parentTotal: 9990, canRecord: false }))).toBe("Anula la boleta de $9.990 (sin folio aún)");
+    expect(stepReference(step({ kind: "nota_credito", role: "nc", parentTotal: 9990 }))).toBe("Anula una boleta de $9.990 (sin vínculo)");
+  });
+});
+
+describe("stepWhen / stepAmounts (celdas de la tabla)", () => {
+  it("separan el cuándo de los montos que stepMeta junta", () => {
+    expect(stepWhen(step({}))).toBe("pagada el dom 13 sept (hace 2 días)");
+    expect(stepWhen(step({ kind: "nota_credito", role: "nc", ageDays: 0 }))).toBe("generada el dom 13 sept (hoy)");
+    expect(stepAmounts(step({}))).toBe("Neto $8.395 · IVA $1.595");
+    expect(stepMeta(step({}))).toBe(`${stepAmounts(step({}))} · ${stepWhen(step({}))}`);
   });
 });

@@ -1,20 +1,16 @@
-import type { ActionResult } from "@/components/admin/ui/action";
-import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { CopyButton } from "@/components/admin/ui/CopyButton";
-import { Input } from "@/components/admin/ui/Field";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { btn } from "@/components/admin/ui/styles";
-import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import type { TaxDocStep } from "@/src/domain/tax/tax-doc-steps";
+import { BlockedFolioControl, FolioForm, type RecordFolioAction } from "./FolioForm";
 import { stepDetail, stepMeta, stepTitle } from "./step-copy";
 
-export type RecordFolioAction = (prev: ActionResult | null, fd: FormData) => Promise<ActionResult>;
+export type { RecordFolioAction } from "./FolioForm";
 
 /**
- * Un paso SII: qué emitir, por cuánto, qué referencia lleva, y el folio de vuelta.
- * La app no emite nada — el botón dice "Registrar folio" porque eso es lo único que
- * hace. `bloqueada` pinta el control deshabilitado (se VE deshabilitado, ver inputCls),
- * pero el guard real está en TaxDocService.
+ * Un paso SII en la ficha: qué emitir, por cuánto, qué referencia lleva, y el folio
+ * de vuelta. La app no emite nada — el botón dice "Registrar folio" porque eso es lo
+ * único que hace. `bloqueada` pinta el control deshabilitado (se VE deshabilitado,
+ * ver inputCls), pero el guard real está en TaxDocService.
  */
 export function TaxDocStepRow({
   step,
@@ -55,37 +51,16 @@ export function TaxDocStepRow({
         </p>
       )}
 
-      {showForm && (
-        <ActionForm action={action} success="Folio registrado.">
-          <input type="hidden" name="docId" value={step.id} />
-          <input type="hidden" name="backPath" value={backPath} />
-          <div className="flex items-center gap-2">
-            <Input name="folio" inputMode="numeric" pattern="[0-9]*" required aria-label="Folio SII" placeholder="N° folio" className="max-w-40" />
-            <SubmitButton size="sm">Registrar folio</SubmitButton>
-          </div>
-        </ActionForm>
-      )}
+      {showForm && <FolioForm docId={step.id} action={action} backPath={backPath} />}
 
-      {showBlocked && (
-        <div className="flex items-center gap-2">
-          <Input disabled aria-label="Folio SII (bloqueado)" placeholder="N° folio" className="max-w-40" />
-          <button type="button" disabled className={btn("primary", "sm")}>
-            Registrar folio
-          </button>
-        </div>
-      )}
+      {showBlocked && <BlockedFolioControl />}
 
       {showFix && (
-        <details className="group">
+        <details>
           <summary className="cursor-pointer label-sm text-bone-quiet transition-colors hover:text-gold">Corregir folio</summary>
-          <ActionForm action={action} success="Folio corregido." className="mt-2">
-            <input type="hidden" name="docId" value={step.id} />
-            <input type="hidden" name="backPath" value={backPath} />
-            <div className="flex items-center gap-2">
-              <Input name="folio" inputMode="numeric" pattern="[0-9]*" required aria-label="Folio SII corregido" defaultValue={step.folio ?? ""} className="max-w-40" />
-              <SubmitButton size="sm" variant="secondary">Guardar</SubmitButton>
-            </div>
-          </ActionForm>
+          <div className="mt-2">
+            <FolioForm docId={step.id} action={action} backPath={backPath} mode="fix" defaultValue={step.folio} />
+          </div>
         </details>
       )}
     </li>

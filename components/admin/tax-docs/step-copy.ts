@@ -30,10 +30,46 @@ export function stepDetail(s: TaxDocStep): string | null {
   return null;
 }
 
+/** Neto e IVA del documento (el SII los calcula solo; acá son para cotejar). */
+export function stepAmounts(s: TaxDocStep): string {
+  return `Neto ${formatCLP(s.neto)} · IVA ${formatCLP(s.iva)}`;
+}
+
+/** Cuándo nació el paso: una boleta se "paga", una NC se "genera". */
+export function stepWhen(s: TaxDocStep): string {
+  const verb = s.kind === "boleta" ? "pagada" : "generada";
+  return `${verb} el ${fmtDate(s.createdAt)} (${ago(s.ageDays)})`;
+}
+
 export function stepMeta(s: TaxDocStep): string {
   if (s.state === "emitida" || (s.state === "anulada" && s.folio)) {
     return `Folio ${s.folio}${s.emittedAt ? ` · emitida el ${fmtDate(s.emittedAt)}` : ""}`;
   }
-  const verb = s.kind === "boleta" ? "pagada" : "generada";
-  return `Neto ${formatCLP(s.neto)} · IVA ${formatCLP(s.iva)} · ${verb} el ${fmtDate(s.createdAt)} (${ago(s.ageDays)})`;
+  return `${stepAmounts(s)} · ${stepWhen(s)}`;
+}
+
+// ── Copy compacto para la tabla de la cola (/admin/sii) ─────────────────────
+// Una celda por dato: el tipo va en "Documento", el vínculo en "Referencia". Sin
+// punto final: son etiquetas, no frases.
+
+export function stepKindLabel(s: TaxDocStep): string {
+  if (s.kind === "nota_credito") return "Nota de crédito";
+  if (s.role === "saldo") return "Boleta afecta · saldo";
+  if (s.role === "delta") return "Boleta afecta · delta";
+  return "Boleta afecta";
+}
+
+export function stepReference(s: TaxDocStep): string | null {
+  if (s.kind === "nota_credito") {
+    if (s.parentFolio) return `Anula la boleta folio ${s.parentFolio}`;
+    if (s.parentTotal != null && s.state === "bloqueada") return `Anula la boleta de ${formatCLP(s.parentTotal)} (sin folio aún)`;
+    return `Anula una boleta de ${formatCLP(s.parentTotal ?? s.total)} (sin vínculo)`;
+  }
+  if (s.role === "delta") return "Cobro adicional por reagendamiento";
+  if (s.role === "saldo") {
+    return s.saldoOfFolio
+      ? `Saldo de la boleta folio ${s.saldoOfFolio}`
+      : `Saldo de la boleta de ${formatCLP(s.saldoOfTotal ?? 0)} (sin folio aún)`;
+  }
+  return null;
 }
