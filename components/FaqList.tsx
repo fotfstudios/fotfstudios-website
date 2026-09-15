@@ -1,14 +1,13 @@
-import { FAQ } from "@/lib/curso-content";
-
 /**
  * Native <details>/<summary> — server-rendered and keyboard-operable with no
  * client JS. A heading inside <summary> is valid HTML (summary permits one
  * heading-content element) and keeps the h2 → h3 outline for the section.
+ * Compartido por /curso-dj y /guia-dj: cada landing le pasa sus propias preguntas.
  */
-export default function FaqList() {
+export default function FaqList({ items }: { items: readonly { q: string; a: string }[] }) {
   return (
     <div className="border hairline">
-      {FAQ.map((f) => (
+      {items.map((f) => (
         <details key={f.q} className="group border-b hairline last:border-b-0">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gold [&::-webkit-details-marker]:hidden">
             <h3 className="font-display text-2xl text-bone transition-colors group-open:text-gold md:text-3xl">

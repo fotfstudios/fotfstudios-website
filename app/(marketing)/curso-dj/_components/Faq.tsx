@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Section, SectionHead } from "@/components/Section";
 import Reveal from "@/components/Reveal";
-import FaqList from "./FaqList";
+import FaqList from "@/components/FaqList";
+import { FAQ } from "@/lib/curso-content";
 
 export default function Faq() {
   return (
@@ -9,7 +10,7 @@ export default function Faq() {
       <SectionHead n="08" kicker="Preguntas frecuentes" lines={["Antes de", "escribir."]} />
 
       <Reveal delay={80} className="mt-12">
-        <FaqList />
+        <FaqList items={FAQ} />
       </Reveal>
 
       <Reveal delay={120}>
