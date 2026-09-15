@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ApplyChargeOutcome,
+  PendingRefundRow,
   ReschedulePort,
   RescheduleChargeParams,
   RescheduleContext,
   RescheduleFinalizer,
+  RescheduleMoveDownParams,
   RescheduleMoveParams,
-  RescheduleSettleDownParams,
+  SettleOutcome,
 } from "@/src/application/ports/reschedule";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
 import { concessionFromLines, type CarriedConcession } from "@/src/domain/pricing/order-lines";
@@ -70,8 +72,8 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
       }
     }
 
-    // Al menos un reagendamiento pendiente (cobro por pagar, o —futuro— reembolso por
-    // asentar) bloquea uno nuevo: el índice único parcial garantiza a lo más una fila.
+    // Un reagendamiento pendiente (cobro por pagar o reembolso por asentar) bloquea uno
+    // nuevo: el índice único parcial garantiza a lo más una fila.
     const { data: p } = await this.db
       .from("reschedules")
       .select("id, kind, delta_order_id, delta_clp, new_starts_at, new_ends_at, status")
@@ -128,27 +130,97 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
     if (error) throw new Error(rescheduleError(error.message));
   }
 
-  async settleDown(p: RescheduleSettleDownParams): Promise<void> {
-    const { error } = await retryOnDeadlock(() =>
-      this.db.rpc("reschedule_down", {
+  async moveDown(p: RescheduleMoveDownParams): Promise<{ rescheduleId: string }> {
+    const { data, error } = await retryOnDeadlock(() =>
+      this.db.rpc("reschedule_down_move", {
         p_reservation: p.reservationId,
         p_starts: p.startsAt,
         p_ends: p.endsAt,
         p_snapshot: p.snapshot as unknown as Json,
         p_lines: p.lines as unknown as Json,
-        // El SQL (`reschedule_down`, p_refund_id text) acepta NULL vía coalesce; el
-        // typegen de Supabase no modela nullabilidad de argumentos de función.
-        p_refund_id: p.refundId as string,
         p_refund_amount: p.refundAmount,
         p_note: p.note ?? undefined,
+        p_created_by: p.createdBy ?? undefined,
       }),
     );
     if (error) throw new Error(rescheduleError(error.message));
+    if (!data) throw new Error("No se pudo abrir el reembolso de reagendamiento.");
+    return { rescheduleId: data };
   }
 
-  async setRefundId(orderId: string, refundId: string): Promise<void> {
-    const { error } = await this.db.from("orders").update({ mp_refund_id: refundId }).eq("id", orderId);
+  async settleRefund(rescheduleId: string, refundId: string, amount: number): Promise<SettleOutcome> {
+    const { data, error } = await this.db.rpc("reschedule_settle_refund", {
+      p_reschedule: rescheduleId,
+      p_refund_id: refundId,
+      p_amount: amount,
+    });
     if (error) throw new Error(rescheduleError(error.message));
+    // El typegen tipa el retorno como `string`; el cast documenta el contrato real de la función SQL.
+    return (data ?? "noop") as SettleOutcome;
+  }
+
+  async markRefundInFlight(rescheduleId: string, ref: { paymentId: string; refundId: string } | null): Promise<void> {
+    // Solo sobre la fila pendiente: si el loopback la asentó entre medio (y limpió estas
+    // columnas), no se le vuelve a colgar un reembolso ya aplicado.
+    const { error } = await this.db
+      .from("reschedules")
+      .update({ mp_refund_id: ref?.refundId ?? null, mp_refund_payment_id: ref?.paymentId ?? null })
+      .eq("id", rescheduleId)
+      .eq("status", "pending_refund");
+    if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async pendingRefundRow(rescheduleId: string): Promise<PendingRefundRow | null> {
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("id, original_order_id, reservation_id, delta_clp, settled_clp, mp_refund_id, mp_refund_payment_id")
+      .eq("id", rescheduleId)
+      .eq("status", "pending_refund")
+      .maybeSingle();
+    if (error) throw new Error(rescheduleError(error.message));
+    if (!data?.original_order_id) return null;
+    return {
+      rescheduleId: data.id,
+      orderId: data.original_order_id,
+      reservationId: data.reservation_id,
+      deltaClp: data.delta_clp,
+      settledClp: data.settled_clp,
+      inFlight:
+        data.mp_refund_id && data.mp_refund_payment_id
+          ? { paymentId: data.mp_refund_payment_id, refundId: data.mp_refund_id }
+          : null,
+    };
+  }
+
+  async pendingRefundIds({ olderThanMinutes }: { olderThanMinutes: number }): Promise<string[]> {
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("id")
+      .eq("status", "pending_refund")
+      .lt("created_at", new Date(Date.now() - olderThanMinutes * 60_000).toISOString())
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error) throw new Error(rescheduleError(error.message));
+    return (data ?? []).map((r) => r.id);
+  }
+
+  async unrefundedFailedCharges(): Promise<{ rescheduleId: string; deltaOrderId: string; paymentId: string }[]> {
+    // Cobros cuyo delta se capturó en MP pero nunca se devolvió (MP falló o quedó
+    // in_process en el webhook): la orden de delta sigue `paid` con un pago MP real.
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("id, delta_order_id, orders!reschedules_delta_order_id_fkey(status, mp_payment_id)")
+      .eq("kind", "charge")
+      .in("status", ["failed_slot_taken", "cancelled", "expired"])
+      .limit(50);
+    if (error) throw new Error(rescheduleError(error.message));
+    const out: { rescheduleId: string; deltaOrderId: string; paymentId: string }[] = [];
+    for (const r of data ?? []) {
+      const o = r.orders;
+      if (!r.delta_order_id || o?.status !== "paid" || !o.mp_payment_id || o.mp_payment_id.startsWith("offline:")) continue;
+      out.push({ rescheduleId: r.id, deltaOrderId: r.delta_order_id, paymentId: o.mp_payment_id });
+    }
+    return out;
   }
 
   async backingBoletas(orderId: string): Promise<BackingBoleta[]> {
@@ -215,5 +287,21 @@ export class SupabaseRescheduleRepository implements ReschedulePort, RescheduleF
   async markChargeRefunded(deltaOrderId: string, refundId: string): Promise<void> {
     const { error } = await this.db.rpc("mark_refunded", { p_order: deltaOrderId, p_refund_id: refundId });
     if (error) throw new Error(rescheduleError(error.message));
+  }
+
+  async pendingRefundForOrder(orderId: string): Promise<{ rescheduleId: string; originalOrderId: string } | null> {
+    // El reembolso de un reagendamiento puede caer sobre el pago original O sobre el de una
+    // orden de delta (pedido encarecido antes); reservation_for_order resuelve ambos.
+    const { data: reservationId, error: rpcError } = await this.db.rpc("reservation_for_order", { p_order: orderId });
+    if (rpcError) throw new Error(rescheduleError(rpcError.message));
+    if (!reservationId) return null;
+    const { data, error } = await this.db
+      .from("reschedules")
+      .select("id, original_order_id")
+      .eq("reservation_id", reservationId)
+      .eq("status", "pending_refund")
+      .maybeSingle();
+    if (error) throw new Error(rescheduleError(error.message));
+    return data?.original_order_id ? { rescheduleId: data.id, originalOrderId: data.original_order_id } : null;
   }
 }

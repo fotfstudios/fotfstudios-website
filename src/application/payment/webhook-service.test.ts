@@ -102,6 +102,8 @@ function makeFinalizer(over = {}) {
     chargeForOrder: vi.fn(async () => ({ deltaOrderId: "do1", rescheduleId: "rs1" })),
     applyCharge: vi.fn(async () => "applied" as const),
     markChargeRefunded: vi.fn(async () => {}),
+    pendingRefundForOrder: vi.fn(async () => null),
+    settleRefund: vi.fn(async () => "applied" as const),
     ...over,
   };
 }
@@ -238,6 +240,8 @@ describe("WebhookService — finalizador de curso", () => {
       chargeForOrder: vi.fn(async () => ({ deltaOrderId: "o-delta", rescheduleId: "r1" })),
       applyCharge: vi.fn(async () => "applied" as const),
       markChargeRefunded: vi.fn(async () => {}),
+      pendingRefundForOrder: vi.fn(async () => null),
+      settleRefund: vi.fn(async () => "applied" as const),
     };
     const svc = new WebhookService(
       makeGateway({ status: "approved", externalReference: "o-delta", amount: 5000 }),

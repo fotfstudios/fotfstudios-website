@@ -50,7 +50,7 @@ export function engineAdjustLine(
  * del staff), separándola de las que calcula el motor.
  *
  * Se lee de las LÍNEAS y no de `pricing_snapshot − amount_clp`, que parece
- * equivalente y no lo es: `reschedule_down` suma a `refunded_amount_clp` y deja
+ * equivalente y no lo es: `reschedule_settle_refund` suma a `refunded_amount_clp` y deja
  * `amount_clp` intacto mientras reemplaza el snapshot, así que después de un
  * reagendamiento hacia abajo esa resta da cualquier cosa. Las líneas, en cambio,
  * las reescriben juntas todas las rutas de reagendamiento desde la misma llamada
