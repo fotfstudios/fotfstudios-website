@@ -407,8 +407,14 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               {isPaid ? (
                 (() => {
                   // Política de cancelación calculada en el server (force-dynamic):
-                  // sugiere el reembolso; el dueño decide en el dialog.
-                  const liveBoleta = (b.amount ?? 0) - (b.refundedAmount ?? 0);
+                  // sugiere el reembolso; el dueño decide en el dialog. Una orden pagada
+                  // 100% con puntos no tiene plata que reembolsar: la "boleta viva" son
+                  // los puntos canjeados, y no hay devolución offline que registrar.
+                  const isPointsOrder = (b.amount ?? 0) === 0 && b.pointsRedeemedClp > 0;
+                  const liveBoleta = isPointsOrder
+                    ? b.pointsRedeemedClp
+                    : (b.amount ?? 0) - (b.refundedAmount ?? 0);
+                  const unit: "clp" | "points" = isPointsOrder ? "points" : "clp";
                   const tier = refundPolicy(b.startsAt);
                   return (
                     <>
@@ -421,12 +427,13 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                         <CancelBookingDialog
                           reservationId={b.id}
                           liveBoleta={liveBoleta}
+                          unit={unit}
                           policy={{
                             label: tier.label,
                             hoursUntil: tier.hoursUntil,
                             suggested: suggestedRefund(tier, liveBoleta),
                           }}
-                          isOffline={!b.mpPaymentId || b.mpPaymentId.startsWith("offline:")}
+                          isOffline={!isPointsOrder && (!b.mpPaymentId || b.mpPaymentId.startsWith("offline:"))}
                         />
                       </div>
                     </>

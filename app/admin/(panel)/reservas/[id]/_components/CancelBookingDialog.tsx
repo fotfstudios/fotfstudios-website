@@ -21,18 +21,23 @@ type Mode = "policy" | "full" | "none" | "custom";
 export function CancelBookingDialog({
   reservationId,
   liveBoleta,
+  unit,
   policy,
   isOffline,
 }: {
   reservationId: string;
-  /** Saldo reembolsable (total − ya reembolsado), CLP entero. */
+  /** Saldo reponible (total − ya reembolsado, en CLP; o puntos canjeados) en `unit`. */
   liveBoleta: number;
+  /** Unidad de `liveBoleta`: CLP para pagos normales, puntos para órdenes 100% puntos. */
+  unit: "clp" | "points";
   /** Calculado en el RSC (force-dynamic): tier vigente al cargar la página. */
   policy: { label: string; hoursUntil: number; suggested: number };
   isOffline: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("policy");
+
+  const fmt = (n: number) => (unit === "points" ? `${n.toLocaleString("es-CL")} pts` : formatCLP(n));
 
   const hoursLabel =
     policy.hoursUntil <= 0
@@ -42,11 +47,14 @@ export function CancelBookingDialog({
   const options: { value: Mode; label: string; detail?: string }[] = [
     {
       value: "policy",
-      label: `Según política — ${policy.suggested > 0 ? formatCLP(policy.suggested) : "sin reembolso"}`,
+      label: `Según política — ${policy.suggested > 0 ? fmt(policy.suggested) : "sin reposición"}`,
       detail: policy.label,
     },
-    { value: "full", label: `Reembolso total — ${formatCLP(liveBoleta)}` },
-    { value: "none", label: "Sin reembolso (el pago queda retenido)" },
+    { value: "full", label: `${unit === "points" ? "Reponer todos" : "Reembolso total"} — ${fmt(liveBoleta)}` },
+    {
+      value: "none",
+      label: unit === "points" ? "Sin reponer puntos" : "Sin reembolso (el pago queda retenido)",
+    },
     { value: "custom", label: "Otro monto" },
   ];
 
@@ -102,8 +110,12 @@ export function CancelBookingDialog({
                 step={1}
                 inputMode="numeric"
                 required
-                placeholder={`Monto en pesos (máx. ${liveBoleta})`}
-                aria-label="Monto a reembolsar en pesos"
+                placeholder={
+                  unit === "points"
+                    ? `Puntos a reponer (máx. ${liveBoleta.toLocaleString("es-CL")})`
+                    : `Monto en pesos (máx. ${liveBoleta})`
+                }
+                aria-label={unit === "points" ? "Puntos a reponer" : "Monto a reembolsar en pesos"}
               />
             )}
 
@@ -115,8 +127,11 @@ export function CancelBookingDialog({
             )}
 
             <p className="text-xs leading-relaxed text-bone-quiet">
-              El monto según política se recalcula al confirmar. Se liberará el horario y se
-              avisará al cliente por email. Esta acción no se puede deshacer.
+              {unit === "points"
+                ? "Los puntos se reponen al cliente al confirmar."
+                : "El monto según política se recalcula al confirmar."}{" "}
+              Se liberará el horario y se avisará al cliente por email. Esta acción no se puede
+              deshacer.
             </p>
 
             <div className="flex justify-end gap-3 pt-1">
