@@ -318,10 +318,13 @@ describe("de-marketing (D6): PageHeader sin línea editorial", () => {
   });
 });
 
-describe("de-marketing (D6): booth-glow solo en marketing", () => {
-  it("booth-glow queda solo en CursoHero y la utilidad sigue definida en globals.css", () => {
-    expect(filesContaining("app", "booth-glow")).toEqual(["app/(marketing)/curso-dj/_components/CursoHero.tsx"]);
+describe("de-marketing (D6): booth-glow retirado", () => {
+  // El hero de /curso-dj pasó a video real con sus propios scrims (#120 portado): la
+  // utilidad .booth-glow quedó sin uso y se borró. Nadie (app/ ni components/) la
+  // reintroduce sin querer, y el admin sigue sin decoración de marketing.
+  it("ningún .tsx usa booth-glow y la utilidad ya no existe en globals.css", () => {
+    expect(filesContaining("app", "booth-glow")).toEqual([]);
     expect(filesContaining("components", "booth-glow")).toEqual([]);
-    expect(read("app/globals.css")).toContain(".booth-glow {");
+    expect(read("app/globals.css")).not.toContain("booth-glow");
   });
 });

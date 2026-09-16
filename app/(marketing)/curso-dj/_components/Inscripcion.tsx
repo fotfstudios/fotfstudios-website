@@ -13,7 +13,7 @@ import InscripcionForm from "./InscripcionForm";
 export default function Inscripcion() {
   return (
     <Section id="inscripcion">
-      <SectionHead n="06" kicker="Inscripción" lines={["Toma", "tu cupo."]} />
+      <SectionHead n="08" kicker="Inscripción" lines={["Toma", "tu cupo."]} />
 
       <Reveal delay={120}>
         <p className="font-editorial mt-8 max-w-xl text-2xl leading-snug text-bone-dim">
