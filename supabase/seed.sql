@@ -219,3 +219,29 @@ begin
   values ('staff@fotfstudios.cl', v_suid, v_staff, 'active')
   on conflict (email) do update set user_id = excluded.user_id, role_id = excluded.role_id, status = 'active';
 end $$;
+
+-- Inventario demo SOLO local (/admin/equipos): las 5 unidades de la sala + un lote de cables
+-- en bodega, vía la RPC para que cada uno tenga su fila de alta. Series ficticias. Prod parte
+-- vacía: el dueño carga las reales desde la UI.
+do $$
+declare
+  v_loc uuid;
+  v_res uuid;
+begin
+  select id into v_loc from locations where slug = 'vina-del-mar';
+  select id into v_res from resources where location_id = v_loc limit 1;
+  if exists (select 1 from equipment_items) then return; end if;
+
+  perform equipment_create(p_category => 'reproductor', p_brand => 'Pioneer', p_model => 'XDJ-1000MK2', p_quantity => 1, p_status => 'in_service', p_location => v_loc,
+    p_nickname => 'Deck izquierdo', p_serial => 'SEED-XDJ-0001', p_resource => v_res, p_spot => 'cabina', p_purchased_at => date '2024-03-15', p_price => 1190000, p_vendor => 'Audiomusica', p_warranty_until => date '2026-03-15');
+  perform equipment_create(p_category => 'reproductor', p_brand => 'Pioneer', p_model => 'XDJ-1000MK2', p_quantity => 1, p_status => 'in_service', p_location => v_loc,
+    p_nickname => 'Deck derecho', p_serial => 'SEED-XDJ-0002', p_resource => v_res, p_spot => 'cabina', p_purchased_at => date '2024-03-15', p_price => 1190000, p_vendor => 'Audiomusica', p_warranty_until => date '2026-03-15');
+  perform equipment_create(p_category => 'mixer', p_brand => 'Pioneer', p_model => 'DJM-450', p_quantity => 1, p_status => 'in_service', p_location => v_loc,
+    p_serial => 'SEED-DJM-0001', p_resource => v_res, p_spot => 'cabina', p_purchased_at => date '2024-03-15', p_price => 690000, p_vendor => 'Audiomusica', p_warranty_until => date '2026-03-15');
+  perform equipment_create(p_category => 'monitor', p_brand => 'Pioneer DJ', p_model => 'VM-50', p_quantity => 1, p_status => 'in_service', p_location => v_loc,
+    p_nickname => 'Monitor izquierdo', p_serial => 'SEED-VM50-0001', p_resource => v_res, p_spot => 'cabina', p_purchased_at => date '2024-04-02', p_price => 210000, p_vendor => 'Audiomusica');
+  perform equipment_create(p_category => 'monitor', p_brand => 'Pioneer DJ', p_model => 'VM-50', p_quantity => 1, p_status => 'in_service', p_location => v_loc,
+    p_nickname => 'Monitor derecho', p_serial => 'SEED-VM50-0002', p_resource => v_res, p_spot => 'cabina', p_purchased_at => date '2024-04-02', p_price => 210000, p_vendor => 'Audiomusica');
+  perform equipment_create(p_category => 'cable', p_brand => 'Genérico', p_model => 'RCA 1 m', p_quantity => 10, p_status => 'storage', p_location => v_loc,
+    p_resource => v_res, p_spot => 'bodega', p_notes => 'Repuestos para la cabina.');
+end $$;
