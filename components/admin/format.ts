@@ -12,6 +12,10 @@ export const fmtDateTimeSec = (iso: string): string =>
 export const fmtDate = (iso: string): string =>
   DateTime.fromISO(iso).setZone("America/Santiago").setLocale("es").toFormat("ccc d LLL");
 
+/** Fecha de calendario (AAAA-MM-DD, columnas `date`): sin conversión de zona, o corre un día. */
+export const fmtDay = (day: string): string =>
+  DateTime.fromISO(day).setLocale("es").toFormat("d LLL yyyy");
+
 /** Rango horario + duración: "19:00–21:00 · 2 h" ("1,5 h" si es fraccional). */
 export const fmtTimeRange = (startIso: string, endIso: string, zone = "America/Santiago"): string => {
   const s = DateTime.fromISO(startIso).setZone(zone);
