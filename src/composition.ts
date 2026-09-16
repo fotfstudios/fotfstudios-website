@@ -8,6 +8,8 @@ import { SITE, SITE_URL } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
+import { SupabaseEquipmentRepository } from "@/src/infrastructure/db/equipment-repository";
+import type { EquipmentRepository } from "@/src/application/ports/equipment";
 import { SupabaseApplicationRepository } from "@/src/infrastructure/db/application-repository";
 import { SupabaseCourseRepository } from "@/src/infrastructure/db/course-repository";
 import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-repository";
@@ -273,6 +275,11 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {
   return new SupabaseAdminRepository(client);
+}
+
+/** Inventario de equipos (/admin/equipos). Repositorio directo: sin reglas que justifiquen un servicio. */
+export function equipmentRepository(client: SupabaseClient<Database> = db()): EquipmentRepository {
+  return new SupabaseEquipmentRepository(client);
 }
 
 /** Registro de folios SII (la app no emite; anota lo que el dueño emitió en sii.cl). */
