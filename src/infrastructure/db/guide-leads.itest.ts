@@ -116,11 +116,18 @@ describe("bucket `guias`", () => {
 });
 
 describe("acceso", () => {
-  it("anon no puede leer guide_leads (RLS sin policies + sin grant)", async () => {
+  // La propiedad es "anon no lee filas". El mecanismo depende de la imagen: en las
+  // imágenes nuevas de Supabase anon tiene el grant por defecto sobre public y es RLS
+  // (sin policies) quien deja 0 filas; en las viejas no hay grant y el SELECT falla con
+  // 42501. Las dos formas de "no" valen; lo que nunca puede pasar es ver el lead.
+  it("anon no lee guide_leads (RLS sin policies, con o sin grant por defecto)", async () => {
+    await request("secreto@correo.cl");
     await raw("begin");
     try {
       await raw("set local role anon");
-      await expect(raw("select count(*) from guide_leads")).rejects.toMatchObject({ code: "42501" });
+      const r = await raw("select count(*)::int as n from guide_leads").catch((e: unknown) => e);
+      if (r instanceof Error) expect(r).toMatchObject({ code: "42501" });
+      else expect((r as { rows: { n: number }[] }).rows[0].n).toBe(0);
     } finally {
       await raw("rollback");
     }
