@@ -24,6 +24,7 @@ import {
   ownerNewApplication,
   ownerNotification,
   courseLeadConfirmation,
+  guideDelivery,
   ownerNewCourseLead,
   courseEnrollmentCancelled,
   courseEnrollmentRefunded,
@@ -384,6 +385,16 @@ export class NotificationService {
       to: lead.email,
       ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
     });
+  }
+
+  /**
+   * Guía de /guia-dj: UN correo al lead con el link durable de descarga. Sin aviso al
+   * dueño: los leads se miran en el admin, no en la bandeja. El error del mailer se
+   * propaga (acá el correo es el producto; GuideService decide).
+   */
+  async notifyGuideLead(v: { email: string; token: string }): Promise<void> {
+    const downloadUrl = `${this.config.siteUrl}/guia-dj/descarga/${v.token}`;
+    await this.mailer.send({ to: v.email, ...guideDelivery({ downloadUrl }, { whatsappUrl: this.config.whatsappUrl }) });
   }
 
   /**

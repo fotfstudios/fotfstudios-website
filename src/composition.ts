@@ -11,6 +11,9 @@ import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repositor
 import { SupabaseApplicationRepository } from "@/src/infrastructure/db/application-repository";
 import { SupabaseCourseRepository } from "@/src/infrastructure/db/course-repository";
 import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-repository";
+import { SupabaseGuideLeadRepository } from "@/src/infrastructure/db/guide-lead-repository";
+import { SupabaseGuideFileStore } from "@/src/infrastructure/storage/guide-file-store";
+import { GuideService } from "@/src/application/guide/guide-service";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
@@ -294,6 +297,19 @@ export function courseRepository(
 /** Rate limiter por clave (Postgres, ventana fija). Antiabuso de endpoints públicos. */
 export function rateLimiter(client: SupabaseClient<Database> = db()): SupabaseRateLimiter {
   return new SupabaseRateLimiter(client);
+}
+
+/**
+ * Guía de iniciación al DJing (/guia-dj): pedirla (lead + correo) y descargarla (URL
+ * firmada del bucket privado). El correo entra por NotificationService, así queda en la
+ * bitácora como cualquier otro envío.
+ */
+export function guideService(client: SupabaseClient<Database> = db()): GuideService {
+  return new GuideService(
+    new SupabaseGuideLeadRepository(client),
+    new SupabaseGuideFileStore(client),
+    notificationService(client),
+  );
 }
 
 /**
