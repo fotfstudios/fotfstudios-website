@@ -157,3 +157,59 @@ describe("SupabaseGuideLeadRepository", () => {
     expect(await repo.touchDownload(token)).toBe(true);
   });
 });
+
+describe("SupabaseGuideLeadRepository — admin (list / exportAll)", () => {
+  const repo = new SupabaseGuideLeadRepository(db);
+  const seed = async () => {
+    await repo.request({ email: "ana@correo.cl", source: "hero" });
+    await repo.request({ email: "beto_dj@correo.cl", source: "fragmento" });
+    await repo.request({ email: "cami@otro.cl", source: "cierre" });
+    await repo.request({ email: "cami@otro.cl", source: "hero" }); // re-pedido
+  };
+  const q = (over: Partial<{ q: string; page: number; perPage: number }> = {}) => ({ q: "", page: 1, perPage: 25, ...over });
+
+  it("list: sin búsqueda devuelve todo, más reciente primero, con totales", async () => {
+    await seed();
+    const r = await repo.list(q());
+    expect(r.rows.map((x) => x.email)).toEqual(["cami@otro.cl", "beto_dj@correo.cl", "ana@correo.cl"]);
+    expect(r.total).toBe(3);
+    expect(r.grandTotal).toBe(3);
+    const cami = r.rows[0];
+    expect(cami).toMatchObject({ source: "cierre", requestCount: 2, lastDownloadedAt: null });
+    expect(cami.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("list: busca por fragmento de email (case-insensitive) y total refleja el filtro", async () => {
+    await seed();
+    const r = await repo.list(q({ q: "CORREO" }));
+    expect(r.rows.map((x) => x.email).sort()).toEqual(["ana@correo.cl", "beto_dj@correo.cl"]);
+    expect(r.total).toBe(2);
+    expect(r.grandTotal).toBe(3);
+  });
+
+  it("list: los comodines de ILIKE no sobre-matchean (`_` y `%` literales; `*` no es comodín)", async () => {
+    await seed();
+    expect((await repo.list(q({ q: "beto_dj" }))).rows).toHaveLength(1);
+    expect((await repo.list(q({ q: "beto%dj" }))).rows).toHaveLength(0);
+    expect((await repo.list(q({ q: "beto*dj" }))).rows).toHaveLength(0);
+    // Solo `*` → aguja vacía tras sanear → sin filtro (misma convención que Clientes).
+    expect((await repo.list(q({ q: "*" }))).rows).toHaveLength(3);
+  });
+
+  it("list: pagina sin perder filas", async () => {
+    await seed();
+    const p1 = await repo.list(q({ perPage: 2 }));
+    const p2 = await repo.list(q({ perPage: 2, page: 2 }));
+    expect(p1.rows).toHaveLength(2);
+    expect(p2.rows).toHaveLength(1);
+    expect(new Set([...p1.rows, ...p2.rows].map((x) => x.id)).size).toBe(3);
+    expect((await repo.list(q({ perPage: 2, page: 9 }))).rows).toEqual([]);
+  });
+
+  it("exportAll: todos, en orden cronológico, hasta el tope", async () => {
+    await seed();
+    const all = await repo.exportAll(100);
+    expect(all.map((x) => x.email)).toEqual(["ana@correo.cl", "beto_dj@correo.cl", "cami@otro.cl"]);
+    expect(await repo.exportAll(2)).toHaveLength(2);
+  });
+});
