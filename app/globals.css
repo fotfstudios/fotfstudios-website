@@ -141,16 +141,6 @@
     animation: grain-shift 0.7s steps(4) infinite;
   }
 
-  /* Una sola fuente de luz — el resplandor de cabina */
-  .booth-glow {
-    background:
-      radial-gradient(
-        60% 50% at 50% 0%,
-        rgba(232, 201, 74, 0.10) 0%,
-        rgba(232, 201, 74, 0.03) 35%,
-        transparent 70%
-      );
-  }
 
   .hairline {
     border-color: var(--color-ink-line);

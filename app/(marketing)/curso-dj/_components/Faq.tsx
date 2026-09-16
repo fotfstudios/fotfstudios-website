@@ -7,7 +7,7 @@ import { FAQ } from "@/lib/curso-content";
 export default function Faq() {
   return (
     <Section id="faq">
-      <SectionHead n="08" kicker="Preguntas frecuentes" lines={["Antes de", "escribir."]} />
+      <SectionHead n="10" kicker="Preguntas frecuentes" lines={["Antes de", "escribir."]} />
 
       <Reveal delay={80} className="mt-12">
         <FaqList items={FAQ} />

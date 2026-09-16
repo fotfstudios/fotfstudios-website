@@ -8,6 +8,8 @@ import CursoHero from "./_components/CursoHero";
 import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
 import Sesiones from "./_components/Sesiones";
+import LaClase from "./_components/LaClase";
+import LosDjs from "./_components/LosDjs";
 import Equipos from "./_components/Equipos";
 import Inscripcion from "./_components/Inscripcion";
 import Precios from "./_components/Precios";
@@ -161,7 +163,9 @@ export default function CursoDjPage() {
         <Resultado />
         <ParaQuien />
         <Sesiones />
+        <LaClase />
         <Equipos />
+        <LosDjs />
         <Precios />
         <Inscripcion />
         <Prueba />
