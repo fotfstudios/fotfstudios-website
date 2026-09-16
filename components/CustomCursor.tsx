@@ -3,99 +3,88 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Cursor de cabina: un punto + un aro que lo persigue con leve retardo.
- * Crece sobre elementos interactivos. Solo en punteros finos (desktop) y
- * cuando el usuario no pidió menos movimiento. mix-blend difference → siempre legible.
+ * Cursor de cabina: PLAY ▶ / PAUSE ❚❚ — las dos acciones más básicas de un DJ.
  *
- * El aro se anima con requestAnimationFrame solo mientras persigue al puntero: el loop
- * arranca en cada mousemove y se detiene al converger (antes corría a 60 fps para
- * siempre, con la pestaña quieta). El crecimiento sobre interactivos es `scale` en CSS
- * (compone con el translate inline y no toca layout).
+ * Un solo glifo que sigue al puntero al instante (translate3d en cada mousemove; sin
+ * loop de persecución, que es lo que se colgaba). Los estados son CSS puro:
+ *   play   → por defecto: vas "reproduciendo" la página.
+ *   pause  → sobre algo clickeable: un control, detente acá (crece 1.5×).
+ *   hidden → sobre campos de texto: manda el I-beam nativo, no se dibujan dos cursores.
+ * Al presionar, un pulso corto ("cue"). Solo punteros finos y sin prefers-reduced-motion;
+ * mix-blend difference → legible sobre foto, sobre Ink y sobre la página Bone.
+ *
+ * Estructura: el wrapper SOLO se posiciona (transform inline); el crecimiento vive en
+ * .cursor-glyph. Las propiedades individuales (`scale`) se aplican ANTES que `transform`,
+ * así que un `scale` en el mismo elemento multiplica el translate y el cursor se va a
+ * 1.5× las coordenadas del puntero — el "salto" del aro anterior (#146).
  */
+const INTERACTIVE = "a, button, [role='button'], summary, label";
+const TEXT_FIELDS = "input, textarea, select";
+
 export default function CustomCursor() {
-  const dotRef = useRef<HTMLDivElement | null>(null);
-  const ringRef = useRef<HTMLDivElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fine = window.matchMedia("(pointer: fine)").matches;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!fine || reduce) return;
 
-    const dot = dotRef.current;
-    const ring = ringRef.current;
-    if (!dot || !ring) return;
+    const el = ref.current;
+    if (!el) return;
 
     document.documentElement.classList.add("has-cursor");
-
-    let mx = window.innerWidth / 2;
-    let my = window.innerHeight / 2;
-    let rx = mx;
-    let ry = my;
-    let raf = 0; // 0 = loop detenido
-    let visible = false;
-
-    // Un paso del aro hacia el puntero; se re-agenda solo si aún no llegó.
-    const step = () => {
-      const dx = mx - rx;
-      const dy = my - ry;
-      if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
-        rx = mx;
-        ry = my;
-        ring.style.transform = `translate3d(${rx}px, ${ry}px, 0)`;
-        raf = 0;
-        return;
-      }
-      rx += dx * 0.18;
-      ry += dy * 0.18;
-      ring.style.transform = `translate3d(${rx}px, ${ry}px, 0)`;
-      raf = requestAnimationFrame(step);
-    };
-    const wake = () => {
-      if (!raf) raf = requestAnimationFrame(step);
-    };
-
     const onMove = (e: MouseEvent) => {
-      mx = e.clientX;
-      my = e.clientY;
-      if (!visible) {
-        visible = true;
-        dot.style.opacity = "1";
-        ring.style.opacity = "1";
-      }
-      // El punto sigue al instante; el aro con retardo (loop mientras persigue)
-      dot.style.transform = `translate3d(${mx}px, ${my}px, 0)`;
-      wake();
+      el.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+      if (el.dataset.visible !== "true") el.dataset.visible = "true";
     };
 
     const onOver = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
-      const interactive = t?.closest("a, button, [role='button'], input, textarea");
-      ring.dataset.active = interactive ? "true" : "false";
+      if (t?.closest(TEXT_FIELDS)) el.dataset.mode = "hidden";
+      else if (t?.closest(INTERACTIVE)) el.dataset.mode = "pause";
+      else el.dataset.mode = "play";
+    };
+
+    // Cue: el pulso se re-dispara aunque el click anterior aún esté animando.
+    const onDown = () => {
+      delete el.dataset.cue;
+      void el.offsetWidth; // reinicia la animación
+      el.dataset.cue = "true";
+    };
+    const onCueEnd = () => {
+      delete el.dataset.cue;
     };
 
     const onLeave = () => {
-      visible = false;
-      dot.style.opacity = "0";
-      ring.style.opacity = "0";
+      el.dataset.visible = "false";
     };
 
     window.addEventListener("mousemove", onMove, { passive: true });
     window.addEventListener("mouseover", onOver, { passive: true });
+    window.addEventListener("mousedown", onDown, { passive: true });
+    el.addEventListener("animationend", onCueEnd);
     document.addEventListener("mouseleave", onLeave);
 
     return () => {
-      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseover", onOver);
+      window.removeEventListener("mousedown", onDown);
+      el.removeEventListener("animationend", onCueEnd);
       document.removeEventListener("mouseleave", onLeave);
       document.documentElement.classList.remove("has-cursor");
     };
   }, []);
 
   return (
-    <>
-      <div ref={ringRef} className="cursor-ring" style={{ opacity: 0 }} aria-hidden />
-      <div ref={dotRef} className="cursor-dot" style={{ opacity: 0 }} aria-hidden />
-    </>
+    <div ref={ref} className="cursor" data-mode="play" data-visible="false" aria-hidden>
+      <div className="cursor-glyph">
+        <svg className="cursor-play" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3 1.5v13l11-6.5z" />
+        </svg>
+        <svg className="cursor-pause" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3 2h3.6v12H3zM9.4 2H13v12H9.4z" />
+        </svg>
+      </div>
+    </div>
   );
 }

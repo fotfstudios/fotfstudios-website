@@ -366,40 +366,72 @@
   to { transform: scaleX(1); }
 }
 
-/* Cursor de cabina (solo punteros finos, lo activa JS) */
-.cursor-dot,
-.cursor-ring {
+/* Cursor de cabina: PLAY ▶ / PAUSE ❚❚ (solo punteros finos, lo activa JS).
+   Un glifo fijo que sigue al puntero (translate inline); los modos son CSS:
+   play por defecto, pause (crece) sobre interactivos, hidden sobre campos de texto.
+   mix-blend difference → legible sobre foto, Ink y la página Bone.
+   OJO: .cursor SOLO se posiciona. Nada de `scale` acá: las propiedades individuales
+   se aplican antes que `transform` y multiplicarían el translate (el salto de #146).
+   El crecimiento va en .cursor-glyph. */
+.cursor {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 9999;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
   pointer-events: none;
-  border-radius: 9999px;
+  color: var(--color-bone);
   mix-blend-mode: difference;
   will-change: transform;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
-.cursor-dot {
-  width: 7px;
-  height: 7px;
-  margin: -3.5px 0 0 -3.5px;
-  background: var(--color-bone);
+.cursor[data-visible="true"] {
+  opacity: 1;
 }
-.cursor-ring {
-  width: 38px;
-  height: 38px;
-  margin: -19px 0 0 -19px;
-  border: 1px solid var(--color-bone);
-  /* El crecimiento es `scale` (propiedad independiente: compone con el translate
-     inline del JS) y no width/height/margin: solo compositor, sin layout ni paint. */
-  transition: scale 0.25s ease, opacity 0.25s ease;
+.cursor-glyph {
+  position: absolute;
+  inset: 0;
+  transition: scale 0.15s ease;
 }
-.cursor-ring[data-active="true"] {
-  scale: 1.684; /* 38px → 64px */
+.cursor-glyph > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.15s ease, scale 0.15s ease;
+}
+.cursor[data-mode="play"] .cursor-pause {
+  opacity: 0;
+  scale: 0.6;
+}
+.cursor[data-mode="pause"] .cursor-glyph {
+  scale: 1.5;
+}
+.cursor[data-mode="pause"] .cursor-play {
+  opacity: 0;
+  scale: 0.6;
+}
+.cursor[data-mode="hidden"] {
+  opacity: 0;
+}
+/* Cue: un pulso corto al presionar, en movimiento y no en color (con difference el
+   Gold no se ve como Gold). Va en los glifos: el contenedor ya usa `scale` para pause. */
+.cursor[data-cue="true"] svg {
+  animation: cursor-cue 220ms ease-out;
+}
+@keyframes cursor-cue {
+  0% { scale: 1; }
+  40% { scale: 1.35; }
+  100% { scale: 1; }
 }
 html.has-cursor,
 html.has-cursor a,
 html.has-cursor button,
-html.has-cursor [role="button"] {
+html.has-cursor [role="button"],
+html.has-cursor summary {
   cursor: none;
 }
 
@@ -437,5 +469,5 @@ html:has([data-surface="marketing"]) {
   .mask-inner { transform: none !important; }
   .grain::before { animation: none !important; }
   .scroll-meter { display: none; }
-  .cursor-dot, .cursor-ring { display: none !important; }
+  .cursor { display: none !important; }
 }
