@@ -1,3 +1,4 @@
+import type { GuideLeadRow, GuiaLeadsListQuery } from "@/src/domain/admin/guia-leads-list";
 import type { GuideLeadInput } from "@/src/domain/guide/lead";
 
 /** Resultado de pedir la guía: token estable por email + si es la primera vez. */
@@ -12,6 +13,10 @@ export interface GuideLeadRepository {
   request(input: GuideLeadInput): Promise<GuideLeadRequest>;
   /** Marca la descarga y dice si el token existe. Nunca de un solo uso. */
   touchDownload(token: string): Promise<boolean>;
+  /** Admin: página de leads (más reciente primero) + total filtrado + total general. */
+  list(query: GuiaLeadsListQuery): Promise<{ rows: GuideLeadRow[]; total: number; grandTotal: number }>;
+  /** Admin: todos los leads en orden cronológico, hasta `limit` (para el CSV). */
+  exportAll(limit: number): Promise<GuideLeadRow[]>;
 }
 
 export interface GuideFileStore {

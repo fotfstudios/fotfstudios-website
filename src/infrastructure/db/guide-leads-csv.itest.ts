@@ -1,0 +1,68 @@
+/**
+ * Integración del export CSV del admin (/admin/guia/leads.csv): permiso, cabeceras de
+ * descarga y contenido real desde Supabase local. La sesión se mockea (vi.hoisted).
+ */
+import { Client } from "pg";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET } from "@/app/admin/(panel)/guia/leads.csv/route";
+import { SupabaseGuideLeadRepository } from "./guide-lead-repository";
+import { createServiceClient } from "./supabase-client";
+
+const auth = vi.hoisted(() => ({ allowed: true }));
+vi.mock("@/src/infrastructure/auth/require-admin", () => ({
+  requirePermission: async () => {
+    if (!auth.allowed) throw new Error("no autorizado");
+  },
+}));
+
+const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54421";
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
+const db = createServiceClient(URL, KEY);
+const repo = new SupabaseGuideLeadRepository(db);
+const pg = new Client({ connectionString: DB_URL });
+let connected = false;
+async function raw(sql: string) {
+  if (!connected) {
+    await pg.connect();
+    connected = true;
+  }
+  return pg.query(sql);
+}
+
+beforeEach(async () => {
+  auth.allowed = true;
+  await raw("truncate guide_leads cascade");
+});
+afterAll(async () => {
+  if (connected) await pg.end();
+});
+
+describe("GET /admin/guia/leads.csv", () => {
+  it("sin permiso → 403 y nada de datos", async () => {
+    auth.allowed = false;
+    await repo.request({ email: "dj@correo.cl", source: "hero" });
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("dj@correo.cl");
+  });
+
+  it("con permiso → CSV descargable, UTF-8 con BOM, sin cache, con los leads en orden cronológico", async () => {
+    await repo.request({ email: "ana@correo.cl", source: "hero" });
+    await repo.request({ email: "beto@correo.cl", source: "cierre" });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(res.headers.get("content-disposition")).toMatch(/^attachment; filename="guia-leads-\d{4}-\d{2}-\d{2}\.csv"$/);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    // Response.text() quita el BOM al decodificar (spec Fetch): se miran los bytes.
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const body = new TextDecoder().decode(bytes);
+    expect(body.startsWith("email,origen,pedidos,")).toBe(true);
+    const lines = body.trim().split("\r\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toMatch(/^ana@correo\.cl,hero,1,/);
+    expect(lines[2]).toMatch(/^beto@correo\.cl,cierre,1,/);
+  });
+});

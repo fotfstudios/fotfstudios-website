@@ -304,6 +304,11 @@ export function rateLimiter(client: SupabaseClient<Database> = db()): SupabaseRa
  * firmada del bucket privado). El correo entra por NotificationService, así queda en la
  * bitácora como cualquier otro envío.
  */
+/** Leads de la guía para el admin (lista, CSV). */
+export function guideLeadRepository(client: SupabaseClient<Database> = db()): SupabaseGuideLeadRepository {
+  return new SupabaseGuideLeadRepository(client);
+}
+
 export function guideService(client: SupabaseClient<Database> = db()): GuideService {
   return new GuideService(
     new SupabaseGuideLeadRepository(client),
