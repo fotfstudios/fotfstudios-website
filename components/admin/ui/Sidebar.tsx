@@ -11,7 +11,17 @@ type Item = { href: string; label: string; icon: IconName; badge?: number };
 type Group = { title: string; items: Item[] };
 
 function groups(
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean; sii: boolean },
+  show: {
+    members: boolean;
+    roles: boolean;
+    analytics: boolean;
+    applications: boolean;
+    course: boolean;
+    customers: boolean;
+    lock: boolean;
+    sii: boolean;
+    equipment: boolean;
+  },
   porHacer: number,
   solicitudes: number,
   pendientesSii: number,
@@ -40,6 +50,8 @@ function groups(
   // Cerradura después de Bloqueos: es operación de sala, no de agenda. Con el mismo
   // permiso que la card de acceso de la ficha.
   if (show.lock) operacion.push({ href: "/admin/cerradura", label: "Cerradura", icon: "lock" });
+  // Equipos después de Cerradura: ambos son la sala física (puerta y fierros), no la agenda.
+  if (show.equipment) operacion.push({ href: "/admin/equipos", label: "Equipos", icon: "doc" });
   // Curso antes que Postulaciones: el curso es dinero de clientes, postulaciones
   // es contratación. Operación está ordenada por cercanía al ingreso.
   if (show.course) operacion.push({ href: "/admin/curso", label: "Curso", icon: "curso", badge: solicitudes });
@@ -117,7 +129,17 @@ export function Sidebar({
   solicitudes = 0,
   pendientesSii = 0,
 }: {
-  show: { members: boolean; roles: boolean; analytics: boolean; applications: boolean; course: boolean; customers: boolean; lock: boolean; sii: boolean };
+  show: {
+    members: boolean;
+    roles: boolean;
+    analytics: boolean;
+    applications: boolean;
+    course: boolean;
+    customers: boolean;
+    lock: boolean;
+    sii: boolean;
+    equipment: boolean;
+  };
   porHacer?: number;
   solicitudes?: number;
   pendientesSii?: number;
