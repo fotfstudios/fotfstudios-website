@@ -155,9 +155,9 @@ EquipmentMoveRow[]` · `positions() → { locations: [{ id, name, resources: [{ 
 `move(id, move, actor) → { itemId, split: boolean }` · `remove(id) → void`.
 
 `src/infrastructure/db/equipment-repository.ts` — `SupabaseEquipmentRepository`. `create`/`move`
-llaman a las RPCs; `list`/`get`/`history` seleccionan con joins a `locations(name)` /
-`resources(name)`; `history` también resuelve `moved_by` → email vía `admin_members` (como
-hace el timeline de reservas). Excepciones `equipment_*` → `Error` con mensaje en español.
+llaman a las RPCs; `list`/`get`/`history` leen las tablas planas; `history` también resuelve `moved_by` → email con una segunda consulta a `admin_members`
+(`user_id in (...)`); sin embeds PostgREST: los nombres de sede/sala se mapean en JS desde
+`positions()` (catálogo de pocas filas), evitando depender del embed por FK compuesta. Excepciones `equipment_*` → `Error` con mensaje en español.
 
 `src/composition.ts` — `equipmentRepository(client = db())`.
 
