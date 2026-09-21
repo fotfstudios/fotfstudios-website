@@ -66,13 +66,15 @@ export default async function EquipoDetalle({ params }: { params: Promise<{ id: 
             <div className="mt-5 border-t hairline pt-5">
               <h4 className="label text-bone-quiet">Mover</h4>
               <div className="mt-3">
-                <MoverForm item={item} catalog={catalog} />
+                {/* React 19 resetea el form a los defaults de montaje; sin remontar, un segundo envío reenvía valores viejos. */}
+                <MoverForm key={item.updatedAt} item={item} catalog={catalog} />
               </div>
             </div>
           </Card>
 
           <Card title="Detalles">
-            <ActionForm action={updateDetailsAction} success="Equipo actualizado." className="space-y-4">
+            {/* Mismo motivo que MoverForm: remonta tras cada guardado para que los defaults reflejen el ítem actualizado. */}
+            <ActionForm key={item.updatedAt} action={updateDetailsAction} success="Equipo actualizado." className="space-y-4">
               <input type="hidden" name="id" value={item.id} />
               <EquipoFields d={item} quantityLocked={item.moveCount > 1} />
               <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
@@ -149,7 +151,7 @@ export default async function EquipoDetalle({ params }: { params: Promise<{ id: 
                 hidden={{ id: item.id }}
                 trigger={{ label: "Eliminar equipo" }}
                 title="Eliminar equipo"
-                message={`Se borra ${title} y sus ${history.length} movimientos. No se puede deshacer.`}
+                message={`Se borra ${title} y sus ${history.length} ${history.length === 1 ? "movimiento" : "movimientos"}. No se puede deshacer.`}
                 cta="Eliminar"
                 success="Equipo eliminado."
                 navigateTo="/admin/equipos"

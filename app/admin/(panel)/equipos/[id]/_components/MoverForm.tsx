@@ -36,7 +36,7 @@ export function MoverForm({ item, catalog }: { item: EquipmentDetail; catalog: P
           {item.quantity === 1 && <input type="hidden" name="quantity" value={1} />}
         </Field>
         <Field label="Nota" hint="Opcional. “Se fue a servicio técnico”, “prestado a…”">
-          <Textarea name="note" maxLength={EQUIPMENT_CAPS.note} className="min-h-12" />
+          <Textarea name="note" maxLength={EQUIPMENT_CAPS.note} />
         </Field>
       </div>
       <SubmitButton pendingLabel="Moviendo…">Mover</SubmitButton>
