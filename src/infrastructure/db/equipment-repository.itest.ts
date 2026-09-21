@@ -1,5 +1,5 @@
 /**
- * Integración del adapter de inventario: filtros de la lista, ficha con moveCount,
+ * Integración del adapter de inventario: filtros de la lista, ficha con quantityEditable,
  * historial con actor resuelto, regla de cantidad en updateDetails y traducción de errores.
  * Requiere Supabase local; trunca las tablas de equipos (db:reset al terminar).
  */
@@ -64,7 +64,7 @@ describe("SupabaseEquipmentRepository", () => {
     expect(cat.locations[0]).toMatchObject({ id: loc, resources: [{ id: res, name: "Sala de ensayo DJ" }] });
   });
 
-  it("create + get: ficha con nombres resueltos y moveCount 1", async () => {
+  it("create + get: ficha con nombres resueltos y quantityEditable true", async () => {
     const id = await repo.create(input({ category: "mixer", brand: "Pioneer", model: "DJM-450", serialNumber: "SN-1", quantity: 1, status: "in_service", spot: "cabina", purchasePriceClp: 690000 }), ownerUid);
     const d = await repo.get(id);
     expect(d).toMatchObject({
@@ -77,7 +77,7 @@ describe("SupabaseEquipmentRepository", () => {
       resourceName: "Sala de ensayo DJ",
       spot: "cabina",
       purchasePriceClp: 690000,
-      moveCount: 1,
+      quantityEditable: true,
     });
     expect(await repo.get("00000000-0000-0000-0000-00000000dead")).toBeNull();
   });
@@ -118,7 +118,7 @@ describe("SupabaseEquipmentRepository", () => {
     const hNew = await repo.history(part.itemId);
     expect(hNew).toHaveLength(1);
     expect(hNew[0]).toMatchObject({ quantity: 4, splitFromItemId: id, to: { locationName: "FOTF Studios — Viña del Mar", resourceName: null, spot: "rack 2" } });
-    expect((await repo.get(id))?.moveCount).toBe(2);
+    expect((await repo.get(id))?.quantityEditable).toBe(false);
   });
 
   it("move traduce los errores de la RPC", async () => {
@@ -147,6 +147,34 @@ describe("SupabaseEquipmentRepository", () => {
       repo.updateDetails(second, { category: "cable", brand: "Genérico", model: "RCA 1 m", nickname: null, serialNumber: "DUP", quantity: 1, purchasedAt: null, purchasePriceClp: null, vendor: null, warrantyUntil: null, notes: null }),
     ).rejects.toThrow("Ya existe un equipo con esa serie.");
     expect(first).toBeTruthy();
+  });
+
+  it("updateDetails: un split bloquea la cantidad en AMBOS lados, no solo en el origen", async () => {
+    const a = await repo.create(input({ quantity: 10 }), null);
+    const fresh = await repo.get(a);
+    expect(fresh?.quantityEditable).toBe(true);
+
+    // A(10) → A(6) + B(4): el origen mantiene su única fila (la de alta) y el nuevo ítem
+    // tiene su única fila (un move de split, no una alta) — moveCount por sí solo vería a
+    // los dos como "sin movimientos" y dejaría editar la cantidad en cualquiera.
+    const { itemId: b, split } = await repo.move(a, { quantity: 4, status: "storage", locationId: loc, resourceId: null, spot: "rack 2", note: null }, null);
+    expect(split).toBe(true);
+
+    const da = await repo.get(a);
+    const db_ = await repo.get(b);
+    expect(da?.quantityEditable).toBe(false);
+    expect(db_?.quantityEditable).toBe(false);
+
+    await expect(
+      repo.updateDetails(a, { category: "cable", brand: "Genérico", model: "RCA 1 m", nickname: null, serialNumber: null, quantity: 8, purchasedAt: null, purchasePriceClp: null, vendor: null, warrantyUntil: null, notes: null }),
+    ).rejects.toThrow("La cantidad solo se cambia moviendo unidades (Mover).");
+    await expect(
+      repo.updateDetails(b, { category: "cable", brand: "Genérico", model: "RCA 1 m", nickname: null, serialNumber: null, quantity: 5, purchasedAt: null, purchasePriceClp: null, vendor: null, warrantyUntil: null, notes: null }),
+    ).rejects.toThrow("La cantidad solo se cambia moviendo unidades (Mover).");
+
+    // La cantidad sigue intacta a ambos lados: el rechazo no dejó la escritura a medias.
+    expect((await repo.get(a))?.quantity).toBe(6);
+    expect((await repo.get(b))?.quantity).toBe(4);
   });
 
   it("remove borra el ítem y su historial", async () => {

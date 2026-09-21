@@ -36,8 +36,12 @@ export interface EquipmentDetail extends EquipmentRow {
   warrantyUntil: string | null;
   notes: string | null;
   createdAt: string;
-  /** Filas en la bitácora (1 = solo el alta → la cantidad aún se puede corregir). */
-  moveCount: number;
+  /**
+   * true solo mientras el ítem tiene exactamente su fila de alta y nada se separó de él —
+   * ahí la cantidad todavía se puede corregir a mano; con cualquier movimiento (incluido un
+   * split, en cualquiera de los dos ítems resultantes) se cambia solo desde Mover.
+   */
+  quantityEditable: boolean;
 }
 
 export interface EquipmentMoveRow {

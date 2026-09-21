@@ -142,15 +142,24 @@ export class SupabaseEquipmentRepository implements EquipmentRepository {
   }
 
   async get(id: string): Promise<EquipmentDetail | null> {
-    const [item, moves, n] = await Promise.all([
+    // moveCount por sí solo es un mal proxy de "solo tiene su fila de alta": tras un split,
+    // el ítem de origen sigue con una sola fila (su alta) y el nuevo también (su move de
+    // split, no una alta) — ambos se verían "sin movimientos" aunque ninguno lo esté. Por
+    // eso se piden las filas completas (no un head-count) para poder mirar from_location_id,
+    // más un head-count aparte de lo que se separó DE este ítem.
+    const [item, moves, splits, n] = await Promise.all([
       this.db.from("equipment_items").select(DETAIL_COLS).eq("id", id).maybeSingle(),
-      this.db.from("equipment_moves").select("id", { count: "exact", head: true }).eq("item_id", id),
+      this.db.from("equipment_moves").select("from_location_id").eq("item_id", id),
+      this.db.from("equipment_moves").select("id", { count: "exact", head: true }).eq("split_from_item_id", id),
       this.names(),
     ]);
     if (item.error) throwDbError(item.error);
     if (moves.error) throwDbError(moves.error);
+    if (splits.error) throwDbError(splits.error);
     if (!item.data) return null;
     const d = item.data as RawDetail;
+    const moveRows = moves.data ?? [];
+    const quantityEditable = moveRows.length === 1 && moveRows[0].from_location_id === null && (splits.count ?? 0) === 0;
     return {
       ...this.row(n, d),
       purchasedAt: d.purchased_at,
@@ -159,7 +168,7 @@ export class SupabaseEquipmentRepository implements EquipmentRepository {
       warrantyUntil: d.warranty_until,
       notes: d.notes,
       createdAt: d.created_at,
-      moveCount: moves.count ?? 0,
+      quantityEditable,
     };
   }
 
@@ -238,9 +247,10 @@ export class SupabaseEquipmentRepository implements EquipmentRepository {
     const current = await this.get(id);
     if (!current) throw new Error("Ese equipo ya no existe.");
     // La cantidad se corrige solo mientras el ítem tiene su pura fila de alta: con
-    // movimientos, cambiarla descuadraría la bitácora (para eso está Mover / split).
+    // movimientos (incluido haber quedado como el origen o el resultado de un split),
+    // cambiarla descuadraría la bitácora (para eso está Mover / split).
     const quantityChanges = patch.quantity !== current.quantity;
-    if (quantityChanges && current.moveCount > 1) throw new Error("La cantidad solo se cambia moviendo unidades (Mover).");
+    if (quantityChanges && !current.quantityEditable) throw new Error("La cantidad solo se cambia moviendo unidades (Mover).");
 
     const { error } = await this.db
       .from("equipment_items")
@@ -262,7 +272,9 @@ export class SupabaseEquipmentRepository implements EquipmentRepository {
     if (error) throwDbError(error);
 
     if (quantityChanges) {
-      const alta = await this.db.from("equipment_moves").update({ quantity: patch.quantity }).eq("item_id", id);
+      // .is("from_location_id", null) además del gate de arriba: así esta escritura solo
+      // puede tocar la fila de alta, nunca una de movimiento/split, aunque el gate cambie.
+      const alta = await this.db.from("equipment_moves").update({ quantity: patch.quantity }).eq("item_id", id).is("from_location_id", null);
       if (alta.error) throwDbError(alta.error);
     }
   }

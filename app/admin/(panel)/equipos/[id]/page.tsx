@@ -76,7 +76,7 @@ export default async function EquipoDetalle({ params }: { params: Promise<{ id: 
             {/* Mismo motivo que MoverForm: remonta tras cada guardado para que los defaults reflejen el ítem actualizado. */}
             <ActionForm key={item.updatedAt} action={updateDetailsAction} success="Equipo actualizado." className="space-y-4">
               <input type="hidden" name="id" value={item.id} />
-              <EquipoFields d={item} quantityLocked={item.moveCount > 1} />
+              <EquipoFields d={item} quantityLocked={!item.quantityEditable} />
               <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
             </ActionForm>
           </Card>
