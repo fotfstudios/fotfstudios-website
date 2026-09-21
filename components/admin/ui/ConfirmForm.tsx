@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ActionResult } from "./action";
 import { Dialog } from "./Dialog";
@@ -18,6 +19,7 @@ export function ConfirmForm({
   message,
   cta,
   success,
+  navigateTo,
 }: {
   action: Action;
   hidden?: Record<string, string>;
@@ -26,14 +28,18 @@ export function ConfirmForm({
   message: string;
   cta: string;
   success?: string;
+  /** Tras el éxito: a dónde ir (p. ej. la lista, cuando se borró la ficha actual). */
+  navigateTo?: string;
 }) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
+  const router = useRouter();
 
   async function run(fd: FormData) {
     const result = await action(null, fd);
     if (result.ok) {
       if (success) toast({ tone: "ok", message: success });
+      if (navigateTo) router.push(navigateTo);
     } else {
       toast({ tone: "error", message: result.error });
     }

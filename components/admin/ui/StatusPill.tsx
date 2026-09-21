@@ -49,6 +49,12 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   anulada: { label: "Anulada", tone: "mute" },
   expirada: { label: "Expirada", tone: "mute" },
   trasladada: { label: "Trasladada", tone: "mute" },
+  // Inventario de equipos (src/domain/equipment/equipment.ts). Sin sirena: nada acá es urgente.
+  in_service: { label: "En uso", tone: "gold" },
+  storage: { label: "Guardado", tone: "dim" },
+  repair: { label: "En reparación", tone: "dim" },
+  loaned: { label: "Prestado", tone: "dim" },
+  retired: { label: "Dado de baja", tone: "mute" },
 };
 
 const TONE: Record<Tone, string> = {
