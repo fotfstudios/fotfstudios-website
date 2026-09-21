@@ -20,10 +20,11 @@ describe("permissions", () => {
     expect(hasPermission({ app_role: "staff" }, "reservations.view")).toBe(false);
   });
 
-  it("el catálogo tiene 14 permisos por acción", () => {
-    expect(PERMISSION_KEYS).toHaveLength(14);
+  it("el catálogo tiene 15 permisos por acción", () => {
+    expect(PERMISSION_KEYS).toHaveLength(15);
     expect(PERMISSION_KEYS).toContain("reservations.reschedule");
     expect(PERMISSION_KEYS).toContain("applications.manage");
+    expect(PERMISSION_KEYS).toContain("equipment.manage");
   });
 
   // El curso separa gestionar (bandeja, cupos, agenda) de cobrar (link de pago,

@@ -697,6 +697,184 @@ export type Database = {
         }
         Relationships: []
       }
+      equipment_items: {
+        Row: {
+          brand: string
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          location_id: string
+          model: string
+          nickname: string | null
+          notes: string | null
+          purchase_price_clp: number | null
+          purchased_at: string | null
+          quantity: number
+          resource_id: string | null
+          serial_number: string | null
+          spot: string | null
+          status: string
+          updated_at: string
+          vendor: string | null
+          warranty_until: string | null
+        }
+        Insert: {
+          brand: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          location_id: string
+          model: string
+          nickname?: string | null
+          notes?: string | null
+          purchase_price_clp?: number | null
+          purchased_at?: string | null
+          quantity?: number
+          resource_id?: string | null
+          serial_number?: string | null
+          spot?: string | null
+          status?: string
+          updated_at?: string
+          vendor?: string | null
+          warranty_until?: string | null
+        }
+        Update: {
+          brand?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          location_id?: string
+          model?: string
+          nickname?: string | null
+          notes?: string | null
+          purchase_price_clp?: number | null
+          purchased_at?: string | null
+          quantity?: number
+          resource_id?: string | null
+          serial_number?: string | null
+          spot?: string | null
+          status?: string
+          updated_at?: string
+          vendor?: string | null
+          warranty_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_items_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_items_resource_in_location"
+            columns: ["resource_id", "location_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id", "location_id"]
+          },
+        ]
+      }
+      equipment_moves: {
+        Row: {
+          from_location_id: string | null
+          from_resource_id: string | null
+          from_spot: string | null
+          from_status: string | null
+          id: string
+          item_id: string
+          moved_at: string
+          moved_by: string | null
+          note: string | null
+          quantity: number
+          split_from_item_id: string | null
+          to_location_id: string
+          to_resource_id: string | null
+          to_spot: string | null
+          to_status: string
+        }
+        Insert: {
+          from_location_id?: string | null
+          from_resource_id?: string | null
+          from_spot?: string | null
+          from_status?: string | null
+          id?: string
+          item_id: string
+          moved_at?: string
+          moved_by?: string | null
+          note?: string | null
+          quantity: number
+          split_from_item_id?: string | null
+          to_location_id: string
+          to_resource_id?: string | null
+          to_spot?: string | null
+          to_status: string
+        }
+        Update: {
+          from_location_id?: string | null
+          from_resource_id?: string | null
+          from_spot?: string | null
+          from_status?: string | null
+          id?: string
+          item_id?: string
+          moved_at?: string
+          moved_by?: string | null
+          note?: string | null
+          quantity?: number
+          split_from_item_id?: string | null
+          to_location_id?: string
+          to_resource_id?: string | null
+          to_spot?: string | null
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_moves_from_location_id_fkey"
+            columns: ["from_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_moves_from_resource_id_fkey"
+            columns: ["from_resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_moves_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_moves_split_from_item_id_fkey"
+            columns: ["split_from_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_moves_to_location_id_fkey"
+            columns: ["to_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_moves_to_resource_id_fkey"
+            columns: ["to_resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guide_leads: {
         Row: {
           created_at: string
@@ -1759,6 +1937,40 @@ export type Database = {
       }
       ensure_customer_for_user: {
         Args: { p_email: string; p_user: string }
+        Returns: string
+      }
+      equipment_create: {
+        Args: {
+          p_actor?: string
+          p_brand: string
+          p_category: string
+          p_location: string
+          p_model: string
+          p_nickname?: string
+          p_notes?: string
+          p_price?: number
+          p_purchased_at?: string
+          p_quantity: number
+          p_resource?: string
+          p_serial?: string
+          p_spot?: string
+          p_status: string
+          p_vendor?: string
+          p_warranty_until?: string
+        }
+        Returns: string
+      }
+      equipment_move: {
+        Args: {
+          p_actor?: string
+          p_item: string
+          p_location: string
+          p_note?: string
+          p_quantity: number
+          p_resource?: string
+          p_spot?: string
+          p_status: string
+        }
         Returns: string
       }
       expire_abandoned_course_holds: {
