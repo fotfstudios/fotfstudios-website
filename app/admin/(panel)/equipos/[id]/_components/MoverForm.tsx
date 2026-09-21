@@ -19,7 +19,9 @@ export function MoverForm({ item, catalog }: { item: EquipmentDetail; catalog: P
       action={moveEquipmentAction}
       onSuccess={({ itemId, split, quantity }) => {
         if (split) {
-          toast({ tone: "ok", message: `Separadas ${quantity} unidades. Estás viendo el ítem nuevo.` });
+          const unidad = quantity === 1 ? "unidad" : "unidades";
+          const separada = quantity === 1 ? "Separada" : "Separadas";
+          toast({ tone: "ok", message: `${separada} ${quantity} ${unidad}. Estás viendo el ítem nuevo.` });
           router.push(`/admin/equipos/${itemId}`);
         } else {
           toast({ tone: "ok", message: "Movimiento registrado." });

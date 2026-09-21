@@ -120,6 +120,8 @@ function parseDetails(o: Raw): Result<EquipmentDetailsInput> {
   if (vendor && vendor.length > EQUIPMENT_CAPS.vendor) return err(`El proveedor no puede superar los ${EQUIPMENT_CAPS.vendor} caracteres.`);
   const warrantyUntil = opt(str(o, "warrantyUntil"));
   if (warrantyUntil && !isoDate(warrantyUntil)) return err("Fecha de garantía no válida (AAAA-MM-DD).");
+  // Solo trim, sin colapsar espacios internos (a diferencia de str()): es un textarea, así
+  // que los saltos de línea se conservan tal cual los escribió quien carga el equipo.
   const notes = opt(typeof o.notes === "string" ? o.notes.trim() : "");
   if (notes && notes.length > EQUIPMENT_CAPS.notes) return err(`Las notas no pueden superar los ${EQUIPMENT_CAPS.notes} caracteres.`);
 
@@ -169,6 +171,8 @@ export function parseMoveInput(raw: unknown, current: { quantity: number }): Res
   if (!status.ok) return status;
   const pos = parsePosition(o);
   if (!pos.ok) return pos;
+  // Mismo motivo que `notes` en parseDetails: solo trim, los saltos de línea del textarea
+  // se conservan.
   const note = opt(typeof o.note === "string" ? o.note.trim() : "");
   if (note && note.length > EQUIPMENT_CAPS.note) return err(`La nota no puede superar los ${EQUIPMENT_CAPS.note} caracteres.`);
   return ok({ quantity, status: status.value, ...pos.value, note });

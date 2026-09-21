@@ -14,7 +14,9 @@ export function PositionFields({
   current?: { locationId: string; resourceId: string | null; spot: string | null; status: EquipmentStatus };
 }) {
   const options = positionOptions(catalog);
-  const selected = current ? positionValue(current.locationId, current.resourceId) : options[0]?.value;
+  // Para un ítem NUEVO, el default es la primera opción CON sala: casi todo el equipo vive
+  // en la sala, no en "Sede (sin sala)" (que options[0] sería si se tomara literal).
+  const selected = current ? positionValue(current.locationId, current.resourceId) : (options.find((o) => o.value.split(":")[1])?.value ?? options[0]?.value);
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Ubicación">
