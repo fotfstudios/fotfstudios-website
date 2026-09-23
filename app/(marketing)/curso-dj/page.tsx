@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
+import { pageMetadata } from "@/lib/seo";
 import { SITE, SITE_URL } from "@/lib/site";
 import { FAQ, PRECIOS } from "@/lib/curso-content";
 import CursoHero from "./_components/CursoHero";
@@ -20,24 +21,11 @@ import CierreCurso from "./_components/CierreCurso";
 const DESCRIPTION =
   "Curso de DJ para principiantes en Viña del Mar: 4 sesiones en equipos Pioneer reales, 12 horas de estudio y tu set final grabado en audio y video. 6 cupos por generación.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Curso de DJ en Viña del Mar",
   description: DESCRIPTION,
-  alternates: { canonical: "/curso-dj" },
-  openGraph: {
-    title: "Curso de DJ en Viña del Mar · FOTF Studios",
-    description: DESCRIPTION,
-    url: "/curso-dj",
-    siteName: "FOTF Studios",
-    locale: "es_CL",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Curso de DJ en Viña del Mar · FOTF Studios",
-    description: DESCRIPTION,
-  },
-};
+  path: "/curso-dj",
+});
 
 // One entity graph: Course + FAQPage + BreadcrumbList. The provider node carries
 // the same @id as the home page's LocalBusiness so Google merges them.

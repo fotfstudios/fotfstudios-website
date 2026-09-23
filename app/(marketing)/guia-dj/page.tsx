@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
+import { pageMetadata } from "@/lib/seo";
 import { FAQ_GUIA, GUIA } from "@/lib/guia-content";
 import { SITE_URL } from "@/lib/site";
 import CierreGuia from "./_components/CierreGuia";
@@ -14,24 +15,11 @@ import Temas from "./_components/Temas";
 
 const TITLE = `${GUIA.title} gratis (PDF)`;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: TITLE,
   description: GUIA.description,
-  alternates: { canonical: "/guia-dj" },
-  openGraph: {
-    title: `${TITLE} · FOTF Studios`,
-    description: GUIA.description,
-    url: "/guia-dj",
-    siteName: "FOTF Studios",
-    locale: "es_CL",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${TITLE} · FOTF Studios`,
-    description: GUIA.description,
-  },
-};
+  path: "/guia-dj",
+});
 
 // FAQPage + BreadcrumbList (mismo par que /curso-dj). Sin Course/Product: no se vende nada.
 const faqLd = {
