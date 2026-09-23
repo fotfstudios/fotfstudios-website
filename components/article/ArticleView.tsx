@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ARTICLE_MODULES } from "@/content/articles/modules";
 import { articleJsonLd } from "@/lib/articles/jsonld";
+import { jsonLdHtml } from "@/lib/json-ld";
 import { articleVisible } from "@/lib/articles/metadata";
 import { articleBySlug, getArticles, relatedArticles } from "@/lib/articles/registry";
 import { CATEGORY } from "@/lib/articles/schema";
@@ -37,7 +38,7 @@ export async function ArticleView({ slug }: { slug: string }) {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       <ArticleHeader article={article} />
       <div className="mt-10">
         <Body />

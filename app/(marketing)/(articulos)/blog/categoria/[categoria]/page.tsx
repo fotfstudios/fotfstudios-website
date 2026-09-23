@@ -11,6 +11,7 @@ import {
   publishedArticles,
 } from "@/lib/articles/registry";
 import { ARTICLE_CATEGORIES, CATEGORY, type ArticleCategory } from "@/lib/articles/schema";
+import { jsonLdHtml } from "@/lib/json-ld";
 import { canonicalUrl, pageMetadata } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 
@@ -58,7 +59,7 @@ export default async function CategoriaPage({ params }: { params: Promise<{ cate
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       <p className="label mt-10 text-gold">{copy.label}</p>
       <h1 className="font-display mt-3 text-bone" style={{ fontSize: "clamp(2.4rem,7vw,4rem)" }}>
         {copy.title}

@@ -65,6 +65,15 @@ const KNOWN_KEYS = [
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+/**
+ * Ruta canónica permitida para un `path` override.
+ *
+ * Estricta a propósito: el valor sale del frontmatter y termina en un href. Con solo
+ * exigir que empiece con "/" pasaban `//evil.com` (URL relativa al protocolo, o sea otro
+ * dominio) y `/x?redirect=…`. Acá solo entran segmentos en kebab-case.
+ */
+const PATH_RE = /^\/[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
+
 /** Distancia de edición acotada: solo para sugerir "¿querías decir?". */
 function close(a: string, b: string): boolean {
   if (a === b) return true;
@@ -204,8 +213,8 @@ export function parseArticleFrontmatter(raw: unknown, ctx: ArticleContext): Pars
     issues.push({ field: "draft", code: "invalid", hint: "true o false" });
 
   const pathOverride = str(obj, "path");
-  if (pathOverride && !pathOverride.startsWith("/"))
-    issues.push({ field: "path", code: "invalid", hint: 'empieza con "/"' });
+  if (pathOverride && !PATH_RE.test(pathOverride))
+    issues.push({ field: "path", code: "invalid", hint: "ruta absoluta en kebab-case: /asi-de-simple" });
 
   if (!SLUG_RE.test(ctx.slug))
     issues.push({ field: "(nombre de archivo)", code: "invalid", hint: `"${ctx.slug}" — kebab-case en minúsculas` });

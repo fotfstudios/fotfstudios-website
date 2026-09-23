@@ -72,9 +72,15 @@ describe("rutas de /blog", () => {
     expect(existsSync(join(ROOT, "app/blog"))).toBe(false);
   });
 
-  it("el índice y la categoría emiten JSON-LD", () => {
-    expect(read(`${GRUPO}/blog/page.tsx`)).toContain("application/ld+json");
-    expect(read(`${GRUPO}/blog/categoria/[categoria]/page.tsx`)).toContain("application/ld+json");
+  it("el índice y la categoría emiten JSON-LD, escapado", () => {
+    // JSON.stringify crudo NO escapa "<": un valor con </script> cierra la etiqueta.
+    // Con frontmatter leído del disco eso es una entrada de verdad, no una hipótesis.
+    for (const p of [`${GRUPO}/blog/page.tsx`, `${GRUPO}/blog/categoria/[categoria]/page.tsx`]) {
+      const src = readCode(p);
+      expect(src).toContain("application/ld+json");
+      expect(src).toContain("jsonLdHtml(");
+      expect(src, `${p} serializa JSON-LD sin escapar`).not.toMatch(/__html:\s*JSON\.stringify/);
+    }
   });
 });
 
@@ -85,6 +91,8 @@ describe("el artículo cierra con su guía", () => {
     expect(view).toMatch(/<GuiaCta\b/);
     expect(view).toContain("application/ld+json");
     expect(view).toContain("articleJsonLd(");
+    expect(view).toContain("jsonLdHtml(");
+    expect(view).not.toMatch(/__html:\s*JSON\.stringify/);
   });
 
   it("el CTA enlaza sin query string: no fragmenta la canónica de la guía", () => {

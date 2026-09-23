@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ArticleCard } from "@/components/article/ArticleCard";
 import { CategoryChips } from "@/components/article/CategoryChips";
 import { categoryCounts, draftsVisible, getArticles, publishedArticles } from "@/lib/articles/registry";
+import { jsonLdHtml } from "@/lib/json-ld";
 import { canonicalUrl, pageMetadata } from "@/lib/seo";
 import { SITE, SITE_URL } from "@/lib/site";
 
@@ -49,7 +50,7 @@ export default function BlogIndexPage() {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       <p className="label mt-10 text-gold">Artículos</p>
       <h1 className="font-display mt-3 text-bone" style={{ fontSize: "clamp(2.4rem,7vw,4rem)" }}>
         Para DJs que están partiendo

@@ -128,8 +128,14 @@ describe("parseArticleFrontmatter", () => {
     expect(r.value.legacyPath).toBe(true);
   });
 
-  it("un path que no empieza con barra es inválido", () => {
+  it("el path override solo acepta una ruta absoluta en kebab-case", () => {
     expect(codes(parse({ path: "aprender-dj" }), "path")).toEqual(["invalid"]);
+    // Relativa al protocolo: empieza con "/" pero apunta a OTRO dominio.
+    expect(codes(parse({ path: "//evil.com" }), "path")).toEqual(["invalid"]);
+    expect(codes(parse({ path: "javascript:alert(1)" }), "path")).toEqual(["invalid"]);
+    expect(codes(parse({ path: "/x?redirect=evil" }), "path")).toEqual(["invalid"]);
+    expect(codes(parse({ path: "/Aprender-DJ" }), "path")).toEqual(["invalid"]);
+    expect(parse({ path: "/blog/algo-anidado" }).kind).toBe("ok");
   });
 
   it("el nombre del archivo tiene que ser kebab-case", () => {
