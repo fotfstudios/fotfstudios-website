@@ -170,7 +170,7 @@ describe("dueños únicos (app/ + components/)", () => {
 });
 
 describe("árbol de rutas", () => {
-  it("marketing vive bajo app/(marketing)/ (incl. pago, par OG y (guias) anidado) y nada quedó atrás", () => {
+  it("marketing vive bajo app/(marketing)/ (incl. pago, par OG y (articulos) anidado) y nada quedó atrás", () => {
     for (const p of [
       "app/(marketing)/layout.tsx",
       "app/(marketing)/page.tsx",
@@ -182,10 +182,10 @@ describe("árbol de rutas", () => {
       "app/(marketing)/unete/page.tsx",
       "app/(marketing)/privacidad/page.tsx",
       "app/(marketing)/terminos/page.tsx",
-      "app/(marketing)/(guias)/layout.tsx",
-      "app/(marketing)/(guias)/aprender-dj/page.tsx",
-      "app/(marketing)/(guias)/cuanto-cuesta-un-curso-de-dj/page.tsx",
-      "app/(marketing)/(guias)/xdj-vs-controlador/page.tsx",
+      "app/(marketing)/(articulos)/layout.tsx",
+      "app/(marketing)/(articulos)/aprender-dj/page.tsx",
+      "app/(marketing)/(articulos)/cuanto-cuesta-un-curso-de-dj/page.tsx",
+      "app/(marketing)/(articulos)/xdj-vs-controlador/page.tsx",
       "app/(marketing)/guia-dj/page.tsx",
       "app/(marketing)/guia-dj/descarga/[token]/page.tsx",
       "app/(marketing)/guia-dj/opengraph-image.tsx",
@@ -193,7 +193,7 @@ describe("árbol de rutas", () => {
     ]) {
       expect(exists(p), p).toBe(true);
     }
-    for (const p of ["app/page.tsx", "app/curso-dj", "app/(guias)", "app/grabacion", "app/unete", "app/privacidad", "app/terminos"]) {
+    for (const p of ["app/page.tsx", "app/curso-dj", "app/(articulos)", "app/grabacion", "app/unete", "app/privacidad", "app/terminos", "app/(marketing)/(guias)"]) {
       expect(exists(p), p).toBe(false);
     }
   });

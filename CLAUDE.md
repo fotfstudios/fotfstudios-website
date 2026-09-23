@@ -104,10 +104,10 @@ en vivo ni la base Supabase remota real.
     only the contract test does. No other chrome here.
   - `app/(marketing)/`: home `page.tsx` (composition + JSON-LD; it must NOT export a `title` —
     root `title.template` applies to it), `curso-dj/` (+ `pago/`, OG pair), `grabacion/`,
-    `unete/`, `privacidad/`, `terminos/` and the nested `(guias)/` group. `layout.tsx` mounts
+    `unete/`, `privacidad/`, `terminos/` and the nested `(articulos)/` group. `layout.tsx` mounts
     `CustomCursor`, the `.scroll-meter` div (`data-surface="marketing"`, which also scopes smooth
     scroll via `html:has(...)` in `globals.css`) and `PublicChrome`. It returns a fragment and
-    never mounts `Nav`/`Footer` — pages and `(guias)/layout.tsx` own those.
+    never mounts `Nav`/`Footer` — pages and `(articulos)/layout.tsx` own those.
   - `app/(booking)/`: `reservar/`, `reserva/`. `layout.tsx` mounts `PublicChrome` only.
   - `app/cuenta/`: `layout.tsx` mounts `PublicChrome` only, above `login/` and `(panel)/`.
     `/cuenta` keeps GTM by decision (it fires `whatsapp_click`; EEA visitors need the banner).

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GuideSection, guideJsonLd } from "../_components/Prose";
+import { ProseSection } from "@/components/article/ProseSection";
+import { articleJsonLd } from "@/lib/articles/jsonld";
 import { GEAR } from "@/lib/site";
 
 const DESCRIPTION =
@@ -12,8 +13,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/xdj-vs-controlador" },
 };
 
-const jsonLd = guideJsonLd({
-  slug: "xdj-vs-controlador",
+const jsonLd = articleJsonLd({
+  path: "/xdj-vs-controlador",
   headline: "¿Controlador o equipos de club para aprender DJ?",
   description: DESCRIPTION,
   datePublished: "2026-08-17",
@@ -45,7 +46,7 @@ export default function XdjVsControladorPage() {
         duele: la primera vez que tocas fuera de tu pieza.
       </p>
 
-      <GuideSection title="Qué es un controlador">
+      <ProseSection title="Qué es un controlador">
         <p>
           Una superficie de control conectada a un computador: el software (Rekordbox, Serato)
           hace el trabajo y el controlador lo comanda. Ventajas reales: precio de entrada bajo,
@@ -53,18 +54,18 @@ export default function XdjVsControladorPage() {
           el layout rara vez coincide con el estándar de cabina, y el botón de sync hace tan fácil
           saltarse el beatmatching que muchos nunca lo aprenden.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="Qué es un XDJ/CDJ">
+      <ProseSection title="Qué es un XDJ/CDJ">
         <p>
           El reproductor standalone estándar de la industria: pinchas desde un USB, sin
           computador, con el layout que se repite — con variaciones menores — en prácticamente
           todas las cabinas del mundo. Es más caro de comprar, y por eso casi nadie lo compra
           para aprender: se aprende en salas equipadas, pagando por hora solo el tiempo que usas.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="La trampa del traspaso">
+      <ProseSection title="La trampa del traspaso">
         <p>
           El patrón se repite: meses practicando en controlador con sync, primera oportunidad
           real, y en la cabina hay dos reproductores y un mixer que no se parecen a nada de lo que
@@ -72,9 +73,9 @@ export default function XdjVsControladorPage() {
           es posible, pero es una segunda curva de aprendizaje — y suele llegar en el peor
           momento. Aprender directo en el equipo estándar elimina esa curva de raíz.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="Nuestra postura (y en qué equipos)">
+      <ProseSection title="Nuestra postura (y en qué equipos)">
         <p>
           Aprende donde vas a tocar. La cabina de FOTF Studios en Viña del Mar está montada con
           el estándar:
@@ -102,7 +103,7 @@ export default function XdjVsControladorPage() {
           </Link>
           .
         </p>
-      </GuideSection>
+      </ProseSection>
     </>
   );
 }

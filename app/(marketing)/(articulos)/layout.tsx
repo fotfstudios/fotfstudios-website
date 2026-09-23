@@ -4,10 +4,10 @@ import Footer from "@/components/Footer";
 import { CLOSURE } from "@/lib/site";
 
 /**
- * Shared chrome for the SEO guide pages (route group — does not affect URLs).
+ * Shared chrome for the article pages (route group — does not affect URLs).
  * Same prose-page idiom as /terminos: Nav + narrow main + Footer.
  */
-export default function GuiasLayout({ children }: { children: React.ReactNode }) {
+export default function ArticulosLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Nav />
