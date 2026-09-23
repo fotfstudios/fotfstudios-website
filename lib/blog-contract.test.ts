@@ -101,6 +101,14 @@ describe("el artículo cierra con su guía", () => {
     expect(cta).not.toMatch(/\?ref=|\?utm_/);
   });
 
+  it("todo href de artículo pasa por articleHref: el path nace en un archivo del disco", () => {
+    for (const f of ["components/article/ArticleCard.tsx", "components/article/RelatedArticles.tsx"]) {
+      const src = readCode(f);
+      expect(src, `${f} usa el path crudo en un href`).not.toMatch(/href=\{\s*\w+\.path\s*\}/);
+      expect(src).toContain("articleHref(");
+    }
+  });
+
   it("el clic del CTA se mide por lib/analytics, no a mano", () => {
     const cta = readCode("components/article/GuiaCta.tsx");
     expect(cta).toContain("trackGuideCtaClick");

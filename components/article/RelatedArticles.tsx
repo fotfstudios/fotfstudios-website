@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { articleHref } from "@/lib/articles/href";
 import type { ArticleMeta } from "@/lib/articles/schema";
 
 /** Seguir leyendo. No se renderiza si no hay nada que ofrecer. */
@@ -10,7 +11,7 @@ export function RelatedArticles({ articles }: { articles: readonly ArticleMeta[]
       <ul className="mt-4 space-y-3">
         {articles.map((a) => (
           <li key={a.slug}>
-            <Link href={a.path} className="font-display text-xl text-bone transition-colors hover:text-gold">
+            <Link href={articleHref(a.path)} className="font-display text-xl text-bone transition-colors hover:text-gold">
               {a.title}
             </Link>
           </li>

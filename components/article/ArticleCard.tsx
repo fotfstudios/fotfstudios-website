@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { articleHref } from "@/lib/articles/href";
 import { CATEGORY, type ArticleMeta } from "@/lib/articles/schema";
 import { formatArticleDate } from "@/lib/articles/format";
 
@@ -13,7 +14,7 @@ export function ArticleCard({ article }: { article: ArticleMeta }) {
         {article.draft ? <span className="text-gold"> · Borrador</span> : null}
       </p>
       <h2 className="font-display mt-2 text-bone" style={{ fontSize: "clamp(1.4rem,4vw,2rem)" }}>
-        <Link href={article.path} className="transition-colors hover:text-gold">
+        <Link href={articleHref(article.path)} className="transition-colors hover:text-gold">
           {article.title}
         </Link>
       </h2>
