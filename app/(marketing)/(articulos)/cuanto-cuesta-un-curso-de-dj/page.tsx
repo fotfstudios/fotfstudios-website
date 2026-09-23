@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GuideSection, guideJsonLd } from "../_components/Prose";
+import { ProseSection } from "@/components/article/ProseSection";
+import { articleJsonLd } from "@/lib/articles/jsonld";
 import { formatCLP, RATES } from "@/lib/pricing";
 import { PRECIOS } from "@/lib/curso-content";
 
@@ -13,8 +14,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/cuanto-cuesta-un-curso-de-dj" },
 };
 
-const jsonLd = guideJsonLd({
-  slug: "cuanto-cuesta-un-curso-de-dj",
+const jsonLd = articleJsonLd({
+  path: "/cuanto-cuesta-un-curso-de-dj",
   headline: "¿Cuánto cuesta un curso de DJ?",
   description: DESCRIPTION,
   datePublished: "2026-08-17",
@@ -46,7 +47,7 @@ export default function CuantoCuestaPage() {
         nuestros números completos.
       </p>
 
-      <GuideSection title="Qué determina el precio">
+      <ProseSection title="Qué determina el precio">
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong className="text-bone">Horas totales — y de qué tipo.</strong> No es lo mismo
@@ -69,9 +70,9 @@ export default function CuantoCuestaPage() {
             diplomas.
           </li>
         </ul>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="Nuestros precios, publicados">
+      <ProseSection title="Nuestros precios, publicados">
         <p>
           El{" "}
           <Link href="/curso-dj" className={enlace}>
@@ -97,9 +98,9 @@ export default function CuantoCuestaPage() {
           IVA incluido, sin letra chica: los mismos números que ves en la página del curso son
           los que pagas.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="Cómo comparar dos cursos (checklist)">
+      <ProseSection title="Cómo comparar dos cursos (checklist)">
         <ul className="list-disc space-y-2 pl-5">
           <li>Pide el precio total, no la cuota ni el “desde”.</li>
           <li>Pregunta cuántas horas de práctica real en equipo incluye — por alumno.</li>
@@ -111,9 +112,9 @@ export default function CuantoCuestaPage() {
           Divide el precio total por las horas de práctica real: ese número — pesos por hora en
           los platos — es la única forma honesta de comparar programas distintos.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="La alternativa: práctica por hora">
+      <ProseSection title="La alternativa: práctica por hora">
         <p>
           Si prefieres el camino autodidacta, el costo de practicar también está publicado:
           nuestra sala se arrienda desde {formatCLP(RATES.valle)} por hora en horario valle, con
@@ -123,7 +124,7 @@ export default function CuantoCuestaPage() {
           </Link>{" "}
           explica cuándo conviene cada camino.
         </p>
-      </GuideSection>
+      </ProseSection>
     </>
   );
 }

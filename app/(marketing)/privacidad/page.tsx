@@ -3,6 +3,7 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ConsentReopenLink from "@/components/ConsentReopenLink";
+import { ProseSection } from "@/components/article/ProseSection";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
@@ -14,17 +15,6 @@ export const metadata: Metadata = {
     "Cómo FOTF Studios trata tus datos personales y qué cookies usamos. Tus derechos y cómo ejercerlos.",
   alternates: { canonical: "/privacidad" },
 };
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-12 border-t hairline pt-10">
-      <h2 className="font-display text-bone" style={{ fontSize: "clamp(1.4rem,4vw,2rem)" }}>
-        {title}
-      </h2>
-      <div className="mt-4 space-y-4 leading-relaxed text-bone-dim">{children}</div>
-    </section>
-  );
-}
 
 const COOKIES: { name: string; origin: string; purpose: string; ttl: string }[] = [
   {
@@ -118,7 +108,7 @@ export default function PrivacidadPage() {
           del RGPD.
         </p>
 
-        <Section title="Responsable del tratamiento">
+        <ProseSection title="Responsable del tratamiento">
           <p>
             El responsable de tus datos es <strong className="text-bone">[RAZÓN SOCIAL]</strong>, RUT{" "}
             <strong className="text-bone">[RUT]</strong>, con domicilio en {SITE.address},{" "}
@@ -131,9 +121,9 @@ export default function PrivacidadPage() {
             </a>
             .
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Qué datos recopilamos">
+        <ProseSection title="Qué datos recopilamos">
           <ul className="list-disc space-y-2 pl-5">
             <li>
               <strong className="text-bone">Datos de la reserva:</strong> tu correo (obligatorio) y,
@@ -159,9 +149,9 @@ export default function PrivacidadPage() {
               nuestros formularios.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Para qué los usamos">
+        <ProseSection title="Para qué los usamos">
           <ul className="list-disc space-y-2 pl-5">
             <li>Gestionar tu reserva y procesar el pago.</li>
             <li>Emitir la boleta electrónica ante el SII.</li>
@@ -171,9 +161,9 @@ export default function PrivacidadPage() {
             <li>Prevenir el abuso y el spam en nuestros formularios (seguridad del sitio).</li>
             <li>Medir el tráfico del sitio y mejorar la experiencia.</li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Base de licitud">
+        <ProseSection title="Base de licitud">
           <p>
             Tratamos tus datos sobre la base de: tu <strong className="text-bone">consentimiento</strong>{" "}
             (para la analítica y las cookies no esenciales), la{" "}
@@ -182,9 +172,9 @@ export default function PrivacidadPage() {
             (boleta), y nuestro <strong className="text-bone">interés legítimo</strong> en revisar las
             postulaciones que nos envías y en mantener el sitio seguro frente al abuso.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Con quién compartimos tus datos">
+        <ProseSection title="Con quién compartimos tus datos">
           <p>
             Trabajamos con proveedores que tratan datos por encargo nuestro, solo para las finalidades
             descritas:
@@ -201,9 +191,9 @@ export default function PrivacidadPage() {
             Unidos). Al usar el sitio, esa transferencia internacional ocurre para poder prestarte el
             servicio.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Cookies y almacenamiento">
+        <ProseSection title="Cookies y almacenamiento">
           <p>
             Usamos cookies y almacenamiento del navegador para que el sitio funcione y para medir su
             tráfico. La analítica de Google solo se activa si la aceptas en el banner de cookies.
@@ -239,9 +229,9 @@ export default function PrivacidadPage() {
             Puedes cambiar tu elección en cualquier momento: <ConsentReopenLink />. También puedes
             bloquear o borrar cookies desde la configuración de tu navegador.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Por cuánto tiempo los conservamos">
+        <ProseSection title="Por cuánto tiempo los conservamos">
           <ul className="list-disc space-y-2 pl-5">
             <li>Las reservas sin pagar (en espera) se liberan automáticamente a los 10 minutos.</li>
             <li>
@@ -249,9 +239,9 @@ export default function PrivacidadPage() {
               obligación tributaria.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Tus derechos">
+        <ProseSection title="Tus derechos">
           <p>
             Conforme a la Ley N° 19.628, puedes ejercer tus derechos de{" "}
             <strong className="text-bone">acceso, rectificación, cancelación y oposición</strong>{" "}
@@ -265,28 +255,28 @@ export default function PrivacidadPage() {
             </a>
             . Responderemos en los plazos que exige la ley.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Seguridad">
+        <ProseSection title="Seguridad">
           <p>
             Aplicamos medidas razonables para proteger tus datos: acceso restringido, control por
             roles y claves de servicio que nunca se exponen al navegador. Ningún sistema es
             infalible, pero trabajamos para mantener tu información resguardada.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Menores de edad">
+        <ProseSection title="Menores de edad">
           <p>El sitio no está dirigido a menores de edad y no recopilamos sus datos de forma intencional.</p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Cambios a esta política">
+        <ProseSection title="Cambios a esta política">
           <p>
             Podemos actualizar esta política para reflejar cambios en el sitio o en la normativa. Rige
             siempre la versión publicada en esta página, con su fecha de última actualización.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Contacto">
+        <ProseSection title="Contacto">
           <p>
             ¿Dudas sobre tu privacidad? Escríbenos a{" "}
             <a href={`mailto:${PRIVACY_EMAIL}`} className="text-gold underline-offset-4 hover:underline">
@@ -303,7 +293,7 @@ export default function PrivacidadPage() {
             </a>
             .
           </p>
-        </Section>
+        </ProseSection>
       </main>
       <Footer />
     </>

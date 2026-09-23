@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GuideSection, guideJsonLd } from "../_components/Prose";
+import { ProseSection } from "@/components/article/ProseSection";
+import { articleJsonLd } from "@/lib/articles/jsonld";
 import { GEAR } from "@/lib/site";
 
 const DESCRIPTION =
@@ -12,8 +13,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/aprender-dj" },
 };
 
-const jsonLd = guideJsonLd({
-  slug: "aprender-dj",
+const jsonLd = articleJsonLd({
+  path: "/aprender-dj",
   headline: "Cómo aprender a ser DJ desde cero",
   description: DESCRIPTION,
   datePublished: "2026-08-17",
@@ -45,7 +46,7 @@ export default function AprenderDjPage() {
         corrija los vicios a tiempo. Esta guía resume el camino completo.
       </p>
 
-      <GuideSection title="Qué es mezclar, en una frase">
+      <ProseSection title="Qué es mezclar, en una frase">
         <p>
           Mezclar es pasar de una canción a otra sin que la pista lo sienta: igualar velocidades
           (beatmatching), alinear frases y administrar la energía con la ecualización y el
@@ -53,9 +54,9 @@ export default function AprenderDjPage() {
           Si dominas ganancia, EQ y una transición limpia, ya eres capaz de sostener una hora de
           música.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="¿Necesito comprar equipo?">
+      <ProseSection title="¿Necesito comprar equipo?">
         <p>
           No para partir. Es el error más caro del principiante: gastar cientos de miles en un
           controlador antes de saber si esto le gusta. Hay dos caminos:
@@ -79,9 +80,9 @@ export default function AprenderDjPage() {
             ¿Controlador o equipos de club?
           </Link>
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="¿Cuánto demora?">
+      <ProseSection title="¿Cuánto demora?">
         <p>
           Con método y equipos reales: tus primeras transiciones limpias salen en las primeras
           horas de práctica; un set coherente de 45–60 minutos, en unas semanas de práctica
@@ -90,9 +91,9 @@ export default function AprenderDjPage() {
           maratones: rinde más una hora concentrada dos veces por semana que cinco horas un
           sábado al mes.
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="¿Autodidacta o curso de DJ?">
+      <ProseSection title="¿Autodidacta o curso de DJ?">
         <p>
           Honestamente: se puede aprender solo. YouTube es gratis y el material sobra. Lo que un
           buen curso de DJ comprime es el tiempo — método en vez de tutoriales sueltos, equipos
@@ -106,9 +107,9 @@ export default function AprenderDjPage() {
             ¿Cuánto cuesta un curso de DJ?
           </Link>
         </p>
-      </GuideSection>
+      </ProseSection>
 
-      <GuideSection title="Un método de 4 pasos">
+      <ProseSection title="Un método de 4 pasos">
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong className="text-bone">Sonido y primera transición</strong> — ganancia, EQ,
@@ -140,7 +141,7 @@ export default function AprenderDjPage() {
           </Link>{" "}
           (PDF gratis, 8 páginas) te deja el equipo explicado y una rutina semanal.
         </p>
-      </GuideSection>
+      </ProseSection>
     </>
   );
 }

@@ -7,7 +7,7 @@ import PublicChrome from "@/components/PublicChrome";
  * scroll y la medición pública (PublicChrome). Solo aquí: (booking) y /cuenta llevan
  * solo PublicChrome; /admin no lleva nada.
  *
- * Nav y Footer NO van aquí: cada página monta los suyos ((guias)/layout.tsx los de
+ * Nav y Footer NO van aquí: cada página monta los suyos ((articulos)/layout.tsx los de
  * las guías) y curso-dj, grabacion y curso-dj/pago usan Logo + Footer a propósito.
  *
  * Devuelve un fragmento a propósito: cualquier wrapper con transform/filter/contain/

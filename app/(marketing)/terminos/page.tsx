@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { ProseSection } from "@/components/article/ProseSection";
 import WhatsAppCta from "@/components/WhatsAppCta";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
@@ -14,17 +15,6 @@ export const metadata: Metadata = {
     "Términos de uso del servicio de FOTF Studios: reservas, pagos, cancelaciones, uso de la sala y responsabilidades.",
   alternates: { canonical: "/terminos" },
 };
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-12 border-t hairline pt-10">
-      <h2 className="font-display text-bone" style={{ fontSize: "clamp(1.4rem,4vw,2rem)" }}>
-        {title}
-      </h2>
-      <div className="mt-4 space-y-4 leading-relaxed text-bone-dim">{children}</div>
-    </section>
-  );
-}
 
 export default function TerminosPage() {
   return (
@@ -51,16 +41,16 @@ export default function TerminosPage() {
           estos términos.
         </p>
 
-        <Section title="Quiénes somos">
+        <ProseSection title="Quiénes somos">
           <p>
             El servicio lo presta <strong className="text-bone">[RAZÓN SOCIAL]</strong>, RUT{" "}
             <strong className="text-bone">[RUT]</strong>, con domicilio en {SITE.address},{" "}
             {SITE.country}. Operamos una sala de ensayo de DJ por hora, aislada acústicamente y de
             acceso autogestionado.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="El servicio">
+        <ProseSection title="El servicio">
           <p>
             Arriendas por hora una sala equipada con equipo profesional Pioneer. El acceso es
             autogestionado (plug & play): entras con tu acceso a la hora reservada, conectas tu
@@ -92,9 +82,9 @@ export default function TerminosPage() {
               </ul>
             </div>
           </div>
-        </Section>
+        </ProseSection>
 
-        <Section title="Reservas y horarios">
+        <ProseSection title="Reservas y horarios">
           <ul className="list-disc space-y-2 pl-5">
             <li>Horarios de atención: domingo a jueves de 09:00 a 22:00; viernes y sábado de 09:00 a 23:00.</li>
             <li>La reserva mínima es de 1 hora, en bloques de 1 hora.</li>
@@ -104,9 +94,9 @@ export default function TerminosPage() {
             </li>
             <li>La reserva queda confirmada una vez aprobado el pago.</li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Precios y pagos">
+        <ProseSection title="Precios y pagos">
           <ul className="list-disc space-y-2 pl-5">
             <li>Rigen los precios vigentes publicados en el sitio al momento de reservar.</li>
             <li>Los precios están en pesos chilenos (CLP) e incluyen IVA.</li>
@@ -119,9 +109,9 @@ export default function TerminosPage() {
             <li>El pago se realiza en línea a través de Mercado Pago.</li>
             <li>Por cada pago se emite la boleta electrónica correspondiente.</li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Cancelaciones, reembolsos y reagendamientos">
+        <ProseSection title="Cancelaciones, reembolsos y reagendamientos">
           <p className="text-bone">Reagendar tu sesión (mover el horario):</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
@@ -169,9 +159,9 @@ export default function TerminosPage() {
             . Los reembolsos que correspondan se procesan a través de Mercado Pago y se emite la nota
             de crédito respectiva.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Puntos FOTF">
+        <ProseSection title="Puntos FOTF">
           <p>
             Por cada pago hecho en dinero acumulas puntos FOTF:{" "}
             <strong className="text-bone">1 punto equivale a $1 CLP</strong>, y acumulas el{" "}
@@ -199,9 +189,9 @@ export default function TerminosPage() {
               puntos hacia adelante; estos cambios nunca afectan puntos que ya hayas ganado.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Packs de horas">
+        <ProseSection title="Packs de horas">
           <p>
             Los packs son créditos de horas para usar en{" "}
             <strong className="text-bone">horario valle</strong> (lunes a viernes hasta las
@@ -231,9 +221,9 @@ export default function TerminosPage() {
               desde la compra. ¿Se te pasó la fecha? Escríbenos y lo vemos caso a caso.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Curso de Iniciación DJ">
+        <ProseSection title="Curso de Iniciación DJ">
           <p>
             El curso se paga <strong className="text-bone">100% por adelantado</strong> al
             inscribirte.
@@ -256,9 +246,9 @@ export default function TerminosPage() {
               inscribes dentro de los 7 días siguientes a la sesión de prueba.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Sesiones de grabación">
+        <ProseSection title="Sesiones de grabación">
           <p>
             Las sesiones de grabación son de{" "}
             <strong className="text-bone">captura directa</strong>, sin postproducción.
@@ -272,18 +262,18 @@ export default function TerminosPage() {
               horario punta, se suma la diferencia de tarifa correspondiente.
             </li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Uso de la sala y conducta">
+        <ProseSection title="Uso de la sala y conducta">
           <ul className="list-disc space-y-2 pl-5">
             <li>Usa el equipo y la sala de forma responsable y cuidadosa.</li>
             <li>Respeta el horario reservado; el tiempo comienza y termina según tu reserva.</li>
             <li>No puedes subarrendar ni ceder tu acceso a terceros.</li>
             <li>Queda prohibido cualquier daño, alteración o uso indebido del equipo o del espacio.</li>
           </ul>
-        </Section>
+        </ProseSection>
 
-        <Section title="Responsabilidad">
+        <ProseSection title="Responsabilidad">
           <p>
             Eres responsable por los daños que causes al equipo o a la sala durante tu sesión.
             {" "}
@@ -291,16 +281,16 @@ export default function TerminosPage() {
             traigas. En la medida que lo permita la ley, nuestra responsabilidad se limita al valor
             de la reserva correspondiente.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Propiedad intelectual">
+        <ProseSection title="Propiedad intelectual">
           <p>
             La marca, el logo, las fotografías y los textos de este sitio son de {SITE.name} y no
             pueden usarse sin autorización. Tu música y tus grabaciones son y siguen siendo tuyas.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Privacidad">
+        <ProseSection title="Privacidad">
           <p>
             El tratamiento de tus datos personales se rige por nuestra{" "}
             <Link href="/privacidad" className="text-gold underline-offset-4 hover:underline">
@@ -308,23 +298,23 @@ export default function TerminosPage() {
             </Link>
             .
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Cambios a estos términos">
+        <ProseSection title="Cambios a estos términos">
           <p>
             Podemos actualizar estos términos para reflejar cambios en el servicio o en la normativa.
             Rige siempre la versión publicada en esta página, con su fecha de última actualización.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Ley aplicable">
+        <ProseSection title="Ley aplicable">
           <p>
             Estos términos se rigen por las leyes de {SITE.country}. Cualquier controversia se
             someterá a los tribunales competentes de la Región de {SITE.region}.
           </p>
-        </Section>
+        </ProseSection>
 
-        <Section title="Contacto">
+        <ProseSection title="Contacto">
           <p>
             ¿Dudas sobre estos términos? Escríbenos por{" "}
             <WhatsAppCta source="terminos-contacto" className="text-gold underline-offset-4 hover:underline">
@@ -336,7 +326,7 @@ export default function TerminosPage() {
             </a>
             .
           </p>
-        </Section>
+        </ProseSection>
       </main>
       <Footer />
     </>
