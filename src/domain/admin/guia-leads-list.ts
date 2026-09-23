@@ -1,9 +1,9 @@
 /**
- * Leads de la guía (/guia-dj) en el admin (puro, sin IO): búsqueda por email +
+ * Leads de las guías en el admin (puro, sin IO): búsqueda por email +
  * paginación en la URL (?q=&p=), y el CSV para llevarse la lista a la herramienta de
  * correo. Espejo de clientes-list.ts, sin orden configurable: la lista es cronológica.
  */
-import type { GuideLeadSource } from "@/src/domain/guide/lead";
+
 import { EMAIL_MAX } from "@/src/domain/contact/contact";
 
 export const GUIA_LEADS_PER_PAGE = 25;
@@ -12,7 +12,10 @@ export const GUIA_LEADS_PER_PAGE = 25;
 export interface GuideLeadRow {
   id: string;
   email: string;
-  source: GuideLeadSource;
+  /** A qué guía corresponde. La columna y el filtro del admin llegan aparte. */
+  guideSlug: string;
+  /** Ya no es una unión cerrada: cada guía declara sus formularios en lib/guides.ts. */
+  source: string;
   requestCount: number;
   createdAt: string;
   lastRequestedAt: string;

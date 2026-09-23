@@ -496,22 +496,42 @@ export function courseLeadConfirmation(
  * el correo lo dice: se puede volver a usar. Sin cupos, precios ni curso: la landing
  * "sin CTA" no vende nada, y este correo tampoco.
  */
-export function guideDelivery(v: { downloadUrl: string }, ctx: { whatsappUrl: string }): EmailContent {
+export interface GuideDeliveryCopy {
+  templateKey: string;
+  subject: string;
+  preheader: string;
+  h1: string;
+  blurb: string;
+  ctaLabel: string;
+  name: string;
+}
+
+/**
+ * Entrega de una guía en PDF. El copy entra como DATO (lo trae lib/guides vía el
+ * servicio) para que este módulo siga siendo copy puro, sin importar el registro.
+ * Lo estructural —el link de respaldo, "guárdalo", la salida por WhatsApp— queda fijo:
+ * no cambia entre guías.
+ */
+export function guideDelivery(
+  v: { downloadUrl: string; copy: GuideDeliveryCopy },
+  ctx: { whatsappUrl: string },
+): EmailContent {
   const url = esc(v.downloadUrl);
+  const c = v.copy;
   const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Acá está tu guía</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">Guía de iniciación al DJing, 8 páginas en PDF: el equipo explicado, beatmatching paso a paso, EQ, selección musical y una rutina de práctica semanal.</p>
-     <a href="${url}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Descargar la guía (PDF)</a>
+    `<h1 style="font-size:24px;margin:0 0 8px">${esc(c.h1)}</h1>
+     <p style="color:${T.boneDim};margin:0 0 20px">${esc(c.blurb)}</p>
+     <a href="${url}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">${esc(c.ctaLabel)}</a>
      <p style="color:${T.boneQuiet};font-size:13px;margin:20px 0 0">Si el botón no abre, copia este link: <a href="${url}" style="color:${T.gold};text-decoration:underline;word-break:break-all">${url}</a></p>
      <p style="color:${T.boneDim};margin:20px 0 0">Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.</p>
      <p style="color:${T.boneDim};margin:12px 0 0">¿Problemas para abrirla? <a href="${esc(ctx.whatsappUrl)}" style="color:${T.gold};text-decoration:underline">Escríbenos por WhatsApp</a> y lo vemos al tiro.</p>`,
-    "Tu Guía de iniciación al DJing, en PDF.",
+    c.preheader,
   );
-  const text = `Acá está tu Guía de iniciación al DJing (PDF, 8 páginas): ${v.downloadUrl}
+  const text = `Acá está tu ${c.name} (PDF): ${v.downloadUrl}
 
 Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.
 ¿Problemas para abrirla? Escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
-  return { template: "guideDelivery", subject: "Tu Guía de iniciación al DJing (PDF)", html, text };
+  return { template: c.templateKey, subject: c.subject, html, text };
 }
 
 /**

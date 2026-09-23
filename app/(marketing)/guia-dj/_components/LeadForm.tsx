@@ -5,7 +5,9 @@ import { useRef, useState } from "react";
 import { trackGuideLead } from "@/lib/analytics";
 import { COPY } from "@/lib/guia-content";
 import { guiaErrorMessage, guiaFieldMessage } from "@/lib/guia-form";
-import { GUIDE_LEAD_CAPS, type GuideLeadSource, parseGuideLead } from "@/src/domain/guide/lead";
+import { GUIDE_LEAD_CAPS, parseGuideLead } from "@/src/domain/guide/lead";
+import { GUIDES, type GuideSlug } from "@/lib/guides";
+import { readUtm } from "@/lib/guia-utm";
 import { useGuiaLead } from "./LeadState";
 
 const inputCls =
@@ -17,12 +19,15 @@ const inputCls =
  * EL momento de conversión de la página — la única urgencia real que hay acá.
  */
 export default function LeadForm({
+  guide,
   source,
   layout,
   buttonLabel,
   eyebrow,
 }: {
-  source: GuideLeadSource;
+  /** A qué guía pertenece este formulario. Viaja al route y a analytics. */
+  guide: GuideSlug;
+  source: string;
   /** `inline` = campo y botón en una fila (hero); `stack` = apilados (fragmento, cierre). */
   layout: "inline" | "stack";
   buttonLabel: string;
@@ -42,7 +47,7 @@ export default function LeadForm({
   const onChange = (v: string) => {
     if (!started.current) {
       started.current = true;
-      trackGuideLead("start", source);
+      trackGuideLead("start", guide, source);
     }
     setEmail(v);
     setFieldError(null);
@@ -53,7 +58,10 @@ export default function LeadForm({
     setError(null);
 
     // Misma validación que corre el servidor: los mensajes no se pueden desincronizar.
-    const parsed = parseGuideLead({ email, source, website });
+    const parsed = parseGuideLead(
+      { email, source, guide, website },
+      { slug: guide, sources: GUIDES[guide].sources.map((f) => f.id) },
+    );
     if (parsed.kind === "spam") {
       markSent(email); // silencio idéntico al éxito
       return;
@@ -70,7 +78,15 @@ export default function LeadForm({
       const res = await fetch("/api/guia/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source, website }),
+        // Los UTM se leen ACÁ, al enviar: pertenecen a la sesión con la que la persona
+        // llegó, no a la página, y leerlos al montar abriría una diferencia server/cliente.
+        body: JSON.stringify({
+          email,
+          source,
+          guide,
+          website,
+          ...readUtm(window.location, document.referrer),
+        }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -78,7 +94,7 @@ export default function LeadForm({
         return;
       }
       // El evento se dispara SOLO con 200: un submit fallido no es conversión.
-      trackGuideLead("submit", source);
+      trackGuideLead("submit", guide, source);
       markSent(parsed.value.email);
       requestAnimationFrame(() => okRef.current?.focus());
     } catch {

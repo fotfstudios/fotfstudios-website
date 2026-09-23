@@ -53,12 +53,17 @@ export function trackCourseLead(step: "start" | "submit", plan?: string): void {
 }
 
 /**
- * Embudo de la guía gratis (/guia-dj): `start` al primer tecleo, `submit` solo con
- * 200 del route. `source` = cuál de los tres formularios de la landing convirtió.
+ * Embudo de las guías gratis: `start` al primer tecleo, `submit` solo con 200 del route.
+ * `guide` es el slug; `source` es cuál formulario de esa landing convirtió.
+ *
+ * `page` se mantiene IGUAL al slug —para /guia-dj era literalmente "guia-dj"—, así ningún
+ * informe de GA4 existente se corta. Y se agrega `guide` como parámetro en vez de acuñar
+ * nombres de evento nuevos: cada VALOR nuevo pediría su trigger y su etiqueta en GTM, o sea
+ * un cambio de contenedor por guía para siempre; un parámetro se configura una sola vez.
  */
-export function trackGuideLead(step: "start" | "submit", source: "hero" | "fragmento" | "cierre"): void {
+export function trackGuideLead(step: "start" | "submit", guide: string, source: string): void {
   if (typeof window === "undefined") return;
-  pushEvent(`guide_lead_${step}`, { page: "guia-dj", source });
+  pushEvent(`guide_lead_${step}`, { page: guide, guide, source });
 }
 
 /**

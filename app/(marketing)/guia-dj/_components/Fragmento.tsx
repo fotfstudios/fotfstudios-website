@@ -72,7 +72,7 @@ export default function Fragmento() {
                 <p className="max-w-[30em] leading-relaxed text-bone-dim">{COPY.fragmento.afterLede}</p>
               </div>
               <div className="min-w-0">
-                <LeadForm source="fragmento" layout="stack" buttonLabel="Enviar la guía completa" />
+                <LeadForm guide="guia-dj" source="fragmento" layout="stack" buttonLabel="Enviar la guía completa" />
               </div>
             </div>
           </div>

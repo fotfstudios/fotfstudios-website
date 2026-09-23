@@ -352,11 +352,29 @@ describe("reembolso de inscripción de curso (pagada)", () => {
   });
 });
 
+const GUIDE_KEY_COPY = {
+  templateKey: "guideDelivery:guia-dj",
+  subject: "s",
+  preheader: "p",
+  h1: "h",
+  blurb: "b",
+  ctaLabel: "c",
+  name: "n",
+};
+
 describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
   it("customerConfirmation lleva template = 'customerConfirmation'", () => {
     const m = customerConfirmation(view, confCtx);
     expect(m.template).toBe("customerConfirmation");
   });
+
+  /**
+   * `guideDelivery` es la única plantilla cuya clave NO es un literal: la trae la guía,
+   * como `guideDelivery:<slug>`, para que notification_log distinga una entrega que
+   * rebota de otra. La invariante se mantiene —cada plantilla se identifica con su
+   * nombre—, solo que para esta se comprueba llamándola en vez de leyendo el archivo.
+   */
+  const CLAVE_PARAMETRIZADA = ["guideDelivery"];
 
   it("toda función exportada de templates.ts devuelve template con su nombre", async () => {
     const { readFileSync } = await import("node:fs");
@@ -364,8 +382,19 @@ describe("bitácora: cada plantilla se identifica con su propio nombre", () => {
     const names = [...src.matchAll(/export function (\w+)\(/g)].map((m) => m[1]);
     expect(names.length).toBeGreaterThan(10);
     for (const name of names) {
+      if (CLAVE_PARAMETRIZADA.includes(name)) continue;
       expect(src, `${name} sin template`).toContain(`template: "${name}"`);
     }
+  });
+
+  it("guideDelivery se identifica con su nombre más el slug de la guía", () => {
+    const m = guideDelivery(
+      { downloadUrl: "https://x.example/d", copy: { ...GUIDE_KEY_COPY, templateKey: "guideDelivery:guia-dj" } },
+      { whatsappUrl: "https://wa.me/1" },
+    );
+    expect(m.template).toMatch(/^guideDelivery:[a-z0-9-]+$/);
+    // Así `like 'guideDelivery%'` sigue trayendo todas las entregas de una sola vez.
+    expect(m.template.startsWith("guideDelivery")).toBe(true);
   });
 });
 
@@ -531,13 +560,23 @@ describe("customerRescheduleFailed — kept distingue reserva viva de reserva ca
   });
 });
 
-describe("guideDelivery — la guía de /guia-dj", () => {
+describe("guideDelivery — la entrega de una guía", () => {
   const wa = "https://wa.me/56962803298";
   const url = "https://www.fotfstudios.cl/guia-dj/descarga/" + "a".repeat(48);
+  const GUIDE_COPY = {
+    templateKey: "guideDelivery:guia-dj",
+    subject: "Tu Guía de iniciación al DJing (PDF)",
+    preheader: "Tu Guía de iniciación al DJing, en PDF.",
+    h1: "Acá está tu guía",
+    blurb: "Guía de iniciación al DJing, 8 páginas en PDF.",
+    ctaLabel: "Descargar la guía (PDF)",
+    name: "Guía de iniciación al DJing",
+  };
+  const deliver = (downloadUrl = url, copy = GUIDE_COPY) => guideDelivery({ downloadUrl, copy }, { whatsappUrl: wa });
 
   it("asunto nombra la guía y el PDF; el link va como botón Y como texto en ambas versiones", () => {
-    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
-    expect(m.template).toBe("guideDelivery");
+    const m = deliver();
+    expect(m.template).toBe("guideDelivery:guia-dj");
     expect(m.subject).toMatch(/gu[ií]a de iniciaci[óo]n al djing/i);
     expect(m.subject).toMatch(/pdf/i);
     expect(m.html).toContain(`href="${url}"`);
@@ -547,20 +586,30 @@ describe("guideDelivery — la guía de /guia-dj", () => {
   });
 
   it("dice que el link es durable (se puede volver a usar) y ofrece WhatsApp si algo falla", () => {
-    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
+    const m = deliver();
+    // Estructural, no por guía: el párrafo del link durable y la salida por WhatsApp
+    // son iguales en todas.
     expect(m.html).toMatch(/link es tuyo|gu[áa]rdalo|vuelve a usar/i);
     expect(m.html).toContain(wa);
     expect(m.text).toContain(wa);
   });
 
   it("escapa la URL al incrustarla en HTML", () => {
-    const m = guideDelivery({ downloadUrl: 'https://x.example/?a=1&b="2"' }, { whatsappUrl: wa });
+    const m = deliver('https://x.example/?a=1&b="2"');
     expect(m.html).toContain("https://x.example/?a=1&amp;b=&quot;2&quot;");
     expect(m.html).not.toContain('b="2"');
   });
 
   it("no promete cupos, precios ni el curso: es solo la entrega de la guía", () => {
-    const m = guideDelivery({ downloadUrl: url }, { whatsappUrl: wa });
+    const m = deliver();
     expect(m.html).not.toMatch(/\$|cupo|inscri|curso de dj/i);
+  });
+
+  it("el copy viene de la guía: otra guía produce otro asunto y otra clave de bitácora", () => {
+    const otra = { ...GUIDE_COPY, templateKey: "guideDelivery:guia-mezcla", subject: "Tu guía de mezcla (PDF)", h1: "Acá está tu guía de mezcla" };
+    const m = deliver(url, otra);
+    expect(m.template).toBe("guideDelivery:guia-mezcla");
+    expect(m.subject).toBe("Tu guía de mezcla (PDF)");
+    expect(m.html).toContain("Acá está tu guía de mezcla");
   });
 });

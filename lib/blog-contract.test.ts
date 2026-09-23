@@ -97,7 +97,7 @@ describe("el artículo cierra con su guía", () => {
 
   it("el CTA enlaza sin query string: no fragmenta la canónica de la guía", () => {
     const cta = readCode("components/article/GuiaCta.tsx");
-    expect(cta).toMatch(/href=\{m\.href\}/);
+    expect(cta).toMatch(/href=\{m\.path\}/);
     expect(cta).not.toMatch(/\?ref=|\?utm_/);
   });
 

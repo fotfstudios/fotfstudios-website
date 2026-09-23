@@ -8,6 +8,16 @@ import { GET } from "@/app/admin/(panel)/guia/leads.csv/route";
 import { SupabaseGuideLeadRepository } from "./guide-lead-repository";
 import { createServiceClient } from "./supabase-client";
 
+/** Input ya normalizado, como lo entrega parseGuideLead. */
+const leadInput = (email: string, source = "hero", guide = "guia-dj") => ({
+  email,
+  source,
+  guide,
+  utm: { source: null, medium: null, campaign: null, content: null, term: null },
+  referrerHost: null,
+});
+
+
 const auth = vi.hoisted(() => ({ allowed: true }));
 vi.mock("@/src/infrastructure/auth/require-admin", () => ({
   requirePermission: async () => {
@@ -41,15 +51,15 @@ afterAll(async () => {
 describe("GET /admin/guia/leads.csv", () => {
   it("sin permiso → 403 y nada de datos", async () => {
     auth.allowed = false;
-    await repo.request({ email: "dj@correo.cl", source: "hero" });
+    await repo.request(leadInput("dj@correo.cl", "hero"));
     const res = await GET();
     expect(res.status).toBe(403);
     expect(await res.text()).not.toContain("dj@correo.cl");
   });
 
   it("con permiso → CSV descargable, UTF-8 con BOM, sin cache, con los leads en orden cronológico", async () => {
-    await repo.request({ email: "ana@correo.cl", source: "hero" });
-    await repo.request({ email: "beto@correo.cl", source: "cierre" });
+    await repo.request(leadInput("ana@correo.cl", "hero"));
+    await repo.request(leadInput("beto@correo.cl", "cierre"));
     const res = await GET();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
