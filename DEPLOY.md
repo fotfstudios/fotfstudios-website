@@ -204,6 +204,18 @@ No hay *down-migrations*. Para revertir un cambio de esquema:
 > Por eso la regla expand/contract importa: si las migraciones son retrocompatibles,
 > un rollback de código no choca con el esquema ya aplicado.
 
+#### Contracciones pendientes
+
+Funciones o columnas que sobreviven **solo** para que el código viejo no se caiga durante
+la ventana de aprobación, y que hay que borrar en una migración posterior:
+
+| Qué | Desde | Se borra cuando |
+|---|---|---|
+| `guide_lead_request(text, text)` | `20260923190000_guias_multi` | el código que llama `guide_lead_capture` lleve un ciclo completo en prod y `grep -rn "guide_lead_request" src app lib` no devuelva nada |
+
+Dejar una de estas indefinidamente no rompe nada, pero es deuda: son dos caminos hacia la
+misma tabla y el segundo no se prueba.
+
 ## Referencias
 
 - [CLAUDE.md](CLAUDE.md) — guía del repo, comandos, guardrails de marca.

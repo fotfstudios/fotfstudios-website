@@ -1,10 +1,11 @@
 /**
- * Integración: contrato SQL de `guide_leads` (migración 20260916120000_guia_dj).
+ * Integración: contrato SQL de `guide_leads` (migraciones 20260915130000_guia_dj y
+ * 20260923190000_guias_multi).
  *
- * Cubre lo que la migración promete y ningún adapter puede garantizar solo: el RPC
- * `guide_lead_request` es idempotente por email (mismo token, cuenta re-pedidos, no pisa
- * `source`), los CHECK espejan el dominio, el bucket `guias` es privado y la tabla no es
- * visible para anon.
+ * Cubre lo que las migraciones prometen y ningún adapter puede garantizar solo: el RPC
+ * `guide_lead_capture` es idempotente por (guía, email) —mismo token, cuenta re-pedidos,
+ * no pisa `source` ni `consent_at`, y los UTM son de primer toque CON datos—, los CHECK
+ * espejan el dominio, el bucket `guias` es privado y la tabla no es visible para anon.
  */
 import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -31,6 +32,26 @@ type RequestRow = { id: string; download_token: string; request_count: number };
 
 async function request(email: string, source = "hero"): Promise<RequestRow> {
   const { data, error } = await db.rpc("guide_lead_request", { p_email: email, p_source: source }).single();
+  if (error) throw error;
+  return data as RequestRow;
+}
+
+/** El RPC nuevo: la guía es parte de la clave. */
+async function capture(
+  email: string,
+  source = "hero",
+  guide = "guia-dj",
+  utm: { source?: string; medium?: string } = {},
+): Promise<RequestRow> {
+  const { data, error } = await db
+    .rpc("guide_lead_capture", {
+      p_email: email,
+      p_source: source,
+      p_guide: guide,
+      ...(utm.source ? { p_utm_source: utm.source } : {}),
+      ...(utm.medium ? { p_utm_medium: utm.medium } : {}),
+    })
+    .single();
   if (error) throw error;
   return data as RequestRow;
 }
@@ -94,14 +115,126 @@ describe("CHECK constraints de la DB (espejo del dominio)", () => {
     await expect(request(long + "x", "hero")).rejects.toMatchObject({ code: "23514" });
   });
 
-  it("rechaza un source fuera del catálogo", async () => {
-    await expect(request("dj@correo.cl", "popup")).rejects.toMatchObject({ code: "23514" });
+  it("acepta un source nuevo: la DB ya no tiene el catálogo, valida la FORMA", async () => {
+    // ('hero','fragmento','cierre') era el layout de UNA landing. Cada guía declara los
+    // suyos en TypeScript; la DB solo cuida que el valor no ensucie el CSV del admin.
+    await expect(request("dj@correo.cl", "sidebar")).resolves.toMatchObject({ request_count: 1 });
+  });
+
+  it("rechaza un source con forma inválida", async () => {
+    for (const malo of ["Hero!", "a", "con espacio", "1numero"]) {
+      await expect(request(`x-${malo.length}@correo.cl`, malo), malo).rejects.toMatchObject({ code: "23514" });
+    }
+    await expect(request("largo@correo.cl", "a".repeat(25))).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("rechaza un guide_slug con forma inválida", async () => {
+    for (const malo of ["Guia_DJ", "ab", "--x", "a".repeat(41)]) {
+      await expect(
+        raw("insert into guide_leads (email, source, guide_slug) values ($1, 'hero', $2)", ["g@correo.cl", malo]),
+        malo,
+      ).rejects.toMatchObject({ code: "23514" });
+    }
+  });
+
+  it("acota el largo de los UTM: vienen de la query string", async () => {
+    await expect(
+      raw("insert into guide_leads (email, source, utm_source) values ($1, 'hero', repeat('z', 121))", ["u@correo.cl"]),
+    ).rejects.toMatchObject({ code: "23514" });
   });
 
   it("rechaza un token que no sea hex de 48 (unicidad + largo)", async () => {
     await expect(
       raw("insert into guide_leads (email, source, download_token) values ($1, 'hero', 'corto')", ["x@correo.cl"]),
     ).rejects.toMatchObject({ code: "23514" });
+  });
+});
+
+describe("multi-guía", () => {
+  it("la misma persona en dos guías son DOS leads, con token propio cada uno", async () => {
+    // El titular del cambio: el link del correo es durable y apunta a UN PDF, así que el
+    // token no se puede compartir entre guías.
+    const a = await capture("dj@correo.cl", "hero", "guia-dj");
+    const b = await capture("dj@correo.cl", "hero", "guia-mezcla");
+    expect(a.id).not.toBe(b.id);
+    expect(a.download_token).not.toBe(b.download_token);
+    expect([a.request_count, b.request_count]).toEqual([1, 1]);
+  });
+
+  it("re-pedir la MISMA guía suma sin duplicar y conserva el token", async () => {
+    const first = await capture("dj@correo.cl", "hero", "guia-dj");
+    const again = await capture("dj@correo.cl", "cierre", "guia-dj");
+    expect(again.request_count).toBe(2);
+    expect(again.download_token).toBe(first.download_token);
+    const { rows } = await raw("select source from guide_leads where email = $1", ["dj@correo.cl"]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source, "el source es de primer toque").toBe("hero");
+  });
+
+  it("la unicidad se mudó a (guide_slug, email): el email solo ya no alcanza", async () => {
+    await capture("dj@correo.cl", "hero", "guia-dj");
+    await expect(
+      raw("insert into guide_leads (email, source, guide_slug) values ($1, 'hero', 'guia-dj')", ["dj@correo.cl"]),
+    ).rejects.toMatchObject({ code: "23505" });
+    // …pero la misma persona en otra guía entra sin chistar.
+    await expect(
+      raw("insert into guide_leads (email, source, guide_slug) values ($1, 'hero', 'guia-mezcla')", ["dj@correo.cl"]),
+    ).resolves.toBeTruthy();
+  });
+
+  it("un insert sin guide_slug toma el default 'guia-dj'", async () => {
+    await raw("insert into guide_leads (email, source) values ($1, 'hero')", ["dflt@correo.cl"]);
+    const { rows } = await raw("select guide_slug from guide_leads where email = $1", ["dflt@correo.cl"]);
+    expect(rows[0].guide_slug).toBe("guia-dj");
+  });
+
+  it("los UTM son de PRIMER TOQUE CON DATOS: entran una vez y no se pisan", async () => {
+    // Si el primer pedido llegó directo y el segundo por campaña, la atribución útil es
+    // la campaña — de ahí el coalesce en vez de un overwrite.
+    await capture("utm@correo.cl", "hero", "guia-dj");
+    await capture("utm@correo.cl", "hero", "guia-dj", { source: "instagram", medium: "social" });
+    await capture("utm@correo.cl", "hero", "guia-dj", { source: "google", medium: "cpc" });
+    const { rows } = await raw("select utm_source, utm_medium, request_count from guide_leads where email = $1", [
+      "utm@correo.cl",
+    ]);
+    expect(rows[0]).toMatchObject({ utm_source: "instagram", utm_medium: "social", request_count: 3 });
+  });
+
+  it("consent_at se fija al alta y un re-pedido no lo mueve", async () => {
+    await capture("c@correo.cl", "hero", "guia-dj");
+    const before = await raw("select consent_at from guide_leads where email = $1", ["c@correo.cl"]);
+    await capture("c@correo.cl", "hero", "guia-dj");
+    const after = await raw("select consent_at, last_requested_at from guide_leads where email = $1", ["c@correo.cl"]);
+    expect(after.rows[0].consent_at).toEqual(before.rows[0].consent_at);
+    expect(new Date(after.rows[0].last_requested_at).getTime()).toBeGreaterThanOrEqual(
+      new Date(before.rows[0].consent_at).getTime(),
+    );
+  });
+
+  /**
+   * EL CONTRATO DE LA VENTANA DE DESPLIEGUE.
+   *
+   * Producción despliega `main` al instante pero la migración espera aprobación manual.
+   * Durante esa ventana el código vivo sigue llamando `guide_lead_request(email, source)`,
+   * así que la función tiene que sobrevivir como wrapper. Sin esto, el instante en que se
+   * aprueba la migración cada pedido devuelve 503 y NO se guarda ni un lead.
+   *
+   * Esta prueba se BORRA en la migración de contracción, junto con la función.
+   */
+  it("el RPC viejo sigue vivo y escribe guide_slug = 'guia-dj'", async () => {
+    const row = await request("viejo@correo.cl", "fragmento");
+    expect(row.download_token).toMatch(/^[0-9a-f]{48}$/);
+    const { rows } = await raw("select guide_slug, source from guide_leads where email = $1", ["viejo@correo.cl"]);
+    expect(rows[0]).toMatchObject({ guide_slug: "guia-dj", source: "fragmento" });
+  });
+
+  it("los índices quedaron como los espera el admin", async () => {
+    const { rows } = await raw("select indexname from pg_indexes where tablename = 'guide_leads'");
+    const names = rows.map((r: { indexname: string }) => r.indexname);
+    expect(names).toContain("guide_leads_guide_email_key");
+    expect(names).toContain("guide_leads_guide_created_idx");
+    expect(names, "la pestaña 'Todas' sigue usando este").toContain("guide_leads_created_idx");
+    expect(names, "la unicidad por email sola ya no existe").not.toContain("guide_leads_email_key");
   });
 });
 
