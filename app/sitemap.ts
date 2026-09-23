@@ -1,67 +1,11 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { getArticles, publishedArticles } from "@/lib/articles/registry";
+import { buildSitemap } from "@/lib/sitemap";
 
+/**
+ * La tabla vive en lib/sitemap.ts para que vitest la vea (vitest.config.ts no recoge
+ * app/**). Los borradores quedan fuera aunque se puedan ver en un preview.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [
-    {
-      url: SITE_URL,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 1,
-    },
-    {
-      url: `${SITE_URL}/curso-dj`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${SITE_URL}/guia-dj`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${SITE_URL}/grabacion`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${SITE_URL}/aprender-dj`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${SITE_URL}/cuanto-cuesta-un-curso-de-dj`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${SITE_URL}/xdj-vs-controlador`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${SITE_URL}/unete`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${SITE_URL}/privacidad`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${SITE_URL}/terminos`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-  ];
+  return buildSitemap(publishedArticles(getArticles(), false), new Date());
 }
