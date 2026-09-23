@@ -45,7 +45,7 @@ function groups(
     operacion.splice(3, 0, { href: "/admin/clientes", label: "Clientes", icon: "members" });
     // Guía DJ pegado a Clientes: son contactos (leads de la guía gratis), mismo permiso.
     // Sin badge: no hay nada que hacer con un lead, solo mirarlo o exportarlo.
-    operacion.splice(4, 0, { href: "/admin/guia", label: "Guía DJ", icon: "doc" });
+    operacion.splice(4, 0, { href: "/admin/guia", label: "Guías", icon: "doc" });
   }
   // Cerradura después de Bloqueos: es operación de sala, no de agenda. Con el mismo
   // permiso que la card de acceso de la ficha.

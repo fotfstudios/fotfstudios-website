@@ -49,10 +49,26 @@ afterAll(async () => {
 });
 
 describe("GET /admin/guia/leads.csv", () => {
+  it("con ?g= filtra el CSV y el nombre del archivo lo dice", async () => {
+    await repo.request(leadInput("dj@correo.cl", "hero", "guia-dj"));
+    const res = await GET(new Request("http://localhost/admin/guia/leads.csv?g=guia-dj"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toContain("guia-leads-guia-dj-");
+    const body = await res.text();
+    expect(body).toContain("dj@correo.cl");
+  });
+
+  it("un ?g= que no existe cae a 'todas' en vez de devolver un CSV vacío sin explicación", async () => {
+    await repo.request(leadInput("dj@correo.cl"));
+    const res = await GET(new Request("http://localhost/admin/guia/leads.csv?g=no-existe"));
+    expect(res.headers.get("content-disposition")).toContain("guia-leads-todas-");
+    expect(await res.text()).toContain("dj@correo.cl");
+  });
+
   it("sin permiso → 403 y nada de datos", async () => {
     auth.allowed = false;
     await repo.request(leadInput("dj@correo.cl", "hero"));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/admin/guia/leads.csv"));
     expect(res.status).toBe(403);
     expect(await res.text()).not.toContain("dj@correo.cl");
   });
@@ -60,19 +76,23 @@ describe("GET /admin/guia/leads.csv", () => {
   it("con permiso → CSV descargable, UTF-8 con BOM, sin cache, con los leads en orden cronológico", async () => {
     await repo.request(leadInput("ana@correo.cl", "hero"));
     await repo.request(leadInput("beto@correo.cl", "cierre"));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/admin/guia/leads.csv"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-    expect(res.headers.get("content-disposition")).toMatch(/^attachment; filename="guia-leads-\d{4}-\d{2}-\d{2}\.csv"$/);
+    // El nombre dice QUÉ se descargó: "todas" o el slug de la guía filtrada.
+    expect(res.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="guia-leads-(todas|[a-z0-9-]+)-\d{4}-\d{2}-\d{2}\.csv"$/,
+    );
     expect(res.headers.get("cache-control")).toBe("no-store");
     // Response.text() quita el BOM al decodificar (spec Fetch): se miran los bytes.
     const bytes = new Uint8Array(await res.arrayBuffer());
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const body = new TextDecoder().decode(bytes);
-    expect(body.startsWith("email,origen,pedidos,")).toBe(true);
+    // La guía va primera: ordenar en Excel agrupa por guía sin configurar nada.
+    expect(body.startsWith("guia,email,origen,pedidos,")).toBe(true);
     const lines = body.trim().split("\r\n");
     expect(lines).toHaveLength(3);
-    expect(lines[1]).toMatch(/^ana@correo\.cl,hero,1,/);
-    expect(lines[2]).toMatch(/^beto@correo\.cl,cierre,1,/);
+    expect(lines[1]).toMatch(/^guia-dj,ana@correo\.cl,hero,1,/);
+    expect(lines[2]).toMatch(/^guia-dj,beto@correo\.cl,cierre,1,/);
   });
 });

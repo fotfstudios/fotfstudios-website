@@ -5,8 +5,10 @@ import type { GuideLeadInput } from "@/src/domain/guide/lead";
 import type { GuideLeadRepository, GuideLeadRequest } from "@/src/application/ports/guide";
 import type { Database } from "./database.types";
 
+// Una sola cadena literal a propósito: si se parte en una concatenación, el tipado de
+// Supabase deja de inferir las columnas y las filas salen como GenericStringError.
 const ROW_COLS =
-  "id, email, guide_slug, source, request_count, created_at, last_requested_at, last_downloaded_at";
+  "id, email, guide_slug, source, request_count, created_at, last_requested_at, last_downloaded_at, consent_at, utm_source, utm_medium, utm_campaign, utm_content, utm_term, referrer_host";
 
 type Raw = {
   id: string;
@@ -17,6 +19,13 @@ type Raw = {
   created_at: string;
   last_requested_at: string;
   last_downloaded_at: string | null;
+  consent_at: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  referrer_host: string | null;
 };
 
 const toRow = (r: Raw): GuideLeadRow => ({
@@ -28,6 +37,13 @@ const toRow = (r: Raw): GuideLeadRow => ({
   createdAt: r.created_at,
   lastRequestedAt: r.last_requested_at,
   lastDownloadedAt: r.last_downloaded_at,
+  consentAt: r.consent_at,
+  utmSource: r.utm_source,
+  utmMedium: r.utm_medium,
+  utmCampaign: r.utm_campaign,
+  utmContent: r.utm_content,
+  utmTerm: r.utm_term,
+  referrerHost: r.referrer_host,
 });
 
 /**
@@ -77,37 +93,68 @@ export class SupabaseGuideLeadRepository implements GuideLeadRepository {
     return row ? { guideSlug: row.guide_slug } : null;
   }
 
-  async list(query: GuiaLeadsListQuery): Promise<{ rows: GuideLeadRow[]; total: number; grandTotal: number }> {
+  async list(
+    query: GuiaLeadsListQuery,
+    slugs: readonly string[],
+  ): Promise<{
+    rows: GuideLeadRow[];
+    total: number;
+    grandTotal: number;
+    countsByGuide: Record<string, number>;
+  }> {
     const from = (query.page - 1) * query.perPage;
     // La aguja pasa por escapeIlike: `_` y `%` se escapan; `*` (que PostgREST reescribe a
     // `%` antes de llegar a Postgres) se reemplaza por espacio. Vacía tras sanear → sin filtro.
     const needle = query.q ? escapeIlike(query.q.toLowerCase()) : "";
-    const filtered = <T extends { ilike(col: string, v: string): T }>(b: T): T =>
-      needle ? b.ilike("email", `%${needle}%`) : b;
+    const guide = query.guide;
+    const filtered = <T extends { ilike(c: string, v: string): T; eq(c: string, v: string): T }>(b: T): T => {
+      let out = needle ? b.ilike("email", `%${needle}%`) : b;
+      if (guide) out = out.eq("guide_slug", guide);
+      return out;
+    };
 
     // La página de datos NO pide count: con count, un offset fuera de rango devuelve 416
     // en vez de []. Los conteos van aparte (mismo patrón que clientes).
-    const [page, matching, all] = await Promise.all([
+    //
+    // Los conteos por guía son N consultas head en paralelo, con N = cuántas guías hay
+    // (≤ 6). Si eso creciera, toca un RPC que agrupe; hoy sería complicarlo de gratis.
+    const [page, matching, all, ...perGuide] = await Promise.all([
       filtered(this.db.from("guide_leads").select(ROW_COLS))
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
         .range(from, from + query.perPage - 1),
       filtered(this.db.from("guide_leads").select("id", { count: "exact", head: true })),
       this.db.from("guide_leads").select("id", { count: "exact", head: true }),
+      ...slugs.map((s) =>
+        this.db.from("guide_leads").select("id", { count: "exact", head: true }).eq("guide_slug", s),
+      ),
     ]);
     if (page.error) throw new Error(page.error.message);
     if (matching.error) throw new Error(matching.error.message);
     if (all.error) throw new Error(all.error.message);
-    return { rows: (page.data ?? []).map(toRow), total: matching.count ?? 0, grandTotal: all.count ?? 0 };
+
+    const countsByGuide: Record<string, number> = {};
+    slugs.forEach((s, i) => {
+      const r = perGuide[i];
+      if (r.error) throw new Error(r.error.message);
+      countsByGuide[s] = r.count ?? 0;
+    });
+
+    return {
+      rows: (page.data ?? []).map(toRow),
+      total: matching.count ?? 0,
+      grandTotal: all.count ?? 0,
+      countsByGuide,
+    };
   }
 
-  async exportAll(limit: number): Promise<GuideLeadRow[]> {
-    const { data, error } = await this.db
-      .from("guide_leads")
-      .select(ROW_COLS)
+  async exportAll(query: { guide: string | null; limit: number }): Promise<GuideLeadRow[]> {
+    let q = this.db.from("guide_leads").select(ROW_COLS);
+    if (query.guide) q = q.eq("guide_slug", query.guide);
+    const { data, error } = await q
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-      .limit(limit);
+      .limit(query.limit);
     if (error) throw new Error(error.message);
     return (data ?? []).map(toRow);
   }

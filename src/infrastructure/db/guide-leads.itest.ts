@@ -318,11 +318,18 @@ describe("SupabaseGuideLeadRepository — admin (list / exportAll)", () => {
     await repo.request(leadInput("cami@otro.cl", "cierre"));
     await repo.request(leadInput("cami@otro.cl", "hero")); // re-pedido
   };
-  const q = (over: Partial<{ q: string; page: number; perPage: number }> = {}) => ({ q: "", page: 1, perPage: 25, ...over });
+  const SLUGS = ["guia-dj", "guia-mezcla"];
+  const q = (over: Partial<{ q: string; guide: string | null; page: number; perPage: number }> = {}) => ({
+    q: "",
+    guide: null,
+    page: 1,
+    perPage: 25,
+    ...over,
+  });
 
   it("list: sin búsqueda devuelve todo, más reciente primero, con totales", async () => {
     await seed();
-    const r = await repo.list(q());
+    const r = await repo.list(q(), SLUGS);
     expect(r.rows.map((x) => x.email)).toEqual(["cami@otro.cl", "beto_dj@correo.cl", "ana@correo.cl"]);
     expect(r.total).toBe(3);
     expect(r.grandTotal).toBe(3);
@@ -333,7 +340,7 @@ describe("SupabaseGuideLeadRepository — admin (list / exportAll)", () => {
 
   it("list: busca por fragmento de email (case-insensitive) y total refleja el filtro", async () => {
     await seed();
-    const r = await repo.list(q({ q: "CORREO" }));
+    const r = await repo.list(q({ q: "CORREO" }), SLUGS);
     expect(r.rows.map((x) => x.email).sort()).toEqual(["ana@correo.cl", "beto_dj@correo.cl"]);
     expect(r.total).toBe(2);
     expect(r.grandTotal).toBe(3);
@@ -341,27 +348,69 @@ describe("SupabaseGuideLeadRepository — admin (list / exportAll)", () => {
 
   it("list: los comodines de ILIKE no sobre-matchean (`_` y `%` literales; `*` no es comodín)", async () => {
     await seed();
-    expect((await repo.list(q({ q: "beto_dj" }))).rows).toHaveLength(1);
-    expect((await repo.list(q({ q: "beto%dj" }))).rows).toHaveLength(0);
-    expect((await repo.list(q({ q: "beto*dj" }))).rows).toHaveLength(0);
+    expect((await repo.list(q({ q: "beto_dj" }), SLUGS)).rows).toHaveLength(1);
+    expect((await repo.list(q({ q: "beto%dj" }), SLUGS)).rows).toHaveLength(0);
+    expect((await repo.list(q({ q: "beto*dj" }), SLUGS)).rows).toHaveLength(0);
     // Solo `*` → aguja vacía tras sanear → sin filtro (misma convención que Clientes).
-    expect((await repo.list(q({ q: "*" }))).rows).toHaveLength(3);
+    expect((await repo.list(q({ q: "*" }), SLUGS)).rows).toHaveLength(3);
   });
 
   it("list: pagina sin perder filas", async () => {
     await seed();
-    const p1 = await repo.list(q({ perPage: 2 }));
-    const p2 = await repo.list(q({ perPage: 2, page: 2 }));
+    const p1 = await repo.list(q({ perPage: 2 }), SLUGS);
+    const p2 = await repo.list(q({ perPage: 2, page: 2 }), SLUGS);
     expect(p1.rows).toHaveLength(2);
     expect(p2.rows).toHaveLength(1);
     expect(new Set([...p1.rows, ...p2.rows].map((x) => x.id)).size).toBe(3);
-    expect((await repo.list(q({ perPage: 2, page: 9 }))).rows).toEqual([]);
+    expect((await repo.list(q({ perPage: 2, page: 9 }), SLUGS)).rows).toEqual([]);
+  });
+
+  it("list: filtra por guía y los conteos por guía cuadran", async () => {
+    await seed();
+    await repo.request(leadInput("mezcla@correo.cl", "hero", "guia-mezcla"));
+
+    const todas = await repo.list(q(), SLUGS);
+    expect(todas.grandTotal).toBe(4);
+    expect(todas.countsByGuide).toEqual({ "guia-dj": 3, "guia-mezcla": 1 });
+
+    const solo = await repo.list(q({ guide: "guia-mezcla" }), SLUGS);
+    expect(solo.rows.map((x) => x.email)).toEqual(["mezcla@correo.cl"]);
+    expect(solo.total).toBe(1);
+    // grandTotal NO se filtra: es el "de X" del contador de la página.
+    expect(solo.grandTotal).toBe(4);
+  });
+
+  it("list: el filtro por guía y la búsqueda se combinan", async () => {
+    await seed();
+    await repo.request(leadInput("ana@correo.cl", "hero", "guia-mezcla"));
+    const r = await repo.list(q({ q: "ana", guide: "guia-mezcla" }), SLUGS);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].guideSlug).toBe("guia-mezcla");
+  });
+
+  it("exportAll: filtra por guía cuando se pide", async () => {
+    await seed();
+    await repo.request(leadInput("mezcla@correo.cl", "hero", "guia-mezcla"));
+    const solo = await repo.exportAll({ guide: "guia-mezcla", limit: 100 });
+    expect(solo.map((r) => r.email)).toEqual(["mezcla@correo.cl"]);
+    expect(await repo.exportAll({ guide: null, limit: 100 })).toHaveLength(4);
+  });
+
+  it("exportAll: trae los UTM y el consentimiento que necesita el CSV", async () => {
+    await repo.request({
+      ...leadInput("utm@correo.cl"),
+      utm: { source: "instagram", medium: "social", campaign: null, content: null, term: null },
+      referrerHost: "www.google.com",
+    });
+    const [r] = await repo.exportAll({ guide: null, limit: 10 });
+    expect(r).toMatchObject({ utmSource: "instagram", utmMedium: "social", referrerHost: "www.google.com" });
+    expect(r.consentAt).toBeTruthy();
   });
 
   it("exportAll: todos, en orden cronológico, hasta el tope", async () => {
     await seed();
-    const all = await repo.exportAll(100);
+    const all = await repo.exportAll({ guide: null, limit: 100 });
     expect(all.map((x) => x.email)).toEqual(["ana@correo.cl", "beto_dj@correo.cl", "cami@otro.cl"]);
-    expect(await repo.exportAll(2)).toHaveLength(2);
+    expect(await repo.exportAll({ guide: null, limit: 2 })).toHaveLength(2);
   });
 });

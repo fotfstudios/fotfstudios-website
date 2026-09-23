@@ -1,7 +1,7 @@
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { fmtDateTime } from "@/components/admin/format";
 import type { GuideLeadRow } from "@/src/domain/admin/guia-leads-list";
-import { GUIDES, isGuideSlug } from "@/lib/guides";
+import { GUIDES, GUIDE_SLUGS, isGuideSlug } from "@/lib/guides";
 
 /**
  * Qué formulario de la landing convirtió (primer toque).
@@ -15,12 +15,19 @@ function sourceLabel(guideSlug: string, source: string): string {
   return GUIDES[guideSlug].sources.find((s) => s.id === source)?.label ?? source;
 }
 
+/** El título de la guía, o el slug crudo si salió del registro con leads vivos. */
+const guideLabel = (slug: string): string => (isGuideSlug(slug) ? GUIDES[slug].title : slug);
+
 export function LeadsTable({ rows }: { rows: GuideLeadRow[] }) {
+  // Con una sola guía la columna no informa nada y se come ancho: seis columnas ya es el
+  // límite cómodo de esta tabla.
+  const showGuide = GUIDE_SLUGS.length > 1;
   return (
     <DataTable
-      caption="Leads de la guía"
+      caption="Leads de las guías"
       head={
         <>
+          {showGuide ? <Th>Guía</Th> : null}
           <Th>Email</Th>
           <Th>Origen</Th>
           <Th right>Pedidos</Th>
@@ -31,6 +38,7 @@ export function LeadsTable({ rows }: { rows: GuideLeadRow[] }) {
     >
       {rows.map((r) => (
         <Tr key={r.id}>
+          {showGuide ? <Td className="text-bone-dim">{guideLabel(r.guideSlug)}</Td> : null}
           <Td className="font-mono text-bone">{r.email}</Td>
           <Td>
             <span className="inline-flex items-center border hairline px-2 py-0.5 label-sm text-bone-dim">
