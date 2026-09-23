@@ -19,7 +19,10 @@
     "db:types": "supabase gen types typescript --local > src/infrastructure/db/database.types.ts"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
     "@mercadopago/sdk-react": "^1.0.7",
+    "@next/mdx": "^15.5.25",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.110.0",
     "@vercel/analytics": "^2.0.1",
@@ -30,12 +33,16 @@
     "nodemailer": "^7.0.13",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
     "resend": "^6.28.0",
-    "standardwebhooks": "^1.1.1"
+    "standardwebhooks": "^1.1.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/luxon": "^3.7.5",
+    "@types/mdx": "^2.0.14",
     "@types/node": "^24.13.4",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
