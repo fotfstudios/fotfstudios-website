@@ -877,34 +877,58 @@ export type Database = {
       }
       guide_leads: {
         Row: {
+          consent_at: string
           created_at: string
           download_token: string
           email: string
+          guide_slug: string
           id: string
           last_downloaded_at: string | null
           last_requested_at: string
+          referrer_host: string | null
           request_count: number
           source: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
+          consent_at?: string
           created_at?: string
           download_token?: string
           email: string
+          guide_slug?: string
           id?: string
           last_downloaded_at?: string | null
           last_requested_at?: string
+          referrer_host?: string | null
           request_count?: number
           source: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
+          consent_at?: string
           created_at?: string
           download_token?: string
           email?: string
+          guide_slug?: string
           id?: string
           last_downloaded_at?: string | null
           last_requested_at?: string
+          referrer_host?: string | null
           request_count?: number
           source?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: []
       }
@@ -1992,6 +2016,24 @@ export type Database = {
       expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
       first_booking_promo_used: { Args: { p_email: string }; Returns: boolean }
       generate_access_code: { Args: never; Returns: string }
+      guide_lead_capture: {
+        Args: {
+          p_email: string
+          p_guide: string
+          p_referrer_host?: string
+          p_source: string
+          p_utm_campaign?: string
+          p_utm_content?: string
+          p_utm_medium?: string
+          p_utm_source?: string
+          p_utm_term?: string
+        }
+        Returns: {
+          download_token: string
+          id: string
+          request_count: number
+        }[]
+      }
       guide_lead_request: {
         Args: { p_email: string; p_source: string }
         Returns: {
