@@ -1,5 +1,6 @@
 import { ARTICLE_CATEGORIES, CATEGORY, type ArticleCategory } from "@/lib/articles/schema";
 import { headlineSize, splitHeadline } from "@/lib/articles/headline";
+import { ogPhotoFor } from "@/lib/articles/og-photo";
 import { ogImage, OG_CONTENT_TYPE, OG_SIZE } from "@/lib/og";
 
 export const alt = "Artículos por categoría — FOTF Studios";
@@ -15,7 +16,7 @@ export default async function Image({ params }: { params: Promise<{ categoria: s
   const copy = CATEGORY[categoria as ArticleCategory];
   const lines = splitHeadline(copy?.title ?? "Artículos");
   return ogImage({
-    photo: "photos/cabina-10.JPG",
+    photo: ogPhotoFor(categoria as ArticleCategory),
     lines,
     fontSize: headlineSize(lines),
     footLeft: `${(copy?.label ?? "Artículos").toUpperCase()} · FOTFSTUDIOS.CL/BLOG`,

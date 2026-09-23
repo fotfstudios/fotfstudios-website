@@ -6,7 +6,7 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default async function Image() {
   return ogImage({
-    photo: "photos/cabina-7.JPG",
+    photo: "og/curso-dj.jpg",
     lines: ["Curso de DJ", "en Viña del Mar"],
     footLeft: "4 SESIONES · SET FINAL GRABADO · DESDE $79.990",
   });
