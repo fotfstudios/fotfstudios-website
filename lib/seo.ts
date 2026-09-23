@@ -38,9 +38,17 @@ export function canonicalUrl(path: string): string {
  * Metadata de una página pública: canónica, Open Graph y Twitter en una sola llamada.
  *
  * INVARIANTE: este helper NUNCA setea `openGraph.images`. Setearlo explícitamente
- * ANULA la convención de archivo de Next (opengraph-image.tsx junto a la page), que es
- * como se generan todas las tarjetas del sitio. Si alguna vez hace falta una imagen
- * puntual, va en la página, no acá. Hay una prueba que lo vigila.
+ * ANULA la convención de archivo de Next (opengraph-image.tsx junto a la page). Hay una
+ * prueba que lo vigila.
+ *
+ * OJO — LA REGLA QUE NO ES OBVIA: declarar `openGraph` corta la herencia de la imagen de
+ * un segmento ANCESTRO. Una página sin openGraph propio hereda la tarjeta de
+ * app/opengraph-image.tsx; en cuanto declara uno —aunque sea sin `images`— esa herencia
+ * se pierde y la página queda SIN og:image.
+ *
+ * Por eso toda página que use pageMetadata necesita su PROPIO opengraph-image.tsx al
+ * lado. Se descubrió al revés: /blog salió a producción sin tarjeta. lib/blog-contract
+ * lo afirma ahora, así que no puede volver a pasar en silencio.
  *
  * La canónica se devuelve RELATIVA: `metadataBase` de app/layout.tsx la resuelve contra
  * SITE_URL, que apunta siempre a producción aunque el deploy sea un preview o un túnel.

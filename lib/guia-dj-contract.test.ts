@@ -33,7 +33,9 @@ describe("app/(marketing)/guia-dj/page.tsx", () => {
   it("es una landing: sin <Nav />, con <Footer />, canónica /guia-dj y FAQPage + breadcrumb", () => {
     expect(src()).not.toMatch(/<Nav\b/);
     expect(src()).toMatch(/<Footer\s*\/>/);
-    expect(src()).toContain('canonical: "/guia-dj"');
+    // La canónica la arma pageMetadata desde `path`; antes era un literal `canonical:`.
+    // Lo que importa es que la página declare la suya y apunte a /guia-dj.
+    expect(src()).toMatch(/pageMetadata\(\{[\s\S]*?path: "\/guia-dj"/);
     expect(src()).toContain('"@type": "FAQPage"');
     expect(src()).toContain('"@type": "BreadcrumbList"');
   });

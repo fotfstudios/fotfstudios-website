@@ -116,6 +116,31 @@ describe("el artículo cierra con su guía", () => {
   });
 });
 
+/**
+ * La regla que costó una regresión en producción: declarar `openGraph` corta la herencia
+ * de la imagen del segmento ancestro. Una página que usa pageMetadata y NO tiene su propio
+ * opengraph-image.tsx sale sin og:image — y nada falla, simplemente no hay tarjeta.
+ */
+describe("toda página con pageMetadata trae su propia tarjeta OG", () => {
+  it("no hay ninguna sin opengraph-image.tsx al lado", () => {
+    const pages: string[] = [];
+    const walk = (d: string) => {
+      for (const e of readdirSync(join(ROOT, d), { withFileTypes: true })) {
+        const p = `${d}/${e.name}`;
+        if (e.isDirectory()) walk(p);
+        else if (e.name === "page.tsx") pages.push(p);
+      }
+    };
+    walk("app");
+
+    const huerfanas = pages.filter((p) => {
+      if (!readCode(p).includes("pageMetadata(")) return false;
+      return !existsSync(join(ROOT, p.replace(/page\.tsx$/, "opengraph-image.tsx")));
+    });
+    expect(huerfanas, "usan pageMetadata pero heredarían una imagen que ya no llega").toEqual([]);
+  });
+});
+
 describe("marca", () => {
   it("Sirena no aparece en el grupo ni en los componentes de artículo", () => {
     // Sirena es solo urgencia. Un acento decorativo en un artículo la gasta.
