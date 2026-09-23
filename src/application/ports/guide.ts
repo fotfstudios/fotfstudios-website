@@ -17,10 +17,22 @@ export interface GuideLeadRepository {
    * Nunca de un solo uso.
    */
   touchDownload(token: string): Promise<{ guideSlug: string } | null>;
-  /** Admin: página de leads (más reciente primero) + total filtrado + total general. */
-  list(query: GuiaLeadsListQuery): Promise<{ rows: GuideLeadRow[]; total: number; grandTotal: number }>;
-  /** Admin: todos los leads en orden cronológico, hasta `limit` (para el CSV). */
-  exportAll(limit: number): Promise<GuideLeadRow[]>;
+  /**
+   * Admin: página de leads (más reciente primero) + total filtrado + total general +
+   * cuántos hay por guía. Los `slugs` entran por argumento: el repositorio no tiene por
+   * qué saber qué guías existen, solo contar las que le pidan.
+   */
+  list(
+    query: GuiaLeadsListQuery,
+    slugs: readonly string[],
+  ): Promise<{
+    rows: GuideLeadRow[];
+    total: number;
+    grandTotal: number;
+    countsByGuide: Record<string, number>;
+  }>;
+  /** Admin: los leads en orden cronológico, filtrados por guía si se pide (para el CSV). */
+  exportAll(query: { guide: string | null; limit: number }): Promise<GuideLeadRow[]>;
 }
 
 export interface GuideFileStore {
