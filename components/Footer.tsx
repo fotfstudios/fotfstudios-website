@@ -108,6 +108,11 @@ export default function Footer() {
                   ¿Controlador o equipos de club?
                 </Link>
               </li>
+              <li>
+                <Link href="/blog" className="label-sm text-bone-mute transition-colors hover:text-gold">
+                  Todos los artículos →
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

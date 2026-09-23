@@ -186,6 +186,9 @@ describe("árbol de rutas", () => {
       "app/(marketing)/(articulos)/aprender-dj/page.tsx",
       "app/(marketing)/(articulos)/cuanto-cuesta-un-curso-de-dj/page.tsx",
       "app/(marketing)/(articulos)/xdj-vs-controlador/page.tsx",
+      "app/(marketing)/(articulos)/blog/page.tsx",
+      "app/(marketing)/(articulos)/blog/[slug]/page.tsx",
+      "app/(marketing)/(articulos)/blog/categoria/[categoria]/page.tsx",
       "app/(marketing)/guia-dj/page.tsx",
       "app/(marketing)/guia-dj/descarga/[token]/page.tsx",
       "app/(marketing)/guia-dj/opengraph-image.tsx",
@@ -193,7 +196,7 @@ describe("árbol de rutas", () => {
     ]) {
       expect(exists(p), p).toBe(true);
     }
-    for (const p of ["app/page.tsx", "app/curso-dj", "app/(articulos)", "app/grabacion", "app/unete", "app/privacidad", "app/terminos", "app/(marketing)/(guias)"]) {
+    for (const p of ["app/page.tsx", "app/curso-dj", "app/(articulos)", "app/grabacion", "app/unete", "app/privacidad", "app/terminos", "app/(marketing)/(guias)", "app/blog"]) {
       expect(exists(p), p).toBe(false);
     }
   });
