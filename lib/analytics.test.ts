@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const track = vi.fn();
 vi.mock("@vercel/analytics", () => ({ track: (...args: unknown[]) => track(...args) }));
 
-import { pageFromPathname, pushEvent, trackBookingCta, trackGuideLead, trackWhatsAppClick } from "./analytics";
+import {
+  pageFromPathname,
+  pushEvent,
+  trackBookingCta,
+  trackGuideCtaClick,
+  trackGuideLead,
+  trackWhatsAppClick,
+} from "./analytics";
 
 type TestWindow = { dataLayer?: unknown[]; location: { pathname: string } };
 
@@ -102,6 +109,22 @@ describe("trackGuideLead", () => {
   it("sin window (SSR) no hace nada ni lanza", () => {
     delete (globalThis as { window?: TestWindow }).window;
     expect(() => trackGuideLead("start", "hero")).not.toThrow();
+    expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe("trackGuideCtaClick", () => {
+  it("lleva la guía, el lugar y el artículo desde el que se saltó", () => {
+    const dl = stubWindow("/blog/primera-hora-en-cabina");
+    trackGuideCtaClick("guia-dj", "cierre");
+    expect(dl).toEqual([
+      { event: "guide_cta_click", guide: "guia-dj", placement: "cierre", page: "blog/primera-hora-en-cabina" },
+    ]);
+  });
+
+  it("sin window (SSR) no hace nada ni lanza", () => {
+    delete (globalThis as { window?: TestWindow }).window;
+    expect(() => trackGuideCtaClick("guia-dj", "cierre")).not.toThrow();
     expect(track).not.toHaveBeenCalled();
   });
 });

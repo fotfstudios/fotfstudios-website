@@ -60,3 +60,18 @@ export function trackGuideLead(step: "start" | "submit", source: "hero" | "fragm
   if (typeof window === "undefined") return;
   pushEvent(`guide_lead_${step}`, { page: "guia-dj", source });
 }
+
+/**
+ * Clic en el CTA de cierre de un artículo hacia su guía en PDF. Es el único salto
+ * medible del embudo artículo → guía: el artículo es abierto y la guía pide el correo.
+ * `guide` es el slug del imán; `page` es el artículo desde donde se saltó.
+ * Recordar: este evento necesita su trigger + etiqueta en GTM para llegar a GA4.
+ */
+export function trackGuideCtaClick(guide: string, placement: string): void {
+  if (typeof window === "undefined") return;
+  pushEvent("guide_cta_click", {
+    guide,
+    placement,
+    page: pageFromPathname(window.location.pathname),
+  });
+}
