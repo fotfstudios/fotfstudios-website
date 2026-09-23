@@ -22,9 +22,9 @@ export function GuiaCta({ guide, placement = "cierre" }: { guide: LeadMagnetSlug
       <h2 className="font-display mt-3 text-bone" style={{ fontSize: "clamp(1.5rem,4.5vw,2.2rem)" }}>
         {m.title}
       </h2>
-      <p className="mt-3 leading-relaxed text-bone-dim">{m.blurb}</p>
+      <p className="mt-3 leading-relaxed text-bone-dim">{m.description}</p>
       <Link
-        href={m.href}
+        href={m.path}
         onClick={() => trackGuideCtaClick(guide, placement)}
         className="label mt-6 inline-flex min-h-11 items-center gap-2 border border-gold px-5 text-gold transition-colors hover:bg-gold hover:text-ink"
       >

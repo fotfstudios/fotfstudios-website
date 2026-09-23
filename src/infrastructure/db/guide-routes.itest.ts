@@ -19,8 +19,16 @@ async function raw(sql: string, params: unknown[] = []) {
   return pg.query(sql, params);
 }
 
+/**
+ * La guía se agrega por defecto para no repetirla en cada caso; pasándola explícita
+ * (incluso inválida) se puede probar el rechazo.
+ */
 function post(body: unknown, ip = "203.0.113.10", rawBody?: string): Request {
-  const payload = rawBody ?? JSON.stringify(body);
+  const withGuide =
+    body && typeof body === "object" && !Array.isArray(body) && !("guide" in body)
+      ? { ...body, guide: "guia-dj" }
+      : body;
+  const payload = rawBody ?? JSON.stringify(withGuide);
   return new Request("http://localhost/api/guia/leads", {
     method: "POST",
     headers: {
@@ -103,6 +111,54 @@ describe("POST /api/guia/leads", () => {
     }
     const res = await POST(post({ email: "dj@correo.cl", source: "hero" }, "198.51.100.9"));
     expect(res.status).toBe(429);
+  });
+
+  it("una guía que no está en el registro → 400, sin tocar la DB", async () => {
+    for (const guide of ["no-existe", "", 42, undefined]) {
+      const res = await POST(post({ email: "dj@correo.cl", source: "hero", guide }));
+      expect(res.status, String(guide)).toBe(400);
+    }
+    const { rows } = await raw("select count(*)::int c from guide_leads");
+    expect(rows[0].c).toBe(0);
+  });
+
+  it("un source que la guía no declara → 400", async () => {
+    // 'sidebar' pasa el CHECK de la base, pero guia-dj no lo declara en lib/guides.ts.
+    const res = await POST(post({ email: "dj@correo.cl", source: "sidebar" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("guarda los UTM y el host del referente que vengan en el cuerpo", async () => {
+    await POST(
+      post({
+        email: "dj@correo.cl",
+        source: "hero",
+        utmSource: "instagram",
+        utmMedium: "social",
+        referrerHost: "www.google.com",
+      }),
+    );
+    const { rows } = await raw("select utm_source, utm_medium, referrer_host, consent_at from guide_leads");
+    expect(rows[0]).toMatchObject({
+      utm_source: "instagram",
+      utm_medium: "social",
+      referrer_host: "www.google.com",
+    });
+    expect(rows[0].consent_at).toBeTruthy();
+  });
+
+  it("el límite por email es POR GUÍA: agotar una no bloquea la otra", async () => {
+    // Antes el contador era por email a secas, así que pedir dos veces la guía A dejaba
+    // sin la B — con un 429 que decía "revisa tu correo", que era falso.
+    for (let i = 0; i < 3; i++) {
+      expect((await POST(post({ email: "dj@correo.cl", source: "hero" }))).status).toBe(200);
+    }
+    expect((await POST(post({ email: "dj@correo.cl", source: "hero" }))).status).toBe(429);
+
+    // La MISMA persona en otra guía arranca con su propio contador. Se comprueba contra
+    // el limitador directamente porque todavía hay una sola guía en el registro.
+    const { rows } = await raw("select count(*)::int c from rate_limit_counters");
+    expect(rows[0].c).toBeGreaterThanOrEqual(2); // ip + email-all + email-por-guía
   });
 
   it("los pedidos inválidos no consumen cuota (el limitador corre después del parser)", async () => {

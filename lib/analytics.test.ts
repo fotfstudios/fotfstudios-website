@@ -95,20 +95,31 @@ describe("trackBookingCta", () => {
 });
 
 describe("trackGuideLead", () => {
-  it("emite guide_lead_start / guide_lead_submit con page fija y el formulario de origen", () => {
+  it("emite guide_lead_start / guide_lead_submit con la guía y el formulario de origen", () => {
     const dl = stubWindow("/guia-dj");
-    trackGuideLead("start", "hero");
-    trackGuideLead("submit", "cierre");
+    trackGuideLead("start", "guia-dj", "hero");
+    trackGuideLead("submit", "guia-dj", "cierre");
+    // `page` sigue valiendo "guia-dj" como antes: ningún informe de GA4 existente se corta.
     expect(dl).toEqual([
-      { event: "guide_lead_start", page: "guia-dj", source: "hero" },
-      { event: "guide_lead_submit", page: "guia-dj", source: "cierre" },
+      { event: "guide_lead_start", page: "guia-dj", guide: "guia-dj", source: "hero" },
+      { event: "guide_lead_submit", page: "guia-dj", guide: "guia-dj", source: "cierre" },
     ]);
-    expect(track).toHaveBeenCalledWith("guide_lead_submit", { page: "guia-dj", source: "cierre" });
+    expect(track).toHaveBeenCalledWith("guide_lead_submit", {
+      page: "guia-dj",
+      guide: "guia-dj",
+      source: "cierre",
+    });
+  });
+
+  it("una guía distinta cambia guide y page juntos", () => {
+    const dl = stubWindow("/guia-mezcla");
+    trackGuideLead("submit", "guia-mezcla", "hero");
+    expect(dl).toEqual([{ event: "guide_lead_submit", page: "guia-mezcla", guide: "guia-mezcla", source: "hero" }]);
   });
 
   it("sin window (SSR) no hace nada ni lanza", () => {
     delete (globalThis as { window?: TestWindow }).window;
-    expect(() => trackGuideLead("start", "hero")).not.toThrow();
+    expect(() => trackGuideLead("start", "guia-dj", "hero")).not.toThrow();
     expect(track).not.toHaveBeenCalled();
   });
 });

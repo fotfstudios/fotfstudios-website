@@ -4,6 +4,7 @@
  * importa desde aquí. Lee la config de entorno de forma perezosa (en request).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { GUIDES, isGuideSlug } from "@/lib/guides";
 import { SITE, SITE_URL } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
@@ -16,6 +17,7 @@ import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-reposito
 import { SupabaseGuideLeadRepository } from "@/src/infrastructure/db/guide-lead-repository";
 import { SupabaseGuideFileStore } from "@/src/infrastructure/storage/guide-file-store";
 import { GuideService } from "@/src/application/guide/guide-service";
+import type { GuideCatalog } from "@/src/application/ports/guide";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
@@ -316,11 +318,22 @@ export function guideLeadRepository(client: SupabaseClient<Database> = db()): Su
   return new SupabaseGuideLeadRepository(client);
 }
 
+/**
+ * El registro de guías visto como puerto. Este es el ÚNICO lugar donde src/ importa
+ * lib/guides: la aplicación no debe saber dónde vive el registro.
+ */
+const guideCatalog: GuideCatalog = {
+  pdfObject: (slug) => (isGuideSlug(slug) ? GUIDES[slug].pdfObject : null),
+  emailCopy: (slug) => (isGuideSlug(slug) ? GUIDES[slug].email : null),
+  landingPath: (slug) => (isGuideSlug(slug) ? GUIDES[slug].path : null),
+};
+
 export function guideService(client: SupabaseClient<Database> = db()): GuideService {
   return new GuideService(
     new SupabaseGuideLeadRepository(client),
     new SupabaseGuideFileStore(client),
     notificationService(client),
+    guideCatalog,
   );
 }
 

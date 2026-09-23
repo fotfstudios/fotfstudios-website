@@ -39,7 +39,7 @@ export default function GuiaHero() {
           </p>
 
           <div className="rise mt-8 max-w-[460px] border hairline bg-ink-soft/50 p-5 sm:p-6" style={{ animationDelay: "0.28s" }}>
-            <LeadForm source="hero" layout="inline" buttonLabel="Enviar la guía" eyebrow="Descárgala ahora" />
+            <LeadForm guide="guia-dj" source="hero" layout="inline" buttonLabel="Enviar la guía" eyebrow="Descárgala ahora" />
           </div>
 
           <div className="rise mt-8 flex items-center gap-3" style={{ animationDelay: "0.36s" }}>

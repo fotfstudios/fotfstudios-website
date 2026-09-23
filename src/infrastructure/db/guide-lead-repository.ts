@@ -1,15 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeIlike } from "@/src/domain/admin/reservas-list";
 import type { GuideLeadRow, GuiaLeadsListQuery } from "@/src/domain/admin/guia-leads-list";
-import type { GuideLeadInput, GuideLeadSource } from "@/src/domain/guide/lead";
+import type { GuideLeadInput } from "@/src/domain/guide/lead";
 import type { GuideLeadRepository, GuideLeadRequest } from "@/src/application/ports/guide";
 import type { Database } from "./database.types";
 
-const ROW_COLS = "id, email, source, request_count, created_at, last_requested_at, last_downloaded_at";
+const ROW_COLS =
+  "id, email, guide_slug, source, request_count, created_at, last_requested_at, last_downloaded_at";
 
 type Raw = {
   id: string;
   email: string;
+  guide_slug: string;
   source: string;
   request_count: number;
   created_at: string;
@@ -20,35 +22,59 @@ type Raw = {
 const toRow = (r: Raw): GuideLeadRow => ({
   id: r.id,
   email: r.email,
-  source: r.source as GuideLeadSource,
+  guideSlug: r.guide_slug,
+  source: r.source,
   requestCount: r.request_count,
   createdAt: r.created_at,
   lastRequestedAt: r.last_requested_at,
   lastDownloadedAt: r.last_downloaded_at,
 });
 
-/** Leads de /guia-dj sobre `guide_leads` (migración 20260915130000_guia_dj). */
+/**
+ * Leads de las guías sobre `guide_leads`
+ * (migraciones 20260915130000_guia_dj y 20260923190000_guias_multi).
+ */
 export class SupabaseGuideLeadRepository implements GuideLeadRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
-  /** Alta o re-pedido en una ida (RPC idempotente por email). `isNew` = primer pedido. */
+  /**
+   * Alta o re-pedido en una ida (RPC idempotente por (guía, email)). `isNew` = primer
+   * pedido de ESA guía: la misma persona puede ser nueva en una y repetida en otra.
+   */
   async request(input: GuideLeadInput): Promise<GuideLeadRequest> {
     const { data, error } = await this.db
-      .rpc("guide_lead_request", { p_email: input.email, p_source: input.source })
+      .rpc("guide_lead_capture", {
+        p_email: input.email,
+        p_source: input.source,
+        p_guide: input.guide,
+        // El dominio usa null para "no vino"; el RPC tiene DEFAULT null, así que sus
+        // parámetros opcionales se omiten con undefined. La traducción va acá, en el
+        // adaptador, que es donde corresponde.
+        p_utm_source: input.utm.source ?? undefined,
+        p_utm_medium: input.utm.medium ?? undefined,
+        p_utm_campaign: input.utm.campaign ?? undefined,
+        p_utm_content: input.utm.content ?? undefined,
+        p_utm_term: input.utm.term ?? undefined,
+        p_referrer_host: input.referrerHost ?? undefined,
+      })
       .single();
     if (error) throw new Error(error.message);
     return { id: data.id, token: data.download_token, isNew: data.request_count === 1 };
   }
 
-  /** Marca la descarga; el select dice si el token existe. Nunca de un solo uso. */
-  async touchDownload(token: string): Promise<boolean> {
+  /**
+   * Marca la descarga y devuelve la guía del token. Un solo round trip: el PDF a firmar
+   * depende de la guía, y pedirla aparte sería una segunda consulta por cada clic.
+   */
+  async touchDownload(token: string): Promise<{ guideSlug: string } | null> {
     const { data, error } = await this.db
       .from("guide_leads")
       .update({ last_downloaded_at: new Date().toISOString() })
       .eq("download_token", token)
-      .select("id");
+      .select("guide_slug");
     if (error) throw new Error(error.message);
-    return (data?.length ?? 0) > 0;
+    const row = data?.[0];
+    return row ? { guideSlug: row.guide_slug } : null;
   }
 
   async list(query: GuiaLeadsListQuery): Promise<{ rows: GuideLeadRow[]; total: number; grandTotal: number }> {

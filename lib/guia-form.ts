@@ -9,6 +9,9 @@ import type { GuideLeadField, GuideLeadIssueCode } from "@/src/domain/guide/lead
 const FIELD_LABEL: Record<GuideLeadField, string> = {
   email: "tu correo",
   source: "el formulario",
+  // El visitante nunca elige la guía —la pone la landing—, así que un error acá es un
+  // bug nuestro o una request armada a mano. El texto igual tiene que existir.
+  guide: "la guía",
 };
 
 /** Mensaje por campo+código para pintar bajo el input. */

@@ -18,7 +18,7 @@ export default function CierreGuia() {
 
           <Reveal delay={160}>
             <div className="border hairline bg-ink p-6 sm:p-8">
-              <LeadForm source="cierre" layout="stack" buttonLabel="Enviar la guía" eyebrow="Tu correo" />
+              <LeadForm guide="guia-dj" source="cierre" layout="stack" buttonLabel="Enviar la guía" eyebrow="Tu correo" />
             </div>
           </Reveal>
         </div>

@@ -837,15 +837,32 @@ describe("notifyCourtesyRescheduled (H6) + copy offline al reembolsar (M2)", () 
   });
 });
 
+const GUIDE_COPY = {
+  templateKey: "guideDelivery:guia-dj",
+  subject: "Tu Guía de iniciación al DJing (PDF)",
+  preheader: "Tu Guía de iniciación al DJing, en PDF.",
+  h1: "Acá está tu guía",
+  blurb: "Guía de iniciación al DJing, 8 páginas en PDF.",
+  ctaLabel: "Descargar la guía (PDF)",
+  name: "Guía de iniciación al DJing",
+};
+
 describe("notifyGuideLead", () => {
   it("manda UN correo al lead con el link de descarga armado desde siteUrl + token", async () => {
     const { service, mailer } = makeService();
     const token = "b".repeat(48);
-    await service.notifyGuideLead({ email: "dj@correo.cl", token });
+    await service.notifyGuideLead({
+      email: "dj@correo.cl",
+      token,
+      copy: GUIDE_COPY,
+      landingPath: "/guia-dj",
+    });
     expect(mailer.send).toHaveBeenCalledTimes(1);
     const msg = mailer.send.mock.calls[0][0];
     expect(msg.to).toBe("dj@correo.cl");
-    expect(msg.template).toBe("guideDelivery");
+    // Clave por guía: notification_log es el ÚNICO lugar donde una falla de entrega de
+    // UNA guía se ve. Con una clave compartida, "la guía 4 rebota" es invisible.
+    expect(msg.template).toBe("guideDelivery:guia-dj");
     expect(msg.html).toContain(`href="https://www.fotfstudios.cl/guia-dj/descarga/${token}"`);
     expect(msg.text).toContain(`https://www.fotfstudios.cl/guia-dj/descarga/${token}`);
   });
@@ -862,7 +879,12 @@ describe("notifyGuideLead", () => {
       termsUrl: "",
       privacyUrl: "",
     });
-    await service.notifyGuideLead({ email: "dj@correo.cl", token: "c".repeat(48) });
+    await service.notifyGuideLead({
+      email: "dj@correo.cl",
+      token: "c".repeat(48),
+      copy: GUIDE_COPY,
+      landingPath: "/guia-dj",
+    });
     expect(mailer.send).toHaveBeenCalledTimes(1);
     expect(mailer.send.mock.calls[0][0].to).toBe("dj@correo.cl");
   });

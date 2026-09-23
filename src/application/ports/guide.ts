@@ -1,7 +1,7 @@
 import type { GuideLeadRow, GuiaLeadsListQuery } from "@/src/domain/admin/guia-leads-list";
 import type { GuideLeadInput } from "@/src/domain/guide/lead";
 
-/** Resultado de pedir la guía: token estable por email + si es la primera vez. */
+/** Resultado de pedir una guía: token estable por (guía, email) + si es la primera vez. */
 export interface GuideLeadRequest {
   id: string;
   token: string;
@@ -9,10 +9,14 @@ export interface GuideLeadRequest {
 }
 
 export interface GuideLeadRepository {
-  /** Alta o re-pedido (idempotente por email): mismo token, cuenta el re-pedido. */
+  /** Alta o re-pedido (idempotente por (guía, email)): mismo token, cuenta el re-pedido. */
   request(input: GuideLeadInput): Promise<GuideLeadRequest>;
-  /** Marca la descarga y dice si el token existe. Nunca de un solo uso. */
-  touchDownload(token: string): Promise<boolean>;
+  /**
+   * Marca la descarga y devuelve a QUÉ GUÍA pertenece el token (null = desconocido).
+   * Devuelve la guía y no un booleano para resolver el PDF sin una segunda consulta.
+   * Nunca de un solo uso.
+   */
+  touchDownload(token: string): Promise<{ guideSlug: string } | null>;
   /** Admin: página de leads (más reciente primero) + total filtrado + total general. */
   list(query: GuiaLeadsListQuery): Promise<{ rows: GuideLeadRow[]; total: number; grandTotal: number }>;
   /** Admin: todos los leads en orden cronológico, hasta `limit` (para el CSV). */
@@ -22,4 +26,30 @@ export interface GuideLeadRepository {
 export interface GuideFileStore {
   /** URL firmada de corta vida al objeto del bucket, o null si el archivo no está. */
   signedDownloadUrl(objectPath: string, ttlSeconds: number): Promise<string | null>;
+}
+
+/**
+ * El catálogo de guías tal como lo ve la capa de aplicación: claves, no copy de página.
+ *
+ * Es un puerto y no un import de lib/guides para que la aplicación no dependa de dónde
+ * vive el registro — el único que los une es el composition root.
+ */
+export interface GuideCatalog {
+  /** Clave del objeto PDF en el bucket, o null si la guía no está en el registro. */
+  pdfObject(slug: string): string | null;
+  /** Copy del correo de entrega, o null. */
+  emailCopy(slug: string): GuideEmailCopy | null;
+  /** Ruta de la landing ("/guia-dj"): el link de descarga del correo cuelga de ahí. */
+  landingPath(slug: string): string | null;
+}
+
+/** Lo que el correo de entrega necesita saber. Espejo de lib/guides.GuideEmailCopy. */
+export interface GuideEmailCopy {
+  readonly templateKey: string;
+  readonly subject: string;
+  readonly preheader: string;
+  readonly h1: string;
+  readonly blurb: string;
+  readonly ctaLabel: string;
+  readonly name: string;
 }
