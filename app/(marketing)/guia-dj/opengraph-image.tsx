@@ -5,9 +5,10 @@ export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export default async function Image() {
-  // Landscape nativa (sin rotación EXIF): satori no la aplica y la portada (cabina-11) sale de lado.
+  // Recorte propio de 1200×630: satori no aplica la rotación EXIF, y encuadrar nosotros
+  // elimina el problema de raíz además de bajar el peso del build.
   return ogImage({
-    photo: "photos/cabina-10.JPG",
+    photo: "og/guia-dj.jpg",
     lines: ["Guía de iniciación", "al DJing · gratis"],
     footLeft: "PDF · 8 PÁGINAS · TE LLEGA AL CORREO",
   });

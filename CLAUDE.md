@@ -116,7 +116,10 @@ en vivo ni la base Supabase remota real.
   Root-only metadata routes stay at `app/`: `sitemap.ts`, `robots.ts`, `opengraph-image.tsx`,
   `twitter-image.tsx`, `apple-icon.tsx`, `manifest.ts`, `icon.svg`. OG fonts live in
   `app/_fonts/` (Big Shoulders, JetBrains Mono), read `process.cwd()`-relative — don't move them.
-- `public/photos/` (real photos), `public/logo/` (brand SVGs, transparent).
+- `public/photos/` (real photos), `public/logo/` (brand SVGs, transparent), `public/og/`
+  (1200×630 crops for the social cards — satori base64-inlines whatever you give it, so a
+  4 MB original costs ~5.6 MB of JS per card; `lib/og-assets.test.ts` keeps the cards off
+  `public/photos/` and pins the size).
 - Colocation: single-use UI lives in the segment's `_components/`; shared admin UI in
   `components/admin/` (design system: `components/admin/ui/`). Server actions are segment-local
   (`<segment>/actions.ts`, `"use server"` + `requirePermission`) — no global actions file.
