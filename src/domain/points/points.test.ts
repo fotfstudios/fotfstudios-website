@@ -5,6 +5,7 @@ import {
   clawbackAmount,
   computeEarn,
   EARN_RATE,
+  formatPoints,
   restoreAmount,
   restoreTarget,
 } from "./points";
@@ -94,5 +95,27 @@ describe("clampPoints (input del widget)", () => {
   it("negativos/decimales → saneados", () => {
     expect(clampPoints(4200, 26980, -5)).toBe(0);
     expect(clampPoints(4200, 26980, 10.7)).toBe(10);
+  });
+});
+
+describe("formatPoints", () => {
+  it("separa los miles con punto (es-CL)", () => {
+    expect(formatPoints(3398)).toBe("3.398");
+    expect(formatPoints(1234567)).toBe("1.234.567");
+  });
+
+  it("no lleva signo peso: son puntos, no plata", () => {
+    expect(formatPoints(999)).toBe("999");
+  });
+
+  it("redondea decimales y respeta el cero", () => {
+    expect(formatPoints(10.7)).toBe("11");
+    expect(formatPoints(0)).toBe("0");
+  });
+
+  // El saldo ADMITE deuda (sin `check >= 0` en la tabla): formatear no es opinar,
+  // quién decide si eso sale por correo es la action del admin.
+  it("formatea un saldo negativo sin romperse", () => {
+    expect(formatPoints(-400)).toBe("-400");
   });
 });
