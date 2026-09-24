@@ -18,6 +18,7 @@ const RESERVED = [
   "blog",
   "curso-dj",
   "guia-dj",
+  "guia-pendrive-dj",
   "grabacion",
   "unete",
   "privacidad",

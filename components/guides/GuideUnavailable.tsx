@@ -9,7 +9,10 @@ import { whatsappLink } from "@/lib/site";
  * LEAD, no de la ruta: los tokens se resuelven globalmente.
  */
 export default function GuideUnavailable({ guide }: { guide: string }) {
-  const title = isGuideSlug(guide) ? GUIDES[guide].title : "guía";
+  const title = isGuideSlug(guide) ? GUIDES[guide].title : null;
+  // "Pedí la *Guía de iniciación…*" se lee bien; "Pedí la *Cómo elegir…*" no: a un título
+  // que no empieza con "Guía" se le antepone la palabra.
+  const pedido = !title ? "la guía" : /^gu[ií]a\b/i.test(title) ? `la *${title}*` : `la guía *${title}*`;
   return (
     <main className="mx-auto flex min-h-[70svh] w-full max-w-3xl flex-col justify-center px-6 py-24">
       <Link href="/" aria-label="FOTF Studios — volver al inicio" className="mb-12 inline-block w-fit">
@@ -25,7 +28,7 @@ export default function GuideUnavailable({ guide }: { guide: string }) {
       </p>
       <p className="mt-8">
         <a
-          href={whatsappLink(`Hola *FOTF Studios*. Pedí la *${title}* y el link no me abre.`)}
+          href={whatsappLink(`Hola *FOTF Studios*. Pedí ${pedido} y el link no me abre.`)}
           className="group inline-flex items-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
         >
           Escríbenos por WhatsApp

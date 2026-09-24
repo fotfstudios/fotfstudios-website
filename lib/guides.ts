@@ -1,4 +1,5 @@
 import { GUIA } from "@/lib/guia-content";
+import { GUIA_PENDRIVE } from "@/lib/guia-pendrive-content";
 
 /**
  * El registro de guías: los imanes de leads en PDF, detrás de un formulario.
@@ -32,6 +33,11 @@ export interface GuideEmailCopy {
   readonly ctaLabel: string;
   /** Nombre de la guía en el cuerpo de texto plano. */
   readonly name: string;
+  /**
+   * Bloque "Por dónde empezar" (numerado 01, 02…): atajos por situación. Opcional: una
+   * guía sin él manda el correo de siempre.
+   */
+  readonly quickStart?: readonly { readonly lead: string; readonly body: string }[];
 }
 
 export interface GuideDefinition {
@@ -89,6 +95,40 @@ export const GUIDES = {
       name: GUIA.title,
     },
     kicker: `PDF · ${GUIA.pages} páginas · gratis`,
+    cta: "Descargar la guía",
+  },
+  "guia-pendrive-dj": {
+    slug: "guia-pendrive-dj",
+    path: "/guia-pendrive-dj",
+    title: GUIA_PENDRIVE.title,
+    description: GUIA_PENDRIVE.description,
+    pages: GUIA_PENDRIVE.pages,
+    /** La clave con la que se subió a prod (raíz del bucket). Re-keyear = re-subir en todos lados. */
+    pdfObject: "guia_pendrive_dj_fotf_studios.pdf",
+    sources: [
+      { id: "hero", label: "Hero" },
+      { id: "desbloquear", label: "Desbloquear" },
+    ],
+    email: {
+      templateKey: "guideDelivery:guia-pendrive-dj",
+      subject: "Tu guía: Cómo elegir tu pendrive para DJ (PDF)",
+      preheader: `${GUIA_PENDRIVE.chapters} capítulos y un checklist para elegir el pendrive correcto.`,
+      h1: "Tu guía está lista",
+      blurb:
+        "Cómo elegir tu pendrive para DJ, en PDF: velocidad, formato, capacidad, materiales, " +
+        "cómo prepararlo con Rekordbox y el checklist de compra.",
+      ctaLabel: "Descargar la guía (PDF)",
+      name: `guía “${GUIA_PENDRIVE.title}”`,
+      quickStart: [
+        { lead: "¿Vas a comprar pronto?", body: "Ve directo al checklist, al final de la guía." },
+        {
+          lead: "¿Tienes fecha esta semana?",
+          body: "Lee el capítulo 06 para exportar con Rekordbox sin pistas faltantes.",
+        },
+        { lead: "¿Tocas en clubes distintos?", body: "El capítulo 02 te dice qué formato usar." },
+      ],
+    },
+    kicker: `PDF · ${GUIA_PENDRIVE.chapters} capítulos · gratis`,
     cta: "Descargar la guía",
   },
 } as const satisfies Record<string, GuideDefinition>;

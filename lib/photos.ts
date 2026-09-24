@@ -173,6 +173,8 @@ export const PLACEMENT = {
   cursoClase: ["curso-clase-1.jpg", "curso-clase-2.jpg"],
   /** /guia-dj landing: portada del PDF (vertical, cabina al centro). */
   guia: "cabina-11.JPG",
+  /** /guia-pendrive-dj landing: bloque del estudio (pendrive puesto en el XDJ, pantalla encendida). */
+  guiaPendrive: "equipo-xdj-usb-1.JPG",
   /** /grabacion landing: ambas fotos → sección Qué incluye. */
   grabacion: ["grabacion-gear-1.jpg", "grabacion-manos-1.jpg"],
   /** /grabacion landing: sección La sesión (foto · video · foto). */
@@ -267,6 +269,11 @@ export function guiaPhoto(photos: Photo[]): Photo | null {
   return bySrc(photos, PLACEMENT.guia) ?? photos.find((p) => p.category === "sala") ?? null;
 }
 
+/** Foto reservada para el bloque del estudio en /guia-pendrive-dj. */
+export function guiaPendrivePhoto(photos: Photo[]): Photo | null {
+  return bySrc(photos, PLACEMENT.guiaPendrive) ?? photos.find((p) => p.category === "sala") ?? null;
+}
+
 /** Foto reservada para el fondo del cierre de /grabacion. */
 export function grabacionCierrePhoto(photos: Photo[]): Photo | null {
   return bySrc(photos, PLACEMENT.grabacionCierre) ?? null;
@@ -282,6 +289,7 @@ export function galleryPhotos(photos: Photo[]): Photo[] {
     `/photos/${PLACEMENT.cierre}`,
     `/photos/${PLACEMENT.grabacionCierre}`,
     `/photos/${PLACEMENT.guia}`,
+    `/photos/${PLACEMENT.guiaPendrive}`,
     ...PLACEMENT.sala.map((f) => `/photos/${f}`),
     ...PLACEMENT.curso.map((f) => `/photos/${f}`),
     ...PLACEMENT.cursoDjs.map((f) => `/photos/${f}`),

@@ -64,4 +64,5 @@ export interface GuideEmailCopy {
   readonly blurb: string;
   readonly ctaLabel: string;
   readonly name: string;
+  readonly quickStart?: readonly { readonly lead: string; readonly body: string }[];
 }

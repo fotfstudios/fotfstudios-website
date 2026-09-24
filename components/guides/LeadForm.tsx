@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trackGuideLead } from "@/lib/analytics";
 import { guiaErrorMessage, guiaFieldMessage } from "@/lib/guia-form";
 import { GUIDE_LEAD_CAPS, parseGuideLead } from "@/src/domain/guide/lead";
@@ -42,6 +42,13 @@ export default function LeadForm({
   const okRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const id = `guia-email-${source}`;
+
+  // "Usar otro correo" vuelve a mostrar los formularios: vacíos, sea cual sea el que envió.
+  const wasSent = useRef(sent);
+  useEffect(() => {
+    if (wasSent.current && !sent) setEmail("");
+    wasSent.current = sent;
+  }, [sent]);
 
   const onChange = (v: string) => {
     if (!started.current) {
@@ -111,6 +118,18 @@ export default function LeadForm({
         <p className="max-w-md leading-relaxed text-bone-dim">
           {copy.success.body} Lo mandamos a <span className="text-bone">{sent}</span>.
         </p>
+        {copy.success.reset && (
+          <button
+            type="button"
+            onClick={() => {
+              markSent(null);
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+            className="label-sm mt-2 w-fit text-bone-quiet underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          >
+            {copy.success.reset}
+          </button>
+        )}
       </div>
     );
   }

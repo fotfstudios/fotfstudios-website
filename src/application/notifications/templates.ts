@@ -504,6 +504,8 @@ export interface GuideDeliveryCopy {
   blurb: string;
   ctaLabel: string;
   name: string;
+  /** "Por dónde empezar": atajos numerados bajo el botón. Sin él, el correo no cambia. */
+  quickStart?: readonly { readonly lead: string; readonly body: string }[];
 }
 
 /**
@@ -518,16 +520,31 @@ export function guideDelivery(
 ): EmailContent {
   const url = esc(v.downloadUrl);
   const c = v.copy;
+  const steps = c.quickStart ?? [];
+  const num = (i: number) => String(i + 1).padStart(2, "0");
+  // Tabla y no flex/grid: los clientes de correo no los soportan; el número queda en su columna.
+  const quickStart = steps.length
+    ? `<p style="color:${T.bone};font-size:13px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;margin:28px 0 12px">Por dónde empezar</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%">${steps
+       .map(
+         (q, i) =>
+           `<tr><td valign="top" style="width:36px;padding:0 0 12px;color:${T.gold};font-family:monospace;font-weight:bold">${num(i)}</td><td valign="top" style="padding:0 0 12px;color:${T.boneDim}"><strong style="color:${T.bone}">${esc(q.lead)}</strong> ${esc(q.body)}</td></tr>`,
+       )
+       .join("")}</table>`
+    : "";
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">${esc(c.h1)}</h1>
      <p style="color:${T.boneDim};margin:0 0 20px">${esc(c.blurb)}</p>
      <a href="${url}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">${esc(c.ctaLabel)}</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:20px 0 0">Si el botón no abre, copia este link: <a href="${url}" style="color:${T.gold};text-decoration:underline;word-break:break-all">${url}</a></p>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:20px 0 0">Si el botón no abre, copia este link: <a href="${url}" style="color:${T.gold};text-decoration:underline;word-break:break-all">${url}</a></p>${quickStart}
      <p style="color:${T.boneDim};margin:20px 0 0">Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.</p>
      <p style="color:${T.boneDim};margin:12px 0 0">¿Problemas para abrirla? <a href="${esc(ctx.whatsappUrl)}" style="color:${T.gold};text-decoration:underline">Escríbenos por WhatsApp</a> y lo vemos al tiro.</p>`,
     c.preheader,
   );
-  const text = `Acá está tu ${c.name} (PDF): ${v.downloadUrl}
+  const quickStartText = steps.length
+    ? `\n\nPor dónde empezar:\n${steps.map((q, i) => `${num(i)} ${q.lead} ${q.body}`).join("\n")}`
+    : "";
+  const text = `Acá está tu ${c.name} (PDF): ${v.downloadUrl}${quickStartText}
 
 Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.
 ¿Problemas para abrirla? Escríbenos por WhatsApp: ${ctx.whatsappUrl}`;

@@ -88,6 +88,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/guia-pendrive-dj" className="text-bone transition-colors hover:text-gold">
+                  Guía gratis: tu pendrive DJ (PDF)
+                </Link>
+              </li>
+              <li>
                 <Link href="/aprender-dj" className="text-bone transition-colors hover:text-gold">
                   Aprender a ser DJ
                 </Link>

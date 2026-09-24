@@ -7,7 +7,13 @@ export interface GuideFormCopy {
   readonly placeholder: string;
   readonly finePrint: string;
   readonly privacyLink: string;
-  readonly success: { readonly label: string; readonly title: string; readonly body: string };
+  readonly success: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    /** Botón "Usar otro correo" en el panel de éxito. Sin él, el panel no lo ofrece. */
+    readonly reset?: string;
+  };
 }
 
 /**
@@ -17,7 +23,7 @@ export interface GuideFormCopy {
  * guía). Guarda el email enviado para mostrarlo en el panel, y lleva el copy del
  * formulario para que la página lo declare una sola vez.
  */
-type GuiaLead = { sent: string | null; markSent: (email: string) => void; copy: GuideFormCopy };
+type GuiaLead = { sent: string | null; markSent: (email: string | null) => void; copy: GuideFormCopy };
 
 const Ctx = createContext<GuiaLead | null>(null);
 

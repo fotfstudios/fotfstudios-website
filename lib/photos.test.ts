@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLACEMENT, cursoClasePhotos, cursoDjsPhotos, cursoPhotos, galleryPhotos, getPhotos, guiaPhoto } from "./photos";
+import { PLACEMENT, cursoClasePhotos, cursoDjsPhotos, cursoPhotos, galleryPhotos, getPhotos, guiaPendrivePhoto, guiaPhoto } from "./photos";
 
 /** La foto de la portada de /guia-dj queda reservada: no puede repetirse en la galería. */
 describe("guiaPhoto", () => {
@@ -15,6 +15,18 @@ describe("guiaPhoto", () => {
     expect(galleryPhotos(photos).map((p) => p.src)).not.toContain(src);
     const others = [PLACEMENT.hero, PLACEMENT.cierre, PLACEMENT.grabacionCierre, ...PLACEMENT.sala, ...PLACEMENT.curso, ...PLACEMENT.grabacion, ...PLACEMENT.grabacionSesion];
     expect(others).not.toContain(PLACEMENT.guia);
+  });
+});
+
+/** El bloque del estudio de /guia-pendrive-dj también queda reservado. */
+describe("guiaPendrivePhoto", () => {
+  const photos = getPhotos();
+
+  it("devuelve la foto de PLACEMENT.guiaPendrive, existe y no se repite en la galería", () => {
+    const src = `/photos/${PLACEMENT.guiaPendrive}`;
+    expect(guiaPendrivePhoto(photos)?.src).toBe(src);
+    expect(galleryPhotos(photos).map((p) => p.src)).not.toContain(src);
+    expect(PLACEMENT.guiaPendrive).not.toBe(PLACEMENT.guia);
   });
 });
 
