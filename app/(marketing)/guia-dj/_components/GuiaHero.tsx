@@ -2,7 +2,7 @@ import MaskText from "@/components/MaskText";
 import MeterBars from "@/components/MeterBars";
 import { COPY } from "@/lib/guia-content";
 import CoverMock from "./CoverMock";
-import LeadForm from "./LeadForm";
+import LeadForm from "@/components/guides/LeadForm";
 
 /**
  * Hero de la guía: pedido en la primera pantalla. GRATIS es la única píldora Sirena de

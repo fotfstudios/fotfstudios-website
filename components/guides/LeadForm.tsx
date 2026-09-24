@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { trackGuideLead } from "@/lib/analytics";
-import { COPY } from "@/lib/guia-content";
 import { guiaErrorMessage, guiaFieldMessage } from "@/lib/guia-form";
 import { GUIDE_LEAD_CAPS, parseGuideLead } from "@/src/domain/guide/lead";
 import { GUIDES, type GuideSlug } from "@/lib/guides";
@@ -14,7 +13,7 @@ const inputCls =
   "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors placeholder:text-bone-quiet hover:border-gold focus-visible:border-gold";
 
 /**
- * El único formulario de la landing, tres veces (hero, fragmento, cierre). `source` viaja
+ * El formulario de las landings de guía (en /guia-dj, tres veces: hero, fragmento, cierre). `source` viaja
  * al route (qué formulario convierte) y a analytics. El botón es Sirena a propósito: es
  * EL momento de conversión de la página — la única urgencia real que hay acá.
  */
@@ -33,7 +32,7 @@ export default function LeadForm({
   buttonLabel: string;
   eyebrow?: string;
 }) {
-  const { sent, markSent } = useGuiaLead();
+  const { sent, markSent, copy } = useGuiaLead();
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -107,10 +106,10 @@ export default function LeadForm({
   if (sent) {
     return (
       <div ref={okRef} tabIndex={-1} role="status" className="flex flex-col gap-2 outline-none">
-        <p className="label text-gold">{COPY.form.success.label}</p>
-        <p className="font-display text-3xl text-bone md:text-4xl">{COPY.form.success.title}</p>
+        <p className="label text-gold">{copy.success.label}</p>
+        <p className="font-display text-3xl text-bone md:text-4xl">{copy.success.title}</p>
         <p className="max-w-md leading-relaxed text-bone-dim">
-          {COPY.form.success.body} Lo mandamos a <span className="text-bone">{sent}</span>.
+          {copy.success.body} Lo mandamos a <span className="text-bone">{sent}</span>.
         </p>
       </div>
     );
@@ -132,7 +131,7 @@ export default function LeadForm({
             name="email"
             inputMode="email"
             autoComplete="email"
-            placeholder={COPY.form.placeholder}
+            placeholder={copy.placeholder}
             maxLength={GUIDE_LEAD_CAPS.email}
             value={email}
             onChange={(e) => onChange(e.target.value)}
@@ -179,9 +178,9 @@ export default function LeadForm({
       </div>
 
       <p className="label-sm text-bone-mute">
-        {COPY.form.finePrint}{" "}
+        {copy.finePrint}{" "}
         <Link href="/privacidad" className="underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
-          {COPY.form.privacyLink}
+          {copy.privacyLink}
         </Link>
       </p>
     </form>
