@@ -2,6 +2,7 @@ import type { EmailContent } from "@/src/application/ports/mailer";
 import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applications/application";
 import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
+import { formatPoints } from "@/src/domain/points/points";
 import { EMAIL as T } from "./email-tokens";
 
 export interface BookingView {
@@ -243,7 +244,7 @@ export function customerCancellation(
   ctx: { whatsappUrl: string },
 ): EmailContent {
   // Orden pagada 100% con puntos: no hubo cobro, se reponen puntos (nada de "tarjeta").
-  const pts = v.restoredPoints && v.restoredPoints > 0 ? `${Math.round(v.restoredPoints).toLocaleString("es-CL")} puntos` : null;
+  const pts = v.restoredPoints && v.restoredPoints > 0 ? `${formatPoints(v.restoredPoints)} puntos` : null;
   const refundLine = pts
     ? `<p style="color:${T.boneDim};margin:0 0 16px">Te repusimos <strong style="color:${T.bone}">${pts}</strong> en tu cuenta.</p>`
     : v.refunded
@@ -363,6 +364,28 @@ export function customerReschedulePaymentLink(
   );
   const text = `Pediste mover tu sesión del ${v.oldWhen} al ${v.newWhen}. Cuesta ${v.amount} más; paga aquí y la reserva se mueve sola: ${v.initPoint} (vence en ${v.expiresInHours} h). Mientras tanto se mantiene tu horario actual. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerReschedulePaymentLink", subject: `Confirma tu nuevo horario · ${v.newWhen}`, html, text };
+}
+
+/**
+ * Email al cliente: cuántos Puntos FOTF tiene. Lo dispara el dueño a mano desde la
+ * ficha del cliente, así que no cuelga de una reserva ni de un cron: no lleva `when`
+ * ni nada de la sesión. `value` es la equivalencia en pesos —1 punto = $1, por eso
+ * se puede afirmar sin conversión—. Sin Sirena: acá no hay urgencia, hay un saldo.
+ */
+export function customerPointsBalance(
+  v: { name: string | null; points: string; value: string },
+  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.points)} puntos</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Puntos FOTF equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tu próxima sesión.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar.</p>
+     <a href="${esc(ctx.bookUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tu saldo y tus movimientos, en <a href="${esc(ctx.accountUrl)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `Equivalen a ${v.value} de descuento en tu próxima sesión.`,
+  );
+  const text = `Tienes ${v.points} puntos FOTF: equivalen a ${v.value} de descuento en tu próxima sesión. Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar. Reservar: ${ctx.bookUrl}. Tu saldo y tus movimientos: ${ctx.accountUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerPointsBalance", subject: `Tienes ${v.points} puntos FOTF`, html, text };
 }
 
 /**

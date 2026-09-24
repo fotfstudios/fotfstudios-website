@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -633,5 +633,57 @@ describe("guideDelivery — la entrega de una guía", () => {
     expect(m.html).toContain("capítulo 06 &amp; exporta");
     expect(m.text).toContain("01 ¿Vas a comprar pronto? Ve directo al checklist.");
     expect(m.text).toContain("02 <b>¿Tienes fecha?</b> Lee el capítulo 06 & exporta.");
+  });
+});
+
+describe("customerPointsBalance (saldo de puntos a pedido del admin)", () => {
+  const ctx = {
+    whatsappUrl: "https://wa.me/56962803298",
+    bookUrl: "https://www.fotfstudios.cl/reservar",
+    accountUrl: "https://www.fotfstudios.cl/cuenta",
+  };
+  const send = (name: string | null = "Ana") =>
+    customerPointsBalance({ name, points: "3.398", value: "$3.398" }, ctx);
+
+  it("el saldo va en el asunto y en el cuerpo", () => {
+    const m = send();
+    expect(m.subject).toBe("Tienes 3.398 puntos FOTF");
+    expect(m.html).toContain("Tienes 3.398 puntos");
+    expect(m.text).toContain("3.398 puntos");
+  });
+
+  it("dice a cuánto equivalen en pesos (1 punto = $1)", () => {
+    const m = send();
+    expect(m.html).toContain("$3.398");
+    expect(m.text).toContain("$3.398");
+  });
+
+  it("lleva los tres enlaces: reservar, la cuenta y WhatsApp", () => {
+    const m = send();
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/reservar"');
+    expect(m.html).toContain('href="https://www.fotfstudios.cl/cuenta"');
+    expect(m.html).toContain(ctx.whatsappUrl);
+    expect(m.text).toContain(ctx.bookUrl);
+    expect(m.text).toContain(ctx.accountUrl);
+  });
+
+  it("saluda por el nombre, y sin nombre arranca en mayúscula", () => {
+    expect(send().html).toContain("Hola Ana, tus Puntos FOTF");
+    expect(send(null).html).toContain("Tus Puntos FOTF");
+    expect(send(null).html).not.toContain("Hola");
+  });
+
+  it("escapa el nombre del cliente", () => {
+    const m = customerPointsBalance({ name: '<b>Ana</b>', points: "10", value: "$10" }, ctx);
+    expect(m.html).not.toContain("<b>Ana</b>");
+    expect(m.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
+  });
+
+  // No cuelga de una sesión: sin fecha, sin dirección, sin PIN. Y sin Sirena —
+  // un saldo no es una urgencia (Manual de Marca).
+  it("no habla de una sesión concreta ni usa Sirena", () => {
+    const m = send();
+    expect(m.html).not.toMatch(/reserva confirmada|c[óo]digo de acceso|Los Chercanes/i);
+    expect(m.html).not.toContain("#ff4d1d");
   });
 });

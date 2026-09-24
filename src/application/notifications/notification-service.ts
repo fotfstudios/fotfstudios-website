@@ -4,6 +4,7 @@ import { buildIcs, googleCalendarUrl } from "@/src/domain/calendar/ics";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
+import { formatPoints } from "@/src/domain/points/points";
 import type { ApplicationInput } from "@/src/domain/applications/application";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import {
@@ -20,6 +21,7 @@ import {
   customerCourtesyCancelled,
   customerHoldExpired,
   customerPaymentNoSlot,
+  customerPointsBalance,
   ownerNeedsReview,
   ownerNewApplication,
   ownerNotification,
@@ -405,6 +407,30 @@ export class NotificationService {
     await this.mailer.send({
       to: v.email,
       ...guideDelivery({ downloadUrl, copy: v.copy }, { whatsappUrl: this.config.whatsappUrl }),
+    });
+  }
+
+  /**
+   * Saldo de Puntos FOTF, a pedido del dueño desde la ficha del cliente. Acá el
+   * correo ES el producto (como la guía): un fallo del proveedor se PROPAGA y la
+   * acción del admin lo muestra, a diferencia de los avisos best-effort que
+   * cuelgan de una reserva y no deben tumbar la operación que los disparó.
+   *
+   * Sin claim de idempotencia: lo dispara una persona cuando quiere, no un
+   * barrido. La constancia de cada intento la deja LoggedMailer en la bitácora.
+   */
+  async notifyPointsBalance(v: { name: string | null; email: string; points: number }): Promise<void> {
+    await this.mailer.send({
+      to: v.email,
+      ...customerPointsBalance(
+        // 1 punto = $1 CLP: la equivalencia es el mismo número, con formato de plata.
+        { name: v.name, points: formatPoints(v.points), value: formatCLP(v.points) },
+        {
+          whatsappUrl: this.config.whatsappUrl,
+          bookUrl: `${this.config.siteUrl}/reservar`,
+          accountUrl: `${this.config.siteUrl}/cuenta`,
+        },
+      ),
     });
   }
 
