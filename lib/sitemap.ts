@@ -34,6 +34,7 @@ export const STATIC_ROUTES: readonly SitemapEntry[] = [
   { path: "/curso-dj", priority: 0.8, changeFrequency: "monthly" },
   { path: "/grabacion", priority: 0.8, changeFrequency: "monthly" },
   { path: "/guia-dj", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/guia-pendrive-dj", priority: 0.7, changeFrequency: "monthly" },
   { path: "/blog", priority: 0.7, changeFrequency: "weekly" },
   { path: "/aprender-dj", priority: 0.6, changeFrequency: "monthly" },
   { path: "/cuanto-cuesta-un-curso-de-dj", priority: 0.6, changeFrequency: "monthly" },

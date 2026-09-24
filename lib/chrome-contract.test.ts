@@ -193,6 +193,10 @@ describe("árbol de rutas", () => {
       "app/(marketing)/guia-dj/descarga/[token]/page.tsx",
       "app/(marketing)/guia-dj/opengraph-image.tsx",
       "app/(marketing)/guia-dj/twitter-image.tsx",
+      "app/(marketing)/guia-pendrive-dj/page.tsx",
+      "app/(marketing)/guia-pendrive-dj/descarga/[token]/page.tsx",
+      "app/(marketing)/guia-pendrive-dj/opengraph-image.tsx",
+      "app/(marketing)/guia-pendrive-dj/twitter-image.tsx",
     ]) {
       expect(exists(p), p).toBe(true);
     }

@@ -612,4 +612,26 @@ describe("guideDelivery — la entrega de una guía", () => {
     expect(m.subject).toBe("Tu guía de mezcla (PDF)");
     expect(m.html).toContain("Acá está tu guía de mezcla");
   });
+
+  const QUICK = [
+    { lead: "¿Vas a comprar pronto?", body: "Ve directo al checklist." },
+    { lead: "<b>¿Tienes fecha?</b>", body: "Lee el capítulo 06 & exporta." },
+  ];
+
+  it("sin quickStart no aparece el bloque \"Por dónde empezar\" (el correo de /guia-dj no cambia)", () => {
+    const m = deliver();
+    expect(m.html).not.toMatch(/Por d[óo]nde empezar/);
+    expect(m.text).not.toMatch(/Por d[óo]nde empezar/);
+  });
+
+  it("con quickStart: bloque numerado 01, 02… en HTML y texto, con el copy escapado", () => {
+    const m = deliver(url, { ...GUIDE_COPY, quickStart: QUICK });
+    expect(m.html).toContain("Por dónde empezar");
+    expect(m.html).toMatch(/>01<[\s\S]*¿Vas a comprar pronto\?[\s\S]*>02</);
+    expect(m.html).not.toContain("<b>¿Tienes fecha?</b>");
+    expect(m.html).toContain("&lt;b&gt;¿Tienes fecha?&lt;/b&gt;");
+    expect(m.html).toContain("capítulo 06 &amp; exporta");
+    expect(m.text).toContain("01 ¿Vas a comprar pronto? Ve directo al checklist.");
+    expect(m.text).toContain("02 <b>¿Tienes fecha?</b> Lee el capítulo 06 & exporta.");
+  });
 });
