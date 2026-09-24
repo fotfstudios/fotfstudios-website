@@ -133,10 +133,39 @@ describe("el artículo cierra con su guía", () => {
   });
 
   it("todo href de artículo pasa por articleHref: el path nace en un archivo del disco", () => {
-    for (const f of ["components/article/ArticleCard.tsx", "components/article/RelatedArticles.tsx"]) {
-      const src = readCode(f);
-      expect(src, `${f} usa el path crudo en un href`).not.toMatch(/href=\{\s*\w+\.path\s*\}/);
-      expect(src).toContain("articleHref(");
+    // Antes esto miraba una lista de DOS archivos escrita a mano, así que no vio el href
+    // nuevo del footer y lo tuvo que atajar CodeQL en CI. Ahora barre los archivos que
+    // leen datos de artículos, que son los únicos donde un path viene del disco.
+    //
+    // El path de una GUÍA no entra: es un literal `/${string}` de lib/guides.ts, o sea
+    // código del repo, no contenido. Por eso GUIDES[...] y guia.path están permitidos.
+    const DE_GUIA = /GUIDES\[|\bguia\.path\b/;
+    const sospechosos: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.tsx$/.test(e.name) && !e.name.includes(".test.")) {
+          const src = readCode(rel);
+          if (!src.includes('@/lib/articles/')) continue;
+          for (const [, expr] of src.matchAll(/href=\{([^}]*(?:\}[^}]*)??)\}/g)) {
+            if (/\.(path|href)\b/.test(expr) && !expr.includes("articleHref(") && !DE_GUIA.test(expr)) {
+              sospechosos.push(`${rel}: href={${expr.trim()}}`);
+            }
+          }
+        }
+      }
+    };
+    walk("components");
+    walk("app");
+    expect(sospechosos, "href de artículo sin articleHref()").toEqual([]);
+  });
+
+  it("el barrido de articleHref mira de verdad los archivos que debe", () => {
+    // Un barrido que no encuentra nada pasa siempre. Esto fija que el escaneo llega a los
+    // componentes de artículo y que ahí SÍ se está llamando a articleHref.
+    for (const f of ["components/article/ArticleCard.tsx", "components/article/RelatedArticles.tsx", "components/Footer.tsx"]) {
+      expect(readCode(f), `${f} dejó de envolver sus href`).toContain("articleHref(");
     }
   });
 

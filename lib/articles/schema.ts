@@ -86,6 +86,13 @@ export interface ArticleMeta {
   readonly image?: string;
   readonly imageAlt?: string;
   readonly draft: boolean;
+  /**
+   * Fija el artículo en la columna del footer, que si no muestra los más recientes.
+   *
+   * Es para las páginas que rankean: sin esto, un artículo que trae tráfico pierde su
+   * enlace interno en todo el sitio apenas se publican unos cuantos más nuevos.
+   */
+  readonly featured: boolean;
   /** Ruta canónica. `/blog/<slug>` salvo override legacy. */
   readonly path: string;
   /** true si `path` vino de un override: entonces NO lo genera /blog/[slug]. */

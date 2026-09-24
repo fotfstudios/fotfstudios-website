@@ -59,6 +59,7 @@ const KNOWN_KEYS = [
   "image",
   "imageAlt",
   "draft",
+  "featured",
   "path",
 ] as const;
 
@@ -212,6 +213,9 @@ export function parseArticleFrontmatter(raw: unknown, ctx: ArticleContext): Pars
   if (obj.draft !== undefined && typeof obj.draft !== "boolean")
     issues.push({ field: "draft", code: "invalid", hint: "true o false" });
 
+  if (obj.featured !== undefined && typeof obj.featured !== "boolean")
+    issues.push({ field: "featured", code: "invalid", hint: "true o false" });
+
   const pathOverride = str(obj, "path");
   if (pathOverride && !PATH_RE.test(pathOverride))
     issues.push({ field: "path", code: "invalid", hint: "ruta absoluta en kebab-case: /asi-de-simple" });
@@ -237,6 +241,7 @@ export function parseArticleFrontmatter(raw: unknown, ctx: ArticleContext): Pars
       related: related ?? [],
       ...(image ? { image, imageAlt } : {}),
       draft: obj.draft === true,
+      featured: obj.featured === true,
       path: pathOverride || `/blog/${ctx.slug}`,
       legacyPath: Boolean(pathOverride),
     },
