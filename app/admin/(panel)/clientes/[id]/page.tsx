@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
+import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { Field, Input } from "@/components/admin/ui/Field";
@@ -16,7 +17,7 @@ import { customerDirectory } from "@/src/composition";
 import { CUSTOMER_CAPS, customerLabel } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { updateCustomerAction } from "./actions";
+import { sendPointsBalanceAction, updateCustomerAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Cliente — Admin", robots: { index: false } };
@@ -149,6 +150,22 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
             <Stat label="Disponibles" value={`${fmtPts(c.pointsBalance)} pts`} accent={c.pointsBalance > 0} />
             {!c.email && (
               <p className="mt-3 label-sm text-bone-quiet">Los puntos se acumulan por email. Agrega uno para que sume.</p>
+            )}
+            {/* El botón solo aparece cuando hay algo que mandar; la guarda de verdad
+                es la de la action (un saldo negativo jamás sale por correo). */}
+            {c.email && c.pointsBalance > 0 && (
+              <div className="mt-4">
+                <ConfirmForm
+                  action={sendPointsBalanceAction}
+                  hidden={{ id: c.id }}
+                  trigger={{ label: "Enviar saldo por correo", variant: "secondary" }}
+                  confirm="primary"
+                  title="Enviar saldo por correo"
+                  message={`Le llega a ${c.email} un correo con sus ${fmtPts(c.pointsBalance)} puntos, a cuánto equivalen y un enlace para reservar.`}
+                  cta="Enviar"
+                  success="Correo enviado."
+                />
+              </div>
             )}
             {movements.length > 0 && (
               <ul className="mt-4 flex flex-col divide-y divide-bone/10">

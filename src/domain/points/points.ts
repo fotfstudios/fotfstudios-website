@@ -56,3 +56,13 @@ export function applyRedemption(quote: { total: number; net: number }, requested
 export function clampPoints(balance: number, total: number, requested: number): number {
   return Math.min(Math.max(0, Math.floor(requested)), balance, total);
 }
+
+/**
+ * Formato es-CL de un saldo de puntos: 3398 → "3.398". Sin "$": un punto vale
+ * $1, pero se muestra como puntos (el peso lo pone `formatCLP` cuando hace falta
+ * decir a cuánto equivalen). Vive acá —y no en `components/`— porque el correo
+ * lo necesita y `src/` no importa de la capa de UI.
+ */
+export function formatPoints(n: number): string {
+  return Math.round(n).toLocaleString("es-CL");
+}

@@ -889,3 +889,36 @@ describe("notifyGuideLead", () => {
     expect(mailer.send.mock.calls[0][0].to).toBe("dj@correo.cl");
   });
 });
+
+describe("notifyPointsBalance", () => {
+  it("manda el saldo formateado y su equivalencia en pesos al email del cliente", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyPointsBalance({ name: "Ana", email: "ana@e.cl", points: 3398 });
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.template).toBe("customerPointsBalance");
+    expect(msg.subject).toBe("Tienes 3.398 puntos FOTF");
+    // 1 punto = $1: el mismo número, una vez como puntos y otra como plata.
+    expect(msg.html).toContain("3.398 puntos");
+    expect(msg.html).toContain("$3.398");
+  });
+
+  it("arma los links desde siteUrl, no desde el canónico fijo", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyPointsBalance({ name: null, email: "ana@e.cl", points: 500 });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.html).toContain('href="https://www.fotfstudios.cl/reservar"');
+    expect(msg.html).toContain('href="https://www.fotfstudios.cl/cuenta"');
+  });
+
+  /**
+   * A diferencia de los avisos que cuelgan de una reserva, acá el correo ES el
+   * producto: si no salió, la action del admin tiene que poder decirlo.
+   */
+  it("si el mailer falla, el error se PROPAGA (no es best-effort)", async () => {
+    const { service, mailer } = makeService();
+    mailer.send.mockRejectedValueOnce(new Error("resend down"));
+    await expect(service.notifyPointsBalance({ name: "Ana", email: "ana@e.cl", points: 10 })).rejects.toThrow("resend down");
+  });
+});
