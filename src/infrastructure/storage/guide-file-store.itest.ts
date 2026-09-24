@@ -24,16 +24,19 @@ afterAll(async () => {
 });
 
 describe("SupabaseGuideFileStore.signedDownloadUrl", () => {
-  it("con el objeto presente devuelve una URL firmada que sirve el PDF", async () => {
-    const url = await store.signedDownloadUrl(OBJECT, 60);
+  it("con el objeto presente devuelve una URL firmada que sirve el PDF como adjunto", async () => {
+    const url = await store.signedDownloadUrl(OBJECT, 60, "Guia-Fixture.pdf");
     expect(url).toMatch(/\/object\/sign\/guias\//);
     const res = await fetch(url!);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/pdf");
+    // Adjunto con nombre propio: el navegador descarga en vez de abrir el visor.
+    expect(res.headers.get("content-disposition")).toMatch(/attachment/);
+    expect(res.headers.get("content-disposition")).toContain("Guia-Fixture.pdf");
   });
 
   it("con el objeto ausente devuelve null (no lanza)", async () => {
-    expect(await store.signedDownloadUrl("no-existe.pdf", 60)).toBeNull();
+    expect(await store.signedDownloadUrl("no-existe.pdf", 60, "No-Existe.pdf")).toBeNull();
   });
 
   it("el bucket es privado: la URL pública sin firma no sirve el archivo", async () => {

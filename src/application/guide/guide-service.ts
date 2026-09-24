@@ -60,9 +60,9 @@ export class GuideService {
     const lead = await this.leads.touchDownload(token);
     if (!lead) return { kind: "not_found" };
     // Guía retirada del registro con leads vivos: el token es válido, el PDF ya no está.
-    const object = this.catalog.pdfObject(lead.guideSlug);
-    if (!object) return { kind: "unavailable", guide: lead.guideSlug };
-    const url = await this.files.signedDownloadUrl(object, GUIDE_DOWNLOAD_TTL_S);
+    const pdf = this.catalog.pdfFile(lead.guideSlug);
+    if (!pdf) return { kind: "unavailable", guide: lead.guideSlug };
+    const url = await this.files.signedDownloadUrl(pdf.object, GUIDE_DOWNLOAD_TTL_S, pdf.downloadName);
     return url ? { kind: "ok", url, guide: lead.guideSlug } : { kind: "unavailable", guide: lead.guideSlug };
   }
 }

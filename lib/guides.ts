@@ -55,6 +55,11 @@ export interface GuideDefinition {
    * Convención para guías nuevas: `<slug>/<archivo>.pdf`.
    */
   readonly pdfObject: string;
+  /**
+   * Nombre con el que el PDF se guarda en el dispositivo (la URL firmada lo manda como
+   * adjunto, no inline). Solo ASCII: viaja en Content-Disposition. Cambiarlo es libre.
+   */
+  readonly downloadName: `${string}.pdf`;
   /** Los formularios que monta su landing, en orden de aparición. Al menos uno. */
   readonly sources: readonly [GuideFormSource, ...GuideFormSource[]];
   readonly email: GuideEmailCopy;
@@ -78,6 +83,7 @@ export const GUIDES = {
      * durables ya enviados.
      */
     pdfObject: "guia-iniciacion-djing.pdf",
+    downloadName: "Guia-Iniciacion-DJing-FOTF-Studios.pdf",
     sources: [
       { id: "hero", label: "Hero" },
       { id: "fragmento", label: "Fragmento" },
@@ -105,6 +111,7 @@ export const GUIDES = {
     pages: GUIA_PENDRIVE.pages,
     /** La clave con la que se subió a prod (raíz del bucket). Re-keyear = re-subir en todos lados. */
     pdfObject: "guia_pendrive_dj_fotf_studios.pdf",
+    downloadName: "Guia-Pendrive-DJ-FOTF-Studios.pdf",
     sources: [
       { id: "hero", label: "Hero" },
       { id: "desbloquear", label: "Desbloquear" },
