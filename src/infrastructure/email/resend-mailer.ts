@@ -22,7 +22,9 @@ export class ResendMailer implements Mailer {
       html: msg.html,
       text: msg.text,
       // Etiqueta por plantilla: en el panel de Resend se ve qué correo rebota o se demora.
-      tags: [{ name: "template", value: msg.template }],
+      // Resend solo acepta [A-Za-z0-9_-] y rechaza el ENVÍO si no: la clave de bitácora
+      // `guideDelivery:<slug>` queda intacta en notification_log, solo el tag se sanea.
+      tags: [{ name: "template", value: msg.template.replace(/[^A-Za-z0-9_-]/g, "_") }],
       ...(msg.attachments ? { attachments: msg.attachments } : {}),
     });
     if (error) throw new Error(error.message);
