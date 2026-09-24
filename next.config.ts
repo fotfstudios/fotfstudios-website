@@ -25,6 +25,13 @@ const nextConfig: NextConfig = {
  *    (lib/chrome-contract.test.ts solo mira archivos .tsx). El contenido vive en content/
  *    y lo monta app/(marketing)/(articulos)/blog/[slug]/page.tsx.
  *
+ * 3. `jsxImportSource` apunta al shim de lib/mdx-runtime y NO a "react". El test de
+ *    extensión con el que Next reparte los módulos por capa (`codeCondition`, en
+ *    webpack-config.js) es fijo y no incluye .mdx, así que un artículo nunca entra a la
+ *    capa `react-server` y resolvía el runtime JSX de CLIENTE dentro del grafo RSC: 500
+ *    en `npm run dev` para TODO artículo. El shim es .ts, entra a la capa, y resuelve en
+ *    su nombre. El detalle completo está en lib/mdx-runtime/README.md.
+ *
  * remark-frontmatter NO es opcional: sin él, el bloque YAML de cada artículo se renderiza
  * como un guion largo seguido del texto crudo del frontmatter.
  */
@@ -32,6 +39,7 @@ const withMDX = createMDX({
   options: {
     remarkPlugins: [["remark-frontmatter", ["yaml"]], "remark-gfm"],
     rehypePlugins: [],
+    jsxImportSource: "@/lib/mdx-runtime",
   },
 });
 
