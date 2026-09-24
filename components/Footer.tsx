@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "./Logo";
 import { footerArticleLinks } from "@/lib/articles/footer-links";
+import { articleHref } from "@/lib/articles/href";
 import { draftsVisible, getArticles, publishedArticles } from "@/lib/articles/registry";
 import { accountEnabled } from "@/lib/flags";
 import { GUIDES, GUIDE_SLUGS } from "@/lib/guides";
@@ -98,9 +99,11 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
+              {/* articleHref: el path nace en el frontmatter, o sea en un archivo del
+                  disco. Mismo cinturón que ArticleCard y RelatedArticles. */}
               {articulos.map((a) => (
                 <li key={a.href}>
-                  <Link href={a.href} className="text-bone transition-colors hover:text-gold">
+                  <Link href={articleHref(a.href)} className="text-bone transition-colors hover:text-gold">
                     {a.label}
                   </Link>
                 </li>
