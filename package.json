@@ -30,7 +30,7 @@
     "luxon": "^3.7.2",
     "mercadopago": "^3.6.1",
     "next": "^15.5.25",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^10.0.10",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "remark-frontmatter": "^5.0.0",
