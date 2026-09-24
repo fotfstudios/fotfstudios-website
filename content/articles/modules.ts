@@ -14,5 +14,6 @@ type MDXModule = { default: (props: MDXProps) => React.JSX.Element };
  * disco: olvidar la línea se pone rojo en `npm test`, antes del build.
  */
 export const ARTICLE_MODULES = {
+  "aprender-dj": () => import("./aprender-dj.mdx"),
   "primera-hora-en-una-cabina": () => import("./primera-hora-en-una-cabina.mdx"),
 } as const satisfies Record<string, () => Promise<MDXModule>>;

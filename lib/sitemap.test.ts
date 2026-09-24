@@ -30,7 +30,13 @@ describe("buildSitemap", () => {
    * prioridades afinadas a mano. Ninguna puede cambiar de valor ni desaparecer.
    */
   it("conserva las diez URLs originales con su prioridad exacta", () => {
-    const m = buildSitemap([], NOW);
+    // Los artículos migrados a MDX ya no son filas fijas: su URL la aporta el registro.
+    // Se alimentan acá para comprobar que la continuidad se mantiene aunque cambie la
+    // FUENTE — que es justo lo que no debe notarse desde afuera.
+    const migrados = [
+      art({ slug: "aprender-dj", path: "/aprender-dj", legacyPath: true }),
+    ];
+    const m = buildSitemap(migrados, NOW);
     const originales: [string, number][] = [
       ["", 1],
       ["/curso-dj", 0.8],
@@ -70,7 +76,8 @@ describe("buildSitemap", () => {
   });
 
   it("un artículo con path override NO se duplica: sale en su URL de raíz y nada más", () => {
-    // Es el caso de las tres guías rankeadas cuando se migren a MDX en la fase 3.
+    // El caso vivo de /aprender-dj: sale de STATIC_ROUTES y entra derivado del registro.
+    // Las otras dos rankeadas siguen fijas hasta que les toque su propia PR.
     const m = buildSitemap([art({ slug: "aprender-dj", path: "/aprender-dj", legacyPath: true })], NOW);
     expect(byUrl(m, `${SITE_URL}/blog/aprender-dj`)).toBeUndefined();
     expect(byUrl(m, `${SITE_URL}/aprender-dj`)?.priority).toBe(0.6);
