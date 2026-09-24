@@ -13,6 +13,7 @@ import {
   publishedArticles,
   relatedArticles,
 } from "./registry";
+import { STATIC_ROUTES } from "@/lib/sitemap";
 import type { ArticleMeta } from "./schema";
 
 const base: ArticleMeta = {
@@ -121,6 +122,45 @@ describe("contenido en disco", () => {
     const all = getArticles();
     expect(new Set(all.map((a) => a.slug)).size).toBe(all.length);
     expect(new Set(all.map((a) => a.path)).size).toBe(all.length);
+  });
+
+  /**
+   * Un `path` override se valida por FORMA (kebab-case absoluto) pero nada comprobaba que
+   * apuntara a una ruta REAL. Dos agujeros simétricos:
+   *
+   *  - `path: "/no-existe"` → tarjeta en /blog hacia un 404, y una entrada en el sitemap
+   *    invitando a Google a rastrearlo.
+   *  - `path: "/curso-dj"` → pasa la validación, pinta una tarjeta que enlaza a la landing
+   *    del curso, y articleHref lo deja pasar porque la forma es válida.
+   *
+   * La migración de los artículos rankeados descansa entera en este mecanismo, así que
+   * acá se cierra.
+   */
+  it("todo path override apunta a una carpeta de ruta que existe", () => {
+    const GRUPO = join(process.cwd(), "app", "(marketing)", "(articulos)");
+    for (const a of getArticles().filter((x) => x.legacyPath)) {
+      const page = join(GRUPO, a.path.replace(/^\//, ""), "page.tsx");
+      expect(existsSync(page), `${a.slug}: falta ${a.path}/page.tsx`).toBe(true);
+    }
+  });
+
+  /**
+   * La ruta de un artículo NUNCA debe estar además en STATIC_ROUTES.
+   *
+   * Antes de migrar, las tres rankeadas viven ahí como filas fijas. Al convertirlas a MDX
+   * pasan a derivarse del registro, y la fila tiene que salir en el MISMO commit: si no,
+   * la misma URL queda declarada dos veces con dos fechas distintas (la fija usa la del
+   * build; el artículo, su updatedAt real). buildSitemap deduplica y la fija gana, así que
+   * el artículo se publica con la fecha equivocada y nada falla.
+   *
+   * También caza lo simétrico: un artículo que se apropie de una ruta que no le toca
+   * (`path: "/curso-dj"`).
+   */
+  it("la ruta de un artículo no está además en STATIC_ROUTES", () => {
+    const fijas = new Set(STATIC_ROUTES.map((r) => r.path));
+    for (const a of getArticles()) {
+      expect(fijas.has(a.path), `${a.slug} (${a.path}) está fija y derivada a la vez`).toBe(false);
+    }
   });
 
   it("cada slug de `related` existe", () => {

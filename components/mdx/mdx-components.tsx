@@ -3,6 +3,8 @@ import type { MDXComponents } from "mdx/types";
 import { Callout } from "./Callout";
 import { Figure } from "./Figure";
 import { Gear } from "./Gear";
+import { GearModelos } from "./GearModelos";
+import { Precio } from "./Precio";
 import { PullQuote } from "./PullQuote";
 import { Spec } from "./Spec";
 
@@ -117,6 +119,8 @@ export function useMDXComponents(components: MDXComponents = {}): MDXComponents 
     Figure,
     Spec,
     Gear,
+    GearModelos,
+    Precio,
     ...components,
   };
 }

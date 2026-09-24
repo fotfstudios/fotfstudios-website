@@ -23,13 +23,33 @@ export interface GuideFormCopy {
  * guía). Guarda el email enviado para mostrarlo en el panel, y lleva el copy del
  * formulario para que la página lo declare una sola vez.
  */
-type GuiaLead = { sent: string | null; markSent: (email: string | null) => void; copy: GuideFormCopy };
+type GuiaLead = {
+  sent: string | null;
+  markSent: (email: string | null) => void;
+  copy: GuideFormCopy;
+  /**
+   * Los `source` que declara ESTA guía, para que la validación del cliente use el mismo
+   * catálogo que el servidor. Llegan por prop desde la página (un server component): si el
+   * formulario importara lib/guides, el registro entero —claves del bucket, templateKey,
+   * asuntos de correo— viajaría al navegador, porque se indexa de forma dinámica y ningún
+   * bundler puede podarlo.
+   */
+  sources: readonly string[];
+};
 
 const Ctx = createContext<GuiaLead | null>(null);
 
-export function GuiaLeadProvider({ copy, children }: { copy: GuideFormCopy; children: ReactNode }) {
+export function GuiaLeadProvider({
+  copy,
+  sources,
+  children,
+}: {
+  copy: GuideFormCopy;
+  sources: readonly string[];
+  children: ReactNode;
+}) {
   const [sent, setSent] = useState<string | null>(null);
-  const value = useMemo<GuiaLead>(() => ({ sent, markSent: setSent, copy }), [sent, copy]);
+  const value = useMemo<GuiaLead>(() => ({ sent, markSent: setSent, copy, sources }), [sent, copy, sources]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
 import { GuiaLeadProvider } from "@/components/guides/LeadState";
+import { GUIDES } from "@/lib/guides";
 import { COPY, GUIA_PENDRIVE } from "@/lib/guia-pendrive-content";
 import { jsonLdHtml } from "@/lib/json-ld";
 import { pageMetadata } from "@/lib/seo";
@@ -55,7 +56,7 @@ export default function GuiaPendrivePage() {
         </div>
       </header>
 
-      <GuiaLeadProvider copy={COPY.form}>
+      <GuiaLeadProvider copy={COPY.form} sources={GUIDES["guia-pendrive-dj"].sources.map((s) => s.id)}>
         <main>
           <PendriveHero />
           <Adelanto />

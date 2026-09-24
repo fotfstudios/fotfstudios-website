@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ARTICLE_MODULES } from "@/content/articles/modules";
 import { articleJsonLd } from "@/lib/articles/jsonld";
+import { LEAD_MAGNETS } from "@/lib/lead-magnets";
 import { jsonLdHtml } from "@/lib/json-ld";
 import { articleVisible } from "@/lib/articles/metadata";
 import { articleBySlug, getArticles, relatedArticles } from "@/lib/articles/registry";
@@ -19,6 +20,8 @@ export async function ArticleView({ slug }: { slug: string }) {
   const all = getArticles();
   const article = articleBySlug(all, slug);
   if (!article || !articleVisible(article)) notFound();
+
+  const guia = LEAD_MAGNETS[article.guide];
 
   const load = ARTICLE_MODULES[slug as keyof typeof ARTICLE_MODULES];
   if (!load) notFound();
@@ -43,7 +46,16 @@ export async function ArticleView({ slug }: { slug: string }) {
       <div className="mt-10">
         <Body />
       </div>
-      <GuiaCta guide={article.guide} />
+      {/* El registro se lee ACÁ, en el servidor: GuiaCta es un client component y no debe
+          arrastrar GUIDES al bundle. */}
+      <GuiaCta
+        guide={article.guide}
+        href={guia.path}
+        kicker={guia.kicker}
+        title={guia.title}
+        description={guia.description}
+        cta={guia.cta}
+      />
       <RelatedArticles articles={relatedArticles(all, article)} />
       <p className="mt-12">
         <Link href="/blog" className="label-sm text-bone-mute transition-colors hover:text-gold">

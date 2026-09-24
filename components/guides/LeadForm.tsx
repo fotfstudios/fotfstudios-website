@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { trackGuideLead } from "@/lib/analytics";
 import { guiaErrorMessage, guiaFieldMessage } from "@/lib/guia-form";
 import { GUIDE_LEAD_CAPS, parseGuideLead } from "@/src/domain/guide/lead";
-import { GUIDES, type GuideSlug } from "@/lib/guides";
 import { readUtm } from "@/lib/guia-utm";
 import { useGuiaLead } from "./LeadState";
 
@@ -25,14 +24,15 @@ export default function LeadForm({
   eyebrow,
 }: {
   /** A qué guía pertenece este formulario. Viaja al route y a analytics. */
-  guide: GuideSlug;
+  /** Slug de la guía. String y no GuideSlug: el cliente no debe conocer el registro. */
+  guide: string;
   source: string;
   /** `inline` = campo y botón en una fila (hero); `stack` = apilados (fragmento, cierre). */
   layout: "inline" | "stack";
   buttonLabel: string;
   eyebrow?: string;
 }) {
-  const { sent, markSent, copy } = useGuiaLead();
+  const { sent, markSent, copy, sources } = useGuiaLead();
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function LeadForm({
     // Misma validación que corre el servidor: los mensajes no se pueden desincronizar.
     const parsed = parseGuideLead(
       { email, source, guide, website },
-      { slug: guide, sources: GUIDES[guide].sources.map((f) => f.id) },
+      { slug: guide, sources },
     );
     if (parsed.kind === "spam") {
       markSent(email); // silencio idéntico al éxito
