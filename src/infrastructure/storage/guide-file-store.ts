@@ -8,9 +8,15 @@ const BUCKET = "guias";
 export class SupabaseGuideFileStore implements GuideFileStore {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
-  /** URL firmada de corta vida, o null si el objeto no está (archivo aún no subido). */
-  async signedDownloadUrl(objectPath: string, ttlSeconds: number): Promise<string | null> {
-    const { data, error } = await this.db.storage.from(BUCKET).createSignedUrl(objectPath, ttlSeconds);
+  /**
+   * URL firmada de corta vida, o null si el objeto no está (archivo aún no subido).
+   * `download` hace que Storage responda `Content-Disposition: attachment`: el PDF se
+   * guarda en el dispositivo en vez de abrirse en el visor del navegador.
+   */
+  async signedDownloadUrl(objectPath: string, ttlSeconds: number, downloadName: string): Promise<string | null> {
+    const { data, error } = await this.db.storage
+      .from(BUCKET)
+      .createSignedUrl(objectPath, ttlSeconds, { download: downloadName });
     if (error) {
       // Storage responde 404 "Object not found" cuando el archivo no existe: es el único
       // error que la app trata como estado ("no disponible"); el resto sí es una falla.

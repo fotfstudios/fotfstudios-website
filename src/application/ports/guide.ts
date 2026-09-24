@@ -36,8 +36,11 @@ export interface GuideLeadRepository {
 }
 
 export interface GuideFileStore {
-  /** URL firmada de corta vida al objeto del bucket, o null si el archivo no está. */
-  signedDownloadUrl(objectPath: string, ttlSeconds: number): Promise<string | null>;
+  /**
+   * URL firmada de corta vida al objeto del bucket, servida como adjunto con
+   * `downloadName` (el navegador la descarga en vez de abrirla). null si el archivo no está.
+   */
+  signedDownloadUrl(objectPath: string, ttlSeconds: number, downloadName: string): Promise<string | null>;
 }
 
 /**
@@ -47,8 +50,11 @@ export interface GuideFileStore {
  * vive el registro — el único que los une es el composition root.
  */
 export interface GuideCatalog {
-  /** Clave del objeto PDF en el bucket, o null si la guía no está en el registro. */
-  pdfObject(slug: string): string | null;
+  /**
+   * El PDF de la guía: clave del objeto en el bucket y nombre de descarga, o null si la
+   * guía no está en el registro.
+   */
+  pdfFile(slug: string): { object: string; downloadName: string } | null;
   /** Copy del correo de entrega, o null. */
   emailCopy(slug: string): GuideEmailCopy | null;
   /** Ruta de la landing ("/guia-dj"): el link de descarga del correo cuelga de ahí. */

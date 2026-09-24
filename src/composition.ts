@@ -323,7 +323,8 @@ export function guideLeadRepository(client: SupabaseClient<Database> = db()): Su
  * lib/guides: la aplicación no debe saber dónde vive el registro.
  */
 const guideCatalog: GuideCatalog = {
-  pdfObject: (slug) => (isGuideSlug(slug) ? GUIDES[slug].pdfObject : null),
+  pdfFile: (slug) =>
+    isGuideSlug(slug) ? { object: GUIDES[slug].pdfObject, downloadName: GUIDES[slug].downloadName } : null,
   emailCopy: (slug) => (isGuideSlug(slug) ? GUIDES[slug].email : null),
   landingPath: (slug) => (isGuideSlug(slug) ? GUIDES[slug].path : null),
 };

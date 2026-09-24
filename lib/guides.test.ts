@@ -51,6 +51,12 @@ describe("registro de guías", () => {
     for (const [, g] of entries) expect(g.pdfObject.endsWith(".pdf"), g.pdfObject).toBe(true);
   });
 
+  it("todo downloadName es un .pdf ASCII sin separadores de ruta y único", () => {
+    // Viaja en Content-Disposition: fuera de ASCII imprimible, cada navegador lo decodifica distinto.
+    for (const [, g] of entries) expect(g.downloadName, g.slug).toMatch(/^[A-Za-z0-9._-]+\.pdf$/);
+    expect(new Set(entries.map(([, g]) => g.downloadName)).size).toBe(entries.length);
+  });
+
   it("toda ruta es absoluta", () => {
     for (const [, g] of entries) expect(g.path.startsWith("/"), g.path).toBe(true);
   });

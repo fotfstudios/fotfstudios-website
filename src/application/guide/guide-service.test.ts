@@ -5,6 +5,7 @@ import { GUIDE_DOWNLOAD_TTL_S, GuideService } from "./guide-service";
 
 const TOKEN = "a".repeat(48);
 const PDF = "guia-iniciacion-djing.pdf";
+const DOWNLOAD_NAME = "Guia-Iniciacion-DJing-FOTF-Studios.pdf";
 
 const COPY: GuideEmailCopy = {
   templateKey: "guideDelivery:guia-dj",
@@ -39,7 +40,7 @@ function makeService(over: { guideSlug?: string | null; url?: string | null; kno
   const notifier = { notifyGuideLead: vi.fn(async () => {}) };
   // El catálogo conoce guia-dj y nada más: así se puede probar una guía retirada.
   const catalog: GuideCatalog = {
-    pdfObject: (slug) => (slug === "guia-dj" ? PDF : null),
+    pdfFile: (slug) => (slug === "guia-dj" ? { object: PDF, downloadName: DOWNLOAD_NAME } : null),
     emailCopy: (slug) => (slug === "guia-dj" ? COPY : null),
     landingPath: (slug) => (slug === "guia-dj" ? "/guia-dj" : null),
   };
@@ -110,14 +111,14 @@ describe("GuideService.resolveDownload", () => {
     expect(files.signedDownloadUrl).not.toHaveBeenCalled();
   });
 
-  it("firma el PDF de la guía QUE DICE EL TOKEN, con TTL corto", async () => {
+  it("firma el PDF de la guía QUE DICE EL TOKEN, con TTL corto y como adjunto", async () => {
     const { service, files } = makeService();
     expect(await service.resolveDownload(TOKEN)).toEqual({
       kind: "ok",
       url: "https://signed.example/x",
       guide: "guia-dj",
     });
-    expect(files.signedDownloadUrl).toHaveBeenCalledWith(PDF, GUIDE_DOWNLOAD_TTL_S);
+    expect(files.signedDownloadUrl).toHaveBeenCalledWith(PDF, GUIDE_DOWNLOAD_TTL_S, DOWNLOAD_NAME);
     expect(GUIDE_DOWNLOAD_TTL_S).toBeLessThanOrEqual(300);
   });
 });
