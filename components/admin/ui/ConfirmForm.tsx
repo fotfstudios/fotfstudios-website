@@ -10,7 +10,13 @@ import { useToast } from "./Toaster";
 
 type Action = (prev: ActionResult | null, fd: FormData) => Promise<ActionResult>;
 
-/** Acción destructiva con confirmación: botón → diálogo → submit, con toast de resultado. */
+/**
+ * Acción que pide confirmación: botón → diálogo → submit, con toast de resultado.
+ * Destructiva (borrar, cancelar) por defecto, pero también sirve para lo que SALE
+ * del sistema sin vuelta atrás —mandarle un correo a un cliente—: ahí se pasa
+ * `confirm="primary"`, porque Sirena está reservada a la urgencia real y un envío
+ * amable no lo es.
+ */
 export function ConfirmForm({
   action,
   hidden,
@@ -18,6 +24,7 @@ export function ConfirmForm({
   title,
   message,
   cta,
+  confirm = "danger",
   success,
   navigateTo,
 }: {
@@ -27,6 +34,8 @@ export function ConfirmForm({
   title: string;
   message: string;
   cta: string;
+  /** Variante del botón que confirma. `danger` (Sirena) solo si de verdad destruye. */
+  confirm?: BtnVariant;
   success?: string;
   /** Tras el éxito: a dónde ir (p. ej. la lista, cuando se borró la ficha actual). */
   navigateTo?: string;
@@ -63,7 +72,7 @@ export function ConfirmForm({
             <button type="button" onClick={() => setOpen(false)} className={btn("secondary", "sm")}>
               Cancelar
             </button>
-            <SubmitButton variant="danger" size="sm">
+            <SubmitButton variant={confirm} size="sm">
               {cta}
             </SubmitButton>
           </form>
