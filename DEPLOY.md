@@ -163,8 +163,8 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
    la landing igual guarda el lead y manda el correo, pero el link muestra "no disponible".
    Local: mismo nombre, en el Studio local (`http://127.0.0.1:54423`) tras `db:reset`.
    **Cada guía nueva suma su PDF** en la clave `pdfObject` de su entrada en `lib/guides.ts`
-   (convención `<slug>/<archivo>.pdf`, dentro de una carpeta). Hoy:
-   `guia-pendrive-dj/guia-pendrive-dj.pdf` (la de `/guia-pendrive-dj`). Mismo tratamiento:
+   (convención `<slug>/<archivo>.pdf`; las ya subidas quedan donde están). Hoy:
+   `guia_pendrive_dj_fotf_studios.pdf`, en la raíz (la de `/guia-pendrive-dj`). Mismo tratamiento:
    fuera de git, a mano en prod, staging y local.
 
 > El detalle de esta checklist nació en

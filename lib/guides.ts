@@ -103,7 +103,8 @@ export const GUIDES = {
     title: GUIA_PENDRIVE.title,
     description: GUIA_PENDRIVE.description,
     pages: GUIA_PENDRIVE.pages,
-    pdfObject: "guia-pendrive-dj/guia-pendrive-dj.pdf",
+    /** La clave con la que se subió a prod (raíz del bucket). Re-keyear = re-subir en todos lados. */
+    pdfObject: "guia_pendrive_dj_fotf_studios.pdf",
     sources: [
       { id: "hero", label: "Hero" },
       { id: "desbloquear", label: "Desbloquear" },
