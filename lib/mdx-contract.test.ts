@@ -45,6 +45,48 @@ describe("next.config.ts", () => {
     expect(src).toContain('source: "/en"');
     expect(src).toContain('source: "/en/:path*"');
   });
+
+  it("manda el runtime JSX de los .mdx por el shim, no por react", () => {
+    // Next reparte los módulos por capa con un test de extensión FIJO (codeCondition, en
+    // next/dist/build/webpack-config.js) que no incluye .mdx. Sin esta línea el artículo
+    // no entra a la capa react-server y resuelve el runtime JSX de CLIENTE dentro del
+    // grafo RSC: 500 en `npm run dev` para TODO artículo, con el build en verde.
+    expect(src).toContain('jsxImportSource: "@/lib/mdx-runtime"');
+  });
+});
+
+/**
+ * El shim que hace resolver bien a los .mdx. Ojo: ningún test de CI renderiza un artículo
+ * en el DEV server —el build sí los prerenderiza, así que el camino de producción está
+ * cubierto por `npm run build`—. Lo de acá fija la forma del arreglo; el modo dev se
+ * comprueba a mano levantando `npm run dev` y pidiendo un artículo.
+ */
+describe("lib/mdx-runtime (shim del runtime JSX)", () => {
+  const dir = "lib/mdx-runtime";
+
+  it("trae un módulo por cada runtime que MDX puede emitir", () => {
+    // MDX emite jsx-dev-runtime en desarrollo y jsx-runtime en el build: si falta uno, el
+    // fallo aparece SOLO en ese modo, que es justo como se coló el bug original.
+    expect(existsSync(join(ROOT, `${dir}/jsx-runtime.ts`)), "falta jsx-runtime").toBe(true);
+    expect(existsSync(join(ROOT, `${dir}/jsx-dev-runtime.ts`)), "falta jsx-dev-runtime").toBe(true);
+  });
+
+  it("son .ts, que es la única razón por la que el arreglo funciona", () => {
+    // Renombrarlos a otra extensión los sacaría de codeCondition y devolvería el 500.
+    const sueltos = readdirSync(join(ROOT, dir)).filter((f) => f !== "README.md");
+    expect(sueltos.length, "solo los dos runtimes y el README").toBe(2);
+    for (const f of sueltos) expect(f, `${f} no es .ts`).toMatch(/\.ts$/);
+  });
+
+  it("re-exportan exactamente los nombres que MDX importa en cada modo", () => {
+    // Recortar un nombre no rompe el build: rompe el modo que usa ese runtime, en silencio.
+    expect(readCode(`${dir}/jsx-runtime.ts`)).toContain(
+      'export { Fragment, jsx, jsxs } from "react/jsx-runtime";',
+    );
+    expect(readCode(`${dir}/jsx-dev-runtime.ts`)).toContain(
+      'export { Fragment, jsxDEV } from "react/jsx-dev-runtime";',
+    );
+  });
 });
 
 describe("mdx-components.tsx de la raíz", () => {
