@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
  */
 const ROOT = process.cwd();
 const DIR = "app/(marketing)/guia-dj";
+/** El formulario y su estado son compartidos entre landings de guía. */
+const SHARED = "components/guides";
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 
 const tsxUnder = (dir: string): string[] => {
@@ -55,14 +57,14 @@ describe("formularios de la guía", () => {
   });
 
   it("los tres comparten el estado LISTO vía el provider (y el provider envuelve el main)", () => {
-    expect(read(`${DIR}/page.tsx`)).toMatch(/<GuiaLeadProvider>\s*<main/);
-    expect(read(`${DIR}/_components/LeadForm.tsx`)).toMatch(/useGuiaLead\(\)/);
+    expect(read(`${DIR}/page.tsx`)).toMatch(/<GuiaLeadProvider copy=\{COPY\.form\}>\s*<main/);
+    expect(read(`${SHARED}/LeadForm.tsx`)).toMatch(/useGuiaLead\(\)/);
   });
 });
 
 describe("marca", () => {
   it("Sirena solo en la píldora GRATIS y el botón de envío (+ errores de validación)", () => {
-    const hits = tsxUnder(DIR).flatMap((f) => [...read(f).matchAll(/[\w-]*sirena[\w/-]*/g)].map((m) => `${f}: ${m[0]}`));
+    const hits = [...tsxUnder(DIR), ...tsxUnder(SHARED)].flatMap((f) => [...read(f).matchAll(/[\w-]*sirena[\w/-]*/g)].map((m) => `${f}: ${m[0]}`));
     // Píldora y botón viven en LeadForm/GuiaHero; los errores usan text-sirena/border-sirena.
     for (const h of hits) expect(h).toMatch(/GuiaHero\.tsx: bg-sirena|LeadForm\.tsx: (bg-sirena|text-sirena|border-sirena)/);
     expect(hits.some((h) => h.includes("LeadForm.tsx: bg-sirena"))).toBe(true);

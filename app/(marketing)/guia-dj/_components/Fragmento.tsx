@@ -1,7 +1,7 @@
 import Reveal from "@/components/Reveal";
 import { Section, SectionHead } from "@/components/Section";
 import { COPY, FRAGMENTO } from "@/lib/guia-content";
-import LeadForm from "./LeadForm";
+import LeadForm from "@/components/guides/LeadForm";
 import PasoIlustracion from "./PasoIlustracion";
 
 /**

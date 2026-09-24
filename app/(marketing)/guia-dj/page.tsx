@@ -3,13 +3,13 @@ import Link from "next/link";
 import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
 import { pageMetadata } from "@/lib/seo";
-import { FAQ_GUIA, GUIA } from "@/lib/guia-content";
+import { COPY, FAQ_GUIA, GUIA } from "@/lib/guia-content";
 import { SITE_URL } from "@/lib/site";
 import CierreGuia from "./_components/CierreGuia";
 import FaqGuia from "./_components/FaqGuia";
 import Fragmento from "./_components/Fragmento";
 import GuiaHero from "./_components/GuiaHero";
-import { GuiaLeadProvider } from "./_components/LeadState";
+import { GuiaLeadProvider } from "@/components/guides/LeadState";
 import ParaQuienGuia from "./_components/ParaQuienGuia";
 import Temas from "./_components/Temas";
 
@@ -69,7 +69,7 @@ export default function GuiaDjPage() {
         </div>
       </header>
 
-      <GuiaLeadProvider>
+      <GuiaLeadProvider copy={COPY.form}>
         <main>
           <GuiaHero />
           <Temas />

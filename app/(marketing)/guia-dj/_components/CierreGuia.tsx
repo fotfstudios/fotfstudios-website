@@ -1,7 +1,7 @@
 import Reveal from "@/components/Reveal";
 import { Section, SectionHead } from "@/components/Section";
 import { COPY } from "@/lib/guia-content";
-import LeadForm from "./LeadForm";
+import LeadForm from "@/components/guides/LeadForm";
 
 /** Cierre: el tercer y último pedido, en su propia tarjeta sobre la banda ink-soft. */
 export default function CierreGuia() {
