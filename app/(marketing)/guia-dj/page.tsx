@@ -10,6 +10,7 @@ import FaqGuia from "./_components/FaqGuia";
 import Fragmento from "./_components/Fragmento";
 import GuiaHero from "./_components/GuiaHero";
 import { GuiaLeadProvider } from "@/components/guides/LeadState";
+import { GUIDES } from "@/lib/guides";
 import ParaQuienGuia from "./_components/ParaQuienGuia";
 import Temas from "./_components/Temas";
 
@@ -69,7 +70,7 @@ export default function GuiaDjPage() {
         </div>
       </header>
 
-      <GuiaLeadProvider copy={COPY.form}>
+      <GuiaLeadProvider copy={COPY.form} sources={GUIDES["guia-dj"].sources.map((s) => s.id)}>
         <main>
           <GuiaHero />
           <Temas />

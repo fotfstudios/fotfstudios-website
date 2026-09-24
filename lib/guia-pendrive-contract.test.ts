@@ -46,7 +46,15 @@ describe("app/(marketing)/guia-pendrive-dj/page.tsx", () => {
   });
 
   it("el provider envuelve el main y lleva el copy del formulario", () => {
-    expect(src()).toMatch(/<GuiaLeadProvider copy=\{COPY\.form\}>\s*<main/);
+    // El provider envuelve el main y lleva el copy del formulario. Nada de regex sobre
+    // la etiqueta entera: `sources` trae una arrow function y el `>` la corta.
+    const page = src();
+    expect(page).toContain("<GuiaLeadProvider");
+    expect(page).toContain("copy={COPY.form}");
+    expect(page.indexOf("<GuiaLeadProvider")).toBeLessThan(page.indexOf("<main"));
+    // Los `sources` llegan por prop desde el servidor: es lo que evita que LeadForm
+    // importe lib/guides y arrastre el registro al bundle del cliente.
+    expect(page).toContain("sources={");
   });
 });
 

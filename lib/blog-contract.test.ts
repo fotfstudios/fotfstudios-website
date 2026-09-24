@@ -97,8 +97,39 @@ describe("el artículo cierra con su guía", () => {
 
   it("el CTA enlaza sin query string: no fragmenta la canónica de la guía", () => {
     const cta = readCode("components/article/GuiaCta.tsx");
-    expect(cta).toMatch(/href=\{m\.path\}/);
+    expect(cta).toMatch(/href=\{href\}/);
     expect(cta).not.toMatch(/\?ref=|\?utm_/);
+  });
+
+  /**
+   * NINGÚN client component puede importar el registro de guías.
+   *
+   * `GUIDES` se indexa de forma dinámica (`GUIDES[slug]`), así que ningún bundler puede
+   * podar sus propiedades: basta un import desde un componente "use client" para que al
+   * navegador viajen las claves del bucket de Supabase, los `templateKey` y cada asunto,
+   * preheader y blurb de correo. Pasó con `GuiaCta` y con `LeadForm`; ambos ahora reciben
+   * por props lo que pintan. lib/guides.ts dice en su primera línea que ahí vive solo lo
+   * que necesita el SERVIDOR — esto lo mantiene cierto.
+   *
+   * Comprobado contra los artefactos del build: tras el arreglo, ni la clave del PDF ni
+   * los templateKey ni los asuntos aparecen en .next/static.
+   */
+  it("ningún componente de cliente importa el registro de guías", () => {
+    const clientes: string[] = [];
+    const walk = (d: string) => {
+      if (!existsSync(join(ROOT, d))) return;
+      for (const e of readdirSync(join(ROOT, d), { withFileTypes: true })) {
+        const rel = `${d}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (rel.endsWith(".tsx") && read(rel).startsWith('"use client"')) clientes.push(rel);
+      }
+    };
+    walk("components");
+    walk("app");
+    expect(clientes.length, "no se encontró ningún client component: el escaneo falló").toBeGreaterThan(5);
+
+    const culpables = clientes.filter((f) => /from "@\/lib\/(guides|lead-magnets)"/.test(readCode(f)));
+    expect(culpables, "arrastran GUIDES al bundle del cliente").toEqual([]);
   });
 
   it("todo href de artículo pasa por articleHref: el path nace en un archivo del disco", () => {

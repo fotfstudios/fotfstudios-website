@@ -10,7 +10,6 @@ export const GUIA_PENDRIVE = {
   /** Meta description + OG. */
   description:
     "Guía gratis en PDF: velocidad, formato FAT32 vs exFAT, capacidad, materiales y cómo prepararlo con Rekordbox para que tu set cargue rápido en cualquier Pioneer CDJ / XDJ.",
-  pages: 5,
   chapters: 8,
 } as const;
 

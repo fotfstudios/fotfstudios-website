@@ -1,6 +1,9 @@
 /**
  * El ÚNICO momento Fraunces sancionado por artículo (una línea editorial por sección, y
- * un artículo es una sección larga). Más de uno por archivo lo advierte el registro.
+ * un artículo es una sección larga).
+ *
+ * Es una convención, no una regla aplicada: nada comprueba que haya uno solo por archivo.
+ * (El comentario anterior decía que el registro lo advertía. No era cierto.)
  */
 export function PullQuote({ children }: { children: React.ReactNode }) {
   return (

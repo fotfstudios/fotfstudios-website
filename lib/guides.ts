@@ -49,7 +49,6 @@ export interface GuideDefinition {
   readonly path: `/${string}`;
   readonly title: string;
   readonly description: string;
-  readonly pages: number;
   /**
    * Clave EXACTA del objeto en el bucket `guias`. El archivo se sube a mano (DEPLOY.md).
    * Convención para guías nuevas: `<slug>/<archivo>.pdf`.
@@ -75,7 +74,6 @@ export const GUIDES = {
     path: "/guia-dj",
     title: GUIA.title,
     description: GUIA.description,
-    pages: GUIA.pages,
     /**
      * Clave HISTÓRICA, en la raíz del bucket. NO "normalizarla" a guia-dj/…:
      * signedDownloadUrl trata un 404 como ESTADO y no como error, así que re-keyear sin
@@ -108,7 +106,6 @@ export const GUIDES = {
     path: "/guia-pendrive-dj",
     title: GUIA_PENDRIVE.title,
     description: GUIA_PENDRIVE.description,
-    pages: GUIA_PENDRIVE.pages,
     /** La clave con la que se subió a prod (raíz del bucket). Re-keyear = re-subir en todos lados. */
     pdfObject: "guia_pendrive_dj_fotf_studios.pdf",
     downloadName: "Guia-Pendrive-DJ-FOTF-Studios.pdf",

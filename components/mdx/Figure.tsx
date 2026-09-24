@@ -4,8 +4,10 @@ import Image from "next/image";
  * Imagen con epígrafe. Usa next/image (no <img>) porque acá sí es el DOM del navegador:
  * el <img> crudo solo se justifica dentro de satori, en lib/og.tsx.
  *
- * `src` es una ruta bajo public/ SIN la barra inicial ("og/cabina-7.jpg"); el registro
- * comprueba en cada build que el archivo exista.
+ * `src` es una ruta bajo public/ SIN la barra inicial ("og/cabina-7.jpg").
+ *
+ * OJO: el registro valida el campo `image` del frontmatter, NO el `src` de un <Figure>
+ * dentro del cuerpo. Una ruta rota acá es un build verde con una imagen 404.
  */
 export function Figure({
   src,
