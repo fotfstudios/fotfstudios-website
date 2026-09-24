@@ -1,12 +1,21 @@
 import Link from "next/link";
 import Logo from "./Logo";
+import { footerArticleLinks } from "@/lib/articles/footer-links";
+import { draftsVisible, getArticles, publishedArticles } from "@/lib/articles/registry";
 import { accountEnabled } from "@/lib/flags";
+import { GUIDES, GUIDE_SLUGS } from "@/lib/guides";
 import { SITE } from "@/lib/site";
 import ConsentReopenLink from "./ConsentReopenLink";
 import WhatsAppCta from "./WhatsAppCta";
 
+/**
+ * Componente de SERVIDOR: por eso puede leer los registros de guías y artículos.
+ * Si alguna vez necesitara "use client", estas listas tendrían que bajar por props —
+ * lib/blog-contract.test.ts prohíbe que el registro de guías llegue al bundle del cliente.
+ */
 export default function Footer() {
   const year = 2026;
+  const articulos = footerArticleLinks(publishedArticles(getArticles(), draftsVisible()));
   return (
     <footer className="border-t hairline bg-ink">
       <div className="mx-auto max-w-[1280px] px-5 py-16 md:px-10">
@@ -82,37 +91,20 @@ export default function Footer() {
 
             <span className="label-sm mt-8 block text-bone-mute">Guías</span>
             <ul className="mt-4 space-y-3">
-              <li>
-                <Link href="/guia-dj" className="text-bone transition-colors hover:text-gold">
-                  Guía gratis de iniciación (PDF)
-                </Link>
-              </li>
-              <li>
-                <Link href="/guia-pendrive-dj" className="text-bone transition-colors hover:text-gold">
-                  Guía gratis: tu pendrive DJ (PDF)
-                </Link>
-              </li>
-              <li>
-                <Link href="/aprender-dj" className="text-bone transition-colors hover:text-gold">
-                  Aprender a ser DJ
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/cuanto-cuesta-un-curso-de-dj"
-                  className="text-bone transition-colors hover:text-gold"
-                >
-                  ¿Cuánto cuesta un curso de DJ?
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/xdj-vs-controlador"
-                  className="text-bone transition-colors hover:text-gold"
-                >
-                  ¿Controlador o equipos de club?
-                </Link>
-              </li>
+              {GUIDE_SLUGS.map((slug) => (
+                <li key={slug}>
+                  <Link href={GUIDES[slug].path} className="text-bone transition-colors hover:text-gold">
+                    {GUIDES[slug].title} (PDF gratis)
+                  </Link>
+                </li>
+              ))}
+              {articulos.map((a) => (
+                <li key={a.href}>
+                  <Link href={a.href} className="text-bone transition-colors hover:text-gold">
+                    {a.label}
+                  </Link>
+                </li>
+              ))}
               <li>
                 <Link href="/blog" className="label-sm text-bone-mute transition-colors hover:text-gold">
                   Todos los artículos →
