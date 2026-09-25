@@ -3,6 +3,7 @@ import MaskText from "@/components/MaskText";
 import Magnetic from "@/components/Magnetic";
 import HeroVideo from "@/components/HeroVideo";
 import { SITE } from "@/lib/site";
+import { CURSO, PROGRAMA, HORAS_POR_SESION } from "@/lib/curso-content";
 
 export default function CursoHero() {
   return (
@@ -49,7 +50,7 @@ export default function CursoHero() {
         <div className="rise flex items-center gap-4" style={{ animationDelay: "0.05s" }}>
           <MeterBars className="text-[15px] text-gold" />
           <span className="label text-bone-dim">
-            {SITE.name} · Primera generación · cupos limitados
+            {SITE.name} · {CURSO.modalidad}
           </span>
         </div>
 
@@ -70,16 +71,17 @@ export default function CursoHero() {
           className="rise font-editorial mt-6 max-w-xl text-2xl text-bone-dim md:text-3xl"
           style={{ animationDelay: "0.2s" }}
         >
-          12 horas de estudio por menos que una mensualidad de 4 clases.
+          Nueve horas con un DJ al lado. Seis a solas con la cabina.
         </p>
 
         <p
           className="rise mt-6 max-w-md text-sm leading-relaxed text-bone-dim"
           style={{ animationDelay: "0.26s" }}
         >
-          Aprende a mezclar en equipos Pioneer reales —2× XDJ-1000MK2 y mixer
-          DJM-450— en la cabina de FOTF Studios: 8 horas de clase, 4 horas de
-          práctica libre y tu set final grabado en audio y video.
+          Aprende a mezclar uno a uno con un DJ, en equipos Pioneer reales —2×
+          XDJ-1000MK2 y mixer DJM-450— en la cabina de FOTF Studios:{" "}
+          {PROGRAMA.sesiones} sesiones de {HORAS_POR_SESION} horas, {PROGRAMA.horasPractica} horas
+          de práctica libre y tu set final grabado en audio y video.
         </p>
 
         {/* Ancla, no wa.me: la acción primaria sigue siendo UNA, pero ahora deja
@@ -91,7 +93,7 @@ export default function CursoHero() {
               href="#inscripcion"
               className="group inline-flex items-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform"
             >
-              Reserva tu cupo
+              Pide tus fechas
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </a>
           </Magnetic>
@@ -102,9 +104,9 @@ export default function CursoHero() {
       <div className="relative z-10 border-t border-bone/10 bg-ink/55 backdrop-blur-md">
         <div className="mx-auto grid max-w-[1280px] grid-cols-2 divide-x divide-[var(--color-ink-line)] md:grid-cols-4 [&>*]:px-5 md:[&>*]:px-10">
           {[
-            ["Sesiones", "4"],
-            ["Horas de estudio", "12"],
-            ["Cupos", "Limitados"],
+            ["Sesiones 1:1", String(PROGRAMA.sesiones)],
+            ["Horas de clase", String(PROGRAMA.horasClase)],
+            ["Práctica libre", `${PROGRAMA.horasPractica} h`],
             ["Set final", "Grabado"],
           ].map(([k, v]) => (
             <div key={k} className="border-t border-bone/10 py-5 md:border-t-0">

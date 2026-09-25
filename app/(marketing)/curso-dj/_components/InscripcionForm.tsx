@@ -126,7 +126,7 @@ export default function InscripcionForm() {
         <p className="font-display mt-3 text-4xl text-bone md:text-5xl">Listo. Te escribimos.</p>
         <p className="mt-5 max-w-lg leading-relaxed text-bone-dim">
           Te mandamos un correo a <span className="text-bone">{form.email}</span>. Revisamos cada
-          solicitud a mano y te contactamos por WhatsApp para cerrar tu cupo y coordinar las fechas.
+          solicitud a mano y te contactamos por WhatsApp para coordinar tus fechas.
         </p>
         {/* Quien acaba de enviar bien y AUN ASÍ se va a WhatsApp está diciendo que
             no le creyó a este panel: si `inscripcion-ok` no es cero, el copy de
@@ -250,7 +250,7 @@ export default function InscripcionForm() {
           disabled={submitting}
           className="label border border-gold px-8 py-4 text-gold transition-colors hover:bg-gold hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "Enviando…" : "Quiero mi cupo →"}
+          {submitting ? "Enviando…" : "Quiero partir →"}
         </button>
         {/* Puerta de salida hacia el chat, deliberadamente secundaria frente al
             botón. Medirla contra `course_lead_start` dice si el formulario pide
