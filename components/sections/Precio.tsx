@@ -3,6 +3,7 @@ import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import PriceCalculator from "../PriceCalculator";
 import { TIERS, RATES, ADDONS, GUIDED_RATE, PACKS, GUIDED_BLOCK, formatCLP } from "@/lib/pricing";
+import { CURSO_ABIERTO } from "@/lib/flags";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import WhatsAppCta from "../WhatsAppCta";
 
@@ -100,12 +101,14 @@ export default function Precio() {
                   <span className="font-display text-2xl text-gold">{formatCLP(ADDONS.audioVideo.price)}</span>
                 </li>
               </ul>
-              <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                Clases:{" "}
-                <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
-                  Curso de Iniciación DJ
-                </Link>
-              </p>
+              {CURSO_ABIERTO && (
+                <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
+                  Clases:{" "}
+                  <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
+                    Curso de Iniciación DJ
+                  </Link>
+                </p>
+              )}
             </div>
           </Reveal>
         </div>

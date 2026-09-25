@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { accountEnabled } from "@/lib/flags";
+import { accountEnabled, CURSO_ABIERTO } from "@/lib/flags";
 import Logo from "./Logo";
 import Magnetic from "./Magnetic";
 import ClosureBanner from "./ClosureBanner";
@@ -17,7 +17,7 @@ const LINKS = [
   { href: "/#como", label: "Cómo funciona" },
   { href: "/#precio", label: "Precio" },
   { href: "/#ubicacion", label: "Ubicación" },
-  { href: "/curso-dj", label: "Curso de DJ" },
+  ...(CURSO_ABIERTO ? [{ href: "/curso-dj", label: "Curso de DJ" }] : []),
   { href: "/grabacion", label: "Grabación" },
 ];
 

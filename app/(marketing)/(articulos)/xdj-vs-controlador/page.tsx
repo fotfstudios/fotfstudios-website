@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ProseSection } from "@/components/article/ProseSection";
 import { articleJsonLd } from "@/lib/articles/jsonld";
 import { GEAR } from "@/lib/site";
+import { CURSO_ABIERTO } from "@/lib/flags";
 
 const DESCRIPTION =
   "¿Aprender DJ en un controlador o en equipos de club (XDJ/CDJ)? Diferencias reales, la trampa del traspaso, y cuándo conviene cada uno.";
@@ -91,12 +92,18 @@ export default function XdjVsControladorPage() {
           ))}
         </ul>
         <p>
-          No necesitas comprar nada de eso: la sala se arrienda por hora, y el{" "}
-          <Link href="/curso-dj" className={enlace}>
-            curso de DJ
-          </Link>{" "}
-          se dicta completo en estos equipos — 4 sesiones, práctica libre incluida y tu set final
-          grabado. Si ya tienes controlador, no lo botes: sirve para preparar sets en casa. Pero
+          No necesitas comprar nada de eso: la sala se arrienda por hora
+          {CURSO_ABIERTO ? (
+            <>
+              , y el{" "}
+              <Link href="/curso-dj" className={enlace}>
+                curso de DJ
+              </Link>{" "}
+              se dicta completo en estos equipos — 4 sesiones, práctica libre incluida y tu set
+              final grabado
+            </>
+          ) : null}
+          . Si ya tienes controlador, no lo botes: sirve para preparar sets en casa. Pero
           el oído y las manos entrénalos en el equipo real. Por dónde partir, paso a paso:{" "}
           <Link href="/aprender-dj" className={enlace}>
             Cómo aprender a ser DJ desde cero

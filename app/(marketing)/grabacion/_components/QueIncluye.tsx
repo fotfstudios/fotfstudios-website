@@ -4,6 +4,7 @@ import Reveal from "@/components/Reveal";
 import BrandImage from "@/components/BrandImage";
 import { getPhotos, grabacionPhotos } from "@/lib/photos";
 import { GRABACION } from "../_content";
+import { CURSO_ABIERTO } from "@/lib/flags";
 
 const INCLUYE = [
   "Cabina completa",
@@ -37,15 +38,17 @@ export default function QueIncluye() {
           <p className="mt-8 max-w-2xl text-sm leading-relaxed text-bone-mute">
             {GRABACION.diyNote}
           </p>
-          <p className="mt-3 label-sm text-bone-mute">
-            ¿Partiendo de cero?{" "}
-            <Link
-              href="/curso-dj"
-              className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold"
-            >
-              Curso de DJ en Viña del Mar →
-            </Link>
-          </p>
+          {CURSO_ABIERTO && (
+            <p className="mt-3 label-sm text-bone-mute">
+              ¿Partiendo de cero?{" "}
+              <Link
+                href="/curso-dj"
+                className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold"
+              >
+                Curso de DJ en Viña del Mar →
+              </Link>
+            </p>
+          )}
         </Reveal>
 
         {fotos.length > 0 && (

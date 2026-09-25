@@ -3,7 +3,7 @@ import Logo from "./Logo";
 import { footerArticleLinks } from "@/lib/articles/footer-links";
 import { articleHref } from "@/lib/articles/href";
 import { draftsVisible, getArticles, publishedArticles } from "@/lib/articles/registry";
-import { accountEnabled } from "@/lib/flags";
+import { accountEnabled, CURSO_ABIERTO } from "@/lib/flags";
 import { GUIDES, GUIDE_SLUGS } from "@/lib/guides";
 import { SITE } from "@/lib/site";
 import ConsentReopenLink from "./ConsentReopenLink";
@@ -56,11 +56,13 @@ export default function Footer() {
                   Cómo llegar
                 </a>
               </li>
-              <li>
-                <Link href="/curso-dj" className="text-bone transition-colors hover:text-gold">
-                  Curso de DJ · Viña del Mar
-                </Link>
-              </li>
+              {CURSO_ABIERTO && (
+                <li>
+                  <Link href="/curso-dj" className="text-bone transition-colors hover:text-gold">
+                    Curso de DJ · Viña del Mar
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link href="/grabacion" className="text-bone transition-colors hover:text-gold">
                   Graba tu set
