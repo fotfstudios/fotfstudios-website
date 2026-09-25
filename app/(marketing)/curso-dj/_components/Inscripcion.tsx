@@ -13,11 +13,11 @@ import InscripcionForm from "./InscripcionForm";
 export default function Inscripcion() {
   return (
     <Section id="inscripcion">
-      <SectionHead n="08" kicker="Inscripción" lines={["Toma", "tu cupo."]} />
+      <SectionHead n="08" kicker="Inscripción" lines={["Pide", "tus fechas."]} />
 
       <Reveal delay={120}>
         <p className="font-editorial mt-8 max-w-xl text-2xl leading-snug text-bone-dim">
-          Cupos limitados: van saliendo en orden de llegada.
+          Es uno a uno: partes cuando tú quieras.
         </p>
       </Reveal>
 
@@ -25,13 +25,13 @@ export default function Inscripcion() {
         <Reveal>
           <div className="flex flex-col gap-6">
             <p className="leading-relaxed text-bone-dim">
-              Déjanos tus datos y te escribimos por WhatsApp para cerrar el cupo y coordinar las
-              fechas. No se paga nada acá.
+              Déjanos tus datos y te escribimos por WhatsApp para coordinar el día y la hora de
+              tus sesiones. No se paga nada acá.
             </p>
             <ul className="flex flex-col">
               {[
                 "Revisamos cada solicitud a mano.",
-                "Te confirmamos cupo y fechas por WhatsApp.",
+                "Te proponemos fechas por WhatsApp.",
                 "El pago va al final, cuando ya está todo claro.",
               ].map((item) => (
                 <li key={item} className="flex gap-4 border-t hairline py-4">

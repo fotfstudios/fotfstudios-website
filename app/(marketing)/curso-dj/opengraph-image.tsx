@@ -1,4 +1,6 @@
 import { ogImage, OG_CONTENT_TYPE, OG_SIZE } from "@/lib/og";
+import { formatCLP } from "@/lib/pricing";
+import { PRECIOS, PROGRAMA } from "@/lib/curso-content";
 
 export const alt = "Curso de DJ en Viña del Mar — FOTF Studios";
 export const size = OG_SIZE;
@@ -8,6 +10,6 @@ export default async function Image() {
   return ogImage({
     photo: "og/curso-dj.jpg",
     lines: ["Curso de DJ", "en Viña del Mar"],
-    footLeft: "4 SESIONES · SET FINAL GRABADO · DESDE $79.990",
+    footLeft: `${PROGRAMA.sesiones} SESIONES 1:1 · SET FINAL GRABADO · DESDE ${formatCLP(PRECIOS.duo)}`,
   });
 }

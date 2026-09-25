@@ -99,8 +99,8 @@ export default function XdjVsControladorPage() {
               <Link href="/curso-dj" className={enlace}>
                 curso de DJ
               </Link>{" "}
-              se dicta completo en estos equipos — 4 sesiones, práctica libre incluida y tu set
-              final grabado
+              se dicta completo en estos equipos — 6 sesiones 1:1, práctica libre incluida y tu
+              set final grabado
             </>
           ) : null}
           . Si ya tienes controlador, no lo botes: sirve para preparar sets en casa. Pero

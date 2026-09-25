@@ -85,15 +85,16 @@ export default function CuantoCuestaPage() {
             <Link href="/curso-dj" className={enlace}>
               curso de DJ de FOTF Studios en Viña del Mar
             </Link>{" "}
-            incluye en ambos formatos: 8 horas de clase (4 sesiones de 2 horas), 4 horas de
-            práctica libre en la sala y tu set final grabado en audio y video.
+            es 1:1 con un DJ e incluye en ambos formatos: 9 horas de clase (6 sesiones de hora y
+            media), 6 horas de práctica libre en la sala y tu set final grabado en audio y video.
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <strong className="text-bone">En dúo:</strong> {formatCLP(PRECIOS.duo)} por persona.
+              <strong className="text-bone">Individual:</strong> {formatCLP(PRECIOS.individual)}.
             </li>
             <li>
-              <strong className="text-bone">Individual:</strong> {formatCLP(PRECIOS.individual)}.
+              <strong className="text-bone">En dúo, con un amigo:</strong> {formatCLP(PRECIOS.duo)}{" "}
+              por persona.
             </li>
             <li>
               <strong className="text-bone">Sesión de prueba (1 hora guiada):</strong>{" "}

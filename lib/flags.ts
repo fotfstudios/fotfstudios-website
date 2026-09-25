@@ -24,6 +24,9 @@ export function bookingOnline(): boolean {
  * En `false`: /curso-dj muestra una página de pausa (misma URL, sin precios ni
  * formulario), el home/nav/footer y los artículos dejan de ofrecerlo y
  * POST /api/curso/solicitudes responde 410. Siguen vivos /curso-dj/pago, /cuenta/curso
- * y el admin: los alumnos ya inscritos los necesitan.
+ * y el admin: los alumnos ya inscritos los necesitan. Ojo: content/articles/aprender-dj.mdx
+ * no lee este flag — al pausar hay que sacar a mano su frase del curso.
+ *
+ * Reabierto 2026-09-25 con el programa 1:1 (docs/superpowers/specs/2026-09-25-curso-dj-1a1-design.md).
  */
-export const CURSO_ABIERTO = false;
+export const CURSO_ABIERTO = true;

@@ -38,7 +38,7 @@ export default async function CuentaCurso() {
         <EmptyState
           icon="curso"
           title="Todavía no estás inscrito"
-          hint="El Curso de Iniciación DJ parte de cero: ocho horas de clase, cuatro de práctica libre y tu set final grabado."
+          hint="El Curso de Iniciación DJ parte de cero: seis sesiones 1:1, seis horas de práctica libre y tu set final grabado."
           action={<Button href="/curso-dj">Conocer el curso</Button>}
         />
       ) : (
