@@ -144,6 +144,11 @@ en vivo ni la base Supabase remota real.
   edit the base `.label` classes for the admin. Table headers, form labels and KPI labels
   use `.label`; pills/badges `.label-sm`. App headings are fixed rem (`text-3xl sm:text-4xl`),
   never `clamp()`. Enforced by `lib/admin-a11y-contract.test.ts`.
+- **Exception — `/curso-dj` (open state):** renders the page-scoped Claude Design system in
+  `app/(marketing)/curso-dj/_ds/` (Anton / Space Grotesk / Space Mono, **Sirena as the accent**,
+  tokens under `.curso-ds`). Deliberate owner decision; it applies to that page only (the paused
+  state keeps the site brand). `lib/chrome-contract.test.ts` keeps those fonts/tokens from
+  spreading — everywhere else the rules above hold.
 - **Voice:** Spanish (Chile), precise and direct. Exact gear models: 2× Pioneer XDJ-1000MK2,
   Pioneer DJM-450, 2× **Pioneer DJ VM-50**. Say "aislada acústicamente" (not "insonorizada").
 - **Photography:** low-key, real black, single light source; every photo over text needs a scrim.

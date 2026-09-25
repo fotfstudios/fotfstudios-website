@@ -20,18 +20,9 @@ export const CURSO = {
    * statically rendered pages freeze any runtime date math at build time.
    */
   lanzamiento: "Precio de lanzamiento · primeros 10 alumnos",
-  modalidad: "Clases 1:1 · parte cuando quieras",
 
   /** Default seats when creating a generation in the admin — not shown on the landing. */
   cupos: 6,
-
-  /**
-   * Student final-set video. While null the page renders an honest
-   * "se publica aquí" slot — never a fake thumbnail. To swap it in, drop the
-   * file under /public and set e.g. videoSrc: "/video/curso-set-final.mp4".
-   */
-  videoSrc: null as string | null,
-  videoPoster: null as string | null,
 } as const;
 
 /** Program shape: the one place copy, JSON-LD and the OG card read the numbers from. */
@@ -117,21 +108,24 @@ export const SESIONES = [
   },
 ] as const;
 
-export const PARA_QUIEN = [
-  "Nunca has tocado y quieres partir con una base correcta.",
-  "Practicas con controlador y quieres pasarte a equipos de club.",
-  "Quieres un método concreto, no tutoriales sueltos.",
+/** "Cómo funciona": del primer contacto al set grabado. */
+export const PASOS = [
+  {
+    n: "01",
+    title: "Pide tu prueba",
+    line: "Déjanos tu solicitud y coordinamos por WhatsApp tu sesión de prueba de 1 hora.",
+  },
+  {
+    n: "02",
+    title: "Fijamos tus 6 fechas",
+    line: "Si te gusta, te inscribes y fijamos contigo una sesión por semana, el día y la hora que te acomoden.",
+  },
+  {
+    n: "03",
+    title: "Practica y graba",
+    line: "Usas tus horas de práctica libre en la sala y cierras con tu set grabado en audio y video.",
+  },
 ] as const;
-
-/** Deliberate scope-setting — same visual weight as PARA_QUIEN, not fine print. */
-export const NO_ES = [
-  "Sin scratch ni turntablism.",
-  "Sin vinilo.",
-  "Sin producción musical.",
-] as const;
-
-export const NO_ES_NOTA =
-  "Recorte a propósito: el curso es mezcla en cabina, y eso se aprende bien.";
 
 export const FAQ = [
   {

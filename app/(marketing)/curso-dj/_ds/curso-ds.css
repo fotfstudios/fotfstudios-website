@@ -1,0 +1,258 @@
+/*
+ * Design system de Claude Design ("FOTF Studios — Design System"), acotado a /curso-dj.
+ * Excepción deliberada al Manual de Marca (ver CLAUDE.md → Brand guardrails): aquí el
+ * acento es naranja (#ff4d1d) y la tipografía es Anton / Space Grotesk / Space Mono.
+ * TODO cuelga de .curso-ds — nada de esto puede filtrarse al resto del sitio.
+ */
+
+.curso-ds {
+  /* Base */
+  --orange: #ff4d1d;
+  --orange-bright: #ff6a3d;
+  --orange-deep: #df3a0e;
+  --gold: #e8c94a;
+  --gold-bright: #f2d868;
+  --gold-deep: #c9ab2e;
+  --cream: #f5f2ec;
+  --black-950: #0a0a0a;
+  --black-900: #1a1a1a;
+  --grey-850: #222120;
+  --grey-700: #3a3a3a;
+  --grey-600: #4e4c47;
+  --grey-500: #6f6c65;
+  --grey-400: #949086;
+  --grey-300: #b9b4a9;
+  --grey-200: #d7d2c7;
+  --danger: #e5484d;
+
+  /* Semántica */
+  --bg-page: var(--black-950);
+  --surface-card: var(--black-900);
+  --surface-raised: #242322;
+  --surface-input: #141413;
+  --border-subtle: #272624;
+  --border-strong: var(--grey-700);
+  /* Borde de controles (inputs, pills): 3.3:1 sobre el fondo (WCAG 1.4.11). Adición
+     local — el sistema de Claude Design usa border-subtle, que no llega. */
+  --border-control: #65625c;
+  --text-primary: var(--cream);
+  --text-secondary: var(--grey-300);
+  --text-muted: var(--grey-400);
+  --text-inverse: var(--black-950);
+  --accent: var(--orange);
+  --accent-hover: var(--orange-bright);
+  --accent-press: var(--orange-deep);
+
+  /* Forma */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --control-h-sm: 36px;
+  --control-h-md: 44px;
+  --control-h-lg: 56px;
+
+  /* Efectos */
+  --glow-accent: 0 0 0 1px rgba(255, 77, 29, 0.3), 0 0 36px rgba(255, 77, 29, 0.25);
+  --focus-ring: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--accent);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-med: 220ms;
+
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-ds-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.curso-ds ::selection {
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.curso-ds :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- Tipografía ---------- */
+
+.curso-ds .ds-eyebrow {
+  font-family: var(--font-ds-body), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.curso-ds .ds-display {
+  font-family: var(--font-ds-display), Impact, sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.curso-ds .ds-h1 {
+  margin: 0;
+  font-family: var(--font-ds-display), Impact, sans-serif;
+  font-weight: 400;
+  font-size: clamp(56px, 13vw, 128px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.curso-ds .ds-h2 {
+  margin: 0;
+  font-family: var(--font-ds-display), Impact, sans-serif;
+  font-weight: 400;
+  font-size: clamp(40px, 7vw, 64px);
+  line-height: 1;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.curso-ds .ds-mono {
+  font-family: var(--font-ds-mono), ui-monospace, monospace;
+}
+
+/* ---------- Button ---------- */
+
+.curso-ds .ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ds-body), system-ui, sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out);
+}
+.curso-ds .ds-btn:active {
+  transform: translateY(1px);
+}
+.curso-ds .ds-btn:disabled,
+.curso-ds .ds-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.curso-ds .ds-btn--sm { min-height: var(--control-h-sm); padding: 0 14px; font-size: 12px; }
+.curso-ds .ds-btn--md { min-height: var(--control-h-md); padding: 0 22px; font-size: 14px; }
+.curso-ds .ds-btn--lg { min-height: var(--control-h-lg); padding: 0 30px; font-size: 15px; }
+.curso-ds .ds-btn--full { width: 100%; }
+
+.curso-ds .ds-btn--primary { background: var(--accent); color: var(--text-inverse); }
+.curso-ds .ds-btn--primary:hover { background: var(--accent-hover); }
+.curso-ds .ds-btn--primary:active { background: var(--accent-press); }
+.curso-ds .ds-btn--glow { box-shadow: var(--glow-accent); }
+.curso-ds .ds-btn--glow:focus-visible { box-shadow: var(--focus-ring), var(--glow-accent); }
+
+.curso-ds .ds-btn--gold { background: var(--gold); color: var(--text-inverse); }
+.curso-ds .ds-btn--gold:hover { background: var(--gold-bright); }
+.curso-ds .ds-btn--gold:active { background: var(--gold-deep); }
+
+.curso-ds .ds-btn--secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.curso-ds .ds-btn--secondary:hover {
+  background: var(--surface-raised);
+  border-color: var(--grey-600);
+}
+
+.curso-ds .ds-btn--ghost { background: transparent; color: var(--text-secondary); }
+.curso-ds .ds-btn--ghost:hover { background: var(--surface-raised); color: var(--text-primary); }
+
+/* ---------- Input ---------- */
+
+.curso-ds .ds-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--control-h-md);
+  padding: 0 14px;
+  background: var(--surface-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ds-body), system-ui, sans-serif;
+  font-size: 16px;
+  outline: none;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.curso-ds textarea.ds-input {
+  padding: 12px 14px;
+  min-height: 104px;
+  resize: vertical;
+}
+.curso-ds .ds-input::placeholder { color: var(--grey-500); }
+.curso-ds .ds-input:hover { border-color: var(--grey-400); }
+.curso-ds .ds-input:focus,
+.curso-ds .ds-input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.curso-ds .ds-input--mono { font-family: var(--font-ds-mono), ui-monospace, monospace; }
+.curso-ds .ds-input[aria-invalid="true"] { border-color: var(--danger); }
+.curso-ds .ds-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 1px var(--danger); }
+
+/* ---------- Pills (selección única) ---------- */
+
+.curso-ds .ds-pill {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-control);
+  background: var(--surface-input);
+  color: var(--text-primary);
+  font-family: var(--font-ds-body), system-ui, sans-serif;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.curso-ds .ds-pill:hover { border-color: var(--grey-400); background: var(--surface-raised); }
+.curso-ds .ds-pill:has(:focus-visible) { box-shadow: var(--focus-ring); }
+.curso-ds .ds-pill:has(:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+
+/* ---------- FAQ (details/summary nativo) ---------- */
+
+.curso-ds .ds-faq summary { list-style: none; cursor: pointer; }
+.curso-ds .ds-faq summary::-webkit-details-marker { display: none; }
+.curso-ds .ds-faq .ds-faq-sign::before { content: "+"; }
+.curso-ds .ds-faq[open] .ds-faq-sign::before { content: "−"; }
+
+/* ---------- Faders ---------- */
+
+@keyframes ds-level {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curso-ds *,
+  .curso-ds *::before,
+  .curso-ds *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
