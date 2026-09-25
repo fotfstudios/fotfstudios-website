@@ -7,18 +7,20 @@ import { SITE, SITE_URL } from "@/lib/site";
 import { FAQ, PRECIOS, PROGRAMA } from "@/lib/curso-content";
 import { CURSO_ABIERTO } from "@/lib/flags";
 import CursoPausado from "./_components/CursoPausado";
-import CursoHero from "./_components/CursoHero";
-import Resultado from "./_components/Resultado";
-import ParaQuien from "./_components/ParaQuien";
-import Sesiones from "./_components/Sesiones";
-import LaClase from "./_components/LaClase";
-import LosDjs from "./_components/LosDjs";
-import Equipos from "./_components/Equipos";
-import Inscripcion from "./_components/Inscripcion";
-import Precios from "./_components/Precios";
-import Prueba from "./_components/Prueba";
-import Faq from "./_components/Faq";
-import CierreCurso from "./_components/CierreCurso";
+import { cursoDsFonts } from "./_ds/fonts";
+import "./_ds/curso-ds.css";
+import DsHeader from "./_components/DsHeader";
+import DsHero from "./_components/DsHero";
+import DsStats from "./_components/DsStats";
+import DsPrograma from "./_components/DsPrograma";
+import DsSala from "./_components/DsSala";
+import DsComoFunciona from "./_components/DsComoFunciona";
+import DsPrecios from "./_components/DsPrecios";
+import DsReserva from "./_components/DsReserva";
+import DsFaq from "./_components/DsFaq";
+import DsNovedades from "./_components/DsNovedades";
+import DsFooter from "./_components/DsFooter";
+import DsStickyCta from "./_components/DsStickyCta";
 
 const DESCRIPTION =
   "Curso de DJ 1:1 para principiantes en Viña del Mar: 6 sesiones en equipos Pioneer reales, 6 horas de práctica libre y tu set final grabado en audio y video. Parte cuando quieras.";
@@ -131,15 +133,41 @@ const breadcrumbLd = {
 const jsonLd = CURSO_ABIERTO ? [courseLd, faqLd, breadcrumbLd] : [breadcrumbLd];
 
 export default function CursoDjPage() {
+  const ld = (
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+  );
+
+  // Abierto: el design system de Claude Design (_ds/), acotado a este wrapper.
+  // Sin transform/filter/backdrop-filter aquí: sería el containing block del cursor
+  // y del banner de consentimiento (position: fixed).
+  if (CURSO_ABIERTO) {
+    return (
+      <div className={`curso-ds ${cursoDsFonts} min-h-screen`}>
+        {ld}
+        <DsHeader />
+        <main>
+          <DsHero />
+          <DsStats />
+          <DsPrograma />
+          <DsSala />
+          <DsComoFunciona />
+          <DsPrecios />
+          <DsReserva />
+          {/* TESTIMONIOS: real student quotes/sets go here once the first
+              students finish — deliberately no empty social proof until then. */}
+          <DsFaq />
+          <DsNovedades />
+        </main>
+        <DsFooter />
+        <DsStickyCta />
+      </div>
+    );
+  }
+
+  // En pausa: la marca del sitio de siempre.
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-
-      {/* Minimal header on purpose: the page's only conversion action is
-          WhatsApp, so no site Nav (it embeds the Reservar booking CTA). */}
+      {ld}
       <header className="absolute inset-x-0 top-0 z-20">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-5 pt-6 md:px-10">
           <Link
@@ -157,29 +185,9 @@ export default function CursoDjPage() {
           </Link>
         </div>
       </header>
-
-      {CURSO_ABIERTO ? (
-        <main>
-          <CursoHero />
-          <Resultado />
-          <ParaQuien />
-          <Sesiones />
-          <LaClase />
-          <Equipos />
-          <LosDjs />
-          <Precios />
-          <Inscripcion />
-          <Prueba />
-          {/* TESTIMONIOS: real student quotes/sets go here once the first
-              students finish — deliberately no empty social proof until then. */}
-          <Faq />
-          <CierreCurso />
-        </main>
-      ) : (
-        <main>
-          <CursoPausado />
-        </main>
-      )}
+      <main>
+        <CursoPausado />
+      </main>
       <Footer />
     </>
   );
