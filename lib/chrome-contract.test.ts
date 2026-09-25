@@ -346,13 +346,21 @@ describe("design system de Claude Design: acotado a /curso-dj", () => {
     readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
       .filter((f) => /\.(tsx?|css)$/.test(f))
       .map((f) => join(dir, f));
-  const DS_FONT = /\b(Anton|Space_Grotesk|Space_Mono)\b|--font-ds-|curso-ds\.css/;
+  const DS_FONT = /\b(Anton|Space_Grotesk|Space_Mono)\b|--font-ds-|curso-ds\.css|_ds\/fonts\//;
 
   it("las fuentes y los tokens del sistema solo aparecen bajo curso-dj/", () => {
     const offenders = [...codeUnder("app"), ...codeUnder("components"), ...codeUnder("lib")]
       .filter((f) => !f.startsWith(DS_DIR) && !f.endsWith("chrome-contract.test.ts"))
       .filter((f) => DS_FONT.test(read(f)));
     expect(offenders).toEqual([]);
+  });
+
+  it("las fuentes van autoalojadas (next/font/local), no por Google en build", () => {
+    // next/font/google revienta el build cuando Google sirve estas familias con URLs sin
+    // extensión (CI de #223). Autoalojadas, el build no depende de la red.
+    const src = read("app/(marketing)/curso-dj/_ds/fonts.ts");
+    expect(src).toContain('from "next/font/local"');
+    expect(src).not.toContain("next/font/google");
   });
 
   it("el root layout no carga las fuentes del sistema", () => {
