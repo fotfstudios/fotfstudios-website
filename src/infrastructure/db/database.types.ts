@@ -962,6 +962,60 @@ export type Database = {
         }
         Relationships: []
       }
+      newsletter_subscribers: {
+        Row: {
+          consent_at: string
+          created_at: string
+          email: string
+          id: string
+          referrer_host: string | null
+          request_count: number
+          source: string
+          unsubscribe_token: string
+          unsubscribed_at: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          consent_at?: string
+          created_at?: string
+          email: string
+          id?: string
+          referrer_host?: string | null
+          request_count?: number
+          source: string
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          consent_at?: string
+          created_at?: string
+          email?: string
+          id?: string
+          referrer_host?: string | null
+          request_count?: number
+          source?: string
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
+      }
       notification_log: {
         Row: {
           created_at: string
@@ -2075,6 +2129,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      newsletter_subscribe: {
+        Args: {
+          p_email: string
+          p_referrer_host?: string
+          p_source: string
+          p_utm_campaign?: string
+          p_utm_content?: string
+          p_utm_medium?: string
+          p_utm_source?: string
+          p_utm_term?: string
+        }
+        Returns: {
+          id: string
+          unsubscribe_token: string
+          welcome: boolean
+        }[]
+      }
+      newsletter_unsubscribe: { Args: { p_token: string }; Returns: string }
       notification_log_record: {
         Args: {
           p_error: string
