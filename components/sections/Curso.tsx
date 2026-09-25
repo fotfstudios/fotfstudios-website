@@ -3,7 +3,7 @@ import { Section, SectionHead } from "../Section";
 import Reveal from "../Reveal";
 import Magnetic from "../Magnetic";
 import { formatCLP } from "@/lib/pricing";
-import { CURSO, PRECIOS } from "@/lib/curso-content";
+import { CURSO, PRECIOS, PROGRAMA } from "@/lib/curso-content";
 
 /**
  * Home cross-sell for the course. The CTA routes to /curso-dj — the landing
@@ -23,14 +23,15 @@ export default function Curso() {
 
         <Reveal delay={80}>
           <p className="mt-6 max-w-md text-sm leading-relaxed text-bone-dim">
-            4 sesiones en equipos Pioneer reales, práctica libre y tu set final
-            grabado en audio y video. {CURSO.generacion} · {CURSO.cupos} cupos.
+            {PROGRAMA.sesiones} sesiones 1:1 con un DJ en equipos Pioneer reales, práctica
+            libre y tu set final grabado en audio y video. Parte cuando quieras.{" "}
+            {CURSO.lanzamiento}.
           </p>
         </Reveal>
 
         <Reveal delay={100} className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
           {[
-            ["Programa", "4 sesiones · 12 hrs", false],
+            ["Programa", `${PROGRAMA.sesiones} sesiones · 1:1`, false],
             ["Cierre", "Set final grabado", false],
             ["Desde · por persona", formatCLP(PRECIOS.duo), true],
           ].map(([k, v, gold]) => (

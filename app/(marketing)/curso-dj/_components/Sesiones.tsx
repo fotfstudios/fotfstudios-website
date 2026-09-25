@@ -5,7 +5,7 @@ import { SESIONES } from "@/lib/curso-content";
 export default function Sesiones() {
   return (
     <Section id="sesiones">
-      <SectionHead n="03" kicker="Las 4 sesiones" lines={["Cuatro sesiones,", "un método."]} />
+      <SectionHead n="03" kicker={`Las ${SESIONES.length} sesiones`} lines={["Seis sesiones,", "un método."]} />
 
       <Reveal delay={120}>
         <p className="font-editorial mt-8 max-w-xl text-2xl leading-snug text-bone-dim">

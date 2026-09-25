@@ -4,7 +4,7 @@ import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
 import { pageMetadata } from "@/lib/seo";
 import { SITE, SITE_URL } from "@/lib/site";
-import { FAQ, PRECIOS } from "@/lib/curso-content";
+import { FAQ, PRECIOS, PROGRAMA } from "@/lib/curso-content";
 import { CURSO_ABIERTO } from "@/lib/flags";
 import CursoPausado from "./_components/CursoPausado";
 import CursoHero from "./_components/CursoHero";
@@ -21,7 +21,10 @@ import Faq from "./_components/Faq";
 import CierreCurso from "./_components/CierreCurso";
 
 const DESCRIPTION =
-  "Curso de DJ para principiantes en Viña del Mar: 4 sesiones en equipos Pioneer reales, 12 horas de estudio y tu set final grabado en audio y video. 6 cupos por generación.";
+  "Curso de DJ 1:1 para principiantes en Viña del Mar: 6 sesiones en equipos Pioneer reales, 6 horas de práctica libre y tu set final grabado en audio y video. Parte cuando quieras.";
+
+// ISO 8601 durations for the Course schema, from the one program definition.
+const SESSION_DURATION = `PT${Math.floor(PROGRAMA.minutosPorSesion / 60)}H${PROGRAMA.minutosPorSesion % 60}M`;
 
 // En pausa la página conserva su URL y título (el ranking), pero no promete
 // sesiones, horas ni cupos que se están redefiniendo.
@@ -41,7 +44,7 @@ const courseLd = {
   "@type": "Course",
   name: "Curso de DJ en Viña del Mar",
   description:
-    "Curso de DJ presencial para principiantes en Viña del Mar: 4 sesiones de 2 horas en equipos Pioneer (XDJ-1000MK2, DJM-450), 4 horas de práctica libre y set final grabado en audio y video.",
+    "Curso de DJ presencial 1:1 para principiantes en Viña del Mar: 6 sesiones de 90 minutos con un DJ en equipos Pioneer (XDJ-1000MK2, DJM-450), 6 horas de práctica libre y set final grabado en audio y video.",
   url: `${SITE_URL}/curso-dj`,
   inLanguage: "es-CL",
   provider: {
@@ -59,18 +62,18 @@ const courseLd = {
   offers: [
     {
       "@type": "Offer",
-      name: "En dúo (precio por persona)",
-      price: PRECIOS.duo,
+      name: "Individual (1:1)",
+      price: PRECIOS.individual,
       priceCurrency: "CLP",
-      availability: "https://schema.org/LimitedAvailability",
+      availability: "https://schema.org/InStock",
       url: `${SITE_URL}/curso-dj`,
     },
     {
       "@type": "Offer",
-      name: "Individual",
-      price: PRECIOS.individual,
+      name: "En dúo (precio por persona)",
+      price: PRECIOS.duo,
       priceCurrency: "CLP",
-      availability: "https://schema.org/LimitedAvailability",
+      availability: "https://schema.org/InStock",
       url: `${SITE_URL}/curso-dj`,
     },
     {
@@ -84,12 +87,12 @@ const courseLd = {
   hasCourseInstance: {
     "@type": "CourseInstance",
     courseMode: "Onsite",
-    courseWorkload: "PT12H",
+    courseWorkload: `PT${PROGRAMA.horasClase}H`,
     courseSchedule: {
       "@type": "Schedule",
-      repeatCount: 4,
+      repeatCount: PROGRAMA.sesiones,
       repeatFrequency: "Weekly",
-      duration: "PT2H",
+      duration: SESSION_DURATION,
     },
     location: {
       "@type": "Place",
@@ -167,8 +170,8 @@ export default function CursoDjPage() {
           <Precios />
           <Inscripcion />
           <Prueba />
-          {/* TESTIMONIOS: real student quotes/sets go here once generation 01
-              exists — deliberately no empty social proof until then. */}
+          {/* TESTIMONIOS: real student quotes/sets go here once the first
+              students finish — deliberately no empty social proof until then. */}
           <Faq />
           <CierreCurso />
         </main>

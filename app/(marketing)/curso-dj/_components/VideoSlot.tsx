@@ -9,9 +9,9 @@ export default function VideoSlot() {
   if (!CURSO.videoSrc) {
     return (
       <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 border border-dashed border-bone/25 bg-ink-soft/40 px-6 text-center">
-        <span className="label text-gold">Set final · generación 01</span>
+        <span className="label text-gold">Set final · sesión 06</span>
         <span className="label-sm max-w-sm leading-relaxed text-bone-mute">
-          Aquí se publica el set grabado de la primera generación
+          Aquí se publica el primer set final grabado en el curso
         </span>
       </div>
     );
