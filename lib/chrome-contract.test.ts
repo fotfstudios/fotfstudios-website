@@ -335,3 +335,27 @@ describe("de-marketing (D6): booth-glow retirado", () => {
     expect(read("app/globals.css")).not.toContain("booth-glow");
   });
 });
+
+describe("design system de Claude Design: acotado a /curso-dj", () => {
+  // Excepción deliberada al Manual de Marca (CLAUDE.md → Brand guardrails): /curso-dj
+  // abierto usa Anton / Space Grotesk / Space Mono y acento naranja. Las fuentes se
+  // cargan en curso-dj/_ds/fonts.ts y se aplican en el wrapper .curso-ds de la página,
+  // nunca en <html>; ninguna otra ruta ni componente compartido las toma.
+  const DS_DIR = "app/(marketing)/curso-dj/";
+  const codeUnder = (dir: string): string[] =>
+    readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
+      .filter((f) => /\.(tsx?|css)$/.test(f))
+      .map((f) => join(dir, f));
+  const DS_FONT = /\b(Anton|Space_Grotesk|Space_Mono)\b|--font-ds-|curso-ds\.css/;
+
+  it("las fuentes y los tokens del sistema solo aparecen bajo curso-dj/", () => {
+    const offenders = [...codeUnder("app"), ...codeUnder("components"), ...codeUnder("lib")]
+      .filter((f) => !f.startsWith(DS_DIR) && !f.endsWith("chrome-contract.test.ts"))
+      .filter((f) => DS_FONT.test(read(f)));
+    expect(offenders).toEqual([]);
+  });
+
+  it("el root layout no carga las fuentes del sistema", () => {
+    expect(read("app/layout.tsx")).not.toMatch(DS_FONT);
+  });
+});
