@@ -575,6 +575,29 @@ Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.
 }
 
 /**
+ * Bienvenida al newsletter ("Sigue aprendiendo", /curso-dj). Solo en alta nueva o re-alta.
+ * El link de baja va en TODOS los correos de la lista: esta es la primera vez que la
+ * persona lo ve, y la promesa del formulario ("te das de baja cuando quieras") vive acá.
+ */
+export function newsletterWelcome(v: { unsubscribeUrl: string; blogUrl: string }): EmailContent {
+  const baja = esc(v.unsubscribeUrl);
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Quedaste en la lista</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">Te vamos a escribir cuando publiquemos una guía o un artículo nuevo para aprender a mezclar. Solo eso: nada de promociones diarias.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Mientras tanto, lo último está en el blog.</p>
+     <a href="${esc(v.blogUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Ir al blog</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:28px 0 0">¿No lo pediste o ya no quieres recibirlo? <a href="${baja}" style="color:${T.gold};text-decoration:underline">Date de baja aquí</a>.</p>`,
+    "Te avisamos cuando haya una guía o un post nuevo.",
+  );
+  const text = `Quedaste en la lista de FOTF Studios: te escribimos cuando publiquemos una guía o un artículo nuevo. Solo eso.
+
+Lo último está en el blog: ${v.blogUrl}
+
+¿No lo pediste o ya no quieres recibirlo? Date de baja: ${v.unsubscribeUrl}`;
+  return { template: "newsletterWelcome", subject: "Quedaste en la lista — FOTF Studios", html, text };
+}
+
+/**
  * Email al alumno: cupo confirmado. Recién ACÁ viaja la dirección — la FAQ de la
  * landing promete que se comparte al confirmar la inscripción, y una solicitud sin
  * pagar no lo es. Lleva las fechas de todas las sesiones porque el curso se compra

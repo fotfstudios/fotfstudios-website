@@ -17,6 +17,8 @@ import { SupabaseRateLimiter } from "@/src/infrastructure/db/rate-limit-reposito
 import { SupabaseGuideLeadRepository } from "@/src/infrastructure/db/guide-lead-repository";
 import { SupabaseGuideFileStore } from "@/src/infrastructure/storage/guide-file-store";
 import { GuideService } from "@/src/application/guide/guide-service";
+import { SupabaseNewsletterRepository } from "@/src/infrastructure/db/newsletter-repository";
+import { NewsletterService } from "@/src/application/newsletter/newsletter-service";
 import type { GuideCatalog } from "@/src/application/ports/guide";
 import { AvailabilityService } from "@/src/application/availability/availability-service";
 import { NotificationService } from "@/src/application/notifications/notification-service";
@@ -478,3 +480,12 @@ export function memberService(
 
 /** Feature flag: el flujo de reserva nace apagado en producción. */
 export const bookingEnabled = (): boolean => process.env.NEXT_PUBLIC_BOOKING_ENABLED === "true";
+
+/** Suscriptores del newsletter para el admin (lista, CSV). */
+export function newsletterRepository(client: SupabaseClient<Database> = db()): SupabaseNewsletterRepository {
+  return new SupabaseNewsletterRepository(client);
+}
+
+export function newsletterService(client: SupabaseClient<Database> = db()): NewsletterService {
+  return new NewsletterService(new SupabaseNewsletterRepository(client), notificationService(client));
+}

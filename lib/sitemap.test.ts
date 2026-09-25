@@ -113,7 +113,7 @@ describe("buildSitemap", () => {
 
   it("no lista las rutas que no se indexan", () => {
     const m = buildSitemap([], NOW);
-    for (const p of ["/curso-dj/pago", "/guia-dj/descarga", "/reservar", "/cuenta", "/admin"]) {
+    for (const p of ["/curso-dj/pago", "/guia-dj/descarga", "/baja", "/reservar", "/cuenta", "/admin"]) {
       expect(m.some((e) => e.url.includes(p)), p).toBe(false);
     }
   });

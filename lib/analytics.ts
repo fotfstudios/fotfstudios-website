@@ -67,6 +67,16 @@ export function trackGuideLead(step: "start" | "submit", guide: string, source: 
 }
 
 /**
+ * Suscripción al newsletter ("Sigue aprendiendo"). `start` al primer tecleo, `submit`
+ * solo con 200 del route. `source` es el formulario (hoy solo "curso_dj").
+ * Recordar: cada evento nuevo necesita su trigger + etiqueta en GTM.
+ */
+export function trackNewsletter(step: "start" | "submit", source: string): void {
+  if (typeof window === "undefined") return;
+  pushEvent(`newsletter_${step}`, { page: "curso-dj", source });
+}
+
+/**
  * Clic en el CTA de cierre de un artículo hacia su guía en PDF. Es el único salto
  * medible del embudo artículo → guía: el artículo es abierto y la guía pide el correo.
  * `guide` es el slug del imán; `page` es el artículo desde donde se saltó.

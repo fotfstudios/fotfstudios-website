@@ -9,6 +9,7 @@ import {
   trackBookingCta,
   trackGuideCtaClick,
   trackGuideLead,
+  trackNewsletter,
   trackWhatsAppClick,
 } from "./analytics";
 
@@ -91,6 +92,18 @@ describe("trackBookingCta", () => {
       placement: "nav",
       page: "home",
     });
+  });
+});
+
+describe("trackNewsletter", () => {
+  it("emite newsletter_start / newsletter_submit con el formulario de origen", () => {
+    const dl = stubWindow("/curso-dj");
+    trackNewsletter("start", "curso_dj");
+    trackNewsletter("submit", "curso_dj");
+    expect(dl).toEqual([
+      { event: "newsletter_start", page: "curso-dj", source: "curso_dj" },
+      { event: "newsletter_submit", page: "curso-dj", source: "curso_dj" },
+    ]);
   });
 });
 
