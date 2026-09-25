@@ -27,6 +27,7 @@ import {
   ownerNotification,
   courseLeadConfirmation,
   guideDelivery,
+  newsletterWelcome,
   ownerNewCourseLead,
   courseEnrollmentCancelled,
   courseEnrollmentRefunded,
@@ -407,6 +408,20 @@ export class NotificationService {
     await this.mailer.send({
       to: v.email,
       ...guideDelivery({ downloadUrl, copy: v.copy }, { whatsappUrl: this.config.whatsappUrl }),
+    });
+  }
+
+  /**
+   * Bienvenida al newsletter con su link de baja. El error del mailer se propaga:
+   * NewsletterService decide que es best-effort (la suscripción ya quedó guardada).
+   */
+  async notifyNewsletterWelcome(v: { email: string; unsubscribeToken: string }): Promise<void> {
+    await this.mailer.send({
+      to: v.email,
+      ...newsletterWelcome({
+        unsubscribeUrl: `${this.config.siteUrl}/baja/${v.unsubscribeToken}`,
+        blogUrl: `${this.config.siteUrl}/blog`,
+      }),
     });
   }
 

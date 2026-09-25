@@ -144,6 +144,11 @@ export default function PrivacidadPage() {
               que decidas contarnos.
             </li>
             <li>
+              <strong className="text-bone">Suscripción a novedades:</strong> si te suscribes a los
+              avisos de guías y posts nuevos, tu correo, la fecha en que lo aceptaste y desde dónde
+              llegaste (parámetros de campaña y el sitio que te refirió).
+            </li>
+            <li>
               <strong className="text-bone">Datos de seguridad:</strong> tu dirección IP, de forma
               temporal y seudonimizada (guardamos solo un hash), para prevenir el abuso y el spam de
               nuestros formularios.
@@ -158,6 +163,10 @@ export default function PrivacidadPage() {
             <li>Enviarte la confirmación y coordinar el acceso a la sala.</li>
             <li>Responder tus mensajes (por ejemplo, por WhatsApp).</li>
             <li>Revisar tu postulación al equipo y contactarte si calza.</li>
+            <li>
+              Avisarte de guías y posts nuevos, solo si te suscribiste. Cada correo trae un link para
+              darte de baja cuando quieras.
+            </li>
             <li>Prevenir el abuso y el spam en nuestros formularios (seguridad del sitio).</li>
             <li>Medir el tráfico del sitio y mejorar la experiencia.</li>
           </ul>
@@ -166,7 +175,7 @@ export default function PrivacidadPage() {
         <ProseSection title="Base de licitud">
           <p>
             Tratamos tus datos sobre la base de: tu <strong className="text-bone">consentimiento</strong>{" "}
-            (para la analítica y las cookies no esenciales), la{" "}
+            (para la analítica, las cookies no esenciales y los avisos de novedades), la{" "}
             <strong className="text-bone">ejecución de la reserva</strong> que solicitas, el{" "}
             <strong className="text-bone">cumplimiento de obligaciones legales</strong> tributarias
             (boleta), y nuestro <strong className="text-bone">interés legítimo</strong> en revisar las
