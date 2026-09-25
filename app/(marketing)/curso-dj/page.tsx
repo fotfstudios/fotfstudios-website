@@ -5,6 +5,8 @@ import Footer from "@/components/Footer";
 import { pageMetadata } from "@/lib/seo";
 import { SITE, SITE_URL } from "@/lib/site";
 import { FAQ, PRECIOS } from "@/lib/curso-content";
+import { CURSO_ABIERTO } from "@/lib/flags";
+import CursoPausado from "./_components/CursoPausado";
 import CursoHero from "./_components/CursoHero";
 import Resultado from "./_components/Resultado";
 import ParaQuien from "./_components/ParaQuien";
@@ -21,9 +23,14 @@ import CierreCurso from "./_components/CierreCurso";
 const DESCRIPTION =
   "Curso de DJ para principiantes en Viña del Mar: 4 sesiones en equipos Pioneer reales, 12 horas de estudio y tu set final grabado en audio y video. 6 cupos por generación.";
 
+// En pausa la página conserva su URL y título (el ranking), pero no promete
+// sesiones, horas ni cupos que se están redefiniendo.
+const DESCRIPTION_PAUSA =
+  "El curso de DJ de FOTF Studios en Viña del Mar se está rearmando: nueva generación y nuevo programa. Escríbenos por WhatsApp y te avisamos cuando abran las inscripciones.";
+
 export const metadata: Metadata = pageMetadata({
   title: "Curso de DJ en Viña del Mar",
-  description: DESCRIPTION,
+  description: CURSO_ABIERTO ? DESCRIPTION : DESCRIPTION_PAUSA,
   path: "/curso-dj",
 });
 
@@ -116,7 +123,9 @@ const breadcrumbLd = {
   ],
 };
 
-const jsonLd = [courseLd, faqLd, breadcrumbLd];
+// En pausa, solo el breadcrumb: Course/Offer con precios que ya no rigen sería
+// marcado estructurado falso, y el FAQ describe el programa viejo.
+const jsonLd = CURSO_ABIERTO ? [courseLd, faqLd, breadcrumbLd] : [breadcrumbLd];
 
 export default function CursoDjPage() {
   return (
@@ -146,22 +155,28 @@ export default function CursoDjPage() {
         </div>
       </header>
 
-      <main>
-        <CursoHero />
-        <Resultado />
-        <ParaQuien />
-        <Sesiones />
-        <LaClase />
-        <Equipos />
-        <LosDjs />
-        <Precios />
-        <Inscripcion />
-        <Prueba />
-        {/* TESTIMONIOS: real student quotes/sets go here once generation 01
-            exists — deliberately no empty social proof until then. */}
-        <Faq />
-        <CierreCurso />
-      </main>
+      {CURSO_ABIERTO ? (
+        <main>
+          <CursoHero />
+          <Resultado />
+          <ParaQuien />
+          <Sesiones />
+          <LaClase />
+          <Equipos />
+          <LosDjs />
+          <Precios />
+          <Inscripcion />
+          <Prueba />
+          {/* TESTIMONIOS: real student quotes/sets go here once generation 01
+              exists — deliberately no empty social proof until then. */}
+          <Faq />
+          <CierreCurso />
+        </main>
+      ) : (
+        <main>
+          <CursoPausado />
+        </main>
+      )}
       <Footer />
     </>
   );

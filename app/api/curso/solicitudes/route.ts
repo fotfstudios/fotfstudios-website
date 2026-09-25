@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { courseRepository, db, notificationService, rateLimiter } from "@/src/composition";
 import { parseCourseLead } from "@/src/domain/course/lead";
 import { clientIpFromHeaders } from "@/lib/request-ip";
+import { CURSO_ABIERTO } from "@/lib/flags";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,10 @@ function rateKey(ip: string): string {
  * 200 idéntico al éxito para no delatar el filtro.
  */
 export async function POST(req: Request): Promise<Response> {
+  // Curso en pausa: la página ya no muestra el formulario, pero una pestaña vieja o un
+  // bot todavía pueden postear. 410 antes de tocar la DB: nada de solicitudes huérfanas.
+  if (!CURSO_ABIERTO) return Response.json({ error: "curso_cerrado" }, { status: 410 });
+
   // Anti-abuso barato: un body gigante ni llega a JSON.parse (los campos suman < 2 KB).
   const len = Number(req.headers.get("content-length") ?? 0);
   if (len > 8_192) return Response.json({ error: "validacion" }, { status: 400 });

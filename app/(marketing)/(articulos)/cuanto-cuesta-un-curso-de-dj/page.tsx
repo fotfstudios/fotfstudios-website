@@ -4,9 +4,13 @@ import { ProseSection } from "@/components/article/ProseSection";
 import { articleJsonLd } from "@/lib/articles/jsonld";
 import { formatCLP, RATES } from "@/lib/pricing";
 import { PRECIOS } from "@/lib/curso-content";
+import { CURSO_ABIERTO } from "@/lib/flags";
 
-const DESCRIPTION =
-  "Qué determina el precio de un curso de DJ en Chile, cómo comparar programas — y nuestros precios publicados, sin 'desde' ni formularios de contacto.";
+// Con el curso en pausa el artículo sigue vivo (trae tráfico), pero no promete ni
+// muestra precios que se están redefiniendo.
+const DESCRIPTION = CURSO_ABIERTO
+  ? "Qué determina el precio de un curso de DJ en Chile, cómo comparar programas — y nuestros precios publicados, sin 'desde' ni formularios de contacto."
+  : "Qué determina el precio de un curso de DJ en Chile y cómo comparar programas: horas reales de práctica, equipos, alumnos por cabina y lo que te llevas al final.";
 
 export const metadata: Metadata = {
   title: "¿Cuánto cuesta un curso de DJ?",
@@ -37,14 +41,16 @@ export default function CuantoCuestaPage() {
         ¿Cuánto cuesta un curso de DJ?
       </h1>
       <p className="font-editorial mt-4 max-w-xl text-xl text-bone-dim">
-        La respuesta corta de casi todas las academias: “contáctanos”. La nuestra: está publicado.
+        {CURSO_ABIERTO
+          ? "La respuesta corta de casi todas las academias: “contáctanos”. La nuestra: está publicado."
+          : "La respuesta corta de casi todas las academias: “contáctanos”. Aquí, las variables que mueven el número."}
       </p>
 
       <p className="mt-8 leading-relaxed text-bone-dim">
         Si buscaste “curso de dj” y abriste tres sitios, probablemente viste precios “desde”,
         formularios de contacto o nada. No es casualidad: el precio depende de variables que a
-        muchos no les conviene mostrar juntas. Aquí están las variables, cómo comparar — y
-        nuestros números completos.
+        muchos no les conviene mostrar juntas. Aquí están las variables y cómo comparar
+        {CURSO_ABIERTO ? " — y nuestros números completos" : ""}.
       </p>
 
       <ProseSection title="Qué determina el precio">
@@ -72,33 +78,46 @@ export default function CuantoCuestaPage() {
         </ul>
       </ProseSection>
 
-      <ProseSection title="Nuestros precios, publicados">
-        <p>
-          El{" "}
-          <Link href="/curso-dj" className={enlace}>
-            curso de DJ de FOTF Studios en Viña del Mar
-          </Link>{" "}
-          incluye en ambos formatos: 8 horas de clase (4 sesiones de 2 horas), 4 horas de
-          práctica libre en la sala y tu set final grabado en audio y video.
-        </p>
-        <ul className="list-disc space-y-2 pl-5">
-          <li>
-            <strong className="text-bone">En dúo:</strong> {formatCLP(PRECIOS.duo)} por persona.
-          </li>
-          <li>
-            <strong className="text-bone">Individual:</strong> {formatCLP(PRECIOS.individual)}.
-          </li>
-          <li>
-            <strong className="text-bone">Sesión de prueba (1 hora guiada):</strong>{" "}
-            {formatCLP(PRECIOS.prueba)}, 100% descontable del curso si te inscribes dentro de una
-            semana.
-          </li>
-        </ul>
-        <p>
-          IVA incluido, sin letra chica: los mismos números que ves en la página del curso son
-          los que pagas.
-        </p>
-      </ProseSection>
+      {CURSO_ABIERTO ? (
+        <ProseSection title="Nuestros precios, publicados">
+          <p>
+            El{" "}
+            <Link href="/curso-dj" className={enlace}>
+              curso de DJ de FOTF Studios en Viña del Mar
+            </Link>{" "}
+            incluye en ambos formatos: 8 horas de clase (4 sesiones de 2 horas), 4 horas de
+            práctica libre en la sala y tu set final grabado en audio y video.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <strong className="text-bone">En dúo:</strong> {formatCLP(PRECIOS.duo)} por persona.
+            </li>
+            <li>
+              <strong className="text-bone">Individual:</strong> {formatCLP(PRECIOS.individual)}.
+            </li>
+            <li>
+              <strong className="text-bone">Sesión de prueba (1 hora guiada):</strong>{" "}
+              {formatCLP(PRECIOS.prueba)}, 100% descontable del curso si te inscribes dentro de una
+              semana.
+            </li>
+          </ul>
+          <p>
+            IVA incluido, sin letra chica: los mismos números que ves en la página del curso son
+            los que pagas.
+          </p>
+        </ProseSection>
+      ) : (
+        <ProseSection title="Nuestro curso">
+          <p>
+            Estamos rearmando el{" "}
+            <Link href="/curso-dj" className={enlace}>
+              curso de DJ de FOTF Studios en Viña del Mar
+            </Link>
+            : nuevo programa y nuevos precios. Cuando abra la próxima generación, los números
+            van a estar publicados acá, completos.
+          </p>
+        </ProseSection>
+      )}
 
       <ProseSection title="Cómo comparar dos cursos (checklist)">
         <ul className="list-disc space-y-2 pl-5">
@@ -116,7 +135,7 @@ export default function CuantoCuestaPage() {
 
       <ProseSection title="La alternativa: práctica por hora">
         <p>
-          Si prefieres el camino autodidacta, el costo de practicar también está publicado:
+          Si prefieres el camino autodidacta, el costo de practicar{CURSO_ABIERTO ? " también" : ""} está publicado:
           nuestra sala se arrienda desde {formatCLP(RATES.valle)} por hora en horario valle, con
           los mismos equipos del curso. La guía{" "}
           <Link href="/aprender-dj" className={enlace}>

@@ -16,3 +16,14 @@ export function accountEnabled(): boolean {
 export function bookingOnline(): boolean {
   return process.env.NEXT_PUBLIC_BOOKING_ENABLED === "true";
 }
+
+/**
+ * ¿Está abierto el Curso de DJ al público? Constante en código (no env) a propósito:
+ * es una decisión de negocio que se revisa en PR, no un toggle por entorno.
+ *
+ * En `false`: /curso-dj muestra una página de pausa (misma URL, sin precios ni
+ * formulario), el home/nav/footer y los artículos dejan de ofrecerlo y
+ * POST /api/curso/solicitudes responde 410. Siguen vivos /curso-dj/pago, /cuenta/curso
+ * y el admin: los alumnos ya inscritos los necesitan.
+ */
+export const CURSO_ABIERTO = false;
