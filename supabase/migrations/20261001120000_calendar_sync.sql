@@ -169,12 +169,61 @@ begin
 end;
 $$;
 
+-- Cierre de una fila procesada, atómico (PostgREST no puede expresar "pending = version cambió").
+-- Si la versión es la reclamada, queda sincronizada; si un trigger la subió mientras el worker
+-- trabajaba, queda pendiente y el próximo tick la reprocesa con la foto nueva. Con p_gone (la
+-- reserva ya no existe) borra la fila, solo si la versión no cambió.
+create or replace function calendar_sync_mark_synced(
+  p_reservation uuid, p_version bigint, p_event_id text, p_fingerprint text, p_gone boolean
+)
+returns void language plpgsql
+set search_path = public, pg_temp as $$
+begin
+  if p_gone then
+    delete from calendar_sync where reservation_id = p_reservation and version = p_version;
+    if found then return; end if;
+  end if;
+  update calendar_sync
+     set locked_at        = null,
+         attempts         = 0,
+         last_error       = null,
+         last_synced_at   = now(),
+         google_event_id  = p_event_id,
+         last_fingerprint = p_fingerprint,
+         pending          = (version <> p_version),
+         updated_at       = now()
+   where reservation_id = p_reservation;
+end;
+$$;
+
+-- Fallo de una fila: suelta el lease, cuenta el intento y agenda el reintento. Si llegó un
+-- cambio nuevo mientras tanto (version distinta), se reintenta YA: es otra foto, el backoff
+-- de la anterior no aplica.
+create or replace function calendar_sync_mark_failed(
+  p_reservation uuid, p_version bigint, p_error text, p_next timestamptz
+)
+returns void language sql
+set search_path = public, pg_temp as $$
+  update calendar_sync
+     set locked_at       = null,
+         attempts        = attempts + 1,
+         last_error      = left(p_error, 500),
+         pending         = true,
+         next_attempt_at = case when version = p_version then p_next else now() end,
+         updated_at      = now()
+   where reservation_id = p_reservation;
+$$;
+
 revoke execute on function calendar_sync_claim(int, interval) from public, anon, authenticated;
 revoke execute on function calendar_sync_snapshot(uuid) from public, anon, authenticated;
 revoke execute on function calendar_sync_enqueue_all() from public, anon, authenticated;
+revoke execute on function calendar_sync_mark_synced(uuid, bigint, text, text, boolean) from public, anon, authenticated;
+revoke execute on function calendar_sync_mark_failed(uuid, bigint, text, timestamptz) from public, anon, authenticated;
 grant execute on function calendar_sync_claim(int, interval) to service_role;
 grant execute on function calendar_sync_snapshot(uuid) to service_role;
 grant execute on function calendar_sync_enqueue_all() to service_role;
+grant execute on function calendar_sync_mark_synced(uuid, bigint, text, text, boolean) to service_role;
+grant execute on function calendar_sync_mark_failed(uuid, bigint, text, timestamptz) to service_role;
 
 -- ── 4. Backfill ──────────────────────────────────────────────────────────────
 -- La cola nace llena con todo lo futuro: el worker la drena a 25 por minuto cuando exista.

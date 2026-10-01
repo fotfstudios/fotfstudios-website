@@ -872,6 +872,12 @@ isOneToOne: false
 "calendar_sync_enqueue_all":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"calendar_sync_mark_failed":
+{ Args: { "p_error": string,"p_next": string,"p_reservation": string,"p_version": number }; Returns: undefined
+                           },
+"calendar_sync_mark_synced":
+{ Args: { "p_event_id": string,"p_fingerprint": string,"p_gone": boolean,"p_reservation": string,"p_version": number }; Returns: undefined
+                           },
 "calendar_sync_snapshot":
 { Args: { "p_reservation": string }; Returns: {
               "addons": (string)[],"course_n": number,"course_session_status": string,"course_title": string,"customer_name": string,"ends_at": string,"expires_at": string,"generation_name": string,"id": string,"kind": string,"notes": string,"order_id": string,"reschedule_id": string,"starts_at": string,"status": string,"tz": string
