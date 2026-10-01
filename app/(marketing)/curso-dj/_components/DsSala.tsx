@@ -24,7 +24,7 @@ export default function DsSala() {
           />
         )}
         <div className="flex flex-col gap-5">
-          <DsSectionHead id="sala-h" eyebrow="La sala y el equipo" title="Aprendes en equipo de club" />
+          <DsSectionHead id="sala-h" eyebrow="La sala y el equipo" title="Clases de DJ en equipo de club" />
           <p className="m-0 text-[17px] leading-relaxed text-pretty text-[var(--grey-200)]">
             Las mismas máquinas que vas a encontrar en una cabina, en una sala aislada acústicamente
             donde puedes tocar fuerte sin molestar a nadie.
