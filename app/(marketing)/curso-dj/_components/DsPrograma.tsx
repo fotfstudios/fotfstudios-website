@@ -4,7 +4,7 @@ import DsSectionHead from "./DsSectionHead";
 export default function DsPrograma() {
   return (
     <section id="programa" aria-labelledby="programa-h" className="mx-auto flex max-w-[1120px] flex-col gap-8 px-5 py-18">
-      <DsSectionHead id="programa-h" eyebrow="Programa" title={`${PROGRAMA.sesiones} sesiones, una por semana`} />
+      <DsSectionHead id="programa-h" eyebrow="Programa" title={`El curso de DJ: ${PROGRAMA.sesiones} sesiones, una por semana`} />
       <ol className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3 p-0">
         {SESIONES.map((s) => (
           <li

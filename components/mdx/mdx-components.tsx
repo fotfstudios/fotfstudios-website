@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MDXComponents } from "mdx/types";
 import { Callout } from "./Callout";
+import { CursoAbierto, CursoEnPausa } from "./CursoFlag";
 import { Figure } from "./Figure";
 import { Gear } from "./Gear";
 import { GearModelos } from "./GearModelos";
@@ -121,6 +122,8 @@ export function useMDXComponents(components: MDXComponents = {}): MDXComponents 
     Gear,
     GearModelos,
     Precio,
+    CursoAbierto,
+    CursoEnPausa,
     ...components,
   };
 }

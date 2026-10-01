@@ -27,7 +27,6 @@ export interface PendingArticle {
  * lib/articles/footer-links.test.ts falla si una ruta está en los dos lados a la vez.
  */
 export const PENDING_ARTICLES: readonly PendingArticle[] = [
-  { path: "/cuanto-cuesta-un-curso-de-dj", label: "¿Cuánto cuesta un curso de DJ?" },
   { path: "/xdj-vs-controlador", label: "¿Controlador o equipos de club?" },
 ];
 

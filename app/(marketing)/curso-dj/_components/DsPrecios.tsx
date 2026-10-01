@@ -6,7 +6,7 @@ export default function DsPrecios() {
   return (
     <section id="precios" aria-labelledby="precios-h" className="border-t border-[var(--border-subtle)]">
       <div className="mx-auto flex max-w-[1120px] flex-col gap-7 px-5 py-18">
-        <DsSectionHead id="precios-h" eyebrow={CURSO.lanzamiento} eyebrowClass="text-[var(--gold)]" title="Precios" />
+        <DsSectionHead id="precios-h" eyebrow={CURSO.lanzamiento} eyebrowClass="text-[var(--gold)]" title="Precio del curso de DJ" />
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3">
           <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-card)] p-6">
