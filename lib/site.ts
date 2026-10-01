@@ -19,7 +19,12 @@ export const SITE = {
     "Hola *FOTF Studios*. Quiero reservar una sesión en la sala de ensayo de DJ.",
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=Los+Chercanes+78a+Vi%C3%B1a+del+Mar",
+  /** Place ID del perfil de Google (Business Profile). De acá salen los links de reseñas. */
+  googlePlaceId: "ChIJS9a2LkfdiZYR2ta5v8a8utw",
 } as const;
+
+/** Abre directo el formulario "escribir una reseña" del perfil de Google. */
+export const GOOGLE_REVIEW_URL = `https://search.google.com/local/writereview?placeid=${SITE.googlePlaceId}`;
 
 /**
  * Cierre temporal de la sala. Cuando `active` es `true`:

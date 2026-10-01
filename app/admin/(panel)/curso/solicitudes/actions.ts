@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { type ActionResult, run } from "@/components/admin/ui/action";
 import { isCourseLeadStatus } from "@/src/domain/course/lead";
-import { courseRepository } from "@/src/composition";
+import { courseRepository, notificationService } from "@/src/composition";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
 /**
@@ -24,5 +24,24 @@ export async function setLeadStatusAction(_prev: ActionResult | null, fd: FormDa
     await courseRepository().updateLeadStatus(id, status);
     revalidatePath("/admin/curso/solicitudes");
     revalidatePath("/admin/curso");
+  });
+}
+
+/**
+ * Pide una reseña en Google a quien ya vino a la sala (sesión de prueba o curso).
+ * Manual a propósito: solo el dueño sabe si la persona efectivamente vino. Queda en
+ * notification_log (plantilla courseReviewRequest) como cualquier otro correo.
+ */
+export async function requestReviewAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const id = String(fd.get("id") ?? "").trim();
+    if (!id) throw new Error("Falta la solicitud.");
+    const lead = await courseRepository().getLead(id);
+    if (!lead) throw new Error("No encontramos la solicitud.");
+    if (lead.status !== "contactada" && lead.status !== "inscrita") {
+      throw new Error("Pide la reseña solo a quien ya vino a la sala.");
+    }
+    await notificationService().notifyReviewRequest({ email: lead.email, name: lead.name });
   });
 }
