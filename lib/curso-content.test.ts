@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { articleHref } from "./articles/href";
 import {
+  FAQ,
   INCLUYE,
+  LECTURAS,
+  TESTIMONIOS,
   POR_SEPARADO,
   PRECIOS,
   PRECIOS_LISTA,
@@ -30,5 +34,27 @@ describe("curso-content", () => {
     expect(PRECIOS_LISTA.individual).toBeGreaterThan(PRECIOS.individual);
     expect(PRECIOS_LISTA.duo).toBeGreaterThan(PRECIOS.duo);
     expect(PRECIOS.duo).toBeLessThan(PRECIOS.individual);
+  });
+
+  it("FAQ: preguntas únicas y cubre las búsquedas locales y de intención", () => {
+    const qs = FAQ.map((f) => f.q);
+    expect(new Set(qs).size).toBe(qs.length);
+    const all = FAQ.map((f) => f.q + " " + f.a).join(" ");
+    for (const kw of ["curso de DJ", "principiantes", "Valparaíso", "Quilpué", "Concón"]) {
+      expect(all).toContain(kw);
+    }
+  });
+
+  it("LECTURAS: rutas internas que sobreviven articleHref y sin duplicados", () => {
+    for (const l of LECTURAS) expect(articleHref(l.href)).toBe(l.href);
+    expect(new Set(LECTURAS.map((l) => l.href)).size).toBe(LECTURAS.length);
+  });
+
+  it("TESTIMONIOS: citas reales y cortas", () => {
+    for (const t of TESTIMONIOS) {
+      expect(t.name.trim()).not.toBe("");
+      expect(t.quote.length).toBeGreaterThan(0);
+      expect(t.quote.length).toBeLessThanOrEqual(300);
+    }
   });
 });
