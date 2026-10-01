@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GUIDES, isGuideSlug } from "@/lib/guides";
-import { SITE, SITE_URL } from "@/lib/site";
+import { SITE, SITE_URL, GOOGLE_REVIEW_URL } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
@@ -274,6 +274,7 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
     termsUrl: `${SITE_URL}/terminos`,
     privacyUrl: `${SITE_URL}/privacidad`,
+    reviewUrl: GOOGLE_REVIEW_URL,
   });
 }
 

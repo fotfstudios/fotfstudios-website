@@ -598,6 +598,27 @@ Lo último está en el blog: ${v.blogUrl}
 }
 
 /**
+ * Pedido de reseña en Google, después de la sesión de prueba o del curso. Lo dispara el
+ * dueño a mano desde la bandeja del admin: es una persona que ya vino a la sala. Un solo
+ * botón, sin incentivos (Google prohíbe ofrecer algo a cambio de una reseña).
+ */
+export function courseReviewRequest(
+  v: { name: string },
+  ctx: { reviewUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">¿Cómo te fue en la cabina?</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">Gracias por venir, ${esc(v.name)}. Si te gustó la clase, una reseña en Google nos ayuda a que más gente de Viña y Valparaíso encuentre el curso.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Toma un minuto. Cuenta lo que te sirvió, tal cual.</p>
+     <a href="${esc(ctx.reviewUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Dejar una reseña en Google</a>
+     <p style="color:${T.boneDim};margin:24px 0 0">Si algo no estuvo bien, preferimos saberlo directo: <a href="${esc(ctx.whatsappUrl)}" style="color:${T.gold};text-decoration:underline">escríbenos por WhatsApp</a>.</p>`,
+    "Una reseña en Google nos ayuda a que más gente encuentre el curso",
+  );
+  const text = `Gracias por venir, ${v.name}. Si te gustó la clase, una reseña en Google nos ayuda mucho: ${ctx.reviewUrl} — Si algo no estuvo bien, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "courseReviewRequest", subject: "¿Cómo te fue? Tu reseña nos ayuda — FOTF Studios", html, text };
+}
+
+/**
  * Email al alumno: cupo confirmado. Recién ACÁ viaja la dirección — la FAQ de la
  * landing promete que se comparte al confirmar la inscripción, y una solicitud sin
  * pagar no lo es. Lleva las fechas de todas las sesiones porque el curso se compra
