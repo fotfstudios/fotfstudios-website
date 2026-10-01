@@ -15,5 +15,6 @@ type MDXModule = { default: (props: MDXProps) => React.JSX.Element };
  */
 export const ARTICLE_MODULES = {
   "aprender-dj": () => import("./aprender-dj.mdx"),
+  "cuanto-cuesta-un-curso-de-dj": () => import("./cuanto-cuesta-un-curso-de-dj.mdx"),
   "primera-hora-en-una-cabina": () => import("./primera-hora-en-una-cabina.mdx"),
 } as const satisfies Record<string, () => Promise<MDXModule>>;

@@ -35,6 +35,7 @@ describe("buildSitemap", () => {
     // FUENTE — que es justo lo que no debe notarse desde afuera.
     const migrados = [
       art({ slug: "aprender-dj", path: "/aprender-dj", legacyPath: true }),
+      art({ slug: "cuanto-cuesta-un-curso-de-dj", path: "/cuanto-cuesta-un-curso-de-dj", legacyPath: true }),
     ];
     const m = buildSitemap(migrados, NOW);
     const originales: [string, number][] = [
