@@ -32,6 +32,7 @@ import {
   courseEnrollmentCancelled,
   courseEnrollmentRefunded,
   courseEnrollmentPaid,
+  courseReviewRequest,
   ownerCoursePaid,
   bookingPaymentPending,
   courseEnrollmentPending,
@@ -49,6 +50,8 @@ export interface NotificationConfig {
   whatsappUrl: string;
   termsUrl: string;
   privacyUrl: string;
+  /** Formulario de reseña del perfil de Google. Sin él, notifyReviewRequest no envía. */
+  reviewUrl?: string;
 }
 
 /** Envía emails de confirmación (cliente + dueño) al pagarse una reserva. */
@@ -388,6 +391,19 @@ export class NotificationService {
     await this.mailer.send({
       to: lead.email,
       ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
+    });
+  }
+
+  /**
+   * Pedido de reseña en Google a quien ya vino a la sala (prueba o curso). Disparo
+   * manual del dueño desde el admin; el error del mailer se propaga para que el admin
+   * vea si no salió.
+   */
+  async notifyReviewRequest(v: { email: string; name: string }): Promise<void> {
+    if (!this.config.reviewUrl) throw new Error("Falta el link de reseñas de Google (reviewUrl).");
+    await this.mailer.send({
+      to: v.email,
+      ...courseReviewRequest({ name: v.name }, { reviewUrl: this.config.reviewUrl, whatsappUrl: this.config.whatsappUrl }),
     });
   }
 
