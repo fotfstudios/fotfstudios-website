@@ -19,6 +19,10 @@ updates:
       # codemod, TS ecosystem support), not weekly bumps — minor/patch still flow.
       - dependency-name: "next"
         update-types: ["version-update:semver-major"]
+      # @next/mdx is versioned in lockstep with next: a 16.x plugin on Next 15 risks the
+      # MDX articles (see #216). It moves with the Next major, not on its own.
+      - dependency-name: "@next/mdx"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
       # Keep @types/node aligned to the Node 24 runtime; its majors track Node upgrades.
