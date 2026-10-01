@@ -24,8 +24,10 @@ export function bookingOnline(): boolean {
  * En `false`: /curso-dj muestra una página de pausa (misma URL, sin precios ni
  * formulario), el home/nav/footer y los artículos dejan de ofrecerlo y
  * POST /api/curso/solicitudes responde 410. Siguen vivos /curso-dj/pago, /cuenta/curso
- * y el admin: los alumnos ya inscritos los necesitan. Ojo: content/articles/aprender-dj.mdx
- * no lee este flag — al pausar hay que sacar a mano su frase del curso.
+ * y el admin: los alumnos ya inscritos los necesitan. Ojo: los .mdx que no usan
+ * <CursoAbierto>/<CursoEnPausa> (aprender-dj, primera-hora-en-una-cabina) no leen este
+ * flag — al pausar hay que sacar a mano su frase del curso. La description del frontmatter
+ * de cuanto-cuesta-un-curso-de-dj promete precios publicados: reescribirla también.
  *
  * Reabierto 2026-09-25 con el programa 1:1 (docs/superpowers/specs/2026-09-25-curso-dj-1a1-design.md).
  */
