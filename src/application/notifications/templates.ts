@@ -698,6 +698,33 @@ export function bookingPaymentPending(
   return { template: "bookingPaymentPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
 }
 
+/**
+ * Email al cliente al CREAR una reserva manual "pendiente de pago", todavía sin link.
+ *
+ * Hermano de `bookingPaymentPending`: aquel sale cuando el dueño comparte el link de
+ * MP; este sale apenas se toma la hora, para que el cliente tenga algo por escrito
+ * aunque termine pagando en efectivo o transferencia. Dice el plazo (`holdHours`)
+ * porque `expire_abandoned_manual_holds` libera la hora a las 72 h sin pago, y si no
+ * lo dijéramos lo primero que sabría el cliente del plazo sería `customerHoldExpired`.
+ */
+export function bookingHeldPending(
+  v: { name: string | null; when: string; total: string; holdHours: number },
+  ctx: { termsUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu hora está tomada</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Te guardamos la hora por ${v.holdHours} horas. Puedes pagar con link de pago, transferencia o en efectivo: escríbenos y lo coordinamos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
+     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
+    `${v.when} · ${v.total} · te la guardamos ${v.holdHours} h`,
+  );
+  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Queda confirmada al pagar: te guardamos la hora por ${v.holdHours} horas. Puedes pagar con link de pago, transferencia o en efectivo; escríbenos y lo coordinamos: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  return { template: "bookingHeldPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
+}
+
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
 export function ownerCoursePaid(v: {
   name: string;
