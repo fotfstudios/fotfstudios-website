@@ -149,6 +149,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"calendar_sync": {
+                  Row: {
+                    "attempts": number,"created_at": string,"google_event_id": string | null,"last_error": string | null,"last_fingerprint": string | null,"last_synced_at": string | null,"locked_at": string | null,"next_attempt_at": string,"op": string,"pending": boolean,"reservation_id": string,"updated_at": string,"version": number
+                  }
+                  Insert: {
+                    "attempts"?: number,"created_at"?: string,"google_event_id"?: string | null,"last_error"?: string | null,"last_fingerprint"?: string | null,"last_synced_at"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"op"?: string,"pending"?: boolean,"reservation_id": string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "attempts"?: number,"created_at"?: string,"google_event_id"?: string | null,"last_error"?: string | null,"last_fingerprint"?: string | null,"last_synced_at"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"op"?: string,"pending"?: boolean,"reservation_id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"course_credits": {
                   Row: {
                     "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null
@@ -834,6 +847,42 @@ isOneToOne: false
 "booking_event_category":
 { Args: { "p_type": string }; Returns: string
                            },
+"calendar_sync_claim":
+{ Args: { "p_lease"?: string,"p_limit"?: number }; Returns: {
+              "attempts": number,
+"created_at": string,
+"google_event_id": string | null,
+"last_error": string | null,
+"last_fingerprint": string | null,
+"last_synced_at": string | null,
+"locked_at": string | null,
+"next_attempt_at": string,
+"op": string,
+"pending": boolean,
+"reservation_id": string,
+"updated_at": string,
+"version": number
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "calendar_sync"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"calendar_sync_enqueue_all":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"calendar_sync_mark_failed":
+{ Args: { "p_error": string,"p_next": string,"p_reservation": string,"p_version": number }; Returns: undefined
+                           },
+"calendar_sync_mark_synced":
+{ Args: { "p_event_id": string,"p_fingerprint": string,"p_gone": boolean,"p_reservation": string,"p_version": number }; Returns: undefined
+                           },
+"calendar_sync_snapshot":
+{ Args: { "p_reservation": string }; Returns: {
+              "addons": (string)[],"course_n": number,"course_session_status": string,"course_title": string,"customer_name": string,"ends_at": string,"expires_at": string,"generation_name": string,"id": string,"kind": string,"notes": string,"order_id": string,"reschedule_id": string,"starts_at": string,"status": string,"tz": string
+            }[]
+                           },
 "cancel_booking":
 { Args: { "p_refund_id"?: string,"p_reservation": string }; Returns: undefined
                            },
@@ -1005,6 +1054,9 @@ isOneToOne: false
 { Args: { "p_order": string }; Returns: string
                            },
 "run_access_code_cron":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"run_calendar_sync_cron":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "schedule_course_generation":
