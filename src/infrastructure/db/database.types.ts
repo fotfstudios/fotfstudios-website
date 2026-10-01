@@ -1,2320 +1,1038 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
+  
+  "graphql_public": {
+          Tables: {
+            [_ in never]: never
+          }
+          Views: {
+            [_ in never]: never
+          }
+          Functions: {
+            "graphql":
+{ Args: { "extensions"?: Json,"operationName"?: string,"query"?: string,"variables"?: Json }; Returns: Json
+                           }
+          }
+          Enums: {
+            [_ in never]: never
+          }
+          CompositeTypes: {
+            [_ in never]: never
+          }
+        },"public": {
+          Tables: {
+            "addons": {
+                  Row: {
+                    "active": boolean,"amount_clp": number,"id": string,"key": string,"kind": string,"name": string,"rate_plan_id": string
+                  }
+                  Insert: {
+                    "active"?: boolean,"amount_clp": number,"id"?: string,"key": string,"kind"?: string,"name": string,"rate_plan_id": string
+                  }
+                  Update: {
+                    "active"?: boolean,"amount_clp"?: number,"id"?: string,"key"?: string,"kind"?: string,"name"?: string,"rate_plan_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "addons_rate_plan_id_fkey"
+      columns: ["rate_plan_id"]
+isOneToOne: false
+      referencedRelation: "rate_plans"
+      referencedColumns: ["id"]
     }
-    Views: {
-      [_ in never]: never
+                  ]
+                },"admin_members": {
+                  Row: {
+                    "created_at": string,"email": string,"id": string,"invited_by": string | null,"role_id": string,"status": string,"user_id": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"email": string,"id"?: string,"invited_by"?: string | null,"role_id": string,"status"?: string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"email"?: string,"id"?: string,"invited_by"?: string | null,"role_id"?: string,"status"?: string,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "admin_members_role_id_fkey"
+      columns: ["role_id"]
+isOneToOne: false
+      referencedRelation: "admin_roles"
+      referencedColumns: ["id"]
     }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
+                  ]
+                },"admin_permissions": {
+                  Row: {
+                    "key": string,"label": string
+                  }
+                  Insert: {
+                    "key": string,"label": string
+                  }
+                  Update: {
+                    "key"?: string,"label"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"admin_role_permissions": {
+                  Row: {
+                    "permission": string,"role_id": string
+                  }
+                  Insert: {
+                    "permission": string,"role_id": string
+                  }
+                  Update: {
+                    "permission"?: string,"role_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "admin_role_permissions_permission_fkey"
+      columns: ["permission"]
+isOneToOne: false
+      referencedRelation: "admin_permissions"
+      referencedColumns: ["key"]
+    },{
+      foreignKeyName: "admin_role_permissions_role_id_fkey"
+      columns: ["role_id"]
+isOneToOne: false
+      referencedRelation: "admin_roles"
+      referencedColumns: ["id"]
     }
-    Enums: {
-      [_ in never]: never
+                  ]
+                },"admin_roles": {
+                  Row: {
+                    "created_at": string,"id": string,"is_system": boolean,"key": string,"name": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_system"?: boolean,"key": string,"name": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_system"?: boolean,"key"?: string,"name"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"booking_events": {
+                  Row: {
+                    "amount_clp": number | null,"category": string,"created_at": string,"created_by": string | null,"detail": Json | null,"id": string,"occurred_at": string,"order_id": string | null,"payment_ref": string | null,"reschedule_id": string | null,"reservation_id": string,"seq": number,"tax_document_id": string | null,"type": string
+                  }
+                  Insert: {
+                    "amount_clp"?: number | null,"category": string,"created_at"?: string,"created_by"?: string | null,"detail"?: Json | null,"id"?: string,"occurred_at"?: string,"order_id"?: string | null,"payment_ref"?: string | null,"reschedule_id"?: string | null,"reservation_id": string,"seq"?: never,"tax_document_id"?: string | null,"type": string
+                  }
+                  Update: {
+                    "amount_clp"?: number | null,"category"?: string,"created_at"?: string,"created_by"?: string | null,"detail"?: Json | null,"id"?: string,"occurred_at"?: string,"order_id"?: string | null,"payment_ref"?: string | null,"reschedule_id"?: string | null,"reservation_id"?: string,"seq"?: never,"tax_document_id"?: string | null,"type"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "booking_events_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "booking_events_reschedule_id_fkey"
+      columns: ["reschedule_id"]
+isOneToOne: false
+      referencedRelation: "reschedules"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "booking_events_reservation_id_fkey"
+      columns: ["reservation_id"]
+isOneToOne: false
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "booking_events_tax_document_id_fkey"
+      columns: ["tax_document_id"]
+isOneToOne: false
+      referencedRelation: "tax_documents"
+      referencedColumns: ["id"]
     }
-    CompositeTypes: {
-      [_ in never]: never
+                  ]
+                },"course_credits": {
+                  Row: {
+                    "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null
+                  }
+                  Insert: {
+                    "amount_clp": number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email": string,"expires_at": string,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null
+                  }
+                  Update: {
+                    "amount_clp"?: number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email"?: string,"expires_at"?: string,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_credits_consumed_order_id_fkey"
+      columns: ["consumed_order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_credits_source_reservation_id_fkey"
+      columns: ["source_reservation_id"]
+isOneToOne: false
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
     }
-  }
-  public: {
-    Tables: {
-      addons: {
-        Row: {
-          active: boolean
-          amount_clp: number
-          id: string
-          key: string
-          kind: string
-          name: string
-          rate_plan_id: string
-        }
-        Insert: {
-          active?: boolean
-          amount_clp: number
-          id?: string
-          key: string
-          kind?: string
-          name: string
-          rate_plan_id: string
-        }
-        Update: {
-          active?: boolean
-          amount_clp?: number
-          id?: string
-          key?: string
-          kind?: string
-          name?: string
-          rate_plan_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "addons_rate_plan_id_fkey"
-            columns: ["rate_plan_id"]
-            isOneToOne: false
-            referencedRelation: "rate_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_members: {
-        Row: {
-          created_at: string
-          email: string
-          id: string
-          invited_by: string | null
-          role_id: string
-          status: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          id?: string
-          invited_by?: string | null
-          role_id: string
-          status?: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          id?: string
-          invited_by?: string | null
-          role_id?: string
-          status?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "admin_members_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "admin_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_permissions: {
-        Row: {
-          key: string
-          label: string
-        }
-        Insert: {
-          key: string
-          label: string
-        }
-        Update: {
-          key?: string
-          label?: string
-        }
-        Relationships: []
-      }
-      admin_role_permissions: {
-        Row: {
-          permission: string
-          role_id: string
-        }
-        Insert: {
-          permission: string
-          role_id: string
-        }
-        Update: {
-          permission?: string
-          role_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "admin_role_permissions_permission_fkey"
-            columns: ["permission"]
-            isOneToOne: false
-            referencedRelation: "admin_permissions"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "admin_role_permissions_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "admin_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_roles: {
-        Row: {
-          created_at: string
-          id: string
-          is_system: boolean
-          key: string
-          name: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_system?: boolean
-          key: string
-          name: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_system?: boolean
-          key?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      booking_events: {
-        Row: {
-          amount_clp: number | null
-          category: string
-          created_at: string
-          created_by: string | null
-          detail: Json | null
-          id: string
-          occurred_at: string
-          order_id: string | null
-          payment_ref: string | null
-          reschedule_id: string | null
-          reservation_id: string
-          seq: number
-          tax_document_id: string | null
-          type: string
-        }
-        Insert: {
-          amount_clp?: number | null
-          category: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json | null
-          id?: string
-          occurred_at?: string
-          order_id?: string | null
-          payment_ref?: string | null
-          reschedule_id?: string | null
-          reservation_id: string
-          seq?: never
-          tax_document_id?: string | null
-          type: string
-        }
-        Update: {
-          amount_clp?: number | null
-          category?: string
-          created_at?: string
-          created_by?: string | null
-          detail?: Json | null
-          id?: string
-          occurred_at?: string
-          order_id?: string | null
-          payment_ref?: string | null
-          reschedule_id?: string | null
-          reservation_id?: string
-          seq?: never
-          tax_document_id?: string | null
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "booking_events_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "booking_events_reschedule_id_fkey"
-            columns: ["reschedule_id"]
-            isOneToOne: false
-            referencedRelation: "reschedules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "booking_events_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: false
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "booking_events_tax_document_id_fkey"
-            columns: ["tax_document_id"]
-            isOneToOne: false
-            referencedRelation: "tax_documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_credits: {
-        Row: {
-          amount_clp: number
-          consumed_at: string | null
-          consumed_order_id: string | null
-          email: string
-          expires_at: string
-          id: string
-          issued_at: string
-          note: string | null
-          source_reservation_id: string | null
-        }
-        Insert: {
-          amount_clp: number
-          consumed_at?: string | null
-          consumed_order_id?: string | null
-          email: string
-          expires_at: string
-          id?: string
-          issued_at?: string
-          note?: string | null
-          source_reservation_id?: string | null
-        }
-        Update: {
-          amount_clp?: number
-          consumed_at?: string | null
-          consumed_order_id?: string | null
-          email?: string
-          expires_at?: string
-          id?: string
-          issued_at?: string
-          note?: string | null
-          source_reservation_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_credits_consumed_order_id_fkey"
-            columns: ["consumed_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_credits_source_reservation_id_fkey"
-            columns: ["source_reservation_id"]
-            isOneToOne: false
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_enrollments: {
-        Row: {
-          cancelled_at: string | null
-          created_at: string
-          expires_at: string | null
-          generation_id: string
-          id: string
-          lead_id: string | null
-          notes: string | null
-          order_id: string | null
-          paid_at: string | null
-          paid_method: string | null
-          plan: string
-          practice_hours_redeemed: number
-          practice_hours_total: number
-          price_clp: number
-          seat_no: number
-          status: string
-          student_email: string
-          student_name: string
-          student_phone: string | null
-          transferred_to: string | null
-        }
-        Insert: {
-          cancelled_at?: string | null
-          created_at?: string
-          expires_at?: string | null
-          generation_id: string
-          id?: string
-          lead_id?: string | null
-          notes?: string | null
-          order_id?: string | null
-          paid_at?: string | null
-          paid_method?: string | null
-          plan: string
-          practice_hours_redeemed?: number
-          practice_hours_total?: number
-          price_clp: number
-          seat_no: number
-          status?: string
-          student_email: string
-          student_name: string
-          student_phone?: string | null
-          transferred_to?: string | null
-        }
-        Update: {
-          cancelled_at?: string | null
-          created_at?: string
-          expires_at?: string | null
-          generation_id?: string
-          id?: string
-          lead_id?: string | null
-          notes?: string | null
-          order_id?: string | null
-          paid_at?: string | null
-          paid_method?: string | null
-          plan?: string
-          practice_hours_redeemed?: number
-          practice_hours_total?: number
-          price_clp?: number
-          seat_no?: number
-          status?: string
-          student_email?: string
-          student_name?: string
-          student_phone?: string | null
-          transferred_to?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_enrollments_generation_id_fkey"
-            columns: ["generation_id"]
-            isOneToOne: false
-            referencedRelation: "course_generations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_enrollments_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "course_leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_enrollments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_enrollments_transferred_to_fkey"
-            columns: ["transferred_to"]
-            isOneToOne: false
-            referencedRelation: "course_enrollments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_generations: {
-        Row: {
-          code: string
-          created_at: string
-          currency: string
-          enroll_deadline: string | null
-          id: string
-          name: string
-          notes: string | null
-          practice_hours_per_seat: number
-          practice_valid_until: string | null
-          price_duo_clp: number
-          price_individual_clp: number
-          price_prueba_clp: number
-          pricing_label: string | null
-          resource_id: string
-          seats: number
-          starts_on: string | null
-          status: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          currency?: string
-          enroll_deadline?: string | null
-          id?: string
-          name: string
-          notes?: string | null
-          practice_hours_per_seat?: number
-          practice_valid_until?: string | null
-          price_duo_clp: number
-          price_individual_clp: number
-          price_prueba_clp: number
-          pricing_label?: string | null
-          resource_id: string
-          seats?: number
-          starts_on?: string | null
-          status?: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          currency?: string
-          enroll_deadline?: string | null
-          id?: string
-          name?: string
-          notes?: string | null
-          practice_hours_per_seat?: number
-          practice_valid_until?: string | null
-          price_duo_clp?: number
-          price_individual_clp?: number
-          price_prueba_clp?: number
-          pricing_label?: string | null
-          resource_id?: string
-          seats?: number
-          starts_on?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_generations_resource_id_fkey"
-            columns: ["resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_leads: {
-        Row: {
-          availability: string
-          created_at: string
-          email: string
-          experience: string
-          generation_id: string | null
-          id: string
-          message: string | null
-          name: string
-          phone: string
-          plan: string
-          status: string
-        }
-        Insert: {
-          availability: string
-          created_at?: string
-          email: string
-          experience: string
-          generation_id?: string | null
-          id?: string
-          message?: string | null
-          name: string
-          phone: string
-          plan: string
-          status?: string
-        }
-        Update: {
-          availability?: string
-          created_at?: string
-          email?: string
-          experience?: string
-          generation_id?: string | null
-          id?: string
-          message?: string | null
-          name?: string
-          phone?: string
-          plan?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_leads_generation_id_fkey"
-            columns: ["generation_id"]
-            isOneToOne: false
-            referencedRelation: "course_generations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_practice_redemptions: {
-        Row: {
-          created_at: string
-          enrollment_id: string
-          hours: number
-          id: string
-          released_at: string | null
-          reservation_id: string
-        }
-        Insert: {
-          created_at?: string
-          enrollment_id: string
-          hours: number
-          id?: string
-          released_at?: string | null
-          reservation_id: string
-        }
-        Update: {
-          created_at?: string
-          enrollment_id?: string
-          hours?: number
-          id?: string
-          released_at?: string | null
-          reservation_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_practice_redemptions_enrollment_id_fkey"
-            columns: ["enrollment_id"]
-            isOneToOne: false
-            referencedRelation: "course_enrollments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_practice_redemptions_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: true
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_sessions: {
-        Row: {
-          created_at: string
-          generation_id: string
-          id: string
-          n: number
-          reservation_id: string | null
-          status: string
-          title: string
-        }
-        Insert: {
-          created_at?: string
-          generation_id: string
-          id?: string
-          n: number
-          reservation_id?: string | null
-          status?: string
-          title: string
-        }
-        Update: {
-          created_at?: string
-          generation_id?: string
-          id?: string
-          n?: number
-          reservation_id?: string | null
-          status?: string
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_sessions_generation_id_fkey"
-            columns: ["generation_id"]
-            isOneToOne: false
-            referencedRelation: "course_generations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_sessions_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: true
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      customers: {
-        Row: {
-          auth_user_id: string | null
-          created_at: string
-          email: string | null
-          id: string
-          name: string | null
-          name_norm: string | null
-          phone: string | null
-          phone_digits: string | null
-          points_balance: number
-          updated_at: string
-        }
-        Insert: {
-          auth_user_id?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name?: string | null
-          name_norm?: string | null
-          phone?: string | null
-          phone_digits?: string | null
-          points_balance?: number
-          updated_at?: string
-        }
-        Update: {
-          auth_user_id?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name?: string | null
-          name_norm?: string | null
-          phone?: string | null
-          phone_digits?: string | null
-          points_balance?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      dj_applications: {
-        Row: {
-          availability: string
-          created_at: string
-          email: string
-          genres: string | null
-          id: string
-          instagram: string | null
-          mix_url: string
-          name: string
-          phone: string
-          pitch: string
-          session_format: string
-          status: string
-        }
-        Insert: {
-          availability: string
-          created_at?: string
-          email: string
-          genres?: string | null
-          id?: string
-          instagram?: string | null
-          mix_url: string
-          name: string
-          phone: string
-          pitch: string
-          session_format: string
-          status?: string
-        }
-        Update: {
-          availability?: string
-          created_at?: string
-          email?: string
-          genres?: string | null
-          id?: string
-          instagram?: string | null
-          mix_url?: string
-          name?: string
-          phone?: string
-          pitch?: string
-          session_format?: string
-          status?: string
-        }
-        Relationships: []
-      }
-      equipment_items: {
-        Row: {
-          brand: string
-          category: string
-          created_at: string
-          created_by: string | null
-          id: string
-          location_id: string
-          model: string
-          nickname: string | null
-          notes: string | null
-          purchase_price_clp: number | null
-          purchased_at: string | null
-          quantity: number
-          resource_id: string | null
-          serial_number: string | null
-          spot: string | null
-          status: string
-          updated_at: string
-          vendor: string | null
-          warranty_until: string | null
-        }
-        Insert: {
-          brand: string
-          category: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          location_id: string
-          model: string
-          nickname?: string | null
-          notes?: string | null
-          purchase_price_clp?: number | null
-          purchased_at?: string | null
-          quantity?: number
-          resource_id?: string | null
-          serial_number?: string | null
-          spot?: string | null
-          status?: string
-          updated_at?: string
-          vendor?: string | null
-          warranty_until?: string | null
-        }
-        Update: {
-          brand?: string
-          category?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          location_id?: string
-          model?: string
-          nickname?: string | null
-          notes?: string | null
-          purchase_price_clp?: number | null
-          purchased_at?: string | null
-          quantity?: number
-          resource_id?: string | null
-          serial_number?: string | null
-          spot?: string | null
-          status?: string
-          updated_at?: string
-          vendor?: string | null
-          warranty_until?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_items_location_id_fkey"
-            columns: ["location_id"]
-            isOneToOne: false
-            referencedRelation: "locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_items_resource_in_location"
-            columns: ["resource_id", "location_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id", "location_id"]
-          },
-        ]
-      }
-      equipment_moves: {
-        Row: {
-          from_location_id: string | null
-          from_resource_id: string | null
-          from_spot: string | null
-          from_status: string | null
-          id: string
-          item_id: string
-          moved_at: string
-          moved_by: string | null
-          note: string | null
-          quantity: number
-          split_from_item_id: string | null
-          to_location_id: string
-          to_resource_id: string | null
-          to_spot: string | null
-          to_status: string
-        }
-        Insert: {
-          from_location_id?: string | null
-          from_resource_id?: string | null
-          from_spot?: string | null
-          from_status?: string | null
-          id?: string
-          item_id: string
-          moved_at?: string
-          moved_by?: string | null
-          note?: string | null
-          quantity: number
-          split_from_item_id?: string | null
-          to_location_id: string
-          to_resource_id?: string | null
-          to_spot?: string | null
-          to_status: string
-        }
-        Update: {
-          from_location_id?: string | null
-          from_resource_id?: string | null
-          from_spot?: string | null
-          from_status?: string | null
-          id?: string
-          item_id?: string
-          moved_at?: string
-          moved_by?: string | null
-          note?: string | null
-          quantity?: number
-          split_from_item_id?: string | null
-          to_location_id?: string
-          to_resource_id?: string | null
-          to_spot?: string | null
-          to_status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_moves_from_location_id_fkey"
-            columns: ["from_location_id"]
-            isOneToOne: false
-            referencedRelation: "locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_moves_from_resource_id_fkey"
-            columns: ["from_resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_moves_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_moves_split_from_item_id_fkey"
-            columns: ["split_from_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_moves_to_location_id_fkey"
-            columns: ["to_location_id"]
-            isOneToOne: false
-            referencedRelation: "locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_moves_to_resource_id_fkey"
-            columns: ["to_resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      guide_leads: {
-        Row: {
-          consent_at: string
-          created_at: string
-          download_token: string
-          email: string
-          guide_slug: string
-          id: string
-          last_downloaded_at: string | null
-          last_requested_at: string
-          referrer_host: string | null
-          request_count: number
-          source: string
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-        }
-        Insert: {
-          consent_at?: string
-          created_at?: string
-          download_token?: string
-          email: string
-          guide_slug?: string
-          id?: string
-          last_downloaded_at?: string | null
-          last_requested_at?: string
-          referrer_host?: string | null
-          request_count?: number
-          source: string
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Update: {
-          consent_at?: string
-          created_at?: string
-          download_token?: string
-          email?: string
-          guide_slug?: string
-          id?: string
-          last_downloaded_at?: string | null
-          last_requested_at?: string
-          referrer_host?: string | null
-          request_count?: number
-          source?: string
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Relationships: []
-      }
-      locations: {
-        Row: {
-          active: boolean
-          address: string | null
-          created_at: string
-          id: string
-          name: string
-          slug: string
-          timezone: string
-        }
-        Insert: {
-          active?: boolean
-          address?: string | null
-          created_at?: string
-          id?: string
-          name: string
-          slug: string
-          timezone?: string
-        }
-        Update: {
-          active?: boolean
-          address?: string | null
-          created_at?: string
-          id?: string
-          name?: string
-          slug?: string
-          timezone?: string
-        }
-        Relationships: []
-      }
-      newsletter_subscribers: {
-        Row: {
-          consent_at: string
-          created_at: string
-          email: string
-          id: string
-          referrer_host: string | null
-          request_count: number
-          source: string
-          unsubscribe_token: string
-          unsubscribed_at: string | null
-          updated_at: string
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-        }
-        Insert: {
-          consent_at?: string
-          created_at?: string
-          email: string
-          id?: string
-          referrer_host?: string | null
-          request_count?: number
-          source: string
-          unsubscribe_token?: string
-          unsubscribed_at?: string | null
-          updated_at?: string
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Update: {
-          consent_at?: string
-          created_at?: string
-          email?: string
-          id?: string
-          referrer_host?: string | null
-          request_count?: number
-          source?: string
-          unsubscribe_token?: string
-          unsubscribed_at?: string | null
-          updated_at?: string
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Relationships: []
-      }
-      notification_log: {
-        Row: {
-          created_at: string
-          error: string | null
-          id: string
-          ok: boolean
-          recipient: string
-          subject: string
-          template: string
-        }
-        Insert: {
-          created_at?: string
-          error?: string | null
-          id?: string
-          ok: boolean
-          recipient: string
-          subject: string
-          template: string
-        }
-        Update: {
-          created_at?: string
-          error?: string | null
-          id?: string
-          ok?: boolean
-          recipient?: string
-          subject?: string
-          template?: string
-        }
-        Relationships: []
-      }
-      opening_hours: {
-        Row: {
-          close_minute: number
-          id: string
-          open_minute: number
-          resource_id: string
-          weekday: number
-        }
-        Insert: {
-          close_minute: number
-          id?: string
-          open_minute: number
-          resource_id: string
-          weekday: number
-        }
-        Update: {
-          close_minute?: number
-          id?: string
-          open_minute?: number
-          resource_id?: string
-          weekday?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "opening_hours_resource_id_fkey"
-            columns: ["resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      order_lines: {
-        Row: {
-          addon_key: string | null
-          description: string
-          id: string
-          line_type: string
-          order_id: string
-          quantity: number
-          reservation_id: string | null
-          subtotal_clp: number
-          unit_price_clp: number
-        }
-        Insert: {
-          addon_key?: string | null
-          description: string
-          id?: string
-          line_type: string
-          order_id: string
-          quantity?: number
-          reservation_id?: string | null
-          subtotal_clp: number
-          unit_price_clp: number
-        }
-        Update: {
-          addon_key?: string | null
-          description?: string
-          id?: string
-          line_type?: string
-          order_id?: string
-          quantity?: number
-          reservation_id?: string | null
-          subtotal_clp?: number
-          unit_price_clp?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_lines_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_lines_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: false
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      orders: {
-        Row: {
-          amount_clp: number
-          created_at: string
-          currency: string
-          customer_email: string | null
-          customer_id: string | null
-          customer_name: string | null
-          customer_phone: string | null
-          id: string
-          kind: string
-          mp_payment_id: string | null
-          mp_preference_id: string | null
-          mp_refund_id: string | null
-          net_clp: number
-          notified_at: string | null
-          paid_at: string | null
-          payment_snapshot: Json | null
-          points_redeemed_clp: number
-          pricing_snapshot: Json | null
-          refunded_amount_clp: number
-          refunded_at: string | null
-          status: Database["public"]["Enums"]["order_status"]
-          tax_clp: number
-          terms_accepted_at: string | null
-          terms_source: string | null
-          terms_version: string | null
-        }
-        Insert: {
-          amount_clp: number
-          created_at?: string
-          currency?: string
-          customer_email?: string | null
-          customer_id?: string | null
-          customer_name?: string | null
-          customer_phone?: string | null
-          id?: string
-          kind?: string
-          mp_payment_id?: string | null
-          mp_preference_id?: string | null
-          mp_refund_id?: string | null
-          net_clp: number
-          notified_at?: string | null
-          paid_at?: string | null
-          payment_snapshot?: Json | null
-          points_redeemed_clp?: number
-          pricing_snapshot?: Json | null
-          refunded_amount_clp?: number
-          refunded_at?: string | null
-          status?: Database["public"]["Enums"]["order_status"]
-          tax_clp: number
-          terms_accepted_at?: string | null
-          terms_source?: string | null
-          terms_version?: string | null
-        }
-        Update: {
-          amount_clp?: number
-          created_at?: string
-          currency?: string
-          customer_email?: string | null
-          customer_id?: string | null
-          customer_name?: string | null
-          customer_phone?: string | null
-          id?: string
-          kind?: string
-          mp_payment_id?: string | null
-          mp_preference_id?: string | null
-          mp_refund_id?: string | null
-          net_clp?: number
-          notified_at?: string | null
-          paid_at?: string | null
-          payment_snapshot?: Json | null
-          points_redeemed_clp?: number
-          pricing_snapshot?: Json | null
-          refunded_amount_clp?: number
-          refunded_at?: string | null
-          status?: Database["public"]["Enums"]["order_status"]
-          tax_clp?: number
-          terms_accepted_at?: string | null
-          terms_source?: string | null
-          terms_version?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "orders_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_intents: {
-        Row: {
-          amount_clp: number
-          created_at: string
-          currency: string
-          id: string
-          idempotency_key: string | null
-          init_point: string | null
-          order_id: string
-          payment_id: string | null
-          preference_id: string | null
-          provider: string
-          status: string
-        }
-        Insert: {
-          amount_clp: number
-          created_at?: string
-          currency?: string
-          id?: string
-          idempotency_key?: string | null
-          init_point?: string | null
-          order_id: string
-          payment_id?: string | null
-          preference_id?: string | null
-          provider?: string
-          status?: string
-        }
-        Update: {
-          amount_clp?: number
-          created_at?: string
-          currency?: string
-          id?: string
-          idempotency_key?: string | null
-          init_point?: string | null
-          order_id?: string
-          payment_id?: string | null
-          preference_id?: string | null
-          provider?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_intents_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      points_ledger: {
-        Row: {
-          amount: number
-          created_at: string
-          customer_id: string
-          id: string
-          kind: Database["public"]["Enums"]["points_entry_kind"]
-          order_id: string | null
-          ref: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          customer_id: string
-          id?: string
-          kind: Database["public"]["Enums"]["points_entry_kind"]
-          order_id?: string | null
-          ref?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          customer_id?: string
-          id?: string
-          kind?: Database["public"]["Enums"]["points_entry_kind"]
-          order_id?: string | null
-          ref?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "points_ledger_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "points_ledger_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      price_books: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          status: Database["public"]["Enums"]["price_book_status"]
-          valid_from: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          status?: Database["public"]["Enums"]["price_book_status"]
-          valid_from?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          status?: Database["public"]["Enums"]["price_book_status"]
-          valid_from?: string
-        }
-        Relationships: []
-      }
-      rate_limit_counters: {
-        Row: {
-          bucket_key: string
-          count: number
-          expires_at: string
-        }
-        Insert: {
-          bucket_key: string
-          count?: number
-          expires_at: string
-        }
-        Update: {
-          bucket_key?: string
-          count?: number
-          expires_at?: string
-        }
-        Relationships: []
-      }
-      rate_plans: {
-        Row: {
-          currency: string
-          id: string
-          min_hours: number
-          price_book_id: string
-          resource_id: string
-          rounding_increment: number
-          step_hours: number
-          tax_mode: Database["public"]["Enums"]["tax_mode"]
-        }
-        Insert: {
-          currency?: string
-          id?: string
-          min_hours?: number
-          price_book_id: string
-          resource_id: string
-          rounding_increment?: number
-          step_hours?: number
-          tax_mode?: Database["public"]["Enums"]["tax_mode"]
-        }
-        Update: {
-          currency?: string
-          id?: string
-          min_hours?: number
-          price_book_id?: string
-          resource_id?: string
-          rounding_increment?: number
-          step_hours?: number
-          tax_mode?: Database["public"]["Enums"]["tax_mode"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rate_plans_price_book_id_fkey"
-            columns: ["price_book_id"]
-            isOneToOne: false
-            referencedRelation: "price_books"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rate_plans_resource_id_fkey"
-            columns: ["resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      rate_tiers: {
-        Row: {
-          amount_clp: number
-          end_minute: number
-          id: string
-          key: string
-          priority: number
-          rate_plan_id: string
-          start_minute: number
-          weekdays: number[]
-        }
-        Insert: {
-          amount_clp: number
-          end_minute: number
-          id?: string
-          key: string
-          priority?: number
-          rate_plan_id: string
-          start_minute: number
-          weekdays: number[]
-        }
-        Update: {
-          amount_clp?: number
-          end_minute?: number
-          id?: string
-          key?: string
-          priority?: number
-          rate_plan_id?: string
-          start_minute?: number
-          weekdays?: number[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rate_tiers_rate_plan_id_fkey"
-            columns: ["rate_plan_id"]
-            isOneToOne: false
-            referencedRelation: "rate_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      reschedules: {
-        Row: {
-          applied_at: string | null
-          created_at: string
-          created_by: string | null
-          delta_clp: number
-          delta_order_id: string | null
-          id: string
-          kind: string
-          mp_refund_id: string | null
-          mp_refund_payment_id: string | null
-          new_ends_at: string
-          new_lines: Json | null
-          new_snapshot: Json | null
-          new_starts_at: string
-          new_total_clp: number
-          offline_settled_clp: number
-          old_ends_at: string
-          old_live_clp: number
-          old_starts_at: string
-          original_order_id: string | null
-          refund_attempt_at: string | null
-          reservation_id: string
-          settled_clp: number
-          status: string
-        }
-        Insert: {
-          applied_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          delta_clp?: number
-          delta_order_id?: string | null
-          id?: string
-          kind: string
-          mp_refund_id?: string | null
-          mp_refund_payment_id?: string | null
-          new_ends_at: string
-          new_lines?: Json | null
-          new_snapshot?: Json | null
-          new_starts_at: string
-          new_total_clp: number
-          offline_settled_clp?: number
-          old_ends_at: string
-          old_live_clp: number
-          old_starts_at: string
-          original_order_id?: string | null
-          refund_attempt_at?: string | null
-          reservation_id: string
-          settled_clp?: number
-          status?: string
-        }
-        Update: {
-          applied_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          delta_clp?: number
-          delta_order_id?: string | null
-          id?: string
-          kind?: string
-          mp_refund_id?: string | null
-          mp_refund_payment_id?: string | null
-          new_ends_at?: string
-          new_lines?: Json | null
-          new_snapshot?: Json | null
-          new_starts_at?: string
-          new_total_clp?: number
-          offline_settled_clp?: number
-          old_ends_at?: string
-          old_live_clp?: number
-          old_starts_at?: string
-          original_order_id?: string | null
-          refund_attempt_at?: string | null
-          reservation_id?: string
-          settled_clp?: number
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reschedules_delta_order_id_fkey"
-            columns: ["delta_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reschedules_original_order_id_fkey"
-            columns: ["original_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reschedules_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: false
-            referencedRelation: "reservations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      reservations: {
-        Row: {
-          access_code: string | null
-          access_loaded_at: string | null
-          access_removed_at: string | null
-          access_sent_at: string | null
-          cancelled_at: string | null
-          created_at: string
-          customer_email: string | null
-          customer_id: string | null
-          customer_name: string | null
-          customer_phone: string | null
-          ends_at: string
-          expires_at: string | null
-          id: string
-          kind: string
-          notes: string | null
-          order_id: string | null
-          reminder_sent_at: string | null
-          reschedule_id: string | null
-          resource_id: string
-          starts_at: string
-          status: Database["public"]["Enums"]["reservation_status"]
-        }
-        Insert: {
-          access_code?: string | null
-          access_loaded_at?: string | null
-          access_removed_at?: string | null
-          access_sent_at?: string | null
-          cancelled_at?: string | null
-          created_at?: string
-          customer_email?: string | null
-          customer_id?: string | null
-          customer_name?: string | null
-          customer_phone?: string | null
-          ends_at: string
-          expires_at?: string | null
-          id?: string
-          kind?: string
-          notes?: string | null
-          order_id?: string | null
-          reminder_sent_at?: string | null
-          reschedule_id?: string | null
-          resource_id: string
-          starts_at: string
-          status?: Database["public"]["Enums"]["reservation_status"]
-        }
-        Update: {
-          access_code?: string | null
-          access_loaded_at?: string | null
-          access_removed_at?: string | null
-          access_sent_at?: string | null
-          cancelled_at?: string | null
-          created_at?: string
-          customer_email?: string | null
-          customer_id?: string | null
-          customer_name?: string | null
-          customer_phone?: string | null
-          ends_at?: string
-          expires_at?: string | null
-          id?: string
-          kind?: string
-          notes?: string | null
-          order_id?: string | null
-          reminder_sent_at?: string | null
-          reschedule_id?: string | null
-          resource_id?: string
-          starts_at?: string
-          status?: Database["public"]["Enums"]["reservation_status"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reservations_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reservations_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reservations_reschedule_id_fkey"
-            columns: ["reschedule_id"]
-            isOneToOne: false
-            referencedRelation: "reschedules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reservations_resource_id_fkey"
-            columns: ["resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      resources: {
-        Row: {
-          active: boolean
-          created_at: string
-          id: string
-          kind: string
-          location_id: string
-          name: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          id?: string
-          kind?: string
-          location_id: string
-          name: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          id?: string
-          kind?: string
-          location_id?: string
-          name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "resources_location_id_fkey"
-            columns: ["location_id"]
-            isOneToOne: false
-            referencedRelation: "locations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      schedule_exceptions: {
-        Row: {
-          close_minute: number | null
-          closed: boolean
-          created_at: string
-          date: string
-          id: string
-          open_minute: number | null
-          reason: string | null
-          resource_id: string
-        }
-        Insert: {
-          close_minute?: number | null
-          closed?: boolean
-          created_at?: string
-          date: string
-          id?: string
-          open_minute?: number | null
-          reason?: string | null
-          resource_id: string
-        }
-        Update: {
-          close_minute?: number | null
-          closed?: boolean
-          created_at?: string
-          date?: string
-          id?: string
-          open_minute?: number | null
-          reason?: string | null
-          resource_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "schedule_exceptions_resource_id_fkey"
-            columns: ["resource_id"]
-            isOneToOne: false
-            referencedRelation: "resources"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tax_documents: {
-        Row: {
-          created_at: string
-          emitted_at: string | null
-          folio: string | null
-          id: string
-          is_live: boolean | null
-          iva: number
-          kind: Database["public"]["Enums"]["tax_doc_kind"]
-          neto: number
-          order_id: string
-          pdf_url: string | null
-          receptor_rut: string | null
-          reversed_clp: number
-          reverses_document_id: string | null
-          settlement_order_id: string | null
-          status: Database["public"]["Enums"]["tax_doc_status"]
-          total: number
-        }
-        Insert: {
-          created_at?: string
-          emitted_at?: string | null
-          folio?: string | null
-          id?: string
-          is_live?: boolean | null
-          iva: number
-          kind: Database["public"]["Enums"]["tax_doc_kind"]
-          neto: number
-          order_id: string
-          pdf_url?: string | null
-          receptor_rut?: string | null
-          reversed_clp?: number
-          reverses_document_id?: string | null
-          settlement_order_id?: string | null
-          status?: Database["public"]["Enums"]["tax_doc_status"]
-          total: number
-        }
-        Update: {
-          created_at?: string
-          emitted_at?: string | null
-          folio?: string | null
-          id?: string
-          is_live?: boolean | null
-          iva?: number
-          kind?: Database["public"]["Enums"]["tax_doc_kind"]
-          neto?: number
-          order_id?: string
-          pdf_url?: string | null
-          receptor_rut?: string | null
-          reversed_clp?: number
-          reverses_document_id?: string | null
-          settlement_order_id?: string | null
-          status?: Database["public"]["Enums"]["tax_doc_status"]
-          total?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tax_documents_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tax_documents_reverses_document_id_fkey"
-            columns: ["reverses_document_id"]
-            isOneToOne: false
-            referencedRelation: "tax_documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tax_documents_settlement_order_id_fkey"
-            columns: ["settlement_order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tax_rates: {
-        Row: {
-          code: string
-          id: string
-          pct: number
-        }
-        Insert: {
-          code: string
-          id?: string
-          pct: number
-        }
-        Update: {
-          code?: string
-          id?: string
-          pct?: number
-        }
-        Relationships: []
-      }
-      volume_discounts: {
-        Row: {
-          id: string
-          min_hours: number
-          pct: number
-          rate_plan_id: string
-        }
-        Insert: {
-          id?: string
-          min_hours: number
-          pct: number
-          rate_plan_id: string
-        }
-        Update: {
-          id?: string
-          min_hours?: number
-          pct?: number
-          rate_plan_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "volume_discounts_rate_plan_id_fkey"
-            columns: ["rate_plan_id"]
-            isOneToOne: false
-            referencedRelation: "rate_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      webhook_events: {
-        Row: {
-          created_at: string
-          event_id: string
-          id: string
-          payload: Json | null
-          provider: string
-          topic: string | null
-        }
-        Insert: {
-          created_at?: string
-          event_id: string
-          id?: string
-          payload?: Json | null
-          provider?: string
-          topic?: string | null
-        }
-        Update: {
-          created_at?: string
-          event_id?: string
-          id?: string
-          payload?: Json | null
-          provider?: string
-          topic?: string | null
-        }
-        Relationships: []
-      }
+                  ]
+                },"course_enrollments": {
+                  Row: {
+                    "cancelled_at": string | null,"created_at": string,"expires_at": string | null,"generation_id": string,"id": string,"lead_id": string | null,"notes": string | null,"order_id": string | null,"paid_at": string | null,"paid_method": string | null,"plan": string,"practice_hours_redeemed": number,"practice_hours_total": number,"price_clp": number,"seat_no": number,"status": string,"student_email": string,"student_name": string,"student_phone": string | null,"transferred_to": string | null
+                  }
+                  Insert: {
+                    "cancelled_at"?: string | null,"created_at"?: string,"expires_at"?: string | null,"generation_id": string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan": string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp": number,"seat_no": number,"status"?: string,"student_email": string,"student_name": string,"student_phone"?: string | null,"transferred_to"?: string | null
+                  }
+                  Update: {
+                    "cancelled_at"?: string | null,"created_at"?: string,"expires_at"?: string | null,"generation_id"?: string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan"?: string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp"?: number,"seat_no"?: number,"status"?: string,"student_email"?: string,"student_name"?: string,"student_phone"?: string | null,"transferred_to"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_enrollments_generation_id_fkey"
+      columns: ["generation_id"]
+isOneToOne: false
+      referencedRelation: "course_generations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_enrollments_lead_id_fkey"
+      columns: ["lead_id"]
+isOneToOne: false
+      referencedRelation: "course_leads"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_enrollments_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_enrollments_transferred_to_fkey"
+      columns: ["transferred_to"]
+isOneToOne: false
+      referencedRelation: "course_enrollments"
+      referencedColumns: ["id"]
     }
-    Views: {
-      [_ in never]: never
+                  ]
+                },"course_generations": {
+                  Row: {
+                    "code": string,"created_at": string,"currency": string,"enroll_deadline": string | null,"id": string,"name": string,"notes": string | null,"practice_hours_per_seat": number,"practice_valid_until": string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label": string | null,"resource_id": string,"seats": number,"starts_on": string | null,"status": string
+                  }
+                  Insert: {
+                    "code": string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"name": string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label"?: string | null,"resource_id": string,"seats"?: number,"starts_on"?: string | null,"status"?: string
+                  }
+                  Update: {
+                    "code"?: string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"name"?: string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp"?: number,"price_individual_clp"?: number,"price_prueba_clp"?: number,"pricing_label"?: string | null,"resource_id"?: string,"seats"?: number,"starts_on"?: string | null,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_generations_resource_id_fkey"
+      columns: ["resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
     }
-    Functions: {
-      apply_points: {
-        Args: {
-          p_amount: number
-          p_customer: string
-          p_kind: Database["public"]["Enums"]["points_entry_kind"]
-          p_order: string
-          p_ref?: string
-        }
-        Returns: boolean
-      }
-      apply_reschedule_charge: {
-        Args: { p_delta_order: string; p_payment_id: string }
-        Returns: string
-      }
-      assign_booking_customer: {
-        Args: {
-          p_created_by?: string
-          p_customer: string
-          p_reservation: string
-        }
-        Returns: undefined
-      }
-      award_retro_points: { Args: { p_customer: string }; Returns: number }
-      backfill_customers_from_bookings: { Args: never; Returns: number }
-      booking_event_category: { Args: { p_type: string }; Returns: string }
-      cancel_booking: {
-        Args: { p_refund_id?: string; p_reservation: string }
-        Returns: undefined
-      }
-      cancel_course_order: { Args: { p_order: string }; Returns: undefined }
-      cancel_course_session: {
-        Args: { p_created_by?: string; p_session: string }
-        Returns: undefined
-      }
-      cancel_pending_reschedules: {
-        Args: { p_created_by?: string; p_reservation: string }
-        Returns: number
-      }
-      cancel_reschedule_charge: {
-        Args: { p_created_by?: string; p_reschedule: string }
-        Returns: boolean
-      }
-      cancel_reschedule_row: {
-        Args: { p_created_by?: string; p_reschedule: string }
-        Returns: boolean
-      }
-      cancel_unpaid_order: { Args: { p_order: string }; Returns: undefined }
-      confirm_course_payment: {
-        Args: { p_method?: string; p_order: string; p_payment_id: string }
-        Returns: string
-      }
-      confirm_payment: {
-        Args: { p_order: string; p_payment_id: string }
-        Returns: string
-      }
-      create_boleta_amount: {
-        Args: { p_order: string; p_settlement?: string; p_total: number }
-        Returns: string
-      }
-      create_checkout: {
-        Args: {
-          p_amount: number
-          p_currency: string
-          p_customer: Json
-          p_customer_id?: string
-          p_ends: string
-          p_lines: Json
-          p_net: number
-          p_points?: number
-          p_resource: string
-          p_snapshot: Json
-          p_starts: string
-          p_tax: number
-          p_terms_source?: string
-          p_terms_version?: string
-          p_ttl?: string
-        }
-        Returns: string
-      }
-      create_course_enrollment: {
-        Args: {
-          p_amount: number
-          p_credit?: string
-          p_generation: string
-          p_lead?: string
-          p_net: number
-          p_notes?: string
-          p_plan: string
-          p_students: Json
-          p_tax: number
-          p_terms_source?: string
-          p_terms_version?: string
-        }
-        Returns: string
-      }
-      create_hold: {
-        Args: {
-          p_ends: string
-          p_resource: string
-          p_starts: string
-          p_ttl?: string
-        }
-        Returns: string
-      }
-      create_nota_credito: { Args: { p_order: string }; Returns: string }
-      create_nota_credito_amount: {
-        Args: { p_boleta: string; p_order: string; p_total: number }
-        Returns: string
-      }
-      create_reschedule_charge: {
-        Args: {
-          p_created_by?: string
-          p_delta: number
-          p_delta_net: number
-          p_delta_tax: number
-          p_ends: string
-          p_lines: Json
-          p_reservation: string
-          p_snapshot: Json
-          p_starts: string
-        }
-        Returns: {
-          delta_order_id: string
-          reschedule_id: string
-        }[]
-      }
-      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
-      customer_sync_snapshots: {
-        Args: { p_customer: string; p_old_email: string }
-        Returns: undefined
-      }
-      ensure_customer_for_user: {
-        Args: { p_email: string; p_user: string }
-        Returns: string
-      }
-      equipment_create: {
-        Args: {
-          p_actor?: string
-          p_brand: string
-          p_category: string
-          p_location: string
-          p_model: string
-          p_nickname?: string
-          p_notes?: string
-          p_price?: number
-          p_purchased_at?: string
-          p_quantity: number
-          p_resource?: string
-          p_serial?: string
-          p_spot?: string
-          p_status: string
-          p_vendor?: string
-          p_warranty_until?: string
-        }
-        Returns: string
-      }
-      equipment_move: {
-        Args: {
-          p_actor?: string
-          p_item: string
-          p_location: string
-          p_note?: string
-          p_quantity: number
-          p_resource?: string
-          p_spot?: string
-          p_status: string
-        }
-        Returns: string
-      }
-      expire_abandoned_course_holds: {
-        Args: { p_older_than?: string }
-        Returns: number
-      }
-      expire_abandoned_manual_holds: {
-        Args: { p_older_than?: string }
-        Returns: number
-      }
-      expire_abandoned_manual_holds_ids: {
-        Args: { p_older_than?: string }
-        Returns: string[]
-      }
-      expire_abandoned_reschedules: {
-        Args: { p_older_than?: string }
-        Returns: number
-      }
-      expire_stale_holds: { Args: { p_resource?: string }; Returns: number }
-      first_booking_promo_used: { Args: { p_email: string }; Returns: boolean }
-      generate_access_code: { Args: never; Returns: string }
-      guide_lead_capture: {
-        Args: {
-          p_email: string
-          p_guide: string
-          p_referrer_host?: string
-          p_source: string
-          p_utm_campaign?: string
-          p_utm_content?: string
-          p_utm_medium?: string
-          p_utm_source?: string
-          p_utm_term?: string
-        }
-        Returns: {
-          download_token: string
-          id: string
-          request_count: number
-        }[]
-      }
-      guide_lead_request: {
-        Args: { p_email: string; p_source: string }
-        Returns: {
-          download_token: string
-          id: string
-          request_count: number
-        }[]
-      }
-      immutable_unaccent: { Args: { p_text: string }; Returns: string }
-      log_booking_event: {
-        Args: {
-          p_amount?: number
-          p_created_by?: string
-          p_detail?: Json
-          p_occurred_at?: string
-          p_order?: string
-          p_payment_ref?: string
-          p_reschedule?: string
-          p_reservation: string
-          p_tax_doc?: string
-          p_type: string
-        }
-        Returns: string
-      }
-      mark_refunded: {
-        Args: {
-          p_order: string
-          p_refund_amount?: number
-          p_refund_id?: string
-        }
-        Returns: undefined
-      }
-      move_course_session: {
-        Args: {
-          p_created_by?: string
-          p_ends: string
-          p_session: string
-          p_starts: string
-        }
-        Returns: undefined
-      }
-      newsletter_subscribe: {
-        Args: {
-          p_email: string
-          p_referrer_host?: string
-          p_source: string
-          p_utm_campaign?: string
-          p_utm_content?: string
-          p_utm_medium?: string
-          p_utm_source?: string
-          p_utm_term?: string
-        }
-        Returns: {
-          id: string
-          unsubscribe_token: string
-          welcome: boolean
-        }[]
-      }
-      newsletter_unsubscribe: { Args: { p_token: string }; Returns: string }
-      notification_log_record: {
-        Args: {
-          p_error: string
-          p_ok: boolean
-          p_recipient: string
-          p_subject: string
-          p_template: string
-        }
-        Returns: undefined
-      }
-      order_backing_boletas: {
-        Args: { p_order: string }
-        Returns: {
-          live_amount: number
-          payment_id: string
-        }[]
-      }
-      order_live_boletas: {
-        Args: { p_order: string }
-        Returns: {
-          id: string
-          live_amount: number
-        }[]
-      }
-      preview_course_conflicts: {
-        Args: { p_resource: string; p_sessions: Json }
-        Returns: {
-          conflict_amount: number
-          conflict_customer: string
-          conflict_id: string
-          conflict_kind: string
-          conflict_status: string
-          ends_at: string
-          n: number
-          starts_at: string
-        }[]
-      }
-      rate_limit_hit: {
-        Args: { p_key: string; p_max: number; p_window_seconds: number }
-        Returns: boolean
-      }
-      redeem_practice_hours: {
-        Args: {
-          p_ends: string
-          p_enrollment: string
-          p_hours: number
-          p_starts: string
-        }
-        Returns: string
-      }
-      refund_points_order: {
-        Args: { p_order: string; p_ref?: string; p_restore: number }
-        Returns: undefined
-      }
-      release_abandoned_redemptions: {
-        Args: { p_older_than?: string }
-        Returns: number
-      }
-      release_order_redemption: {
-        Args: { p_order: string; p_ref?: string }
-        Returns: undefined
-      }
-      release_practice_hours: {
-        Args: { p_reservation: string }
-        Returns: undefined
-      }
-      release_reschedule_hold: {
-        Args: { p_reschedule: string }
-        Returns: undefined
-      }
-      reschedule_courtesy: {
-        Args: {
-          p_ends: string
-          p_note?: string
-          p_reservation: string
-          p_starts: string
-        }
-        Returns: string
-      }
-      reschedule_down_move: {
-        Args: {
-          p_created_by?: string
-          p_ends: string
-          p_lines: Json
-          p_note?: string
-          p_refund_amount: number
-          p_reservation: string
-          p_snapshot: Json
-          p_starts: string
-        }
-        Returns: string
-      }
-      reschedule_move: {
-        Args: {
-          p_ends: string
-          p_lines: Json
-          p_note?: string
-          p_reservation: string
-          p_snapshot: Json
-          p_starts: string
-        }
-        Returns: string
-      }
-      reschedule_settle_refund: {
-        Args: { p_amount?: number; p_refund_id: string; p_reschedule: string }
-        Returns: string
-      }
-      reservation_for_order: { Args: { p_order: string }; Returns: string }
-      run_access_code_cron: { Args: never; Returns: undefined }
-      schedule_course_generation: {
-        Args: { p_created_by?: string; p_generation: string; p_sessions: Json }
-        Returns: number
-      }
-      substitute_student: {
-        Args: {
-          p_email: string
-          p_enrollment: string
-          p_name: string
-          p_phone?: string
-        }
-        Returns: undefined
-      }
-      transfer_enrollment: {
-        Args: { p_enrollment: string; p_target: string }
-        Returns: string
-      }
-      update_customer_contact: {
-        Args: {
-          p_customer: string
-          p_email: string
-          p_name: string
-          p_phone: string
-        }
-        Returns: undefined
-      }
-      upsert_guest_customer: {
-        Args: { p_email: string; p_name: string; p_phone: string }
-        Returns: string
-      }
+                  ]
+                },"course_leads": {
+                  Row: {
+                    "availability": string,"created_at": string,"email": string,"experience": string,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"status": string
+                  }
+                  Insert: {
+                    "availability": string,"created_at"?: string,"email": string,"experience": string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"status"?: string
+                  }
+                  Update: {
+                    "availability"?: string,"created_at"?: string,"email"?: string,"experience"?: string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name"?: string,"phone"?: string,"plan"?: string,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_leads_generation_id_fkey"
+      columns: ["generation_id"]
+isOneToOne: false
+      referencedRelation: "course_generations"
+      referencedColumns: ["id"]
     }
-    Enums: {
-      order_status:
-        | "cart"
-        | "pending_payment"
-        | "paid"
-        | "fulfilled"
-        | "cancelled"
-        | "refunded"
-      points_entry_kind:
-        | "earn"
-        | "earn_revoke"
-        | "redeem"
-        | "redeem_release"
-        | "redeem_restore"
-        | "adjust"
-      price_book_status: "draft" | "active" | "archived"
-      reservation_status: "held" | "confirmed" | "cancelled" | "expired"
-      tax_doc_kind: "boleta" | "nota_credito"
-      tax_doc_status: "pendiente" | "emitida"
-      tax_mode: "inclusive" | "exclusive"
+                  ]
+                },"course_practice_redemptions": {
+                  Row: {
+                    "created_at": string,"enrollment_id": string,"hours": number,"id": string,"released_at": string | null,"reservation_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"enrollment_id": string,"hours": number,"id"?: string,"released_at"?: string | null,"reservation_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"enrollment_id"?: string,"hours"?: number,"id"?: string,"released_at"?: string | null,"reservation_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_practice_redemptions_enrollment_id_fkey"
+      columns: ["enrollment_id"]
+isOneToOne: false
+      referencedRelation: "course_enrollments"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_practice_redemptions_reservation_id_fkey"
+      columns: ["reservation_id"]
+isOneToOne: true
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
     }
-    CompositeTypes: {
-      [_ in never]: never
+                  ]
+                },"course_sessions": {
+                  Row: {
+                    "created_at": string,"generation_id": string,"id": string,"n": number,"reservation_id": string | null,"status": string,"title": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"generation_id": string,"id"?: string,"n": number,"reservation_id"?: string | null,"status"?: string,"title": string
+                  }
+                  Update: {
+                    "created_at"?: string,"generation_id"?: string,"id"?: string,"n"?: number,"reservation_id"?: string | null,"status"?: string,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "course_sessions_generation_id_fkey"
+      columns: ["generation_id"]
+isOneToOne: false
+      referencedRelation: "course_generations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_sessions_reservation_id_fkey"
+      columns: ["reservation_id"]
+isOneToOne: true
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
     }
-  }
+                  ]
+                },"customers": {
+                  Row: {
+                    "auth_user_id": string | null,"created_at": string,"email": string | null,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_balance": number,"updated_at": string
+                  }
+                  Insert: {
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"dj_applications": {
+                  Row: {
+                    "availability": string,"created_at": string,"email": string,"genres": string | null,"id": string,"instagram": string | null,"mix_url": string,"name": string,"phone": string,"pitch": string,"session_format": string,"status": string
+                  }
+                  Insert: {
+                    "availability": string,"created_at"?: string,"email": string,"genres"?: string | null,"id"?: string,"instagram"?: string | null,"mix_url": string,"name": string,"phone": string,"pitch": string,"session_format": string,"status"?: string
+                  }
+                  Update: {
+                    "availability"?: string,"created_at"?: string,"email"?: string,"genres"?: string | null,"id"?: string,"instagram"?: string | null,"mix_url"?: string,"name"?: string,"phone"?: string,"pitch"?: string,"session_format"?: string,"status"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"equipment_items": {
+                  Row: {
+                    "brand": string,"category": string,"created_at": string,"created_by": string | null,"id": string,"location_id": string,"model": string,"nickname": string | null,"notes": string | null,"purchase_price_clp": number | null,"purchased_at": string | null,"quantity": number,"resource_id": string | null,"serial_number": string | null,"spot": string | null,"status": string,"updated_at": string,"vendor": string | null,"warranty_until": string | null
+                  }
+                  Insert: {
+                    "brand": string,"category": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location_id": string,"model": string,"nickname"?: string | null,"notes"?: string | null,"purchase_price_clp"?: number | null,"purchased_at"?: string | null,"quantity"?: number,"resource_id"?: string | null,"serial_number"?: string | null,"spot"?: string | null,"status"?: string,"updated_at"?: string,"vendor"?: string | null,"warranty_until"?: string | null
+                  }
+                  Update: {
+                    "brand"?: string,"category"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location_id"?: string,"model"?: string,"nickname"?: string | null,"notes"?: string | null,"purchase_price_clp"?: number | null,"purchased_at"?: string | null,"quantity"?: number,"resource_id"?: string | null,"serial_number"?: string | null,"spot"?: string | null,"status"?: string,"updated_at"?: string,"vendor"?: string | null,"warranty_until"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "equipment_items_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_items_resource_in_location"
+      columns: ["resource_id","location_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
+                },"equipment_moves": {
+                  Row: {
+                    "from_location_id": string | null,"from_resource_id": string | null,"from_spot": string | null,"from_status": string | null,"id": string,"item_id": string,"moved_at": string,"moved_by": string | null,"note": string | null,"quantity": number,"split_from_item_id": string | null,"to_location_id": string,"to_resource_id": string | null,"to_spot": string | null,"to_status": string
+                  }
+                  Insert: {
+                    "from_location_id"?: string | null,"from_resource_id"?: string | null,"from_spot"?: string | null,"from_status"?: string | null,"id"?: string,"item_id": string,"moved_at"?: string,"moved_by"?: string | null,"note"?: string | null,"quantity": number,"split_from_item_id"?: string | null,"to_location_id": string,"to_resource_id"?: string | null,"to_spot"?: string | null,"to_status": string
+                  }
+                  Update: {
+                    "from_location_id"?: string | null,"from_resource_id"?: string | null,"from_spot"?: string | null,"from_status"?: string | null,"id"?: string,"item_id"?: string,"moved_at"?: string,"moved_by"?: string | null,"note"?: string | null,"quantity"?: number,"split_from_item_id"?: string | null,"to_location_id"?: string,"to_resource_id"?: string | null,"to_spot"?: string | null,"to_status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "equipment_moves_from_location_id_fkey"
+      columns: ["from_location_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_moves_from_resource_id_fkey"
+      columns: ["from_resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_moves_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "equipment_items"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_moves_split_from_item_id_fkey"
+      columns: ["split_from_item_id"]
+isOneToOne: false
+      referencedRelation: "equipment_items"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_moves_to_location_id_fkey"
+      columns: ["to_location_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "equipment_moves_to_resource_id_fkey"
+      columns: ["to_resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"guide_leads": {
+                  Row: {
+                    "consent_at": string,"created_at": string,"download_token": string,"email": string,"guide_slug": string,"id": string,"last_downloaded_at": string | null,"last_requested_at": string,"referrer_host": string | null,"request_count": number,"source": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
+                  }
+                  Insert: {
+                    "consent_at"?: string,"created_at"?: string,"download_token"?: string,"email": string,"guide_slug"?: string,"id"?: string,"last_downloaded_at"?: string | null,"last_requested_at"?: string,"referrer_host"?: string | null,"request_count"?: number,"source": string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Update: {
+                    "consent_at"?: string,"created_at"?: string,"download_token"?: string,"email"?: string,"guide_slug"?: string,"id"?: string,"last_downloaded_at"?: string | null,"last_requested_at"?: string,"referrer_host"?: string | null,"request_count"?: number,"source"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"locations": {
+                  Row: {
+                    "active": boolean,"address": string | null,"created_at": string,"id": string,"name": string,"slug": string,"timezone": string
+                  }
+                  Insert: {
+                    "active"?: boolean,"address"?: string | null,"created_at"?: string,"id"?: string,"name": string,"slug": string,"timezone"?: string
+                  }
+                  Update: {
+                    "active"?: boolean,"address"?: string | null,"created_at"?: string,"id"?: string,"name"?: string,"slug"?: string,"timezone"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"newsletter_subscribers": {
+                  Row: {
+                    "consent_at": string,"created_at": string,"email": string,"id": string,"referrer_host": string | null,"request_count": number,"source": string,"unsubscribe_token": string,"unsubscribed_at": string | null,"updated_at": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
+                  }
+                  Insert: {
+                    "consent_at"?: string,"created_at"?: string,"email": string,"id"?: string,"referrer_host"?: string | null,"request_count"?: number,"source": string,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Update: {
+                    "consent_at"?: string,"created_at"?: string,"email"?: string,"id"?: string,"referrer_host"?: string | null,"request_count"?: number,"source"?: string,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"notification_log": {
+                  Row: {
+                    "created_at": string,"error": string | null,"id": string,"ok": boolean,"recipient": string,"subject": string,"template": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"error"?: string | null,"id"?: string,"ok": boolean,"recipient": string,"subject": string,"template": string
+                  }
+                  Update: {
+                    "created_at"?: string,"error"?: string | null,"id"?: string,"ok"?: boolean,"recipient"?: string,"subject"?: string,"template"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"opening_hours": {
+                  Row: {
+                    "close_minute": number,"id": string,"open_minute": number,"resource_id": string,"weekday": number
+                  }
+                  Insert: {
+                    "close_minute": number,"id"?: string,"open_minute": number,"resource_id": string,"weekday": number
+                  }
+                  Update: {
+                    "close_minute"?: number,"id"?: string,"open_minute"?: number,"resource_id"?: string,"weekday"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "opening_hours_resource_id_fkey"
+      columns: ["resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"order_lines": {
+                  Row: {
+                    "addon_key": string | null,"description": string,"id": string,"line_type": string,"order_id": string,"quantity": number,"reservation_id": string | null,"subtotal_clp": number,"unit_price_clp": number
+                  }
+                  Insert: {
+                    "addon_key"?: string | null,"description": string,"id"?: string,"line_type": string,"order_id": string,"quantity"?: number,"reservation_id"?: string | null,"subtotal_clp": number,"unit_price_clp": number
+                  }
+                  Update: {
+                    "addon_key"?: string | null,"description"?: string,"id"?: string,"line_type"?: string,"order_id"?: string,"quantity"?: number,"reservation_id"?: string | null,"subtotal_clp"?: number,"unit_price_clp"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_lines_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "order_lines_reservation_id_fkey"
+      columns: ["reservation_id"]
+isOneToOne: false
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"orders": {
+                  Row: {
+                    "amount_clp": number,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"id": string,"kind": string,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null
+                  }
+                  Insert: {
+                    "amount_clp": number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null
+                  }
+                  Update: {
+                    "amount_clp"?: number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp"?: number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp"?: number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "orders_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customers"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"payment_intents": {
+                  Row: {
+                    "amount_clp": number,"created_at": string,"currency": string,"id": string,"idempotency_key": string | null,"init_point": string | null,"order_id": string,"payment_id": string | null,"preference_id": string | null,"provider": string,"status": string
+                  }
+                  Insert: {
+                    "amount_clp": number,"created_at"?: string,"currency"?: string,"id"?: string,"idempotency_key"?: string | null,"init_point"?: string | null,"order_id": string,"payment_id"?: string | null,"preference_id"?: string | null,"provider"?: string,"status"?: string
+                  }
+                  Update: {
+                    "amount_clp"?: number,"created_at"?: string,"currency"?: string,"id"?: string,"idempotency_key"?: string | null,"init_point"?: string | null,"order_id"?: string,"payment_id"?: string | null,"preference_id"?: string | null,"provider"?: string,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payment_intents_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"points_ledger": {
+                  Row: {
+                    "amount": number,"created_at": string,"customer_id": string,"id": string,"kind": Database["public"]['Enums']["points_entry_kind"],"order_id": string | null,"ref": string
+                  }
+                  Insert: {
+                    "amount": number,"created_at"?: string,"customer_id": string,"id"?: string,"kind": Database["public"]['Enums']["points_entry_kind"],"order_id"?: string | null,"ref"?: string
+                  }
+                  Update: {
+                    "amount"?: number,"created_at"?: string,"customer_id"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["points_entry_kind"],"order_id"?: string | null,"ref"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "points_ledger_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customers"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "points_ledger_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"price_books": {
+                  Row: {
+                    "created_at": string,"id": string,"name": string,"status": Database["public"]['Enums']["price_book_status"],"valid_from": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"name": string,"status"?: Database["public"]['Enums']["price_book_status"],"valid_from"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"status"?: Database["public"]['Enums']["price_book_status"],"valid_from"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"rate_limit_counters": {
+                  Row: {
+                    "bucket_key": string,"count": number,"expires_at": string
+                  }
+                  Insert: {
+                    "bucket_key": string,"count"?: number,"expires_at": string
+                  }
+                  Update: {
+                    "bucket_key"?: string,"count"?: number,"expires_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"rate_plans": {
+                  Row: {
+                    "currency": string,"id": string,"min_hours": number,"price_book_id": string,"resource_id": string,"rounding_increment": number,"step_hours": number,"tax_mode": Database["public"]['Enums']["tax_mode"]
+                  }
+                  Insert: {
+                    "currency"?: string,"id"?: string,"min_hours"?: number,"price_book_id": string,"resource_id": string,"rounding_increment"?: number,"step_hours"?: number,"tax_mode"?: Database["public"]['Enums']["tax_mode"]
+                  }
+                  Update: {
+                    "currency"?: string,"id"?: string,"min_hours"?: number,"price_book_id"?: string,"resource_id"?: string,"rounding_increment"?: number,"step_hours"?: number,"tax_mode"?: Database["public"]['Enums']["tax_mode"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "rate_plans_price_book_id_fkey"
+      columns: ["price_book_id"]
+isOneToOne: false
+      referencedRelation: "price_books"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "rate_plans_resource_id_fkey"
+      columns: ["resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"rate_tiers": {
+                  Row: {
+                    "amount_clp": number,"end_minute": number,"id": string,"key": string,"priority": number,"rate_plan_id": string,"start_minute": number,"weekdays": (number)[]
+                  }
+                  Insert: {
+                    "amount_clp": number,"end_minute": number,"id"?: string,"key": string,"priority"?: number,"rate_plan_id": string,"start_minute": number,"weekdays": (number)[]
+                  }
+                  Update: {
+                    "amount_clp"?: number,"end_minute"?: number,"id"?: string,"key"?: string,"priority"?: number,"rate_plan_id"?: string,"start_minute"?: number,"weekdays"?: (number)[]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "rate_tiers_rate_plan_id_fkey"
+      columns: ["rate_plan_id"]
+isOneToOne: false
+      referencedRelation: "rate_plans"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"reschedules": {
+                  Row: {
+                    "applied_at": string | null,"created_at": string,"created_by": string | null,"delta_clp": number,"delta_order_id": string | null,"id": string,"kind": string,"mp_refund_id": string | null,"mp_refund_payment_id": string | null,"new_ends_at": string,"new_lines": Json | null,"new_snapshot": Json | null,"new_starts_at": string,"new_total_clp": number,"offline_settled_clp": number,"old_ends_at": string,"old_live_clp": number,"old_starts_at": string,"original_order_id": string | null,"refund_attempt_at": string | null,"reservation_id": string,"settled_clp": number,"status": string
+                  }
+                  Insert: {
+                    "applied_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"delta_clp"?: number,"delta_order_id"?: string | null,"id"?: string,"kind": string,"mp_refund_id"?: string | null,"mp_refund_payment_id"?: string | null,"new_ends_at": string,"new_lines"?: Json | null,"new_snapshot"?: Json | null,"new_starts_at": string,"new_total_clp": number,"offline_settled_clp"?: number,"old_ends_at": string,"old_live_clp": number,"old_starts_at": string,"original_order_id"?: string | null,"refund_attempt_at"?: string | null,"reservation_id": string,"settled_clp"?: number,"status"?: string
+                  }
+                  Update: {
+                    "applied_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"delta_clp"?: number,"delta_order_id"?: string | null,"id"?: string,"kind"?: string,"mp_refund_id"?: string | null,"mp_refund_payment_id"?: string | null,"new_ends_at"?: string,"new_lines"?: Json | null,"new_snapshot"?: Json | null,"new_starts_at"?: string,"new_total_clp"?: number,"offline_settled_clp"?: number,"old_ends_at"?: string,"old_live_clp"?: number,"old_starts_at"?: string,"original_order_id"?: string | null,"refund_attempt_at"?: string | null,"reservation_id"?: string,"settled_clp"?: number,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "reschedules_delta_order_id_fkey"
+      columns: ["delta_order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reschedules_original_order_id_fkey"
+      columns: ["original_order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reschedules_reservation_id_fkey"
+      columns: ["reservation_id"]
+isOneToOne: false
+      referencedRelation: "reservations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"reservations": {
+                  Row: {
+                    "access_code": string | null,"access_loaded_at": string | null,"access_removed_at": string | null,"access_sent_at": string | null,"cancelled_at": string | null,"created_at": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"ends_at": string,"expires_at": string | null,"id": string,"kind": string,"notes": string | null,"order_id": string | null,"reminder_sent_at": string | null,"reschedule_id": string | null,"resource_id": string,"starts_at": string,"status": Database["public"]['Enums']["reservation_status"]
+                  }
+                  Insert: {
+                    "access_code"?: string | null,"access_loaded_at"?: string | null,"access_removed_at"?: string | null,"access_sent_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"ends_at": string,"expires_at"?: string | null,"id"?: string,"kind"?: string,"notes"?: string | null,"order_id"?: string | null,"reminder_sent_at"?: string | null,"reschedule_id"?: string | null,"resource_id": string,"starts_at": string,"status"?: Database["public"]['Enums']["reservation_status"]
+                  }
+                  Update: {
+                    "access_code"?: string | null,"access_loaded_at"?: string | null,"access_removed_at"?: string | null,"access_sent_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"ends_at"?: string,"expires_at"?: string | null,"id"?: string,"kind"?: string,"notes"?: string | null,"order_id"?: string | null,"reminder_sent_at"?: string | null,"reschedule_id"?: string | null,"resource_id"?: string,"starts_at"?: string,"status"?: Database["public"]['Enums']["reservation_status"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "reservations_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customers"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reservations_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reservations_reschedule_id_fkey"
+      columns: ["reschedule_id"]
+isOneToOne: false
+      referencedRelation: "reschedules"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reservations_resource_id_fkey"
+      columns: ["resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"resources": {
+                  Row: {
+                    "active": boolean,"created_at": string,"id": string,"kind": string,"location_id": string,"name": string
+                  }
+                  Insert: {
+                    "active"?: boolean,"created_at"?: string,"id"?: string,"kind"?: string,"location_id": string,"name": string
+                  }
+                  Update: {
+                    "active"?: boolean,"created_at"?: string,"id"?: string,"kind"?: string,"location_id"?: string,"name"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "resources_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"schedule_exceptions": {
+                  Row: {
+                    "close_minute": number | null,"closed": boolean,"created_at": string,"date": string,"id": string,"open_minute": number | null,"reason": string | null,"resource_id": string
+                  }
+                  Insert: {
+                    "close_minute"?: number | null,"closed"?: boolean,"created_at"?: string,"date": string,"id"?: string,"open_minute"?: number | null,"reason"?: string | null,"resource_id": string
+                  }
+                  Update: {
+                    "close_minute"?: number | null,"closed"?: boolean,"created_at"?: string,"date"?: string,"id"?: string,"open_minute"?: number | null,"reason"?: string | null,"resource_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "schedule_exceptions_resource_id_fkey"
+      columns: ["resource_id"]
+isOneToOne: false
+      referencedRelation: "resources"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"tax_documents": {
+                  Row: {
+                    "created_at": string,"emitted_at": string | null,"folio": string | null,"id": string,"is_live": boolean | null,"iva": number,"kind": Database["public"]['Enums']["tax_doc_kind"],"neto": number,"order_id": string,"pdf_url": string | null,"receptor_rut": string | null,"reversed_clp": number,"reverses_document_id": string | null,"settlement_order_id": string | null,"status": Database["public"]['Enums']["tax_doc_status"],"total": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"emitted_at"?: string | null,"folio"?: string | null,"id"?: string,"is_live"?: never,"iva": number,"kind": Database["public"]['Enums']["tax_doc_kind"],"neto": number,"order_id": string,"pdf_url"?: string | null,"receptor_rut"?: string | null,"reversed_clp"?: number,"reverses_document_id"?: string | null,"settlement_order_id"?: string | null,"status"?: Database["public"]['Enums']["tax_doc_status"],"total": number
+                  }
+                  Update: {
+                    "created_at"?: string,"emitted_at"?: string | null,"folio"?: string | null,"id"?: string,"is_live"?: never,"iva"?: number,"kind"?: Database["public"]['Enums']["tax_doc_kind"],"neto"?: number,"order_id"?: string,"pdf_url"?: string | null,"receptor_rut"?: string | null,"reversed_clp"?: number,"reverses_document_id"?: string | null,"settlement_order_id"?: string | null,"status"?: Database["public"]['Enums']["tax_doc_status"],"total"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tax_documents_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "tax_documents_reverses_document_id_fkey"
+      columns: ["reverses_document_id"]
+isOneToOne: false
+      referencedRelation: "tax_documents"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "tax_documents_settlement_order_id_fkey"
+      columns: ["settlement_order_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"tax_rates": {
+                  Row: {
+                    "code": string,"id": string,"pct": number
+                  }
+                  Insert: {
+                    "code": string,"id"?: string,"pct": number
+                  }
+                  Update: {
+                    "code"?: string,"id"?: string,"pct"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"volume_discounts": {
+                  Row: {
+                    "id": string,"min_hours": number,"pct": number,"rate_plan_id": string
+                  }
+                  Insert: {
+                    "id"?: string,"min_hours": number,"pct": number,"rate_plan_id": string
+                  }
+                  Update: {
+                    "id"?: string,"min_hours"?: number,"pct"?: number,"rate_plan_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "volume_discounts_rate_plan_id_fkey"
+      columns: ["rate_plan_id"]
+isOneToOne: false
+      referencedRelation: "rate_plans"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"webhook_events": {
+                  Row: {
+                    "created_at": string,"event_id": string,"id": string,"payload": Json | null,"provider": string,"topic": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"event_id": string,"id"?: string,"payload"?: Json | null,"provider"?: string,"topic"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"event_id"?: string,"id"?: string,"payload"?: Json | null,"provider"?: string,"topic"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                }
+          }
+          Views: {
+            [_ in never]: never
+          }
+          Functions: {
+            "apply_points":
+{ Args: { "p_amount": number,"p_customer": string,"p_kind": Database["public"]['Enums']["points_entry_kind"],"p_order": string,"p_ref"?: string }; Returns: boolean
+                           },
+"apply_reschedule_charge":
+{ Args: { "p_delta_order": string,"p_payment_id": string }; Returns: string
+                           },
+"assign_booking_customer":
+{ Args: { "p_created_by"?: string,"p_customer": string,"p_reservation": string }; Returns: undefined
+                           },
+"award_retro_points":
+{ Args: { "p_customer": string }; Returns: number
+                           },
+"backfill_customers_from_bookings":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"booking_event_category":
+{ Args: { "p_type": string }; Returns: string
+                           },
+"cancel_booking":
+{ Args: { "p_refund_id"?: string,"p_reservation": string }; Returns: undefined
+                           },
+"cancel_course_order":
+{ Args: { "p_order": string }; Returns: undefined
+                           },
+"cancel_course_session":
+{ Args: { "p_created_by"?: string,"p_session": string }; Returns: undefined
+                           },
+"cancel_pending_reschedules":
+{ Args: { "p_created_by"?: string,"p_reservation": string }; Returns: number
+                           },
+"cancel_reschedule_charge":
+{ Args: { "p_created_by"?: string,"p_reschedule": string }; Returns: boolean
+                           },
+"cancel_reschedule_row":
+{ Args: { "p_created_by"?: string,"p_reschedule": string }; Returns: boolean
+                           },
+"cancel_unpaid_order":
+{ Args: { "p_order": string }; Returns: undefined
+                           },
+"confirm_course_payment":
+{ Args: { "p_method"?: string,"p_order": string,"p_payment_id": string }; Returns: string
+                           },
+"confirm_payment":
+{ Args: { "p_order": string,"p_payment_id": string }; Returns: string
+                           },
+"create_boleta_amount":
+{ Args: { "p_order": string,"p_settlement"?: string,"p_total": number }; Returns: string
+                           },
+"create_checkout":
+{ Args: { "p_amount": number,"p_currency": string,"p_customer": Json,"p_customer_id"?: string,"p_ends": string,"p_lines": Json,"p_net": number,"p_points"?: number,"p_resource": string,"p_snapshot": Json,"p_starts": string,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string,"p_ttl"?: string }; Returns: string
+                           },
+"create_course_enrollment":
+{ Args: { "p_amount": number,"p_credit"?: string,"p_generation": string,"p_lead"?: string,"p_net": number,"p_notes"?: string,"p_plan": string,"p_students": Json,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string }; Returns: string
+                           },
+"create_hold":
+{ Args: { "p_ends": string,"p_resource": string,"p_starts": string,"p_ttl"?: string }; Returns: string
+                           },
+"create_nota_credito":
+{ Args: { "p_order": string }; Returns: string
+                           },
+"create_nota_credito_amount":
+{ Args: { "p_boleta": string,"p_order": string,"p_total": number }; Returns: string
+                           },
+"create_reschedule_charge":
+{ Args: { "p_created_by"?: string,"p_delta": number,"p_delta_net": number,"p_delta_tax": number,"p_ends": string,"p_lines": Json,"p_reservation": string,"p_snapshot": Json,"p_starts": string }; Returns: {
+              "delta_order_id": string,"reschedule_id": string
+            }[]
+                           },
+"custom_access_token_hook":
+{ Args: { "event": Json }; Returns: Json
+                           },
+"customer_sync_snapshots":
+{ Args: { "p_customer": string,"p_old_email": string }; Returns: undefined
+                           },
+"ensure_customer_for_user":
+{ Args: { "p_email": string,"p_user": string }; Returns: string
+                           },
+"equipment_create":
+{ Args: { "p_actor"?: string,"p_brand": string,"p_category": string,"p_location": string,"p_model": string,"p_nickname"?: string,"p_notes"?: string,"p_price"?: number,"p_purchased_at"?: string,"p_quantity": number,"p_resource"?: string,"p_serial"?: string,"p_spot"?: string,"p_status": string,"p_vendor"?: string,"p_warranty_until"?: string }; Returns: string
+                           },
+"equipment_move":
+{ Args: { "p_actor"?: string,"p_item": string,"p_location": string,"p_note"?: string,"p_quantity": number,"p_resource"?: string,"p_spot"?: string,"p_status": string }; Returns: string
+                           },
+"expire_abandoned_course_holds":
+{ Args: { "p_older_than"?: string }; Returns: number
+                           },
+"expire_abandoned_manual_holds":
+{ Args: { "p_older_than"?: string }; Returns: number
+                           },
+"expire_abandoned_manual_holds_ids":
+{ Args: { "p_older_than"?: string }; Returns: string[]
+                           },
+"expire_abandoned_reschedules":
+{ Args: { "p_older_than"?: string }; Returns: number
+                           },
+"expire_stale_holds":
+{ Args: { "p_resource"?: string }; Returns: number
+                           },
+"first_booking_promo_used":
+{ Args: { "p_email": string }; Returns: boolean
+                           },
+"generate_access_code":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
+"guide_lead_capture":
+{ Args: { "p_email": string,"p_guide": string,"p_referrer_host"?: string,"p_source": string,"p_utm_campaign"?: string,"p_utm_content"?: string,"p_utm_medium"?: string,"p_utm_source"?: string,"p_utm_term"?: string }; Returns: {
+              "download_token": string,"id": string,"request_count": number
+            }[]
+                           },
+"guide_lead_request":
+{ Args: { "p_email": string,"p_source": string }; Returns: {
+              "download_token": string,"id": string,"request_count": number
+            }[]
+                           },
+"immutable_unaccent":
+{ Args: { "p_text": string }; Returns: string
+                           },
+"log_booking_event":
+{ Args: { "p_amount"?: number,"p_created_by"?: string,"p_detail"?: Json,"p_occurred_at"?: string,"p_order"?: string,"p_payment_ref"?: string,"p_reschedule"?: string,"p_reservation": string,"p_tax_doc"?: string,"p_type": string }; Returns: string
+                           },
+"mark_refunded":
+{ Args: { "p_order": string,"p_refund_amount"?: number,"p_refund_id"?: string }; Returns: undefined
+                           },
+"move_course_session":
+{ Args: { "p_created_by"?: string,"p_ends": string,"p_session": string,"p_starts": string }; Returns: undefined
+                           },
+"newsletter_subscribe":
+{ Args: { "p_email": string,"p_referrer_host"?: string,"p_source": string,"p_utm_campaign"?: string,"p_utm_content"?: string,"p_utm_medium"?: string,"p_utm_source"?: string,"p_utm_term"?: string }; Returns: {
+              "id": string,"unsubscribe_token": string,"welcome": boolean
+            }[]
+                           },
+"newsletter_unsubscribe":
+{ Args: { "p_token": string }; Returns: string
+                           },
+"notification_log_record":
+{ Args: { "p_error": string,"p_ok": boolean,"p_recipient": string,"p_subject": string,"p_template": string }; Returns: undefined
+                           },
+"order_backing_boletas":
+{ Args: { "p_order": string }; Returns: {
+              "live_amount": number,"payment_id": string
+            }[]
+                           },
+"order_live_boletas":
+{ Args: { "p_order": string }; Returns: {
+              "id": string,"live_amount": number
+            }[]
+                           },
+"preview_course_conflicts":
+{ Args: { "p_resource": string,"p_sessions": Json }; Returns: {
+              "conflict_amount": number,"conflict_customer": string,"conflict_id": string,"conflict_kind": string,"conflict_status": string,"ends_at": string,"n": number,"starts_at": string
+            }[]
+                           },
+"rate_limit_hit":
+{ Args: { "p_key": string,"p_max": number,"p_window_seconds": number }; Returns: boolean
+                           },
+"redeem_practice_hours":
+{ Args: { "p_ends": string,"p_enrollment": string,"p_hours": number,"p_starts": string }; Returns: string
+                           },
+"refund_points_order":
+{ Args: { "p_order": string,"p_ref"?: string,"p_restore": number }; Returns: undefined
+                           },
+"release_abandoned_redemptions":
+{ Args: { "p_older_than"?: string }; Returns: number
+                           },
+"release_order_redemption":
+{ Args: { "p_order": string,"p_ref"?: string }; Returns: undefined
+                           },
+"release_practice_hours":
+{ Args: { "p_reservation": string }; Returns: undefined
+                           },
+"release_reschedule_hold":
+{ Args: { "p_reschedule": string }; Returns: undefined
+                           },
+"reschedule_courtesy":
+{ Args: { "p_ends": string,"p_note"?: string,"p_reservation": string,"p_starts": string }; Returns: string
+                           },
+"reschedule_down_move":
+{ Args: { "p_created_by"?: string,"p_ends": string,"p_lines": Json,"p_note"?: string,"p_refund_amount": number,"p_reservation": string,"p_snapshot": Json,"p_starts": string }; Returns: string
+                           },
+"reschedule_move":
+{ Args: { "p_ends": string,"p_lines": Json,"p_note"?: string,"p_reservation": string,"p_snapshot": Json,"p_starts": string }; Returns: string
+                           },
+"reschedule_settle_refund":
+{ Args: { "p_amount"?: number,"p_refund_id": string,"p_reschedule": string }; Returns: string
+                           },
+"reservation_for_order":
+{ Args: { "p_order": string }; Returns: string
+                           },
+"run_access_code_cron":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"schedule_course_generation":
+{ Args: { "p_created_by"?: string,"p_generation": string,"p_sessions": Json }; Returns: number
+                           },
+"substitute_student":
+{ Args: { "p_email": string,"p_enrollment": string,"p_name": string,"p_phone"?: string }; Returns: undefined
+                           },
+"transfer_enrollment":
+{ Args: { "p_enrollment": string,"p_target": string }; Returns: string
+                           },
+"update_customer_contact":
+{ Args: { "p_customer": string,"p_email": string,"p_name": string,"p_phone": string }; Returns: undefined
+                           },
+"upsert_guest_customer":
+{ Args: { "p_email": string,"p_name": string,"p_phone": string }; Returns: string
+                           }
+          }
+          Enums: {
+            "order_status": "cart"|"pending_payment"|"paid"|"fulfilled"|"cancelled"|"refunded","points_entry_kind": "earn"|"earn_revoke"|"redeem"|"redeem_release"|"redeem_restore"|"adjust","price_book_status": "draft"|"active"|"archived","reservation_status": "held"|"confirmed"|"cancelled"|"expired","tax_doc_kind": "boleta"|"nota_credito","tax_doc_status": "pendiente"|"emitida","tax_mode": "inclusive"|"exclusive"
+          }
+          CompositeTypes: {
+            [_ in never]: never
+          }
+        }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
@@ -2322,143 +1040,112 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
+    : never = never
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+    ? R
     : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
+    : never = never
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+      Insert: infer I
+    }
+    ? I
     : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
+    : never = never
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+      Update: infer U
+    }
+    ? U
     : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
+    : never = never
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
+    : never = never
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
-  public: {
-    Enums: {
-      order_status: [
-        "cart",
-        "pending_payment",
-        "paid",
-        "fulfilled",
-        "cancelled",
-        "refunded",
-      ],
-      points_entry_kind: [
-        "earn",
-        "earn_revoke",
-        "redeem",
-        "redeem_release",
-        "redeem_restore",
-        "adjust",
-      ],
-      price_book_status: ["draft", "active", "archived"],
-      reservation_status: ["held", "confirmed", "cancelled", "expired"],
-      tax_doc_kind: ["boleta", "nota_credito"],
-      tax_doc_status: ["pendiente", "emitida"],
-      tax_mode: ["inclusive", "exclusive"],
-    },
-  },
+  "graphql_public": {
+          Enums: {
+            
+          }
+        },"public": {
+          Enums: {
+            "order_status": ["cart", "pending_payment", "paid", "fulfilled", "cancelled", "refunded"],"points_entry_kind": ["earn", "earn_revoke", "redeem", "redeem_release", "redeem_restore", "adjust"],"price_book_status": ["draft", "active", "archived"],"reservation_status": ["held", "confirmed", "cancelled", "expired"],"tax_doc_kind": ["boleta", "nota_credito"],"tax_doc_status": ["pendiente", "emitida"],"tax_mode": ["inclusive", "exclusive"]
+          }
+        }
 } as const
 
