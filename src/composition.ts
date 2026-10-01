@@ -56,6 +56,11 @@ import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-rep
 import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 import { TaxDocService } from "@/src/application/admin/tax-doc-service";
+import { CalendarSyncService } from "@/src/application/calendar/calendar-sync-service";
+import type { CalendarSync } from "@/src/application/ports/calendar";
+import { GoogleCalendarClient } from "@/src/infrastructure/calendar/google-calendar";
+import { parseServiceAccount } from "@/src/infrastructure/calendar/service-account";
+import { SupabaseCalendarSyncRepository } from "@/src/infrastructure/db/calendar-sync-repository";
 
 /** Cliente Supabase service-role (servidor). */
 export function db(): SupabaseClient<Database> {
@@ -449,6 +454,45 @@ export function customerDirectory(client: SupabaseClient<Database> = db()): Cust
  */
 export function accessCodeService(client: SupabaseClient<Database> = db()): AccessCodeService {
   return new AccessCodeService(new SupabaseAdminRepository(client), notificationService(client));
+}
+
+/**
+ * Espejo de la agenda en Google Calendar: qué ve el admin de la configuración. Opcional: sin
+ * las dos variables la función está apagada y la cola espera (no se drena en falso).
+ */
+export function calendarSyncConfig(): {
+  configured: boolean;
+  calendarId: string | null;
+  serviceAccountEmail: string | null;
+  error: string | null;
+} {
+  const sa = parseServiceAccount(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim() || null;
+  return {
+    configured: sa.ok && !!calendarId,
+    calendarId,
+    serviceAccountEmail: sa.ok ? sa.clientEmail : null,
+    error: sa.ok ? null : sa.error,
+  };
+}
+
+/** Adaptador de Google Calendar, o null si falta configuración. */
+export function calendarSync(): CalendarSync | null {
+  const sa = parseServiceAccount(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim();
+  if (!sa.ok || !calendarId) return null;
+  return new GoogleCalendarClient({ clientEmail: sa.clientEmail, privateKey: sa.privateKey, calendarId });
+}
+
+/** Worker del espejo: lo dispara pg_cron cada minuto vía /api/cron/calendar-sync. */
+export function calendarSyncService(client: SupabaseClient<Database> = db()): CalendarSyncService {
+  // Los links a la ficha apuntan al admin del ENTORNO (local → localhost), como los correos.
+  return new CalendarSyncService(new SupabaseCalendarSyncRepository(client), calendarSync(), { siteUrl: resolveSiteUrl() });
+}
+
+/** Cola del espejo para la página /admin/calendario (stats y errores). */
+export function calendarSyncRepository(client: SupabaseClient<Database> = db()): SupabaseCalendarSyncRepository {
+  return new SupabaseCalendarSyncRepository(client);
 }
 
 /** Recordatorio de sesión (hasta 24 h antes): mismo cron de 5 min que el PIN, mismo patrón de reclamo. */

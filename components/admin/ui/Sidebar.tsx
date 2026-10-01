@@ -21,6 +21,7 @@ function groups(
     lock: boolean;
     sii: boolean;
     equipment: boolean;
+    calendar: boolean;
   },
   porHacer: number,
   solicitudes: number,
@@ -32,6 +33,8 @@ function groups(
   const config: Item[] = [];
   if (show.members) config.push({ href: "/admin/miembros", label: "Miembros", icon: "members" });
   if (show.roles) config.push({ href: "/admin/roles", label: "Roles", icon: "roles" });
+  // Espejo en Google Calendar: configuración (conexión + cola), no operación diaria.
+  if (show.calendar) config.push({ href: "/admin/calendario", label: "Calendario", icon: "clock" });
   const operacion: Item[] = [
     { href: "/admin", label: "Hoy", icon: "today", badge: porHacer },
     { href: "/admin/agenda", label: "Agenda", icon: "clock" },
@@ -141,6 +144,7 @@ export function Sidebar({
     lock: boolean;
     sii: boolean;
     equipment: boolean;
+    calendar: boolean;
   };
   porHacer?: number;
   solicitudes?: number;

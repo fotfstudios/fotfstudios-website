@@ -17,6 +17,10 @@
  *              (smtp://127.0.0.1:54325); prod usa Resend. MP_NOTIFICATION_URL — notification_url por-preference
  *              (túnel alternativo); vacía en prod para que MP notifique vía los
  *              Webhooks del panel (firma validable).
+ *   Opcional (espejo de la agenda en Google Calendar; sin ellas la función queda apagada y la
+ *              cola espera): GOOGLE_SERVICE_ACCOUNT_JSON (secreta: la llave JSON de la cuenta de
+ *              servicio, tal cual o en base64) y GOOGLE_CALENDAR_ID (el calendario compartido con
+ *              esa cuenta). Ver DEPLOY.md → "Google Calendar (espejo)".
  *
  * **Requeridas vs condicionales.** `BASE_REQUIRED` son las que la app necesita en
  * todo entorno; se validan de una sola vez al arrancar (`assertBaseEnv`, llamada

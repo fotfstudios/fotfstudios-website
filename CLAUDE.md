@@ -93,6 +93,9 @@ en vivo ni la base Supabase remota real.
   `components/PublicChrome.tsx` is the one place that mounts GTM (noscript + `gtm-init`) +
   `ConsentBanner` + Vercel `<Analytics/>`. GTM only when `VERCEL_ENV === "production"` (or
   `NEXT_PUBLIC_GTM_FORCE=true` locally) — see `lib/measurement.ts`.
+- `src/domain/calendar/` — `ics.ts` (los `.ics` de los correos) y `google-event.ts` (reserva → evento del
+  espejo en Google Calendar). El espejo es unidireccional: trigger en `reservations` → cola `calendar_sync` →
+  pg_cron cada minuto → `/api/cron/calendar-sync`. Estado y botones en `/admin/calendario` (`calendar.manage`).
 - `lib/curso-content.ts` — Curso DJ copy/prices (`CURSO`, `PRECIOS`, `FAQ`…). Lives in `lib/`
   because the home section, a guide and `app/admin/(panel)/curso/generaciones` read it too —
   never import across `app/` trees (`@/app/...` from `components/` is a smell).

@@ -220,6 +220,52 @@ la ventana de aprobación, y que hay que borrar en una migración posterior:
 Dejar una de estas indefinidamente no rompe nada, pero es deuda: son dos caminos hacia la
 misma tabla y el segundo no se prueba.
 
+## Google Calendar (espejo de la agenda)
+
+Unidireccional: cada reserva, sesión de curso y bloqueo se publica en un calendario de Google;
+se mueve al reagendar y se borra al cancelar/expirar. Google nunca se lee. Spec:
+`docs/superpowers/specs/2026-10-01-google-calendar-espejo-design.md`.
+
+**Configuración (una vez, por el dueño):**
+1. Google Cloud Console → proyecto nuevo (p. ej. `fotf-calendario`) → *APIs y servicios* → habilitar
+   **Google Calendar API**.
+2. *IAM → Cuentas de servicio* → crear una (sin roles) → *Claves* → *Agregar clave* → JSON. Se descarga
+   un archivo: es un secreto, no va a git.
+3. Vercel → Environment Variables (**Production**; Preview no tiene base):
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` = el archivo en base64 (`base64 -i llave.json | pbcopy`), marcada Sensitive.
+   - `GOOGLE_CALENDAR_ID` = el id del calendario del paso 4.
+   Las env de Vercel necesitan **Redeploy** para tomar efecto.
+4. Google Calendar → *Otros calendarios → Crear calendario* ("FOTF Studios — Agenda"). En su
+   configuración: *Compartir con personas específicas* → el `client_email` de la cuenta de servicio
+   (se ve y se copia en `/admin/calendario`) con **"Hacer cambios en eventos"**. El id está en
+   *Integrar el calendario* (`…@group.calendar.google.com`).
+5. `/admin/calendario` → debe decir *Configurado* → **Resincronizar todo**.
+
+**Dos bloqueos de Workspace (los dos aparecieron en la prueba local del 2026-10-01):**
+- *"Se aplicó una política de la organización que impide la creación de claves"* (paso 2). Es
+  `iam.disableServiceAccountKeyCreation` (y su versión `iam.managed.…`), activa por defecto en
+  organizaciones de Workspace. Se desactiva **solo en este proyecto**: darse primero el rol
+  *Administrador de políticas de la organización* a nivel de la organización `fotfstudios.cl` (ser
+  súper admin de Workspace no alcanza), y luego en el proyecto → *Políticas de la organización* →
+  la política → *Anular la política del superior* → regla con *Aplicación: Desactivada*.
+- *"Make changes to events" en gris* (paso 4), o el worker falla con
+  `403 (requiredAccessLevel): You need to have writer access`. Workspace limita lo que se comparte
+  con direcciones externas, y la cuenta de servicio (`…iam.gserviceaccount.com`) es externa. Google
+  baja el permiso en silencio a "Ver los detalles". admin.google.com → *Aplicaciones → Google
+  Workspace → Calendar → Configuración de uso compartido → Opciones de uso compartido externo para
+  calendarios **secundarios*** → *Compartir toda la información y permitir que los usuarios externos
+  modifiquen los calendarios*. Solo secundarios; puede tardar unos minutos.
+
+**Operación:** el job de pg_cron `calendar-sync` usa los mismos secretos de Vault que `access-codes`.
+Los errores (calendario sin compartir, llave mala) se ven en `/admin/calendario` y se reintentan con
+backoff hasta 1 h; "Sincronizar ahora" los adelanta.
+
+**Ojo:**
+- Cambiar `GOOGLE_CALENDAR_ID` deja huérfanos los eventos del calendario anterior: borrar ese calendario a mano.
+- Lo que se edite a mano en Google se pisa en el próximo cambio de la reserva (o con "Resincronizar todo").
+- Renombrar un curso o una generación no toca `reservations`: usar "Resincronizar todo".
+- En local, usar un calendario de **prueba**; nunca el del estudio.
+
 ## Referencias
 
 - [CLAUDE.md](CLAUDE.md) — guía del repo, comandos, guardrails de marca.
