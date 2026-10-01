@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseReviewRequest, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -685,5 +685,26 @@ describe("customerPointsBalance (saldo de puntos a pedido del admin)", () => {
     const m = send();
     expect(m.html).not.toMatch(/reserva confirmada|c[óo]digo de acceso|Los Chercanes/i);
     expect(m.html).not.toContain("#ff4d1d");
+  });
+});
+
+describe("pedido de reseña en Google", () => {
+  const REVIEW = "https://search.google.com/local/writereview?placeid=ChIJS9a2LkfdiZYR2ta5v8a8utw";
+  const m = courseReviewRequest({ name: "Martín <b>" }, { reviewUrl: REVIEW, whatsappUrl: "https://wa.me/56962803298" });
+
+  it("un botón al formulario de reseña, también en texto plano", () => {
+    expect(m.template).toBe("courseReviewRequest");
+    expect(m.html).toContain(`href="${REVIEW}"`);
+    expect(m.text).toContain(REVIEW);
+  });
+
+  it("escapa el nombre y deja salida por WhatsApp para quejas", () => {
+    expect(m.html).toContain("Martín &lt;b&gt;");
+    expect(m.html).not.toContain("Martín <b>");
+    expect(m.html).toContain("https://wa.me/56962803298");
+  });
+
+  it("no ofrece nada a cambio (política de reseñas de Google)", () => {
+    expect(m.html + m.text).not.toMatch(/descuento|gratis|regalo|sorteo|premio/i);
   });
 });

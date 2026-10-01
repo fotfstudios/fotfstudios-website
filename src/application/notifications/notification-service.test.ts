@@ -922,3 +922,33 @@ describe("notifyPointsBalance", () => {
     await expect(service.notifyPointsBalance({ name: "Ana", email: "ana@e.cl", points: 10 })).rejects.toThrow("resend down");
   });
 });
+
+describe("notifyReviewRequest", () => {
+  it("manda el pedido de reseña al lead con el link configurado", async () => {
+    const { mailer, repo } = makeService();
+    const reviewUrl = "https://search.google.com/local/writereview?placeid=X";
+    const service = new NotificationService(mailer, repo, {
+      ownerEmail: "",
+      siteUrl: "https://www.fotfstudios.cl",
+      tz: "America/Santiago",
+      address: "Los Chercanes 78a",
+      mapsUrl: "https://maps.example",
+      whatsappUrl: "https://wa.me/56962803298",
+      termsUrl: "https://www.fotfstudios.cl/terminos",
+      privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      reviewUrl,
+    });
+    await service.notifyReviewRequest({ email: "martin@e.cl", name: "Martín" });
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const msg = (mailer.send.mock.calls[0] as unknown as [{ to: string; template: string; html: string }])[0];
+    expect(msg.to).toBe("martin@e.cl");
+    expect(msg.template).toBe("courseReviewRequest");
+    expect(msg.html).toContain(reviewUrl);
+  });
+
+  it("sin reviewUrl configurado falla en voz alta y no envía", async () => {
+    const { service, mailer } = makeService();
+    await expect(service.notifyReviewRequest({ email: "a@e.cl", name: "Ana" })).rejects.toThrow(/reviewUrl/);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+});

@@ -9,7 +9,7 @@ import {
   LEAD_PLAN_LABELS,
   type CourseLeadStatus,
 } from "@/src/domain/course/course";
-import { setLeadStatusAction } from "../actions";
+import { requestReviewAction, setLeadStatusAction } from "../actions";
 
 /** Qué transiciones ofrece cada estado. 'inscrita' se alcanza inscribiendo, no acá. */
 const TRANSITIONS: Record<CourseLeadStatus, { status: CourseLeadStatus; label: string }[]> = {
@@ -92,6 +92,14 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
                     </SubmitButton>
                   </ActionForm>
                 ))}
+                {(r.status === "contactada" || r.status === "inscrita") && (
+                  <ActionForm action={requestReviewAction} success="Pedido de reseña enviado.">
+                    <input type="hidden" name="id" value={r.id} />
+                    <SubmitButton variant="ghost" size="sm" pendingLabel="Enviando…">
+                      Pedir reseña
+                    </SubmitButton>
+                  </ActionForm>
+                )}
               </div>
             </Td>
           </Tr>
