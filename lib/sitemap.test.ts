@@ -66,6 +66,11 @@ describe("buildSitemap", () => {
     expect(e).toMatchObject({ priority: 0.7, changeFrequency: "weekly" });
   });
 
+  it("/curso-dj publica la fecha de su último cambio, no la del build", () => {
+    const e = byUrl(buildSitemap([], NOW), `${SITE_URL}/curso-dj`);
+    expect(e?.lastModified).toEqual(new Date("2026-10-01T00:00:00Z"));
+  });
+
   it("un artículo trae su fecha REAL, no la del build", () => {
     const m = buildSitemap([art({ slug: "x", path: "/blog/x", updatedAt: "2026-10-02" })], NOW);
     const e = byUrl(m, `${SITE_URL}/blog/x`);

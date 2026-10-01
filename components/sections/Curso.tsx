@@ -13,7 +13,7 @@ export default function Curso() {
   return (
     <div className="border-y hairline bg-ink-soft/40">
       <Section id="curso">
-        <SectionHead n="07" kicker="Curso de Iniciación DJ" lines={["¿Partiendo", "de cero?"]} />
+        <SectionHead n="07" kicker="Curso de DJ · Viña del Mar" lines={["¿Partiendo", "de cero?"]} />
 
         <Reveal delay={120}>
           <p className="font-editorial mt-8 max-w-xl text-2xl leading-snug text-bone-dim">
@@ -50,7 +50,7 @@ export default function Curso() {
               href="/curso-dj"
               className="group inline-flex items-center gap-3 bg-gold px-8 py-4 label text-ink transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
-              Conoce el curso
+              Ver el curso de DJ
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </Link>
           </Magnetic>
