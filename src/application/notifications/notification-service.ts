@@ -34,6 +34,7 @@ import {
   courseEnrollmentPaid,
   courseReviewRequest,
   ownerCoursePaid,
+  bookingHeldPending,
   bookingPaymentPending,
   courseEnrollmentPending,
 } from "./templates";
@@ -549,6 +550,25 @@ export class NotificationService {
       to: o.email,
       ...bookingPaymentPending(
         { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours },
+        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Aviso al cliente al CREAR una reserva manual pendiente de pago (aún sin link).
+   * Sin esto el cliente no recibía nada hasta pagar — o hasta que el hold vencía.
+   * Mismas reglas que notifyBookingPaymentLink: best-effort, sin email no manda, y
+   * NO toca notified_at (eso es de la confirmación al pagar).
+   */
+  async notifyBookingHeld(orderId: string, v: { holdHours: number }): Promise<boolean> {
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o?.email) return false;
+    await this.mailer.send({
+      to: o.email,
+      ...bookingHeldPending(
+        { name: o.name, when: this.when(o.startsAt, o.endsAt), total: formatCLP(o.amount), holdHours: v.holdHours },
         { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });

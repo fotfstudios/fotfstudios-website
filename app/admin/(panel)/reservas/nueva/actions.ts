@@ -128,6 +128,12 @@ export async function createManualBookingAction(
       );
       if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
       const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
+      // Antes no salía NINGÚN correo hasta pagar: si el dueño no compartía el link,
+      // lo primero que recibía el cliente era "se liberó tu hora". 72 h = el default
+      // de expire_abandoned_manual_holds. Best-effort: el email nunca voltea la reserva.
+      await notificationService()
+        .notifyBookingHeld(booking.value.orderId, { holdHours: 72 })
+        .catch((e) => console.error("[pendiente:notify]", e));
       revalidatePath("/admin/reservas");
       return {
         reservationId,

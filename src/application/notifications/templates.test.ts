@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, courseReviewRequest, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseReviewRequest, bookingHeldPending, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -492,6 +492,49 @@ describe("shell del correo (H11/H13)", () => {
     expect(p.html).not.toContain("Hola:");
     expect(p.text).not.toContain("Hola:");
   });
+
+  /**
+   * Aviso al crear una reserva manual "pendiente de pago" (todavía sin link): hasta
+   * acá el cliente no recibía NADA, y lo primero que le llegaba era "se liberó tu hora".
+   */
+  describe("bookingHeldPending (reserva manual pendiente, sin link)", () => {
+    const ctx = { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298" };
+    const m = bookingHeldPending({ name: "Ana", when: view.when, total: "$9.990", holdHours: 72 }, ctx);
+
+    it("dice cuándo, cuánto y que falta el pago", () => {
+      expect(m.template).toBe("bookingHeldPending");
+      expect(m.subject).toMatch(/falta el pago/i);
+      for (const body of [m.html, m.text]) {
+        expect(body).toContain(view.when);
+        expect(body).toContain("$9.990");
+      }
+    });
+
+    it("avisa cuánto se guarda la hora (el barrido la libera a las 72 h)", () => {
+      expect(m.html).toContain("72 horas");
+      expect(m.text).toContain("72 horas");
+    });
+
+    it("no promete una confirmación que todavía no existe ni trae botón de pago", () => {
+      expect(m.subject).not.toMatch(/confirmada/i);
+      expect(m.html).not.toMatch(/Pagar ahora/);
+    });
+
+    it("ofrece las vías de pago reales, los términos y el WhatsApp", () => {
+      expect(m.text).toMatch(/link de pago/);
+      expect(m.text).toMatch(/transferencia/);
+      expect(m.text).toMatch(/efectivo/);
+      expect(m.html).toContain(ctx.whatsappUrl);
+      expect(m.html).toContain(ctx.termsUrl);
+    });
+
+    it("sin nombre: no saluda con 'null' ni con 'Hola:'", () => {
+      const p = bookingHeldPending({ name: null, when: view.when, total: "$9.990", holdHours: 72 }, ctx);
+      expect(p.html).not.toContain("Hola:");
+      expect(p.html).not.toContain("null");
+      expect(p.text).not.toContain("null");
+    });
+  });
 });
 
 /**
@@ -516,6 +559,7 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["customerHoldExpired", () => customerHoldExpired({ name: null, when }, { whatsappUrl: wa, bookUrl: "b" }).subject],
     ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
+    ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", holdHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
   ];
 
   it.each(cases)("%s lleva la fecha en el asunto", (_name, subject) => {

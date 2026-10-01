@@ -401,6 +401,61 @@ describe("notifyBookingPaymentLink", () => {
   });
 });
 
+/**
+ * Reserva manual "pendiente de pago" recién creada: el aviso que faltaba (booking
+ * 020011d2…). Mismas reglas que notifyBookingPaymentLink, pero sin link.
+ */
+describe("notifyBookingHeld", () => {
+  const ORDER = {
+    email: "ana@e.cl",
+    name: "Ana",
+    amount: 39980,
+    startsAt: "2026-07-12T18:00:00Z",
+    lines: [],
+    kind: "booking",
+    notifiedAt: null,
+  };
+
+  it("avisa al cliente que la hora está guardada y falta el pago, en hora de Santiago", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
+
+    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(true);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const msg = (mailer.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.template).toBe("bookingHeldPending");
+    expect(msg.text).toContain("72 horas");
+    expect(msg.text).toContain("$39.980");
+    // 18:00 UTC = 14:00 en Santiago.
+    expect(msg.text).toContain("14:00");
+  });
+
+  it("NO marca la orden como notificada: la confirmación al pagar tiene que salir igual", async () => {
+    const { service, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
+
+    await service.notifyBookingHeld("o1", { holdHours: 72 });
+    expect(repo.markNotified).not.toHaveBeenCalled();
+  });
+
+  it("sin email (walk-in o ficha solo-teléfono) no manda nada y devuelve false", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, email: null });
+
+    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("una orden que no existe no revienta", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(false);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+});
+
 describe("notifyCancellation — orden 100% puntos", () => {
   it("con restoredPoints el email habla de puntos repuestos, no de reembolso en dinero", async () => {
     const { service, mailer, repo } = makeService();
