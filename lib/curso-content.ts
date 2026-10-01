@@ -5,6 +5,7 @@
  * Program and prices: docs/superpowers/specs/2026-09-25-curso-dj-1a1-design.md.
  */
 import { ADDONS, GUIDED_RATE, RATES, VOLUME } from "@/lib/pricing";
+import { SITE } from "@/lib/site";
 
 export const CURSO = {
   /**
@@ -150,6 +151,51 @@ export const FAQ = [
   },
   {
     q: "¿Dónde queda?",
-    a: "El curso de DJ se dicta en nuestra sala de Viña del Mar, Región de Valparaíso. La dirección exacta se comparte al confirmar tu inscripción.",
+    a: `El curso de DJ se dicta en nuestra sala de ${SITE.city}: ${SITE.address}.`,
   },
+  {
+    q: "¿Es un curso de DJ para principiantes?",
+    a: "Sí. Es un curso de iniciación: partes sin experiencia y sales mezclando a oído, con tu USB armado en Rekordbox y un set grabado.",
+  },
+  {
+    q: "¿Cuánto dura el curso de DJ?",
+    a: `${PROGRAMA.sesiones} semanas: ${PROGRAMA.sesiones} clases de ${(PROGRAMA.minutosPorSesion / 60).toLocaleString("es-CL")} h (${PROGRAMA.horasClase} horas en total) y ${PROGRAMA.horasPractica} horas de práctica libre en la sala, que usas cuando quieras.`,
+  },
+  {
+    q: "¿Hacen clases de DJ para gente de Valparaíso, Quilpué o Concón?",
+    a: "Sí. Las clases son presenciales en nuestra sala de Viña del Mar y las fechas las fijas tú, así que puedes venir desde Valparaíso, Quilpué, Villa Alemana, Concón o Reñaca en el horario que te acomode.",
+  },
+] as const;
+
+/** Comunas de la región que nombra la sección "Dónde" (relevancia local, no relleno). */
+export const ZONAS = ["Valparaíso", "Quilpué", "Villa Alemana", "Concón", "Reñaca"] as const;
+
+/**
+ * Testimonios reales de alumnos. Vacío = la sección no se renderiza (nada de prueba
+ * social inventada). `rating` solo si el alumno la dio de verdad.
+ * El JSON-LD publica review/aggregateRating recién con RATING_MIN reseñas con nota.
+ */
+export type Testimonio = {
+  /** Nombre de pila (con permiso del alumno). */
+  name: string;
+  quote: string;
+  /** Contexto corto: "Curso individual · 2026", "En dúo", etc. */
+  detail: string;
+  rating?: 1 | 2 | 3 | 4 | 5;
+};
+// TODO(owner): pegar aquí el testimonio del primer alumno (texto literal + permiso).
+export const TESTIMONIOS: readonly Testimonio[] = [];
+
+/** Con menos reseñas con nota que esto, el JSON-LD no publica rating (se lee como inflado). */
+export const RATING_MIN = 3;
+
+/** Quién enseña. null = el bloque no se renderiza. */
+export const INSTRUCTOR: { name: string; bio: string } | null = null;
+
+/** "Sigue leyendo": el cluster de artículos que apoya a esta página, con anclas descriptivas. */
+export const LECTURAS = [
+  { href: "/aprender-dj", label: "Cómo aprender a ser DJ desde cero" },
+  { href: "/cuanto-cuesta-un-curso-de-dj", label: "¿Cuánto cuesta un curso de DJ?" },
+  { href: "/xdj-vs-controlador", label: "¿Controlador o equipos de club para aprender DJ?" },
+  { href: "/blog/primera-hora-en-una-cabina", label: "Tu primera hora en una cabina de DJ" },
 ] as const;
