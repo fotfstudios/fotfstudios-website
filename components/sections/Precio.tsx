@@ -103,9 +103,9 @@ export default function Precio() {
               </ul>
               {CURSO_ABIERTO && (
                 <p className="border-t hairline px-6 py-4 label-sm text-bone-mute">
-                  Clases:{" "}
+                  Clases de DJ:{" "}
                   <Link href="/curso-dj" className="text-bone-dim underline decoration-bone/30 underline-offset-4 transition-colors hover:text-gold">
-                    Curso de Iniciación DJ
+                    curso de DJ 1:1 en Viña del Mar
                   </Link>
                 </p>
               )}

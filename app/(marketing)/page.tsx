@@ -13,6 +13,7 @@ import CierreCTA from "@/components/sections/CierreCTA";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 import { SITE, SITE_URL, PRICING } from "@/lib/site";
+import { jsonLdHtml } from "@/lib/json-ld";
 
 // Sin `title` a propósito: al vivir bajo (marketing), el `title.template` del root
 // ("%s · FOTF Studios") YA aplica a esta página — un `title` aquí saldría con sufijo.
@@ -37,7 +38,23 @@ const jsonLd = {
     postalCode: "2520000",
     addressCountry: "CL",
   },
-  areaServed: "Viña del Mar",
+  // Comunas desde las que se llega a la sala: relevancia local para "curso de dj" + comuna.
+  areaServed: ["Viña del Mar", "Valparaíso", "Quilpué", "Villa Alemana", "Concón", "Reñaca"].map((name) => ({
+    "@type": "City",
+    name,
+  })),
+  // El curso como oferta del negocio; el nodo Course completo vive en /curso-dj (mismo @id).
+  ...(CURSO_ABIERTO && {
+    makesOffer: {
+      "@type": "Offer",
+      itemOffered: {
+        "@type": "Course",
+        "@id": `${SITE_URL}/curso-dj#curso`,
+        name: "Curso de DJ en Viña del Mar",
+        url: `${SITE_URL}/curso-dj`,
+      },
+    },
+  }),
   priceRange: PRICING.priceRange,
   hasMap: SITE.mapsUrl,
   openingHoursSpecification: [
@@ -63,7 +80,7 @@ export default function Home() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }}
       />
       <Nav />
       <main>

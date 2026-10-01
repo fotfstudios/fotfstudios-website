@@ -10,11 +10,11 @@ export default function DsHero() {
         <span className="ds-mono rounded-[4px] bg-[var(--accent)] px-2 py-[3px] text-[13px] font-bold text-[var(--text-inverse)]">
           1:1
         </span>
-        <span className="ds-eyebrow text-[var(--text-secondary)]">Curso de iniciación DJ · Viña del Mar</span>
+        <span className="ds-eyebrow text-[var(--text-secondary)]">Clases de DJ 1:1 · Viña del Mar y Región de Valparaíso</span>
       </div>
 
       <h1 className="ds-h1">
-        Aprende a mezclar <span className="text-[var(--accent)]">desde cero</span>
+        Curso de DJ en Viña del Mar: aprende a mezclar <span className="text-[var(--accent)]">desde cero</span>
       </h1>
 
       <p className="m-0 max-w-[640px] text-[clamp(17px,2.2vw,21px)] leading-normal text-pretty text-[var(--grey-200)]">

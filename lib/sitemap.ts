@@ -31,7 +31,8 @@ export interface SitemapEntry {
  */
 export const STATIC_ROUTES: readonly SitemapEntry[] = [
   { path: "/", priority: 1, changeFrequency: "monthly" },
-  { path: "/curso-dj", priority: 0.8, changeFrequency: "monthly" },
+  // lastModified: subirla cuando cambie el contenido de /curso-dj (no la fecha del build).
+  { path: "/curso-dj", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-01" },
   { path: "/grabacion", priority: 0.8, changeFrequency: "monthly" },
   { path: "/guia-dj", priority: 0.7, changeFrequency: "monthly" },
   { path: "/guia-pendrive-dj", priority: 0.7, changeFrequency: "monthly" },
