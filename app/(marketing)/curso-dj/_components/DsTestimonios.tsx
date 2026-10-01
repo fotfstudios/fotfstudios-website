@@ -11,13 +11,13 @@ export default function DsTestimonios() {
   return (
     <section aria-labelledby="testimonios-h" className="border-t border-[var(--border-subtle)]">
       <div className="mx-auto flex max-w-[1120px] flex-col gap-8 px-5 py-18">
-        <DsSectionHead id="testimonios-h" eyebrow="Alumnos" title="Lo que dicen del curso de DJ" />
+        <DsSectionHead id="testimonios-h" eyebrow="Reseñas" title="Lo que dicen del curso de DJ" />
         <ul className={`m-0 grid list-none gap-4 p-0 ${solo ? "" : "grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))]"}`}>
           {TESTIMONIOS.map((t) => (
             <li key={t.name + t.quote.slice(0, 16)}>
               <figure className="m-0 flex flex-col gap-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-card)] p-6">
                 {t.rating && (
-                  <p className="ds-mono m-0 text-[var(--gold)]" aria-label={`${t.rating} de 5`}>
+                  <p className="m-0 text-xl tracking-[0.15em] text-[var(--gold)]" aria-label={`${t.rating} de 5`}>
                     {"★".repeat(t.rating)}
                     <span className="text-[var(--text-muted)]">{"★".repeat(5 - t.rating)}</span>
                   </p>

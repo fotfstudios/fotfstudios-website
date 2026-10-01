@@ -183,8 +183,16 @@ export type Testimonio = {
   detail: string;
   rating?: 1 | 2 | 3 | 4 | 5;
 };
-// TODO(owner): pegar aquí el testimonio del primer alumno (texto literal + permiso).
-export const TESTIMONIOS: readonly Testimonio[] = [];
+// Citas literales (sin corregir), publicadas por el autor en el perfil de Google.
+export const TESTIMONIOS: readonly Testimonio[] = [
+  {
+    name: "Martín",
+    quote:
+      "Hace tiempo queria probar algo asi, y la experiencia que ofrece FOTF Studios, superó todas mis expectativas. Tanto el lugar, la cercania, lo conceptual y la práctica. Verdaderamente una experiencia increíble y la recomendaría a todo quien busque aprender.",
+    detail: "Sesión de prueba · reseña en Google, oct. 2026",
+    rating: 5,
+  },
+];
 
 /** Con menos reseñas con nota que esto, el JSON-LD no publica rating (se lee como inflado). */
 export const RATING_MIN = 3;
