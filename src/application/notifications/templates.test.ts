@@ -535,6 +535,35 @@ describe("shell del correo (H11/H13)", () => {
       expect(m.html).toContain(`mailto:${TRANSFER.email}`);
     });
 
+    /**
+     * Los bancos chilenos "pegan datos" para agregar un destinatario: leen un bloque de
+     * líneas \`Etiqueta: valor\`. Tiene que salir así al copiar, en HTML y en texto.
+     */
+    const PASTE_BLOCK = [
+      `Nombre: ${TRANSFER.holder}`,
+      `RUT: ${TRANSFER.rut}`,
+      `Banco: ${TRANSFER.bank}`,
+      `Tipo de cuenta: ${TRANSFER.accountType}`,
+      `Número de cuenta: ${TRANSFER.accountNumber}`,
+      `Correo: ${TRANSFER.email}`,
+    ];
+
+    it("texto: los datos van en un bloque de una línea por campo, listo para pegar en el banco", () => {
+      expect(m.text).toContain(PASTE_BLOCK.join("\n"));
+      expect(m.text).toMatch(/pégalos en tu banco/);
+    });
+
+    it("HTML: el bloque es UN solo elemento con <br>, sin estilos por campo (copia limpia)", () => {
+      expect(m.html).toContain(PASTE_BLOCK.join("<br>"));
+      expect(m.html).toMatch(/pégalos en tu banco/);
+    });
+
+    it("el monto va fuera del bloque (se pide al transferir, no al agregar el destinatario)", () => {
+      expect(m.text).not.toContain(`${PASTE_BLOCK.at(-1)}\nMonto`);
+      expect(m.text).toContain("Monto a transferir: $9.990");
+      expect(m.html).toContain("Monto a transferir: <strong>$9.990</strong>");
+    });
+
     it("no promete una confirmación que todavía no existe ni ofrece un link que no está activo", () => {
       expect(m.subject).not.toMatch(/confirmada/i);
       expect(m.html).not.toMatch(/Pagar ahora/);

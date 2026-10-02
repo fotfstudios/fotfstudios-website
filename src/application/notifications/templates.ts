@@ -708,21 +708,45 @@ export interface TransferDetails {
   email: string;
 }
 
-/** Bloque de transferencia de los correos de reserva pendiente: datos + qué hacer después. */
-function transferHtml(t: TransferDetails, total: string): string {
-  const row = (k: string, v: string) => `<p style="margin:0 0 2px"><span style="color:${T.boneDim}">${k}:</span> ${esc(v)}</p>`;
-  return `<p style="margin:0 0 8px"><strong>Paga por transferencia</strong></p>
-     ${row("Titular", t.holder)}
-     ${row("RUT", t.rut)}
-     ${row("Banco", t.bank)}
-     ${row("Tipo de cuenta", t.accountType)}
-     ${row("N° de cuenta", t.accountNumber)}
-     ${row("Monto", total)}
-     <p style="color:${T.boneDim};margin:12px 0 20px">Envía el comprobante a <a href="mailto:${esc(t.email)}" style="color:${T.gold}">${esc(t.email)}</a> o por WhatsApp y confirmamos tu hora.</p>`;
+/**
+ * Datos del destinatario en el formato que leen los bancos chilenos al "pegar datos"
+ * para agregar un destinatario: una línea `Etiqueta: valor` por campo, con las
+ * etiquetas habituales (Nombre, RUT, Banco, Tipo de cuenta, Número de cuenta, Correo).
+ * El monto queda FUERA del bloque: se pide al transferir, no al agregar el destinatario.
+ */
+function transferLines(t: TransferDetails): [string, string][] {
+  return [
+    ["Nombre", t.holder],
+    ["RUT", t.rut],
+    ["Banco", t.bank],
+    ["Tipo de cuenta", t.accountType],
+    ["Número de cuenta", t.accountNumber],
+    ["Correo", t.email],
+  ];
 }
 
+/**
+ * Bloque de transferencia de los correos de reserva pendiente. Los datos van en UN solo
+ * elemento con `<br>` (no un párrafo por campo ni etiquetas con otro estilo): al
+ * seleccionarlo y copiarlo sale texto limpio, línea por línea, listo para pegar.
+ */
+function transferHtml(t: TransferDetails, total: string): string {
+  const block = transferLines(t)
+    .map(([k, v]) => `${k}: ${esc(v)}`)
+    .join("<br>");
+  return `<p style="margin:0 0 4px"><strong>Paga por transferencia</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 8px;font-size:13px">Copia estos datos y pégalos en tu banco para agregar el destinatario:</p>
+     <div style="background:${T.inkSoft};border:1px solid ${T.inkLine};padding:14px 16px;margin:0 0 12px;line-height:1.6">${block}</div>
+     <p style="margin:0 0 12px">Monto a transferir: <strong>${esc(total)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Envía el comprobante a <a href="mailto:${esc(t.email)}" style="color:${T.gold}">${esc(t.email)}</a> o por WhatsApp y confirmamos tu hora.</p>`;
+}
+
+/** Versión texto: el mismo bloque, una línea por campo, para que también se pueda pegar. */
 function transferText(t: TransferDetails, total: string): string {
-  return `Paga por transferencia — Titular: ${t.holder} · RUT: ${t.rut} · Banco: ${t.bank} · ${t.accountType} N° ${t.accountNumber} · Monto: ${total}. Envía el comprobante a ${t.email} o por WhatsApp y confirmamos tu hora.`;
+  const block = transferLines(t)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+  return `Paga por transferencia. Copia estos datos y pégalos en tu banco para agregar el destinatario:\n\n${block}\n\nMonto a transferir: ${total}. Envía el comprobante a ${t.email} o por WhatsApp y confirmamos tu hora.`;
 }
 
 /**
@@ -750,7 +774,7 @@ export function bookingHeldPending(
      <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
     `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
   );
-  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula. ${transferText(ctx.transfer, v.total)} WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nWhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
   return { template: "bookingHeldPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
 }
 
@@ -776,7 +800,7 @@ export function bookingPaymentReminder(
      <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
     `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
   );
-  const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula. ${transferText(ctx.transfer, v.total)} Si ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nSi ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
   return { template: "bookingPaymentReminder", subject: `Falta el pago de tu hora · ${v.when}`, html, text };
 }
 
