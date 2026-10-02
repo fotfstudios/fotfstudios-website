@@ -42,6 +42,8 @@ export async function POST(req: Request): Promise<Response> {
     pointsToRedeem?: number;
     termsAccepted?: boolean;
     expectedAmount?: number;
+    /** Casilla "Avísame también por WhatsApp". Ausente = no se toca el consentimiento. */
+    whatsappOptIn?: boolean;
   };
 
   // `name` y `phone` son opcionales, pero si vienen tienen que ser strings: el
@@ -57,7 +59,8 @@ export async function POST(req: Request): Promise<Response> {
     typeof b.customer?.email !== "string" ||
     !b.customer.email ||
     !optionalString(b.customer.name) ||
-    !optionalString(b.customer.phone)
+    !optionalString(b.customer.phone) ||
+    (b.whatsappOptIn !== undefined && typeof b.whatsappOptIn !== "boolean")
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
   }
@@ -127,6 +130,15 @@ export async function POST(req: Request): Promise<Response> {
             ? 401
             : 400;
       return Response.json({ error: booking.error }, { status });
+    }
+
+    // Consentimiento de WhatsApp en la ficha del pedido, ANTES del correo de confirmación
+    // (que encola el WhatsApp con lo que diga la ficha). Best-effort: una falla acá no puede
+    // tumbar una reserva ya creada; solo se pierde la preferencia de este pedido.
+    if (typeof b.whatsappOptIn === "boolean") {
+      await customerService(client)
+        .setWhatsAppOptInForOrder(booking.value.orderId, b.whatsappOptIn)
+        .catch((e) => console.error("[bookings:whatsapp-consent]", e));
     }
 
     // 100% puntos: no hay nada que cobrar — la reserva ya quedó confirmada en la

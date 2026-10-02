@@ -11,7 +11,10 @@ import { updateProfileAction } from "./actions";
 export const metadata: Metadata = { title: "Mi perfil", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-/** Perfil: nombre/teléfono editables (prefill de futuras reservas); el email es la identidad. */
+/**
+ * Perfil: nombre/teléfono editables (prefill de futuras reservas) y el interruptor de avisos por
+ * WhatsApp; el email es la identidad.
+ */
 export default async function CuentaPerfil() {
   const session = await requireCustomer();
   const profile = await customerService().profileByUser(session.userId);
@@ -31,6 +34,19 @@ export default async function CuentaPerfil() {
           <Field label="Teléfono">
             <Input name="phone" type="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} placeholder="+56 9 …" />
           </Field>
+          <label className="flex items-start gap-2.5 text-sm text-bone-dim">
+            <input
+              type="checkbox"
+              name="whatsapp"
+              defaultChecked={profile?.whatsapp.optIn ?? false}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+            />
+            <span className="leading-relaxed">
+              Avisos por WhatsApp: confirmación, recordatorio, código de acceso y pagos pendientes de tus
+              reservas. Solo a celulares chilenos; el correo te llega siempre.
+            </span>
+          </label>
+          <input type="hidden" name="whatsapp_field" value="1" />
           <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
         </ActionForm>
       </Card>
