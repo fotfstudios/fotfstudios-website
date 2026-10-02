@@ -314,13 +314,13 @@ isOneToOne: true
                   ]
                 },"customers": {
                   Row: {
-                    "auth_user_id": string | null,"created_at": string,"email": string | null,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_balance": number,"updated_at": string
+                    "auth_user_id": string | null,"created_at": string,"email": string | null,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_balance": number,"updated_at": string,"whatsapp_opt_in": boolean,"whatsapp_opt_in_at": string | null,"whatsapp_opt_in_source": string | null,"whatsapp_opt_out_at": string | null
                   }
                   Insert: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
                   }
                   Update: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
                   }
                   Relationships: [
                     
@@ -453,13 +453,13 @@ isOneToOne: false
                   ]
                 },"notification_log": {
                   Row: {
-                    "created_at": string,"error": string | null,"id": string,"ok": boolean,"recipient": string,"subject": string,"template": string
+                    "channel": string,"created_at": string,"error": string | null,"id": string,"ok": boolean,"recipient": string,"subject": string,"template": string
                   }
                   Insert: {
-                    "created_at"?: string,"error"?: string | null,"id"?: string,"ok": boolean,"recipient": string,"subject": string,"template": string
+                    "channel"?: string,"created_at"?: string,"error"?: string | null,"id"?: string,"ok": boolean,"recipient": string,"subject": string,"template": string
                   }
                   Update: {
-                    "created_at"?: string,"error"?: string | null,"id"?: string,"ok"?: boolean,"recipient"?: string,"subject"?: string,"template"?: string
+                    "channel"?: string,"created_at"?: string,"error"?: string | null,"id"?: string,"ok"?: boolean,"recipient"?: string,"subject"?: string,"template"?: string
                   }
                   Relationships: [
                     
@@ -823,6 +823,32 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"whatsapp_outbox": {
+                  Row: {
+                    "attempts": number,"button_suffix": string | null,"created_at": string,"dedupe_key": string,"entity_id": string | null,"entity_kind": string | null,"event": string,"expires_at": string,"failed_code": number | null,"id": string,"last_error": string | null,"locked_at": string | null,"next_attempt_at": string,"provider_id": string | null,"recipient": string,"sent_at": string | null,"status": string,"template_name": string,"template_params": NonNullable<Json>,"updated_at": string
+                  }
+                  Insert: {
+                    "attempts"?: number,"button_suffix"?: string | null,"created_at"?: string,"dedupe_key": string,"entity_id"?: string | null,"entity_kind"?: string | null,"event": string,"expires_at": string,"failed_code"?: number | null,"id"?: string,"last_error"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"provider_id"?: string | null,"recipient": string,"sent_at"?: string | null,"status"?: string,"template_name": string,"template_params"?: NonNullable<Json>,"updated_at"?: string
+                  }
+                  Update: {
+                    "attempts"?: number,"button_suffix"?: string | null,"created_at"?: string,"dedupe_key"?: string,"entity_id"?: string | null,"entity_kind"?: string | null,"event"?: string,"expires_at"?: string,"failed_code"?: number | null,"id"?: string,"last_error"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"provider_id"?: string | null,"recipient"?: string,"sent_at"?: string | null,"status"?: string,"template_name"?: string,"template_params"?: NonNullable<Json>,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"whatsapp_webhook_inbox": {
+                  Row: {
+                    "event": string,"idempotency_key": string,"received_at": string
+                  }
+                  Insert: {
+                    "event": string,"idempotency_key": string,"received_at"?: string
+                  }
+                  Update: {
+                    "event"?: string,"idempotency_key"?: string,"received_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 }
           }
           Views: {
@@ -1000,7 +1026,7 @@ isOneToOne: false
 { Args: { "p_token": string }; Returns: string
                            },
 "notification_log_record":
-{ Args: { "p_error": string,"p_ok": boolean,"p_recipient": string,"p_subject": string,"p_template": string }; Returns: undefined
+{ Args: { "p_channel"?: string,"p_error": string,"p_ok": boolean,"p_recipient": string,"p_subject": string,"p_template": string }; Returns: undefined
                            },
 "order_backing_boletas":
 { Args: { "p_order": string }; Returns: {
@@ -1064,8 +1090,17 @@ isOneToOne: false
 "run_calendar_sync_cron":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"run_whatsapp_outbox_cron":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "schedule_course_generation":
 { Args: { "p_created_by"?: string,"p_generation": string,"p_sessions": Json }; Returns: number
+                           },
+"set_whatsapp_opt_in":
+{ Args: { "p_customer": string,"p_opt_in": boolean,"p_source": string }; Returns: undefined
+                           },
+"set_whatsapp_opt_in_for_order":
+{ Args: { "p_opt_in": boolean,"p_order": string,"p_source": string }; Returns: boolean
                            },
 "substitute_student":
 { Args: { "p_email": string,"p_enrollment": string,"p_name": string,"p_phone"?: string }; Returns: undefined
@@ -1078,6 +1113,55 @@ isOneToOne: false
                            },
 "upsert_guest_customer":
 { Args: { "p_email": string,"p_name": string,"p_phone": string }; Returns: string
+                           },
+"whatsapp_outbox_apply_status":
+{ Args: { "p_code"?: number,"p_message"?: string,"p_provider_id": string,"p_status": string }; Returns: boolean
+                           },
+"whatsapp_outbox_claim":
+{ Args: { "p_lease"?: string,"p_limit"?: number }; Returns: {
+              "attempts": number,
+"button_suffix": string | null,
+"created_at": string,
+"dedupe_key": string,
+"entity_id": string | null,
+"entity_kind": string | null,
+"event": string,
+"expires_at": string,
+"failed_code": number | null,
+"id": string,
+"last_error": string | null,
+"locked_at": string | null,
+"next_attempt_at": string,
+"provider_id": string | null,
+"recipient": string,
+"sent_at": string | null,
+"status": string,
+"template_name": string,
+"template_params": NonNullable<Json>,
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "whatsapp_outbox"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"whatsapp_outbox_mark_failed":
+{ Args: { "p_code": number,"p_error": string,"p_id": string,"p_next": string,"p_terminal": boolean }; Returns: undefined
+                           },
+"whatsapp_outbox_mark_sent":
+{ Args: { "p_id": string,"p_provider_id": string }; Returns: undefined
+                           },
+"whatsapp_outbox_retry_failed":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"whatsapp_outbox_stats":
+{ Args: { "p_hours"?: number }; Returns: {
+              "delivered": number,"expired": number,"failed": number,"pending": number,"sent": number
+            }[]
+                           },
+"whatsapp_webhook_claim":
+{ Args: { "p_event": string,"p_key": string }; Returns: boolean
                            }
           }
           Enums: {
