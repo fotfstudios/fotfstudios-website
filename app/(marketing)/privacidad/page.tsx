@@ -7,7 +7,7 @@ import { ProseSection } from "@/components/article/ProseSection";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
-const UPDATED = "24 de julio de 2026";
+const UPDATED = "2 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Privacidad y cookies",
@@ -72,8 +72,14 @@ const PROCESSORS: { name: string; detail: string }[] = [
     detail: "Envía los correos de confirmación de tu reserva.",
   },
   {
-    name: "WhatsApp",
-    detail: "Si nos escribes por WhatsApp, la conversación ocurre en esa plataforma. Tú inicias el contacto.",
+    name: "Kapso",
+    detail:
+      "Envía los avisos de tu reserva por WhatsApp, solo si los aceptaste. Le compartimos tu celular, tu nombre y los datos del aviso (fecha y hora, monto, código de acceso).",
+  },
+  {
+    name: "WhatsApp (Meta)",
+    detail:
+      "Entrega esos avisos en tu WhatsApp. Si nos escribes por WhatsApp, la conversación también ocurre en esa plataforma.",
   },
   {
     name: "SII (Servicio de Impuestos Internos)",
@@ -127,7 +133,9 @@ export default function PrivacidadPage() {
           <ul className="list-disc space-y-2 pl-5">
             <li>
               <strong className="text-bone">Datos de la reserva:</strong> tu correo (obligatorio) y,
-              de forma opcional, tu nombre y teléfono.
+              de forma opcional, tu nombre y teléfono. Si aceptas los avisos por WhatsApp, guardamos
+              ese consentimiento con su fecha y desde dónde lo diste (al reservar, en tu cuenta o a
+              través de nuestro equipo).
             </li>
             <li>
               <strong className="text-bone">Datos de facturación:</strong> tu RUT, solo si lo entregas
@@ -161,6 +169,11 @@ export default function PrivacidadPage() {
             <li>Gestionar tu reserva y procesar el pago.</li>
             <li>Emitir la boleta electrónica ante el SII.</li>
             <li>Enviarte la confirmación y coordinar el acceso a la sala.</li>
+            <li>
+              Enviarte por WhatsApp la confirmación, el recordatorio, el código de acceso y los avisos
+              de pago de tu reserva, solo si lo aceptaste. El correo te llega siempre; puedes
+              desactivar WhatsApp cuando quieras en tu cuenta (Perfil) o pidiéndonoslo.
+            </li>
             <li>Responder tus mensajes (por ejemplo, por WhatsApp).</li>
             <li>Revisar tu postulación al equipo y contactarte si calza.</li>
             <li>
@@ -175,7 +188,8 @@ export default function PrivacidadPage() {
         <ProseSection title="Base de licitud">
           <p>
             Tratamos tus datos sobre la base de: tu <strong className="text-bone">consentimiento</strong>{" "}
-            (para la analítica, las cookies no esenciales y los avisos de novedades), la{" "}
+            (para la analítica, las cookies no esenciales, los avisos de novedades y los avisos por
+            WhatsApp), la{" "}
             <strong className="text-bone">ejecución de la reserva</strong> que solicitas, el{" "}
             <strong className="text-bone">cumplimiento de obligaciones legales</strong> tributarias
             (boleta), y nuestro <strong className="text-bone">interés legítimo</strong> en revisar las

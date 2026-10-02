@@ -65,6 +65,13 @@ export async function createManualBookingAction(
       ? { name: record.name, phone: record.phone }
       : { name: walkInName || null, phone: null };
 
+    // Alta de avisos por WhatsApp pedida al staff, ANTES de crear la reserva: los avisos de
+    // confirmación/pago pendiente leen la ficha al encolar. Best-effort: nunca bloquea la reserva.
+    if (input.whatsappOptIn === true && record) {
+      const w = await customerDirectory().setWhatsAppOptIn(record.id, true);
+      if (!w.ok) console.error("[manual-booking:whatsapp-consent]", w.error);
+    }
+
     // Cortesía: reserva sin cobro ni boleta (no pasa por checkout/pago). Sin orden
     // no hay líneas: los add-ons elegidos quedan como dato operativo en las notas.
     // A propósito NO valida pasado/horario de apertura (el cliente avisa, no bloquea).

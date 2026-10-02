@@ -45,6 +45,11 @@ export interface ManualBookingInput {
   discount?: ManualDiscountInput;
   /** Atestación del staff: el dueño confirma que el cliente aceptó los T&C (registra terms_source='staff'). */
   termsAccepted?: boolean;
+  /**
+   * El cliente pidió avisos por WhatsApp (registra el alta en la ficha, origen 'staff'). Solo
+   * da de ALTA: desmarcado no da de baja a nadie (eso se hace en la ficha del cliente).
+   */
+  whatsappOptIn?: boolean;
 }
 
 export interface ManualBookingResult {

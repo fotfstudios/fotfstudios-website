@@ -119,6 +119,7 @@ export default function BookingConsole({
   const [pointsValue, setPointsValue] = useState("");
   const [notes, setNotes] = useState("");
   const [termsAttested, setTermsAttested] = useState(false);
+  const [whatsappAsked, setWhatsappAsked] = useState(false);
 
   // Descuento manual: se guarda la intención ("sobre qué", %, o pesos). El monto
   // definitivo lo recalcula el servidor con su propio quote al crear la reserva.
@@ -369,6 +370,7 @@ export default function BookingConsole({
       notes,
       ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
+      ...(customer && whatsappAsked ? { whatsappOptIn: true } : {}),
     };
     startTransition(async () => {
       const res = await createManualBookingAction(input);
@@ -647,6 +649,22 @@ export default function BookingConsole({
                 .
               </span>
             </label>
+            {/* Alta de avisos por WhatsApp a pedido del cliente (solo con ficha y teléfono). Solo
+                da de alta: la baja se hace en la ficha del cliente. */}
+            {customer?.phone &&
+              (customer.whatsapp.optIn ? (
+                <p className="label-sm text-bone-quiet">Ya recibe avisos por WhatsApp.</p>
+              ) : (
+                <label className="flex items-start gap-2.5 text-bone-dim">
+                  <input
+                    type="checkbox"
+                    checked={whatsappAsked}
+                    onChange={(e) => setWhatsappAsked(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+                  />
+                  <span className="label-sm leading-relaxed">El cliente quiere avisos por WhatsApp.</span>
+                </label>
+              ))}
           </div>
         </Card>
       </div>

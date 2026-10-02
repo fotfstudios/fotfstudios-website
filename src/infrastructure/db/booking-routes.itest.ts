@@ -306,6 +306,30 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
     expect(rec.rows[0]).toEqual({ name: "Titular Adoptado", phone: null });
   });
 
+  it("whatsappOptIn registra el consentimiento en la ficha del pedido (origen customer)", async () => {
+    const customerId = await adoptedCustomer(50_000);
+    auth.session = { userId: AUTH_USER, email: AUTH_EMAIL };
+
+    const res = await post(fullPointsBody(840, { whatsappOptIn: true }));
+    expect(res.status).toBe(200);
+    const c = await pg.query("select whatsapp_opt_in, whatsapp_opt_in_source from customers where id = $1", [customerId]);
+    expect(c.rows[0]).toEqual({ whatsapp_opt_in: true, whatsapp_opt_in_source: "customer" });
+  });
+
+  it("sin whatsappOptIn el consentimiento no se toca", async () => {
+    const customerId = await adoptedCustomer(50_000);
+    auth.session = { userId: AUTH_USER, email: AUTH_EMAIL };
+
+    expect((await post(fullPointsBody(900))).status).toBe(200);
+    const c = await pg.query("select whatsapp_opt_in, whatsapp_opt_in_at from customers where id = $1", [customerId]);
+    expect(c.rows[0]).toEqual({ whatsapp_opt_in: false, whatsapp_opt_in_at: null });
+  });
+
+  it("un whatsappOptIn que no es booleano es 400", async () => {
+    const res = await post(fullPointsBody(960, { whatsappOptIn: "sí" }));
+    expect(res.status).toBe(400);
+  });
+
   // Fix round 2: `name`/`phone` no-string reventaban dentro del try (la ruta
   // les llama trim/slice) y salían como 503. Un cuerpo malformado es 400.
   it.each([{ name: 12345 }, { phone: { n: 1 } }, { name: ["a"] }])(
