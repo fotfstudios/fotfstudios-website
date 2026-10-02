@@ -27,6 +27,20 @@ export const SITE = {
 export const GOOGLE_REVIEW_URL = `https://search.google.com/local/writereview?placeid=${SITE.googlePlaceId}`;
 
 /**
+ * Datos para pagar por transferencia. Van en los correos de reserva pendiente de pago
+ * (creación y recordatorio): mientras el link de Mercado Pago no esté activo, es la vía
+ * para pagar sin tener que escribir antes. El comprobante va a `email` o al WhatsApp.
+ */
+export const TRANSFER = {
+  holder: "FOTF Studios SpA",
+  rut: "78.144.716-1",
+  bank: "Mercado Pago",
+  accountType: "Cuenta Vista",
+  accountNumber: "1030063139",
+  email: "pagos@fotfstudios.cl",
+} as const;
+
+/**
  * Cierre temporal de la sala. Cuando `active` es `true`:
  *  - `ClosureBanner` muestra la franja Sirena sobre el nav (urgencia real: es el
  *    único uso legítimo de Sirena según el Manual de Marca),

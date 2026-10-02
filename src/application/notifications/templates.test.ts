@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applicantConfirmation, courseReviewRequest, bookingHeldPending, bookingPaymentPending, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { TRANSFER } from "@/lib/site";
+import { applicantConfirmation, courseReviewRequest, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -494,15 +495,21 @@ describe("shell del correo (H11/H13)", () => {
   });
 
   /**
-   * Aviso al crear una reserva manual "pendiente de pago" (todavía sin link): hasta
-   * acá el cliente no recibía NADA, y lo primero que le llegaba era "se liberó tu hora".
+   * Reserva manual "pendiente de pago": aviso al crearla (hasta acá el cliente no recibía
+   * NADA antes de "se liberó tu hora") y recordatorio con ≤ 24 h para pagar. Los dos dicen
+   * HASTA CUÁNDO pagar y traen los datos de transferencia (el link de MP no está activo:
+   * sin botón de pago; el efectivo no se ofrece).
    */
-  describe("bookingHeldPending (reserva manual pendiente, sin link)", () => {
-    const ctx = { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298" };
-    const m = bookingHeldPending({ name: "Ana", when: view.when, total: "$9.990", holdHours: 72 }, ctx);
+  const pendingCtx = { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298", transfer: TRANSFER };
+  const PAY_BY = "viernes 9 de octubre, 09:30 h";
+  describe.each([
+    ["bookingHeldPending", bookingHeldPending],
+    ["bookingPaymentReminder", bookingPaymentReminder],
+  ] as const)("%s (reserva manual pendiente, sin link)", (name, tpl) => {
+    const m = tpl({ name: "Ana", when: view.when, total: "$9.990", payBy: PAY_BY }, pendingCtx);
 
     it("dice cuándo, cuánto y que falta el pago", () => {
-      expect(m.template).toBe("bookingHeldPending");
+      expect(m.template).toBe(name);
       expect(m.subject).toMatch(/falta el pago/i);
       for (const body of [m.html, m.text]) {
         expect(body).toContain(view.when);
@@ -510,30 +517,79 @@ describe("shell del correo (H11/H13)", () => {
       }
     });
 
-    it("avisa cuánto se guarda la hora (el barrido la libera a las 72 h)", () => {
-      expect(m.html).toContain("72 horas");
-      expect(m.text).toContain("72 horas");
+    it("dice hasta cuándo pagar y que si no, la reserva se anula", () => {
+      expect(m.text).toContain(`Para confirmarla, paga antes del ${PAY_BY}. Si no recibimos el pago antes, la reserva se anula.`);
+      expect(m.html).toContain(`paga antes del <strong>${PAY_BY}</strong>`);
+      for (const body of [m.html, m.text]) {
+        expect(body).toMatch(/la reserva se anula/);
+      }
     });
 
-    it("no promete una confirmación que todavía no existe ni trae botón de pago", () => {
+    it("trae los datos de transferencia completos y a dónde mandar el comprobante", () => {
+      for (const body of [m.html, m.text]) {
+        for (const v of [TRANSFER.holder, TRANSFER.rut, TRANSFER.bank, TRANSFER.accountType, TRANSFER.accountNumber, TRANSFER.email]) {
+          expect(body).toContain(v);
+        }
+        expect(body).toMatch(/comprobante/);
+      }
+      expect(m.html).toContain(`mailto:${TRANSFER.email}`);
+    });
+
+    /**
+     * Los bancos chilenos "pegan datos" para agregar un destinatario: leen un bloque de
+     * líneas \`Etiqueta: valor\`. Tiene que salir así al copiar, en HTML y en texto.
+     */
+    const PASTE_BLOCK = [
+      `Nombre: ${TRANSFER.holder}`,
+      `RUT: ${TRANSFER.rut}`,
+      `Banco: ${TRANSFER.bank}`,
+      `Tipo de cuenta: ${TRANSFER.accountType}`,
+      `Número de cuenta: ${TRANSFER.accountNumber}`,
+      `Correo: ${TRANSFER.email}`,
+    ];
+
+    it("texto: los datos van en un bloque de una línea por campo, listo para pegar en el banco", () => {
+      expect(m.text).toContain(PASTE_BLOCK.join("\n"));
+      expect(m.text).toMatch(/pégalos en tu banco/);
+    });
+
+    it("HTML: el bloque es UN solo elemento con <br>, sin estilos por campo (copia limpia)", () => {
+      expect(m.html).toContain(PASTE_BLOCK.join("<br>"));
+      expect(m.html).toMatch(/pégalos en tu banco/);
+    });
+
+    it("el monto va fuera del bloque (se pide al transferir, no al agregar el destinatario)", () => {
+      expect(m.text).not.toContain(`${PASTE_BLOCK.at(-1)}\nMonto`);
+      expect(m.text).toContain("Monto a transferir: $9.990");
+      expect(m.html).toContain("Monto a transferir: <strong>$9.990</strong>");
+    });
+
+    it("no promete una confirmación que todavía no existe ni ofrece un link que no está activo", () => {
       expect(m.subject).not.toMatch(/confirmada/i);
       expect(m.html).not.toMatch(/Pagar ahora/);
+      expect(m.text).not.toMatch(/link de pago/);
     });
 
-    it("ofrece las vías de pago reales, los términos y el WhatsApp", () => {
-      expect(m.text).toMatch(/link de pago/);
-      expect(m.text).toMatch(/transferencia/);
-      expect(m.text).toMatch(/efectivo/);
-      expect(m.html).toContain(ctx.whatsappUrl);
-      expect(m.html).toContain(ctx.termsUrl);
+    it("nunca ofrece efectivo (existe, pero solo como excepción del dueño)", () => {
+      for (const body of [m.subject, m.html, m.text]) expect(body).not.toMatch(/efectivo/i);
+    });
+
+    it("trae los términos y el WhatsApp", () => {
+      expect(m.html).toContain(pendingCtx.whatsappUrl);
+      expect(m.html).toContain(pendingCtx.termsUrl);
     });
 
     it("sin nombre: no saluda con 'null' ni con 'Hola:'", () => {
-      const p = bookingHeldPending({ name: null, when: view.when, total: "$9.990", holdHours: 72 }, ctx);
+      const p = tpl({ name: null, when: view.when, total: "$9.990", payBy: PAY_BY }, pendingCtx);
       expect(p.html).not.toContain("Hola:");
       expect(p.html).not.toContain("null");
       expect(p.text).not.toContain("null");
     });
+  });
+
+  it("el recordatorio no repite el asunto del aviso (no se enhebra como duplicado)", () => {
+    const args = { name: "Ana", when: view.when, total: "$9.990", payBy: PAY_BY };
+    expect(bookingPaymentReminder(args, pendingCtx).subject).not.toBe(bookingHeldPending(args, pendingCtx).subject);
   });
 });
 
@@ -559,7 +615,8 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["customerHoldExpired", () => customerHoldExpired({ name: null, when }, { whatsappUrl: wa, bookUrl: "b" }).subject],
     ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
-    ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", holdHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
+    ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
+    ["bookingPaymentReminder", () => bookingPaymentReminder({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
   ];
 
   it.each(cases)("%s lleva la fecha en el asunto", (_name, subject) => {

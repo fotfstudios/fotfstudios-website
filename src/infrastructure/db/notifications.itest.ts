@@ -1,4 +1,5 @@
 /** Integración: emails de confirmación al pagar (mailer de prueba), idempotente. */
+import { TRANSFER } from "@/lib/site";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
@@ -67,6 +68,7 @@ describe("NotificationService", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
     });
 
     expect(await svc.notifyOrder(b.value.orderId)).toBe(true);

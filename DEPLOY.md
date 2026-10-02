@@ -274,7 +274,8 @@ backoff hasta 1 h; "Sincronizar ahora" los adelanta.
 - [vercel.json](vercel.json) — build config + crons + `ignoreCommand`.
 - **pg_cron en la base (no en Vercel):** `expire-holds` (`* * * * *`, `select public.expire_stale_holds()`,
   migración `20260914020000`), `purge-cron-history` (domingos 03:00 UTC, borra `cron.job_run_details` > 7 días)
-  y `access-codes` (`*/5`, necesita secretos en Vault), y `calendar-sync` (`* * * * *`,
+  y `access-codes` (`*/5`, necesita secretos en Vault; además del PIN manda el recordatorio de sesión y el
+  recordatorio de pago de reservas manuales pendientes, migración `20261002120000`), y `calendar-sync` (`* * * * *`,
   `select public.run_calendar_sync_cron()`, migración `20261001120000`, mismos secretos de Vault que
   `access-codes`: empuja la agenda a Google Calendar; sin la ruta del PR del código recibe 404 y no pasa nada).
   Verificar tras un deploy:

@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GUIDES, isGuideSlug } from "@/lib/guides";
-import { SITE, SITE_URL, GOOGLE_REVIEW_URL } from "@/lib/site";
+import { SITE, SITE_URL, GOOGLE_REVIEW_URL, TRANSFER } from "@/lib/site";
 import { requireEnv } from "@/lib/env";
 import { resolveSiteUrl } from "@/lib/urls";
 import { SupabaseAdminRepository } from "@/src/infrastructure/db/admin-repository";
@@ -52,7 +52,9 @@ import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mail
 import { SmtpMailer } from "@/src/infrastructure/email/smtp-mailer";
 import { LoggedMailer } from "@/src/application/notifications/logged-mailer";
 import { ReminderService } from "@/src/application/reminders/reminder-service";
+import { PaymentReminderService } from "@/src/application/reminders/payment-reminder-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
+import { SupabasePaymentReminderRepository } from "@/src/infrastructure/db/payment-reminder-repository";
 import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
 import { TaxDocService } from "@/src/application/admin/tax-doc-service";
@@ -280,6 +282,7 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     termsUrl: `${SITE_URL}/terminos`,
     privacyUrl: `${SITE_URL}/privacidad`,
     reviewUrl: GOOGLE_REVIEW_URL,
+    transfer: TRANSFER,
   });
 }
 
@@ -498,6 +501,11 @@ export function calendarSyncRepository(client: SupabaseClient<Database> = db()):
 /** Recordatorio de sesión (hasta 24 h antes): mismo cron de 5 min que el PIN, mismo patrón de reclamo. */
 export function reminderService(client: SupabaseClient<Database> = db()): ReminderService {
   return new ReminderService(new SupabaseReminderRepository(client), notificationService(client));
+}
+
+/** Recordatorio de pago de reservas manuales pendientes (~24 h antes de liberarse): mismo cron de 5 min. */
+export function paymentReminderService(client: SupabaseClient<Database> = db()): PaymentReminderService {
+  return new PaymentReminderService(new SupabasePaymentReminderRepository(client), notificationService(client));
 }
 
 /**
