@@ -8,14 +8,15 @@ export class SupabaseNotificationRepository implements NotificationRepository {
   async getOrderForEmail(orderId: string): Promise<OrderEmailData | null> {
     const { data: o } = await this.db
       .from("orders")
-      .select("id, kind, customer_email, customer_name, amount_clp, currency, notified_at")
+      // La ficha (customers) trae el consentimiento de WhatsApp y su celular vigente.
+      .select("id, kind, customer_email, customer_name, customer_phone, amount_clp, currency, notified_at, customers(phone, whatsapp_opt_in)")
       .eq("id", orderId)
       .single();
     if (!o) return null;
 
     const { data: r } = await this.db
       .from("reservations")
-      .select("starts_at, ends_at")
+      .select("id, starts_at, ends_at")
       .eq("order_id", orderId)
       .limit(1)
       .maybeSingle();
@@ -36,6 +37,9 @@ export class SupabaseNotificationRepository implements NotificationRepository {
       startsAt: r?.starts_at ?? null,
       endsAt: r?.ends_at ?? null,
       lines: (lines ?? []).map((l) => ({ description: l.description, subtotal: l.subtotal_clp })),
+      reservationId: r?.id ?? null,
+      phone: o.customers?.phone ?? o.customer_phone ?? null,
+      whatsappOptIn: o.customers?.whatsapp_opt_in ?? false,
     };
   }
 

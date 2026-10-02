@@ -102,10 +102,11 @@ export async function POST(req: Request): Promise<Response> {
         console.error("[mp-webhook:curso-email]", e),
       );
     } else if (result === "refunded" && orderId) {
-      // Reembolso hecho FUERA del admin (panel de MP): avisar al cliente. Los
-      // reembolsos admin no llegan aquí (inbox dedupe) — su email lo manda la acción.
+      // Reembolso hecho FUERA del admin (panel de MP): avisar al cliente, y al dueño por
+      // WhatsApp (no lo hizo desde el panel). Los reembolsos admin no llegan aquí (inbox
+      // dedupe) — su email lo manda la acción.
       await notificationService(client)
-        .notifyCancellation(orderId, { refundAmount: refundedAmount ?? null })
+        .notifyCancellation(orderId, { refundAmount: refundedAmount ?? null, notifyOwner: true })
         .catch((e) => console.error("[mp-webhook:cancel-email]", e));
     } else if (result === "reschedule_applied" && orderId) {
       // `orderId` acá es la orden de DELTA; el aviso es sobre la reserva ORIGINAL.
