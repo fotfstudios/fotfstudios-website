@@ -698,31 +698,86 @@ export function bookingPaymentPending(
   return { template: "bookingPaymentPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
 }
 
+/** Datos de transferencia (lib/site.ts TRANSFER), inyectados por la config del servicio. */
+export interface TransferDetails {
+  holder: string;
+  rut: string;
+  bank: string;
+  accountType: string;
+  accountNumber: string;
+  email: string;
+}
+
+/** Bloque de transferencia de los correos de reserva pendiente: datos + qué hacer después. */
+function transferHtml(t: TransferDetails, total: string): string {
+  const row = (k: string, v: string) => `<p style="margin:0 0 2px"><span style="color:${T.boneDim}">${k}:</span> ${esc(v)}</p>`;
+  return `<p style="margin:0 0 8px"><strong>Paga por transferencia</strong></p>
+     ${row("Titular", t.holder)}
+     ${row("RUT", t.rut)}
+     ${row("Banco", t.bank)}
+     ${row("Tipo de cuenta", t.accountType)}
+     ${row("N° de cuenta", t.accountNumber)}
+     ${row("Monto", total)}
+     <p style="color:${T.boneDim};margin:12px 0 20px">Envía el comprobante a <a href="mailto:${esc(t.email)}" style="color:${T.gold}">${esc(t.email)}</a> o por WhatsApp y confirmamos tu hora. También puedes pagar en efectivo: escríbenos antes.</p>`;
+}
+
+function transferText(t: TransferDetails, total: string): string {
+  return `Paga por transferencia — Titular: ${t.holder} · RUT: ${t.rut} · Banco: ${t.bank} · ${t.accountType} N° ${t.accountNumber} · Monto: ${total}. Envía el comprobante a ${t.email} o por WhatsApp y confirmamos tu hora. También puedes pagar en efectivo: escríbenos antes.`;
+}
+
 /**
- * Email al cliente al CREAR una reserva manual "pendiente de pago", todavía sin link.
+ * Email al cliente al CREAR una reserva manual "pendiente de pago".
  *
- * Hermano de `bookingPaymentPending`: aquel sale cuando el dueño comparte el link de
- * MP; este sale apenas se toma la hora, para que el cliente tenga algo por escrito
- * aunque termine pagando en efectivo o transferencia. Dice el plazo (`holdHours`)
- * porque `expire_abandoned_manual_holds` libera la hora a las 72 h sin pago, y si no
- * lo dijéramos lo primero que sabría el cliente del plazo sería `customerHoldExpired`.
+ * Hermano de `bookingPaymentPending` (el del link de MP): este sale apenas se toma la
+ * hora, con los datos de transferencia para que el cliente pueda pagar sin escribir
+ * antes. Dice HASTA CUÁNDO se guarda la hora (`freesAt`, ya formateado: la hora real del
+ * barrido diario, ver manual-hold-deadline.ts) porque expire_abandoned_manual_holds la
+ * libera sin pago, y si no lo dijéramos lo primero que sabría el cliente del plazo sería
+ * `customerHoldExpired`.
  */
 export function bookingHeldPending(
-  v: { name: string | null; when: string; total: string; holdHours: number },
-  ctx: { termsUrl: string; whatsappUrl: string },
+  v: { name: string | null; when: string; total: string; freesAt: string },
+  ctx: { termsUrl: string; whatsappUrl: string; transfer: TransferDetails },
 ): EmailContent {
   const html = shell(
     `<h1 style="font-size:24px;margin:0 0 8px">Tu hora está tomada</h1>
      <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.</p>
      <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
      <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Te guardamos la hora por ${v.holdHours} horas. Puedes pagar con link de pago, transferencia o en efectivo: escríbenos y lo coordinamos.</p>
+     <p style="margin:0 0 20px">Te guardamos la hora hasta el <strong>${esc(v.freesAt)}</strong>. Si no recibimos el pago antes, el horario se libera.</p>
+     ${transferHtml(ctx.transfer, v.total)}
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
      <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
-    `${v.when} · ${v.total} · te la guardamos ${v.holdHours} h`,
+    `${v.when} · ${v.total} · te la guardamos hasta el ${v.freesAt}`,
   );
-  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Queda confirmada al pagar: te guardamos la hora por ${v.holdHours} horas. Puedes pagar con link de pago, transferencia o en efectivo; escríbenos y lo coordinamos: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Queda confirmada al pagar: te guardamos la hora hasta el ${v.freesAt}; si no recibimos el pago antes, el horario se libera. ${transferText(ctx.transfer, v.total)} WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
   return { template: "bookingHeldPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
+}
+
+/**
+ * Email al cliente: recordatorio de pago de una reserva manual pendiente, UNO, a ~24 h
+ * de que el barrido la libere (PaymentReminderService, pg_cron de 5 min). Asunto propio
+ * (no el de bookingHeldPending) para que no se enhebre como un duplicado del aviso.
+ * Gold, no Sirena: un recordatorio no es una emergencia.
+ */
+export function bookingPaymentReminder(
+  v: { name: string | null; when: string; total: string; freesAt: string },
+  ctx: { termsUrl: string; whatsappUrl: string; transfer: TransferDetails },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Falta el pago de tu hora</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}todavía no recibimos el pago de tu reserva.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
+     <p style="margin:0 0 20px">Te guardamos la hora hasta el <strong>${esc(v.freesAt)}</strong>. Si no recibimos el pago antes, el horario se libera y queda disponible para otros.</p>
+     ${transferHtml(ctx.transfer, v.total)}
+     <p style="color:${T.boneDim};margin:0 0 20px">Si ya pagaste, mándanos el comprobante y listo.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
+     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
+    `${v.when} · ${v.total} · se libera el ${v.freesAt}`,
+  );
+  const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Te guardamos la hora hasta el ${v.freesAt}; si no recibimos el pago antes, el horario se libera. ${transferText(ctx.transfer, v.total)} Si ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  return { template: "bookingPaymentReminder", subject: `Falta el pago de tu hora · ${v.when}`, html, text };
 }
 
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */

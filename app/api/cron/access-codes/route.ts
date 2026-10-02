@@ -1,12 +1,14 @@
-import { accessCodeService, reminderService } from "@/src/composition";
+import { accessCodeService, paymentReminderService, reminderService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Barrido de 5 minutos (PIN + recordatorio). PIN: asigna código a las reservas
+ * Barrido de 5 minutos (PIN + recordatorios). PIN: asigna código a las reservas
  * confirmadas que no tienen, y manda el de las que empiezan en los próximos ~15 min
- * y ya están CARGADAS en la Yale. Recordatorio: a las que empiezan dentro de 24 h.
- * Cada mitad es independiente: un fallo en una no frena a la otra (se reporta).
+ * y ya están CARGADAS en la Yale. Recordatorio de sesión: a las que empiezan dentro
+ * de 24 h. Recordatorio de pago: a las reservas manuales pendientes a ~24 h de que el
+ * barrido diario las libere. Cada parte es independiente: un fallo en una no frena a
+ * las otras (se reporta).
  * Lo dispara pg_cron desde Supabase (Vercel Hobby
  * solo admite crons diarios), vía pg_net con el mismo CRON_SECRET que protege
  * los otros dos crons. Acepta GET y POST: pg_net manda POST; un cron de Vercel,
@@ -26,7 +28,13 @@ async function handle(req: Request): Promise<Response> {
         console.error("[cron-reminders]", e);
         return { error: "server" as const };
       });
-    return Response.json({ ...access, reminders });
+    const paymentReminders = await paymentReminderService()
+      .sweep()
+      .catch((e) => {
+        console.error("[cron-payment-reminders]", e);
+        return { error: "server" as const };
+      });
+    return Response.json({ ...access, reminders, paymentReminders });
   } catch (e) {
     console.error("[cron-access-codes]", e);
     return Response.json({ error: "server" }, { status: 503 });

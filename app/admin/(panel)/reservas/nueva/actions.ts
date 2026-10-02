@@ -6,6 +6,7 @@ import { validateManualBooking } from "@/lib/manual-booking";
 import { adminRepository, checkoutService, customerDirectory, notificationService, pricingService } from "@/src/composition";
 import { TERMS_VERSION } from "@/lib/site";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
+import { manualHoldFreesAt } from "@/src/domain/scheduling/manual-hold-deadline";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { loadDayConsole } from "./day-data";
@@ -129,10 +130,11 @@ export async function createManualBookingAction(
       if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
       const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
       // Antes no salía NINGÚN correo hasta pagar: si el dueño no compartía el link,
-      // lo primero que recibía el cliente era "se liberó tu hora". 72 h = el default
-      // de expire_abandoned_manual_holds. Best-effort: el email nunca voltea la reserva.
+      // lo primero que recibía el cliente era "se liberó tu hora". El reloj de 72 h de
+      // expire_abandoned_manual_holds empieza ahora; el correo dice la hora real del
+      // barrido que la liberaría. Best-effort: el email nunca voltea la reserva.
       await notificationService()
-        .notifyBookingHeld(booking.value.orderId, { holdHours: 72 })
+        .notifyBookingHeld(booking.value.orderId, { freesAt: manualHoldFreesAt(new Date()).toISOString() })
         .catch((e) => console.error("[pendiente:notify]", e));
       revalidatePath("/admin/reservas");
       return {

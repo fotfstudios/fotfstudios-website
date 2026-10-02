@@ -1,3 +1,4 @@
+import { TRANSFER } from "@/lib/site";
 import { describe, expect, it, vi } from "vitest";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { NotificationService } from "./notification-service";
@@ -19,6 +20,7 @@ const makeService = () => {
     whatsappUrl: "https://wa.me/56962803298",
     termsUrl: "https://www.fotfstudios.cl/terminos",
     privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    transfer: TRANSFER,
   });
   return { service, mailer, repo };
 };
@@ -110,6 +112,7 @@ describe("notifyApplication", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
     });
     return { service, mailer };
   };
@@ -225,6 +228,7 @@ describe("notifyOrder — reclama notified_at antes de mandar", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
     });
 
   it("reclama antes del primer envío", async () => {
@@ -402,10 +406,15 @@ describe("notifyBookingPaymentLink", () => {
 });
 
 /**
- * Reserva manual "pendiente de pago" recién creada: el aviso que faltaba (booking
- * 020011d2…). Mismas reglas que notifyBookingPaymentLink, pero sin link.
+ * Reserva manual pendiente: aviso al crearla (el que faltaba, booking 020011d2…) y
+ * recordatorio a ~24 h de liberarse. Los
+ * dos dicen la hora REAL de liberación (freesAt, en hora de Santiago) y traen los datos
+ * de transferencia; ninguno toca notified_at (eso es de la confirmación al pagar).
  */
-describe("notifyBookingHeld", () => {
+describe.each([
+  ["notifyBookingHeld", "bookingHeldPending"],
+  ["notifyPaymentReminder", "bookingPaymentReminder"],
+] as const)("%s", (method, template) => {
   const ORDER = {
     email: "ana@e.cl",
     name: "Ana",
@@ -415,27 +424,32 @@ describe("notifyBookingHeld", () => {
     kind: "booking",
     notifiedAt: null,
   };
+  // viernes 9 de octubre 12:30 UTC = 09:30 en Santiago (horario de verano, UTC−3)
+  const FREES_AT = "2026-10-09T12:30:00.000Z";
 
-  it("avisa al cliente que la hora está guardada y falta el pago, en hora de Santiago", async () => {
+  it("dice cuándo, cuánto, hasta cuándo se guarda la hora (hora de Santiago) y cómo transferir", async () => {
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
 
-    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(true);
+    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(true);
     expect(mailer.send).toHaveBeenCalledTimes(1);
     const msg = (mailer.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(msg.to).toBe("ana@e.cl");
-    expect(msg.template).toBe("bookingHeldPending");
-    expect(msg.text).toContain("72 horas");
+    expect(msg.template).toBe(template);
     expect(msg.text).toContain("$39.980");
     // 18:00 UTC = 14:00 en Santiago.
     expect(msg.text).toContain("14:00");
+    expect(msg.text).toContain("viernes 9 de octubre, 09:30 h");
+    expect(msg.text).toContain(TRANSFER.accountNumber);
+    expect(msg.text).toContain(TRANSFER.rut);
+    expect(msg.text).toContain(TRANSFER.email);
   });
 
   it("NO marca la orden como notificada: la confirmación al pagar tiene que salir igual", async () => {
     const { service, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
 
-    await service.notifyBookingHeld("o1", { holdHours: 72 });
+    await service[method]("o1", { freesAt: FREES_AT });
     expect(repo.markNotified).not.toHaveBeenCalled();
   });
 
@@ -443,7 +457,7 @@ describe("notifyBookingHeld", () => {
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, email: null });
 
-    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(false);
+    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(false);
     expect(mailer.send).not.toHaveBeenCalled();
   });
 
@@ -451,7 +465,7 @@ describe("notifyBookingHeld", () => {
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-    expect(await service.notifyBookingHeld("o1", { holdHours: 72 })).toBe(false);
+    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(false);
     expect(mailer.send).not.toHaveBeenCalled();
   });
 });
@@ -579,6 +593,7 @@ describe("notifyOrder — la confirmación lleva la reserva al bolsillo (H8)", (
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
     });
     vi.mocked(base.repo.getOrderForEmail).mockResolvedValue(order);
     await service.notifyOrder("o-links");
@@ -635,6 +650,7 @@ describe("estados que antes eran silencio (H6)", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
     });
 
   it("pago sin cupo: avisa al dueño PRIMERO y luego al cliente", async () => {
@@ -933,6 +949,7 @@ describe("notifyGuideLead", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "",
       privacyUrl: "",
+      transfer: TRANSFER,
     });
     await service.notifyGuideLead({
       email: "dj@correo.cl",
@@ -991,6 +1008,7 @@ describe("notifyReviewRequest", () => {
       whatsappUrl: "https://wa.me/56962803298",
       termsUrl: "https://www.fotfstudios.cl/terminos",
       privacyUrl: "https://www.fotfstudios.cl/privacidad",
+      transfer: TRANSFER,
       reviewUrl,
     });
     await service.notifyReviewRequest({ email: "martin@e.cl", name: "Martín" });
