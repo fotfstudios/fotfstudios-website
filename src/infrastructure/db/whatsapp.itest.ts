@@ -280,3 +280,12 @@ describe("scheduler y permiso", () => {
     expect((await pg.query("select 1 from admin_role_permissions where permission = 'whatsapp.manage'")).rowCount).toBe(0);
   });
 });
+
+describe("repositorio de la bitácora con canal", () => {
+  it("un registro de WhatsApp manda p_channel y queda como whatsapp", async () => {
+    await pg.query(cleanup);
+    const repo = new SupabaseNotificationLogRepository(createServiceClient(URL, KEY));
+    await repo.record({ template: "fotf_prueba", recipient: "56912345678", subject: "WhatsApp · fotf_prueba", ok: false, error: "HTTP 400", channel: "whatsapp" });
+    expect((await pg.query("select channel, ok, error from notification_log")).rows).toEqual([{ channel: "whatsapp", ok: false, error: "HTTP 400" }]);
+  });
+});
