@@ -20,7 +20,7 @@ export default function CalendarButtons({
   resourceName: string | null;
 }) {
   const summary = resourceName ? `FOTF Studios — ${resourceName}` : "FOTF Studios — Sesión";
-  const description = "Tu código de acceso te llega por email 10 minutos antes de tu sesión.";
+  const description = "Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión.";
 
   const downloadIcs = () => {
     const ics = buildIcs({

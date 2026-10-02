@@ -405,7 +405,8 @@ describe("recordatorio de sesión (H9)", () => {
     expect(m.subject).toMatch(/mañana|tu sesión/i);
     expect(m.html).toContain("martes 15 de septiembre, 14:00–16:00 h");
     expect(m.html).toContain("Los Chercanes 78a");
-    expect(m.html).toMatch(/por email 10 minutos antes/);
+    // WhatsApp es ADITIVO: el correo sigue siendo la promesa, el WhatsApp solo si lo activó.
+    expect(m.html).toMatch(/por email \(y por WhatsApp si lo activaste\) 10 minutos antes/);
     expect(m.html).toContain('href="https://www.fotfstudios.cl/reserva/estado?b=o1"');
     expect(m.html).toContain("https://wa.me/56962803298");
     expect(m.text).toContain("martes 15 de septiembre, 14:00–16:00 h");

@@ -65,6 +65,12 @@ import type { CalendarSync } from "@/src/application/ports/calendar";
 import { GoogleCalendarClient } from "@/src/infrastructure/calendar/google-calendar";
 import { parseServiceAccount } from "@/src/infrastructure/calendar/service-account";
 import { SupabaseCalendarSyncRepository } from "@/src/infrastructure/db/calendar-sync-repository";
+import type { WhatsAppSender } from "@/src/application/ports/whatsapp";
+import { LoggedWhatsAppSender } from "@/src/application/whatsapp/logged-sender";
+import { WhatsAppOutboxService } from "@/src/application/whatsapp/outbox-service";
+import { parseOwnerWhatsapp } from "@/src/domain/contact/whatsapp-recipient";
+import { SupabaseWhatsAppOutboxRepository } from "@/src/infrastructure/db/whatsapp-outbox-repository";
+import { KapsoWhatsAppSender, NoopWhatsAppSender } from "@/src/infrastructure/whatsapp/kapso-sender";
 
 /** Cliente Supabase service-role (servidor). */
 export function db(): SupabaseClient<Database> {
@@ -270,7 +276,9 @@ export function mailer(client: SupabaseClient<Database> = db()): Mailer {
 }
 
 export function notificationService(client: SupabaseClient<Database> = db()): NotificationService {
+  const wa = whatsappConfig();
   return new NotificationService(mailer(client), new SupabaseNotificationRepository(client), {
+    ownerWhatsapp: wa.ownerWhatsapp,
     ownerEmail: process.env.OWNER_EMAIL ?? "",
     // Origen de los links del correo (recibo, cuenta, reservar): el del ENTORNO, como las
     // back_urls de MP — prod → www, local → NEXT_PUBLIC_SITE_URL. Con el canónico fijo, un
@@ -285,7 +293,61 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     privacyUrl: `${SITE_URL}/privacidad`,
     reviewUrl: GOOGLE_REVIEW_URL,
     transfer: TRANSFER,
-  });
+  },
+  // Sin Kapso configurado no se encola nada (ver whatsappConfig).
+  wa.configured ? whatsappOutboxRepository(client) : null);
+}
+
+// ── WhatsApp (Kapso) ───────────────────────────────────────────────────────────
+
+/**
+ * Estado del canal desde env (como calendarSyncConfig): "configurado" = hay llave y número de
+ * Kapso. `OWNER_WHATSAPP` inválido (o igual a la línea del estudio) se reporta en el admin y deja
+ * las alertas apagadas; los avisos a clientes siguen.
+ */
+export function whatsappConfig(): {
+  configured: boolean;
+  phoneNumberId: string | null;
+  ownerWhatsapp: string | null;
+  ownerInvalid: boolean;
+  webhookSecretSet: boolean;
+  production: boolean;
+} {
+  const rawOwner = process.env.OWNER_WHATSAPP;
+  const ownerWhatsapp = parseOwnerWhatsapp(rawOwner, SITE.whatsapp);
+  return {
+    configured: !!process.env.KAPSO_API_KEY && !!process.env.KAPSO_PHONE_NUMBER_ID,
+    phoneNumberId: process.env.KAPSO_PHONE_NUMBER_ID || null,
+    ownerWhatsapp,
+    ownerInvalid: !!rawOwner && !ownerWhatsapp,
+    webhookSecretSet: !!process.env.KAPSO_WEBHOOK_SECRET,
+    production: process.env.VERCEL_ENV === "production",
+  };
+}
+
+/**
+ * Sender real (Kapso) o no-op, siempre con bitácora. Fuera de producción la guarda solo deja pasar
+ * al OWNER_WHATSAPP: una corrida local o de preview con la llave real nunca le escribe a un cliente.
+ */
+export function whatsappSender(client: SupabaseClient<Database> = db()): WhatsAppSender {
+  const c = whatsappConfig();
+  const real = c.configured
+    ? new KapsoWhatsAppSender({
+        apiKey: process.env.KAPSO_API_KEY as string,
+        phoneNumberId: c.phoneNumberId as string,
+        ...(c.production ? {} : { onlyTo: c.ownerWhatsapp }),
+      })
+    : new NoopWhatsAppSender();
+  return new LoggedWhatsAppSender(real, notificationLogRepository(client));
+}
+
+export function whatsappOutboxRepository(client: SupabaseClient<Database> = db()): SupabaseWhatsAppOutboxRepository {
+  return new SupabaseWhatsAppOutboxRepository(client);
+}
+
+/** Worker de la cola (cron cada minuto y "Procesar ahora" del admin). */
+export function whatsappOutboxService(client: SupabaseClient<Database> = db()): WhatsAppOutboxService {
+  return new WhatsAppOutboxService(whatsappOutboxRepository(client), whatsappSender(client), whatsappConfig().configured);
 }
 
 export function adminRepository(client: SupabaseClient<Database> = db()): SupabaseAdminRepository {

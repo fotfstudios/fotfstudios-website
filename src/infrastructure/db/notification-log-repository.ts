@@ -27,7 +27,7 @@ export class SupabaseNotificationLogRepository implements NotificationLogReposit
     const since = new Date(Date.now() - hours * 3600_000).toISOString();
     const { data, error } = await this.db
       .from("notification_log")
-      .select("id, created_at, template, recipient, subject, ok, error")
+      .select("id, created_at, template, recipient, subject, ok, error, channel")
       .eq("ok", false)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -41,6 +41,7 @@ export class SupabaseNotificationLogRepository implements NotificationLogReposit
       subject: r.subject,
       ok: r.ok,
       error: r.error,
+      channel: r.channel === "whatsapp" ? ("whatsapp" as const) : ("email" as const),
     }));
   }
 }
