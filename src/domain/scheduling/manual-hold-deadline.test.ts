@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MANUAL_HOLD_HOURS, MANUAL_HOLD_SWEEP_UTC, manualHoldFreesAt } from "./manual-hold-deadline";
+import { MANUAL_HOLD_HOURS, MANUAL_HOLD_SWEEP_UTC, manualHoldDeadline, manualHoldFreesAt } from "./manual-hold-deadline";
 
 describe("manualHoldFreesAt", () => {
   it("primer barrido diario después de las 72 h", () => {
@@ -32,5 +32,23 @@ describe("manualHoldFreesAt", () => {
   it("constantes = default del SQL y cron de reconcile", () => {
     expect(MANUAL_HOLD_HOURS).toBe(72);
     expect(MANUAL_HOLD_SWEEP_UTC).toEqual({ hour: 12, minute: 30 });
+  });
+});
+
+describe("manualHoldDeadline — hay que pagar antes del inicio de la sesión", () => {
+  const created = "2026-10-02T16:25:00Z"; // vie 13:25 CL → el barrido la liberaría el mar 6, 12:30 UTC
+
+  it("sesión antes de que venza el hold de 72 h → manda el inicio de la sesión", () => {
+    const starts = "2026-10-02T17:00:00Z"; // hoy 14:00 CL
+    expect(manualHoldDeadline(created, starts, new Date(created)).toISOString()).toBe("2026-10-02T17:00:00.000Z");
+  });
+
+  it("sesión después del hold → manda el barrido (reloj desde la creación)", () => {
+    const starts = "2026-10-20T21:00:00Z";
+    expect(manualHoldDeadline(created, starts, new Date(created)).toISOString()).toBe("2026-10-06T12:30:00.000Z");
+  });
+
+  it("sin inicio conocido, cae al barrido", () => {
+    expect(manualHoldDeadline(created, null, new Date(created)).toISOString()).toBe("2026-10-06T12:30:00.000Z");
   });
 });

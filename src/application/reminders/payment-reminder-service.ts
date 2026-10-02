@@ -1,13 +1,17 @@
 import type { NotificationService } from "@/src/application/notifications/notification-service";
-import { manualHoldFreesAt } from "@/src/domain/scheduling/manual-hold-deadline";
+import { manualHoldDeadline } from "@/src/domain/scheduling/manual-hold-deadline";
+
+/** El recordatorio sale cuando quedan ≤ 24 h para el plazo de pago. */
+export const PAYMENT_REMINDER_LEAD_HOURS = 24;
 
 /** Lo que el barrido necesita del repositorio; el adaptador vive en payment-reminder-repository. */
 export interface PaymentReminderRepository {
   /**
-   * Reservas manuales pendientes de pago (hold firme) cuyo reloj de 72 h empezó hace
-   * ≥ 48 h, sin recordatorio. Mismo predicado que el barrido que las libera.
+   * Candidatas: reservas manuales pendientes de pago (hold firme, mismo universo que el
+   * barrido que las libera) sin recordatorio, con reloj de ≥ 12 h y sesión aún no
+   * iniciada. Es un pre-filtro: si toca mandar o no lo decide el servicio.
    */
-  due(): Promise<{ orderId: string; clockStart: string; customerEmail: string | null }[]>;
+  due(): Promise<{ orderId: string; clockStart: string; startsAt: string; customerEmail: string | null }[]>;
   /** Reclama `payment_reminder_sent_at` solo si estaba en null. true = esta corrida lo marcó. */
   markSent(orderId: string): Promise<boolean>;
   releaseSent(orderId: string): Promise<void>;
@@ -20,11 +24,12 @@ export interface PaymentReminderSweepResult {
 }
 
 /**
- * Recordatorio de pago de una reserva manual pendiente: UNO, a ~24 h de que el barrido
- * diario la libere. Corre en el pg_cron de 5 min junto al PIN y al recordatorio de
- * sesión; mismo patrón: RECLAMAR antes de mandar, SOLTAR si falla. El correo dice la
- * hora real de liberación (manualHoldFreesAt), calculada en el momento de mandar: si
- * el cron estuvo caído, nunca promete una hora que ya pasó.
+ * Recordatorio de pago de una reserva manual pendiente: UNO, cuando quedan ≤ 24 h para
+ * el plazo (manualHoldDeadline: lo primero entre el barrido que libera las 72 h y el
+ * inicio de la sesión). Corre en el pg_cron de 5 min junto al PIN y al recordatorio de
+ * sesión; mismo patrón: RECLAMAR antes de mandar, SOLTAR si falla. Una reserva creada
+ * con menos de ~12 h de margen no recibe recordatorio: el aviso de creación ya dice el
+ * plazo (el repositorio exige reloj de ≥ 12 h).
  */
 export class PaymentReminderService {
   constructor(
@@ -36,15 +41,15 @@ export class PaymentReminderService {
     let sent = 0;
     let skippedNoEmail = 0;
     for (const r of await this.repo.due()) {
+      const left = manualHoldDeadline(r.clockStart, r.startsAt, now).getTime() - now.getTime();
+      if (left <= 0 || left > PAYMENT_REMINDER_LEAD_HOURS * 3600_000) continue;
       if (!r.customerEmail) {
         skippedNoEmail++;
         continue;
       }
       if (!(await this.repo.markSent(r.orderId))) continue;
       try {
-        const ok = await this.notifications.notifyPaymentReminder(r.orderId, {
-          freesAt: manualHoldFreesAt(r.clockStart, now).toISOString(),
-        });
+        const ok = await this.notifications.notifyPaymentReminder(r.orderId, { clockStart: r.clockStart, now });
         if (!ok) throw new Error("sin destinatario");
         sent++;
       } catch (e) {

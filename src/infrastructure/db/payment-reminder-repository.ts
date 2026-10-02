@@ -5,13 +5,14 @@ import type { Database } from "./database.types";
 export class SupabasePaymentReminderRepository implements PaymentReminderRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 
-  /** payment_reminders_due: mismo predicado que expire_abandoned_manual_holds_ids, a las 48 h. */
+  /** payment_reminders_due: pre-filtro (mismo universo que expire_abandoned_manual_holds_ids). */
   async due() {
     const { data, error } = await this.db.rpc("payment_reminders_due");
     if (error) throw new Error(error.message);
     return (data ?? []).map((r) => ({
       orderId: r.order_id,
       clockStart: r.clock_start,
+      startsAt: r.starts_at,
       customerEmail: r.customer_email ?? null,
     }));
   }

@@ -407,9 +407,9 @@ describe("notifyBookingPaymentLink", () => {
 
 /**
  * Reserva manual pendiente: aviso al crearla (el que faltaba, booking 020011d2…) y
- * recordatorio a ~24 h de liberarse. Los
- * dos dicen la hora REAL de liberación (freesAt, en hora de Santiago) y traen los datos
- * de transferencia; ninguno toca notified_at (eso es de la confirmación al pagar).
+ * recordatorio con ≤ 24 h para pagar. Los dos dicen el plazo de pago (lo primero entre
+ * el barrido y el inicio de la sesión, en hora de Santiago) y traen los datos de
+ * transferencia; ninguno toca notified_at (eso es de la confirmación al pagar).
  */
 describe.each([
   ["notifyBookingHeld", "bookingHeldPending"],
@@ -419,37 +419,46 @@ describe.each([
     email: "ana@e.cl",
     name: "Ana",
     amount: 39980,
-    startsAt: "2026-07-12T18:00:00Z",
+    startsAt: "2026-10-20T21:00:00Z", // martes 20 de octubre, 18:00 en Santiago
     lines: [],
     kind: "booking",
     notifiedAt: null,
   };
-  // viernes 9 de octubre 12:30 UTC = 09:30 en Santiago (horario de verano, UTC−3)
-  const FREES_AT = "2026-10-09T12:30:00.000Z";
+  // Reloj lun 5 oct 14:00 UTC + 72 h → barrido del viernes 9 de octubre 12:30 UTC = 09:30 en Santiago.
+  const CLOCK = { clockStart: "2026-10-05T14:00:00Z", now: new Date("2026-10-05T14:00:00Z") };
 
-  it("dice cuándo, cuánto, hasta cuándo se guarda la hora (hora de Santiago) y cómo transferir", async () => {
+  it("dice cuándo, cuánto, hasta cuándo pagar (hora de Santiago) y cómo transferir", async () => {
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
 
-    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(true);
+    expect(await service[method]("o1", CLOCK)).toBe(true);
     expect(mailer.send).toHaveBeenCalledTimes(1);
     const msg = (mailer.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(msg.to).toBe("ana@e.cl");
     expect(msg.template).toBe(template);
     expect(msg.text).toContain("$39.980");
-    // 18:00 UTC = 14:00 en Santiago.
-    expect(msg.text).toContain("14:00");
-    expect(msg.text).toContain("viernes 9 de octubre, 09:30 h");
+    expect(msg.text).toContain("18:00");
+    expect(msg.text).toContain("paga antes del viernes 9 de octubre, 09:30 h");
     expect(msg.text).toContain(TRANSFER.accountNumber);
     expect(msg.text).toContain(TRANSFER.rut);
     expect(msg.text).toContain(TRANSFER.email);
+  });
+
+  it("si la sesión empieza antes de que venza el hold, el plazo es el INICIO de la sesión", async () => {
+    const { service, mailer, repo } = makeService();
+    (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, startsAt: "2026-10-06T21:00:00Z" });
+
+    await service[method]("o1", CLOCK);
+    const msg = (mailer.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(msg.text).toContain("paga antes del martes 6 de octubre, 18:00 h");
+    expect(msg.text).not.toContain("viernes 9 de octubre");
   });
 
   it("NO marca la orden como notificada: la confirmación al pagar tiene que salir igual", async () => {
     const { service, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(ORDER);
 
-    await service[method]("o1", { freesAt: FREES_AT });
+    await service[method]("o1", CLOCK);
     expect(repo.markNotified).not.toHaveBeenCalled();
   });
 
@@ -457,7 +466,7 @@ describe.each([
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ORDER, email: null });
 
-    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(false);
+    expect(await service[method]("o1", CLOCK)).toBe(false);
     expect(mailer.send).not.toHaveBeenCalled();
   });
 
@@ -465,7 +474,7 @@ describe.each([
     const { service, mailer, repo } = makeService();
     (repo.getOrderForEmail as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-    expect(await service[method]("o1", { freesAt: FREES_AT })).toBe(false);
+    expect(await service[method]("o1", CLOCK)).toBe(false);
     expect(mailer.send).not.toHaveBeenCalled();
   });
 });

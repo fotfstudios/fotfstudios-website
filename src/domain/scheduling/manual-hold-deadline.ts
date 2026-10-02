@@ -26,3 +26,17 @@ export function manualHoldFreesAt(clockStart: string | Date, now: Date = new Dat
   if (tick.getTime() <= after) tick.setUTCDate(tick.getUTCDate() + 1);
   return tick;
 }
+
+/**
+ * Hasta cuándo hay que pagar una reserva manual pendiente: lo que llegue primero entre
+ * la liberación por el barrido (reloj de 72 h desde la creación o el último link) y el
+ * INICIO de la sesión (regla del dueño: una reserva se confirma pagada antes de empezar).
+ * Pasado el inicio sin pago no hay PIN (solo las confirmadas lo reciben); la orden sigue
+ * pendiente hasta el barrido, por si el dueño registra un pago tardío excepcional.
+ */
+export function manualHoldDeadline(clockStart: string | Date, startsAt: string | null, now: Date = new Date()): Date {
+  const freesAt = manualHoldFreesAt(clockStart, now);
+  if (!startsAt) return freesAt;
+  const start = new Date(startsAt);
+  return start.getTime() < freesAt.getTime() ? start : freesAt;
+}

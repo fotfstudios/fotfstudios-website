@@ -496,17 +496,17 @@ describe("shell del correo (H11/H13)", () => {
 
   /**
    * Reserva manual "pendiente de pago": aviso al crearla (hasta acá el cliente no recibía
-   * NADA antes de "se liberó tu hora") y recordatorio a ~24 h de liberarse. Los dos dicen
-   * HASTA CUÁNDO se guarda la hora y traen los datos de transferencia (el link de MP no
-   * está activo: sin botón de pago).
+   * NADA antes de "se liberó tu hora") y recordatorio con ≤ 24 h para pagar. Los dos dicen
+   * HASTA CUÁNDO pagar y traen los datos de transferencia (el link de MP no está activo:
+   * sin botón de pago; el efectivo no se ofrece).
    */
   const pendingCtx = { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298", transfer: TRANSFER };
-  const FREES_AT = "viernes 9 de octubre, 09:30 h";
+  const PAY_BY = "viernes 9 de octubre, 09:30 h";
   describe.each([
     ["bookingHeldPending", bookingHeldPending],
     ["bookingPaymentReminder", bookingPaymentReminder],
   ] as const)("%s (reserva manual pendiente, sin link)", (name, tpl) => {
-    const m = tpl({ name: "Ana", when: view.when, total: "$9.990", freesAt: FREES_AT }, pendingCtx);
+    const m = tpl({ name: "Ana", when: view.when, total: "$9.990", payBy: PAY_BY }, pendingCtx);
 
     it("dice cuándo, cuánto y que falta el pago", () => {
       expect(m.template).toBe(name);
@@ -517,10 +517,11 @@ describe("shell del correo (H11/H13)", () => {
       }
     });
 
-    it("dice hasta cuándo se guarda la hora y que después se libera", () => {
+    it("dice hasta cuándo pagar y que si no, la reserva se anula", () => {
+      expect(m.text).toContain(`Para confirmarla, paga antes del ${PAY_BY}. Si no recibimos el pago antes, la reserva se anula.`);
+      expect(m.html).toContain(`paga antes del <strong>${PAY_BY}</strong>`);
       for (const body of [m.html, m.text]) {
-        expect(body).toContain(FREES_AT);
-        expect(body).toMatch(/se libera/);
+        expect(body).toMatch(/la reserva se anula/);
       }
     });
 
@@ -540,14 +541,17 @@ describe("shell del correo (H11/H13)", () => {
       expect(m.text).not.toMatch(/link de pago/);
     });
 
-    it("ofrece efectivo, los términos y el WhatsApp", () => {
-      expect(m.text).toMatch(/efectivo/);
+    it("nunca ofrece efectivo (existe, pero solo como excepción del dueño)", () => {
+      for (const body of [m.subject, m.html, m.text]) expect(body).not.toMatch(/efectivo/i);
+    });
+
+    it("trae los términos y el WhatsApp", () => {
       expect(m.html).toContain(pendingCtx.whatsappUrl);
       expect(m.html).toContain(pendingCtx.termsUrl);
     });
 
     it("sin nombre: no saluda con 'null' ni con 'Hola:'", () => {
-      const p = tpl({ name: null, when: view.when, total: "$9.990", freesAt: FREES_AT }, pendingCtx);
+      const p = tpl({ name: null, when: view.when, total: "$9.990", payBy: PAY_BY }, pendingCtx);
       expect(p.html).not.toContain("Hola:");
       expect(p.html).not.toContain("null");
       expect(p.text).not.toContain("null");
@@ -555,7 +559,7 @@ describe("shell del correo (H11/H13)", () => {
   });
 
   it("el recordatorio no repite el asunto del aviso (no se enhebra como duplicado)", () => {
-    const args = { name: "Ana", when: view.when, total: "$9.990", freesAt: FREES_AT };
+    const args = { name: "Ana", when: view.when, total: "$9.990", payBy: PAY_BY };
     expect(bookingPaymentReminder(args, pendingCtx).subject).not.toBe(bookingHeldPending(args, pendingCtx).subject);
   });
 });
@@ -582,8 +586,8 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["customerHoldExpired", () => customerHoldExpired({ name: null, when }, { whatsappUrl: wa, bookUrl: "b" }).subject],
     ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
-    ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", freesAt: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
-    ["bookingPaymentReminder", () => bookingPaymentReminder({ name: null, when, total: "$1", freesAt: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
+    ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
+    ["bookingPaymentReminder", () => bookingPaymentReminder({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
   ];
 
   it.each(cases)("%s lleva la fecha en el asunto", (_name, subject) => {

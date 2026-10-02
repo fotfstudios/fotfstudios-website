@@ -1,13 +1,14 @@
 /**
- * Recordatorio de pago de reservas manuales pendientes: `payment_reminders_due` debe
- * elegir EXACTAMENTE lo que expire_abandoned_manual_holds_ids va a liberar (mismo
- * predicado y mismo reloj), 24 h antes, una sola vez. Requiere Supabase local.
+ * Recordatorio de pago de reservas manuales pendientes: `payment_reminders_due` (pre-filtro)
+ * trabaja sobre el mismo universo que expire_abandoned_manual_holds_ids (mismo
+ * predicado y mismo reloj); el servicio decide si quedan ≤ 24 h. Requiere Supabase local.
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CheckoutService } from "@/src/application/checkout/checkout-service";
 import { PricingService } from "@/src/application/pricing/pricing-service";
 import { PaymentReminderService } from "@/src/application/reminders/payment-reminder-service";
+import { manualHoldFreesAt } from "@/src/domain/scheduling/manual-hold-deadline";
 import { futureDate } from "@/tests/dates";
 import { SupabaseCheckoutRepository } from "./checkout-repository";
 import { SupabasePaymentReminderRepository } from "./payment-reminder-repository";
@@ -50,8 +51,16 @@ const age = (orderId: string, hours: number) =>
   pg.query(`update orders set created_at = now() - make_interval(hours => $2) where id=$1`, [orderId, hours]);
 const dueIds = async () => (await repo.due()).map((r) => r.orderId);
 
-describe("payment_reminders_due", () => {
-  it("elige la pendiente manual con ≥ 48 h de reloj; ignora la de 47 h", async () => {
+/** Mueve la sesión a `now() + hours` (para los casos en que el inicio llega antes que el barrido). */
+const startIn = (orderId: string, hours: number) =>
+  pg.query(
+    `update reservations set starts_at = now() + make_interval(hours => $2), ends_at = now() + make_interval(hours => $2 + 1)
+      where order_id = $1`,
+    [orderId, hours],
+  );
+
+describe("payment_reminders_due — pre-filtro", () => {
+  it("sesión lejana: candidata con reloj ≥ 48 h, no con 47 h", async () => {
     const old = await book(600);
     const young = await book(720);
     await age(old, 49);
@@ -59,6 +68,28 @@ describe("payment_reminders_due", () => {
     const due = await repo.due();
     expect(due.map((r) => r.orderId)).toEqual([old]);
     expect(due[0].customerEmail).toBe("m@e.cl");
+    expect(new Date(due[0].startsAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("sesión dentro de 24 h: candidata con reloj ≥ 12 h, aunque no lleve 48 h", async () => {
+    const id = await book(600);
+    await age(id, 13);
+    await startIn(id, 10);
+    expect(await dueIds()).toEqual([id]);
+  });
+
+  it("recién creada (< 12 h): nunca candidata, aunque la sesión sea pronto", async () => {
+    const id = await book(600);
+    await age(id, 6);
+    await startIn(id, 10);
+    expect(await dueIds()).toEqual([]);
+  });
+
+  it("sesión ya iniciada: no hay a qué recordar", async () => {
+    const id = await book(600);
+    await age(id, 49);
+    await startIn(id, -1);
+    expect(await dueIds()).toEqual([]);
   });
 
   it("un link de pago reciente reinicia el reloj (mismo reloj que el barrido)", async () => {
@@ -81,7 +112,7 @@ describe("payment_reminders_due", () => {
     expect(await dueIds()).toEqual([]);
   });
 
-  it("lo liberado por el barrido ya no es debido", async () => {
+  it("lo liberado por el barrido ya no es candidato", async () => {
     const id = await book(600);
     await age(id, 73);
     expect(await dueIds()).toEqual([id]);
@@ -107,7 +138,7 @@ describe("payment_reminders_due", () => {
 });
 
 describe("reclamo payment_reminder_sent_at", () => {
-  it("el segundo reclamo pierde; soltar lo vuelve debido", async () => {
+  it("el segundo reclamo pierde; soltar lo vuelve candidato", async () => {
     const id = await book(600);
     await age(id, 49);
     expect(await repo.markSent(id)).toBe(true);
@@ -119,17 +150,29 @@ describe("reclamo payment_reminder_sent_at", () => {
 });
 
 describe("PaymentReminderService.sweep contra la DB", () => {
-  it("manda una vez por pedido, cuenta los sin email, y la segunda corrida no manda nada", async () => {
+  it("sesión en 10 h (plazo = inicio): manda una vez, cuenta los sin email, la segunda corrida no manda", async () => {
     const withMail = await book(600);
     const noMail = await book(720, { email: null });
-    await age(withMail, 49);
-    await age(noMail, 49);
+    for (const id of [withMail, noMail]) {
+      await age(id, 13);
+      await startIn(id, 10 + (id === noMail ? 2 : 0));
+    }
     const notifications = { notifyPaymentReminder: vi.fn(async () => true) };
     const service = new PaymentReminderService(repo, notifications);
 
     expect(await service.sweep()).toEqual({ sent: 1, skippedNoEmail: 1 });
-    expect(notifications.notifyPaymentReminder).toHaveBeenCalledWith(withMail, { freesAt: expect.stringMatching(/T12:30:00\.000Z$/) });
+    expect(notifications.notifyPaymentReminder).toHaveBeenCalledWith(withMail, expect.objectContaining({ clockStart: expect.any(String) }));
     expect(await service.sweep()).toEqual({ sent: 0, skippedNoEmail: 1 });
     expect(notifications.notifyPaymentReminder).toHaveBeenCalledTimes(1);
+  });
+
+  it("sesión lejana con reloj de 49 h: candidata, pero solo manda si al barrido le quedan ≤ 24 h", async () => {
+    const id = await book(600);
+    await age(id, 49);
+    const notifications = { notifyPaymentReminder: vi.fn(async () => true) };
+    const service = new PaymentReminderService(repo, notifications);
+    const { rows } = await pg.query<{ clock: Date }>("select created_at clock from orders where id=$1", [id]);
+    const expected = manualHoldFreesAt(rows[0].clock).getTime() - Date.now() <= 24 * 3600_000 ? 1 : 0;
+    expect((await service.sweep()).sent).toBe(expected);
   });
 });
