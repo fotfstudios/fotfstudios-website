@@ -22,6 +22,8 @@ van como sección aparte y sin nota, pero ahí viven los hallazgos que más impo
 | Pago aprobado sin hold (`paid_no_hold`) | webhook · reconcile · offline | **solo dueño** | `ownerNeedsReview` | `confirm_payment` marca `notified_at` → el cliente nunca recibe nada |
 | Cortesía creada | admin nueva | cliente | `customerCourtesyConfirmation` | un disparo, sin respaldo |
 | Link de pago (reserva pendiente, 72 h) | admin ficha | cliente | `bookingPaymentPending` | un disparo, no marca `notified_at` (correcto) |
+| Reserva manual pendiente creada (#238) | admin nueva | cliente | `bookingHeldPending` (hora real de liberación + datos de transferencia) | un disparo, no marca `notified_at` |
+| Recordatorio de pago (pendiente manual, a ~24 h de liberarse) | pg_cron cada 5 min (`/api/cron/access-codes`), reloj ≥ 48 h | cliente | `bookingPaymentReminder` | **reclama `orders.payment_reminder_sent_at` antes de mandar**, suelta si falla; mismo predicado que `expire_abandoned_manual_holds_ids` |
 | Cancelación / reembolso | admin ficha (`status === 'paid'`) · webhook (reembolso externo) | cliente | `customerCancellation` | inbox del webhook dedupea el loopback |
 | Reagendamiento aplicado / falló | admin ficha · webhook (cobro diferido) | cliente | `customerReschedule` · `customerRescheduleFailed` | un disparo |
 | PIN de la cerradura | pg_cron cada 5 min, ventana 15 min, solo si `access_loaded_at` | cliente | `customerAccessCode` | **reclama `access_sent_at` antes de mandar**, suelta si falla |
