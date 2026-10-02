@@ -10,6 +10,10 @@ import { describe, expect, it } from "vitest";
  * el PIN llega POR EMAIL 10 minutos antes (pg_cron), no "por WhatsApp". Este test pinea
  * la frase en todas y prohíbe el `bone-mute` (#6f6c64, 3.78:1) en texto de email. Las
  * plantillas de Auth ya son TS (templates.ts) y las cubre auth-email.test.ts.
+ *
+ * Desde los avisos por WhatsApp (spec 2026-10-02) el PIN TAMBIÉN puede llegar por WhatsApp, pero
+ * solo a quien lo activó: el correo sigue siendo la promesa y WhatsApp se describe como aditivo
+ * ("y por WhatsApp si lo activaste"), nunca como el canal del acceso.
  */
 const root = process.cwd();
 const read = (p: string) => readFileSync(join(root, p), "utf8");
@@ -28,6 +32,11 @@ describe("promesa de acceso: por email 10 minutos antes", () => {
     const src = read(file);
     expect(src).toMatch(/por email/);
     expect(src).toMatch(/10 minutos antes/);
+  });
+
+  it.each([EMAIL_TEMPLATES, ...WEB_SURFACES])("%s describe el WhatsApp como aditivo (solo si lo activó)", (file) => {
+    const src = read(file);
+    expect(src).toMatch(/por email \(y por WhatsApp si lo activaste\) 10 minutos antes/);
   });
 
 });

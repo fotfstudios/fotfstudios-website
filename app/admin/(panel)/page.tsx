@@ -97,7 +97,7 @@ export default async function AdminHome() {
 
       {correos.length > 0 && (
         <div id="correos" className="mt-10 scroll-mt-8">
-          <Card title="Correos que no salieron">
+          <Card title="Correos y WhatsApp que no salieron">
             <ul className="divide-y divide-ink-line">
               {correos.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">

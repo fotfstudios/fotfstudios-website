@@ -47,7 +47,15 @@ describe("AccessCodeService.sweep", () => {
     const n = notifier();
     const r = await new AccessCodeService(repo, n).sweep();
     expect(r.sent).toBe(2);
-    expect(n.notifyAccessCode).toHaveBeenCalledWith({ email: "ana@e.cl", name: "Ana", startsAt: "2026-07-12T18:00:00Z", code: "482917" });
+    expect(n.notifyAccessCode).toHaveBeenCalledWith({
+      email: "ana@e.cl",
+      name: "Ana",
+      startsAt: "2026-07-12T18:00:00Z",
+      code: "482917",
+      reservationId: "r1",
+      phone: null,
+      whatsappOptIn: false,
+    });
   });
 
   /**

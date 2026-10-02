@@ -32,7 +32,18 @@ describe("ReminderService.sweep — recordatorio 24 h antes", () => {
       orderId: "o1",
       startsAt: "2026-09-15T18:00:00Z",
       endsAt: "2026-09-15T20:00:00Z",
+      reservationId: "r1",
+      phone: null,
+      whatsappOptIn: false,
     });
+  });
+
+  it("pasa el celular y el consentimiento de la ficha (para el WhatsApp)", async () => {
+    const { service, notifications } = make([due({ phone: "+56912345678", whatsappOptIn: true })]);
+    await service.sweep();
+    expect(notifications.notifyReminder).toHaveBeenCalledWith(
+      expect.objectContaining({ reservationId: "r1", phone: "+56912345678", whatsappOptIn: true }),
+    );
   });
 
   it("reclama ANTES de mandar y no manda si otra corrida ganó", async () => {

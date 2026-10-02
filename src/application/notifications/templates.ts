@@ -90,13 +90,13 @@ export function customerConfirmation(
      <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
      <table style="width:100%;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};margin:8px 0">${rows(v.lines)}</table>
      <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:${T.boneQuiet};font-size:12px">IVA incluido</span></p>
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
+     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
      <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a></p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
      <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus puntos y tus próximas sesiones, en <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold}">tu cuenta</a>.</p>`,
     `${v.when} · ${ctx.address}`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (puntos y próximas sesiones): ${ctx.links.accountUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (puntos y próximas sesiones): ${ctx.links.accountUrl}`;
   return { template: "customerConfirmation", subject: `Reserva confirmada · ${v.when}`, html, text };
 }
 
@@ -129,13 +129,13 @@ export function customerCourtesyConfirmation(
      <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
      <p style="margin:8px 0 16px;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};padding:8px 0"><strong>Cortesía:</strong> sesión sin cobro.</p>
      ${addonsLine}
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
+     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
      <p style="margin:0 0 20px"><a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold};font-weight:bold">Ver mi cuenta</a></p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
      <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:${T.gold}">términos</a> y <a href="${ctx.privacyUrl}" style="color:${T.gold}">política de privacidad</a>.</p>`,
     `${v.when} · ${ctx.address} · cortesía`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Tu cuenta: ${ctx.links.accountUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Tu cuenta: ${ctx.links.accountUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
   return { template: "customerCourtesyConfirmation", subject: `Sesión de cortesía confirmada · ${v.when}`, html, text };
 }
 
@@ -175,12 +175,12 @@ export function customerReminder(
     `<h1 style="font-size:24px;margin:0 0 8px">Tu sesión se acerca</h1>
      <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
      <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email 10 minutos antes</strong> (revisa spam). Entras solo, sin esperar a nadie. Trae tu música en USB.</p>
+     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> (revisa spam). Entras solo, sin esperar a nadie. Trae tu música en USB.</p>
      <p style="margin:0 0 20px"><a href="${esc(ctx.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a></p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Algo cambió? Escríbenos por WhatsApp</a>`,
     `${v.when} · ${ctx.address}`,
   );
-  const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email 10 minutos antes (revisa spam). Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
+  const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes (revisa spam). Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
   return { template: "customerReminder", subject: `Tu sesión se acerca · ${v.when}`, html, text };
 }
 

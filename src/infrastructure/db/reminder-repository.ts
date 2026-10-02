@@ -12,7 +12,7 @@ export class SupabaseReminderRepository implements ReminderRepository {
     const h = 3600_000;
     const { data, error } = await this.db
       .from("reservations")
-      .select("id, order_id, starts_at, ends_at, customer_name, customer_email")
+      .select("id, order_id, starts_at, ends_at, customer_name, customer_email, customer_phone, customers(phone, whatsapp_opt_in)")
       .eq("kind", "booking")
       .eq("status", "confirmed")
       .is("reminder_sent_at", null)
@@ -28,6 +28,8 @@ export class SupabaseReminderRepository implements ReminderRepository {
       endsAt: r.ends_at,
       customerName: r.customer_name,
       customerEmail: r.customer_email,
+      phone: r.customers?.phone ?? r.customer_phone,
+      whatsappOptIn: r.customers?.whatsapp_opt_in ?? false,
     }));
   }
 

@@ -8,7 +8,17 @@ export interface ReminderRepository {
    * (recién reservada, la confirmación ya hizo de recordatorio).
    */
   remindersDue(): Promise<
-    { id: string; orderId: string | null; startsAt: string; endsAt: string; customerName: string | null; customerEmail: string | null }[]
+    {
+      id: string;
+      orderId: string | null;
+      startsAt: string;
+      endsAt: string;
+      customerName: string | null;
+      customerEmail: string | null;
+      /** Para el WhatsApp (celular de la ficha y su consentimiento). */
+      phone?: string | null;
+      whatsappOptIn?: boolean;
+    }[]
   >;
   /** Reclama `reminder_sent_at` solo si estaba en null. true = esta corrida lo marcó. */
   markReminderSent(reservationId: string): Promise<boolean>;
@@ -51,6 +61,9 @@ export class ReminderService {
           orderId: r.orderId,
           startsAt: r.startsAt,
           endsAt: r.endsAt,
+          reservationId: r.id,
+          phone: r.phone ?? null,
+          whatsappOptIn: r.whatsappOptIn ?? false,
         });
         sent++;
       } catch (e) {
