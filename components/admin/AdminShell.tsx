@@ -25,6 +25,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
     sii: hasPermission(claims, "reservations.boleta"),
     equipment: hasPermission(claims, "equipment.manage"),
     calendar: hasPermission(claims, "calendar.manage"),
+    whatsapp: hasPermission(claims, "whatsapp.manage"),
   };
   return (
     <Toaster>
