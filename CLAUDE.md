@@ -96,6 +96,12 @@ en vivo ni la base Supabase remota real.
 - `src/domain/calendar/` — `ics.ts` (los `.ics` de los correos) y `google-event.ts` (reserva → evento del
   espejo en Google Calendar). El espejo es unidireccional: trigger en `reservations` → cola `calendar_sync` →
   pg_cron cada minuto → `/api/cron/calendar-sync`. Estado y botones en `/admin/calendario` (`calendar.manage`).
+- `src/application/whatsapp/` + `src/infrastructure/whatsapp/` — avisos por WhatsApp vía Kapso (coexistencia con la
+  app Business en la línea del estudio). Los `notify*` encolan en `whatsapp_outbox` DESPUÉS del correo (cliente solo con
+  consentimiento `customers.whatsapp_opt_in` + celular chileno vía `waRecipient`; dueño vía `OWNER_WHATSAPP`) → pg_cron
+  cada minuto → `/api/cron/whatsapp-outbox`; estado por `/api/webhooks/kapso` (HMAC). Catálogo `WA_TEMPLATES` ↔
+  `docs/whatsapp-templates.md` (test de contrato; el texto vive en Meta). Fuera de prod solo se le escribe a
+  `OWNER_WHATSAPP`. Panel en `/admin/whatsapp` (`whatsapp.manage`); setup en DEPLOY.md → "WhatsApp (Kapso)".
 - `lib/curso-content.ts` — Curso DJ copy/prices (`CURSO`, `PRECIOS`, `FAQ`…). Lives in `lib/`
   because the home section, a guide and `app/admin/(panel)/curso/generaciones` read it too —
   never import across `app/` trees (`@/app/...` from `components/` is a smell).

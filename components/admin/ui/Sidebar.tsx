@@ -22,6 +22,7 @@ function groups(
     sii: boolean;
     equipment: boolean;
     calendar: boolean;
+    whatsapp: boolean;
   },
   porHacer: number,
   solicitudes: number,
@@ -35,6 +36,8 @@ function groups(
   if (show.roles) config.push({ href: "/admin/roles", label: "Roles", icon: "roles" });
   // Espejo en Google Calendar: configuración (conexión + cola), no operación diaria.
   if (show.calendar) config.push({ href: "/admin/calendario", label: "Calendario", icon: "clock" });
+  // Avisos por WhatsApp (Kapso): conexión, cola y prueba. Configuración, no operación diaria.
+  if (show.whatsapp) config.push({ href: "/admin/whatsapp", label: "WhatsApp", icon: "whatsapp" });
   const operacion: Item[] = [
     { href: "/admin", label: "Hoy", icon: "today", badge: porHacer },
     { href: "/admin/agenda", label: "Agenda", icon: "clock" },
@@ -145,6 +148,7 @@ export function Sidebar({
     sii: boolean;
     equipment: boolean;
     calendar: boolean;
+    whatsapp: boolean;
   };
   porHacer?: number;
   solicitudes?: number;
