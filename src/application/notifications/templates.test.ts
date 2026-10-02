@@ -501,7 +501,7 @@ describe("shell del correo (H11/H13)", () => {
    * sin botón de pago; el efectivo no se ofrece).
    */
   const pendingCtx = { termsUrl: "https://www.fotfstudios.cl/terminos", whatsappUrl: "https://wa.me/56962803298", transfer: TRANSFER };
-  const PAY_BY = "viernes 9 de octubre, 09:30 h";
+  const PAY_BY = "viernes 9 de octubre, 09:00 h";
   describe.each([
     ["bookingHeldPending", bookingHeldPending],
     ["bookingPaymentReminder", bookingPaymentReminder],

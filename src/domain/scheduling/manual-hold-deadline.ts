@@ -1,29 +1,36 @@
 /**
- * Cuándo se libera de verdad una reserva manual pendiente de pago.
+ * Hasta cuándo se puede prometer que una reserva manual pendiente sigue guardada.
  *
  * `expire_abandoned_manual_holds_ids('72 hours')` cancela la orden cuando su reloj
  * (`greatest(orders.created_at, último payment_intents.created_at)`) es anterior a
- * `now() - 72 h`, pero solo corre en el cron diario de reconcile (vercel.json,
- * `30 12 * * *` UTC). Así que el horario no se libera a las 72 h: se libera en el
- * primer barrido ESTRICTAMENTE posterior a esas 72 h (el SQL compara con `<`).
- * Los correos dicen esa hora, no "72 h", para no prometer un plazo que no es.
+ * `now() - 72 h`, pero solo corre en el cron diario de reconcile (vercel.json). En el
+ * plan Hobby de Vercel ese cron tiene precisión de HORA: `30 12 * * *` corre en
+ * cualquier momento entre las 12:00 y las 12:59 UTC, no a las 12:30.
  *
- * lib/cron-contract.test.ts amarra MANUAL_HOLD_SWEEP_UTC al cron de vercel.json.
+ * La promesa tiene que ser una hora en la que la reserva SEGURO sigue guardada: el
+ * inicio de la ventana del cron (12:00 UTC = 09:00 CL en verano). Y si las 72 h vencen
+ * DENTRO de esa ventana (p. ej. 12:10), el barrido de ese mismo día puede liberarla
+ * (corre a las 12:40 > 12:10), así que la promesa es ese mismo día a las 12:00. Regla:
+ * el primer 12:00 UTC en o después de (reloj + 72 h − 1 h). Nunca promete más de lo
+ * que hay; a lo sumo ~1 h menos que las 72 h.
+ *
+ * lib/cron-contract.test.ts amarra MANUAL_HOLD_SWEEP_UTC_HOUR a la hora del cron de vercel.json.
  */
 export const MANUAL_HOLD_HOURS = 72;
-export const MANUAL_HOLD_SWEEP_UTC = { hour: 12, minute: 30 } as const;
+export const MANUAL_HOLD_SWEEP_UTC_HOUR = 12;
 
 /**
  * @param clockStart inicio del reloj de 72 h (creación de la orden o último link de pago).
- * @param now si el plazo ya pasó (cron caído, recordatorio atrasado), se nombra el
- *   próximo barrido después de `now`: nunca una hora pasada.
+ * @param now si la promesa ya pasó (cron caído, recordatorio atrasado), se nombra la
+ *   próxima ventana del barrido después de `now`: nunca una hora pasada.
  */
 export function manualHoldFreesAt(clockStart: string | Date, now: Date = new Date()): Date {
-  const deadline = new Date(clockStart).getTime() + MANUAL_HOLD_HOURS * 3600_000;
-  const after = Math.max(deadline, now.getTime());
+  const windowLen = 3600_000; // precisión del cron en Hobby
+  const earliest = new Date(clockStart).getTime() + MANUAL_HOLD_HOURS * 3600_000 - windowLen;
+  const after = Math.max(earliest, now.getTime());
   const tick = new Date(after);
-  tick.setUTCHours(MANUAL_HOLD_SWEEP_UTC.hour, MANUAL_HOLD_SWEEP_UTC.minute, 0, 0);
-  if (tick.getTime() <= after) tick.setUTCDate(tick.getUTCDate() + 1);
+  tick.setUTCHours(MANUAL_HOLD_SWEEP_UTC_HOUR, 0, 0, 0);
+  if (tick.getTime() < after) tick.setUTCDate(tick.getUTCDate() + 1);
   return tick;
 }
 

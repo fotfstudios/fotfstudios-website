@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PaymentReminderService, type PaymentReminderRepository } from "./payment-reminder-service";
 
 type Due = Awaited<ReturnType<PaymentReminderRepository["due"]>>[number];
-// Reloj lun 5 oct 14:00 UTC → barrido del vie 9 oct 12:30 UTC; sesión lejos (20 oct).
+// Reloj lun 5 oct 14:00 UTC → promesa vie 9 oct 12:00 UTC; sesión lejos (20 oct).
 const due = (over: Partial<Due> = {}): Due => ({
   orderId: "o1",
   clockStart: "2026-10-05T14:00:00Z",
@@ -11,7 +11,7 @@ const due = (over: Partial<Due> = {}): Due => ({
   ...over,
 });
 
-const IN_WINDOW = new Date("2026-10-08T13:00:00Z"); // 23,5 h antes del barrido
+const IN_WINDOW = new Date("2026-10-08T13:00:00Z"); // 23 h antes de la promesa (vie 12:00 UTC)
 
 const make = (rows: Due[]) => {
   const repo: PaymentReminderRepository = {

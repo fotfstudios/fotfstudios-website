@@ -272,6 +272,10 @@ backoff hasta 1 h; "Sincronizar ahora" los adelanta.
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI + job `migrate`.
 - [.github/rulesets/main.json](.github/rulesets/main.json) — protección de `main`.
 - [vercel.json](vercel.json) — build config + crons + `ignoreCommand`.
+  **Ojo, plan Hobby:** los crons de Vercel son diarios y con precisión de HORA (±59 min): `30 12 * * *`
+  corre en cualquier minuto entre 12:00 y 12:59 UTC. Los correos de reserva pendiente prometen el inicio de
+  esa hora (`src/domain/scheduling/manual-hold-deadline.ts`; `lib/cron-contract.test.ts` amarra la hora).
+  Lo que necesita minuto exacto corre en pg_cron (abajo).
 - **pg_cron en la base (no en Vercel):** `expire-holds` (`* * * * *`, `select public.expire_stale_holds()`,
   migración `20260914020000`), `purge-cron-history` (domingos 03:00 UTC, borra `cron.job_run_details` > 7 días)
   y `access-codes` (`*/5`, necesita secretos en Vault; además del PIN manda el recordatorio de sesión y el

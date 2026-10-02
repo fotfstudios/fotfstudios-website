@@ -424,7 +424,7 @@ describe.each([
     kind: "booking",
     notifiedAt: null,
   };
-  // Reloj lun 5 oct 14:00 UTC + 72 h → barrido del viernes 9 de octubre 12:30 UTC = 09:30 en Santiago.
+  // Reloj lun 5 oct 14:00 UTC + 72 h → promesa: viernes 9 de octubre 12:00 UTC = 09:00 en Santiago.
   const CLOCK = { clockStart: "2026-10-05T14:00:00Z", now: new Date("2026-10-05T14:00:00Z") };
 
   it("dice cuándo, cuánto, hasta cuándo pagar (hora de Santiago) y cómo transferir", async () => {
@@ -438,7 +438,7 @@ describe.each([
     expect(msg.template).toBe(template);
     expect(msg.text).toContain("$39.980");
     expect(msg.text).toContain("18:00");
-    expect(msg.text).toContain("paga antes del viernes 9 de octubre, 09:30 h");
+    expect(msg.text).toContain("paga antes del viernes 9 de octubre, 09:00 h");
     expect(msg.text).toContain(TRANSFER.accountNumber);
     expect(msg.text).toContain(TRANSFER.rut);
     expect(msg.text).toContain(TRANSFER.email);
