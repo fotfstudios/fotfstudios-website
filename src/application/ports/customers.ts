@@ -9,6 +9,18 @@ export interface CustomerProfile {
   phone: string | null;
   pointsBalance: number;
   createdAt: string;
+  /** Consentimiento de avisos por WhatsApp (migración 20261003120000). */
+  whatsapp: WhatsAppConsent;
+}
+
+export type WhatsAppConsentSource = "customer" | "staff" | "account";
+
+export interface WhatsAppConsent {
+  optIn: boolean;
+  /** Último alta: cuándo y desde dónde (se conserva tras una baja, como historia). */
+  optInAt: string | null;
+  source: WhatsAppConsentSource | null;
+  optOutAt: string | null;
 }
 
 /** Resultado de `ensure_customer_for_user`: nunca lanza para un conflicto de email. */
@@ -85,4 +97,11 @@ export interface CustomerRepository {
     customerId: string,
     d: { name: string | null; email: string | null; phone: string | null },
   ): Promise<void>;
+  /** Alta o baja de avisos por WhatsApp (rpc `set_whatsapp_opt_in`). */
+  setWhatsAppOptIn(customerId: string, optIn: boolean, source: WhatsAppConsentSource): Promise<void>;
+  /**
+   * Lo mismo, resolviendo la ficha desde un pedido recién creado (checkout). false = el pedido
+   * no tiene ficha (email que no pasó la puerta de forma): no hay a quién registrarle nada.
+   */
+  setWhatsAppOptInForOrder(orderId: string, optIn: boolean, source: WhatsAppConsentSource): Promise<boolean>;
 }

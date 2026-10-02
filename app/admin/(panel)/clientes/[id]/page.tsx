@@ -13,6 +13,7 @@ import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { fmtPts, fmtPtsSigned } from "@/components/cuenta/format";
+import type { WhatsAppConsent } from "@/src/application/ports/customers";
 import { customerDirectory } from "@/src/composition";
 import { CUSTOMER_CAPS, customerLabel } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
@@ -25,6 +26,15 @@ export const metadata = { title: "Cliente — Admin", robots: { index: false } }
 /** Un id malformado va a 404, no a un error de Postgres (mismo guard que el curso). */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MOVEMENTS_SHOWN = 10;
+
+const CONSENT_SOURCE: Record<string, string> = { customer: "al reservar", account: "desde su cuenta", staff: "por el staff" };
+
+/** Rastro del consentimiento para el staff: cuándo y por dónde se dio (o se quitó). */
+function whatsappConsentLabel(w: WhatsAppConsent): string {
+  if (w.optIn && w.optInAt) return `Aceptó el ${fmtDateTime(w.optInAt)}, ${CONSENT_SOURCE[w.source ?? ""] ?? "sin origen"}.`;
+  if (w.optOutAt) return `Se dio de baja el ${fmtDateTime(w.optOutAt)}.`;
+  return "Nunca lo ha aceptado.";
+}
 
 export default async function ClienteDetalle({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("customers.manage");
@@ -92,6 +102,19 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               <Field label="Teléfono" hint="Opcional si hay email. +56 9 …">
                 <Input name="phone" type="tel" defaultValue={c.phone ?? ""} maxLength={CUSTOMER_CAPS.phone} autoComplete="off" />
               </Field>
+              <label className="flex items-start gap-2.5 text-sm text-bone-dim">
+                <input
+                  type="checkbox"
+                  name="whatsapp"
+                  defaultChecked={c.whatsapp.optIn}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+                />
+                <span className="leading-relaxed">
+                  Quiere avisos por WhatsApp
+                  <span className="mt-0.5 block label-sm text-bone-quiet">{whatsappConsentLabel(c.whatsapp)}</span>
+                </span>
+              </label>
+              <input type="hidden" name="whatsapp_field" value="1" />
               <p className="label-sm text-bone-quiet">
                 Al guardar, el nombre y el teléfono se actualizan también en sus reservas y pedidos.
               </p>
