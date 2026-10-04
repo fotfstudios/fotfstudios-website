@@ -3,10 +3,12 @@
  * testeable (reloj inyectable). Transcribe lo que ya está PUBLICADO en /terminos:
  *
  *   ≥ 7 días antes de la sesión 1 → reembolso del 100%
- *   < 7 días                      → sin reembolso en dinero; el cupo se traspasa
- *                                   a la siguiente generación o a un reemplazante
+ *   < 7 días                      → sin reembolso en dinero; se reagendan las
+ *                                   sesiones o se designa un reemplazante
  *   ya iniciado                   → sin reembolso; las sesiones que falten se
- *                                   reagendan dentro de la misma generación
+ *                                   reagendan dentro de la ventana del curso
+ *
+ * Curso 1:1: no hay "siguiente generación" a la cual traspasar (spec 2026-09-25 §6).
  *
  * Es un ACANTILADO binario, no una escalera como la de la sala (24 h/12 h): abajo
  * del corte no hay medio reembolso, hay alternativas sin dinero. Por eso vive en
@@ -19,7 +21,7 @@
 export const COURSE_FULL_REFUND_DAYS = 7;
 
 /** Qué salidas tiene el alumno además (o en vez) del dinero. */
-export type CourseRemedy = "refund" | "transfer" | "substitute" | "reschedule_sessions";
+export type CourseRemedy = "refund" | "substitute" | "reschedule_sessions";
 
 export interface CourseCancelTier {
   /** 1 = 100%, 0 = sin reembolso en dinero. */
@@ -50,7 +52,7 @@ export function courseCancellationPolicy(
       label: "Sin fecha aún — reembolso total",
       daysUntil: null,
       started: false,
-      remedies: ["refund", "transfer"],
+      remedies: ["refund"],
     };
   }
 
@@ -62,7 +64,7 @@ export function courseCancellationPolicy(
       label: "Más de 7 días — reembolso total",
       daysUntil: days,
       started: false,
-      remedies: ["refund", "transfer"],
+      remedies: ["refund"],
     };
   }
 
@@ -72,7 +74,7 @@ export function courseCancellationPolicy(
       label: "Menos de 7 días — sin reembolso en dinero",
       daysUntil: days,
       started: false,
-      remedies: ["transfer", "substitute"],
+      remedies: ["reschedule_sessions", "substitute"],
     };
   }
 

@@ -38,7 +38,9 @@ export function Dialog({ title, children, onClose }: { title: string; children: 
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto border hairline bg-ink p-0 text-bone backdrop:bg-ink/80 backdrop:backdrop-blur-sm"
+      // text-left: el modal vive en el DOM donde se abre (p. ej. una celda `right` de
+      // tabla) y heredaría su alineación aunque se pinte en la capa superior.
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto border hairline bg-ink p-0 text-left text-bone backdrop:bg-ink/80 backdrop:backdrop-blur-sm"
     >
       <div className="flex items-center justify-between border-b hairline px-5 py-3.5">
         <h3 id={titleId} className="label text-bone">

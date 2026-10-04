@@ -13,7 +13,7 @@ describe("courseCancellationPolicy — el acantilado de 7 días", () => {
   it("con 10 días de anticipación devuelve el 100%", () => {
     const t = courseCancellationPolicy(S1, at("2026-09-05T23:00:00.000Z"));
     expect(t.refundPct).toBe(1);
-    expect(t.remedies).toContain("refund");
+    expect(t.remedies).toEqual(["refund"]);
   });
 
   // Borde inclusivo: el instante límite favorece al alumno, igual que la sala.
@@ -30,10 +30,11 @@ describe("courseCancellationPolicy — el acantilado de 7 días", () => {
 
   // Bajo el corte NO hay medio reembolso: hay alternativas sin dinero. Ese es el
   // punto donde esta política se separa de la escalera 24h/12h de la sala.
-  it("bajo el corte ofrece traslado y reemplazante, no plata", () => {
+  // Curso 1:1: no hay "siguiente generación" a la cual traspasar (términos §6).
+  it("bajo el corte ofrece reagendar o un reemplazante, no plata", () => {
     const t = courseCancellationPolicy(S1, at("2026-09-12T00:00:00.000Z"));
     expect(t.refundPct).toBe(0);
-    expect(t.remedies).toEqual(["transfer", "substitute"]);
+    expect(t.remedies).toEqual(["reschedule_sessions", "substitute"]);
     expect(t.remedies).not.toContain("refund");
   });
 

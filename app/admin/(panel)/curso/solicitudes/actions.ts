@@ -19,7 +19,7 @@ export async function setLeadStatusAction(_prev: ActionResult | null, fd: FormDa
     if (!id) throw new Error("Falta la solicitud.");
     if (!isCourseLeadStatus(status)) throw new Error("Estado inválido.");
     if (status === "inscrita") {
-      throw new Error("Para inscribir, usa el botón de inscripción: ahí se toma el cupo.");
+      throw new Error("Para inscribir, usa «Inscribir»: ahí se crea el programa y su pedido.");
     }
     await courseRepository().updateLeadStatus(id, status);
     revalidatePath("/admin/curso/solicitudes");

@@ -5,7 +5,6 @@ import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
-import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { MeterCell } from "@/components/admin/ui/MeterCell";
@@ -13,37 +12,36 @@ import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Stat } from "@/components/admin/ui/Stat";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { InscribirDialog } from "./_components/InscribirDialog";
+import { NuevoProgramaDialog } from "./_components/NuevoProgramaDialog";
 import { courseRepository } from "@/src/composition";
+import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { cancelSessionAction, issueTrialCreditAction } from "./actions";
+import { issueTrialCreditAction } from "./actions";
 import { PRECIOS } from "@/lib/curso-content";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Curso — Admin", robots: { index: false } };
 
+/**
+ * El curso 1:1: un programa por pedido (una persona, o un dúo). La lista muestra
+ * los programas con alumnos vivos; cada fila abre la ficha, donde se agendan y
+ * mueven sus sesiones.
+ */
 export default async function CursoPage() {
   await requirePermission("course.manage");
 
   const repo = courseRepository();
-  const generacion = await repo.currentGeneration();
-  const [sesiones, todas, inscritos] = await Promise.all([
-    generacion ? repo.listSessions(generacion.id) : Promise.resolve([]),
-    repo.listGenerations(),
-    generacion ? repo.listEnrollments(generacion.id) : Promise.resolve([]),
+  const [programas, creditos] = await Promise.all([
+    repo.listLivePrograms(),
+    repo.listCredits().catch(() => []),
   ]);
-  const creditos = generacion ? await repo.listCredits().catch(() => []) : [];
-  const vivos = inscritos.filter((i) => i.status === "reservada" || i.status === "pagada");
-  const porPagar = vivos.filter((i) => i.status === "reservada").length;
-  const recaudado = vivos
-    .filter((i) => i.status === "pagada")
-    .reduce((sum, i) => sum + i.priceClp, 0);
 
-  const agendadas = sesiones.filter((s) => s.status === "agendada");
-  const proxima = agendadas
-    .filter((s) => s.startsAt && s.startsAt > new Date().toISOString())
-    .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""))[0];
+  const porPagar = programas.filter((p) => p.students.some((s) => s.status === "reservada")).length;
+  const proxima = programas
+    .map((p) => p.nextSession?.startsAt)
+    .filter((s): s is string => Boolean(s))
+    .sort()[0];
 
   return (
     <>
@@ -52,239 +50,128 @@ export default async function CursoPage() {
         title="Curso"
         action={
           <>
-            {generacion && (
-              <InscribirDialog
-                generationId={generacion.id}
-                generationCode={generacion.code}
-                prices={generacion.prices}
-                seatsLeft={generacion.seatsLeft}
-              />
-            )}
+            <NuevoProgramaDialog prices={PRECIOS} />
             <Button href="/admin/curso/solicitudes" icon="user" variant="secondary">
               Solicitudes
-            </Button>
-            <Button href="/admin/curso/generaciones" icon="doc" variant="secondary">
-              Generaciones
             </Button>
           </>
         }
       />
 
-      {todas.length === 0 ? (
-        <div className="mt-8">
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Stat label="Programas activos" value={String(programas.length)} />
+        <Stat label="Por pagar" value={String(porPagar)} accent={porPagar > 0} />
+        <Stat label="Próxima sesión" value={proxima ? fmtDateTime(proxima) : "Sin agendar"} />
+      </div>
+
+      <div className="mt-10">
+        <h2 className="label mb-3 text-bone-quiet">Programas</h2>
+        {programas.length === 0 ? (
           <EmptyState
             icon="curso"
-            title="Aún no hay generaciones"
-            hint="Crea la primera generación para fijar cupos, precios y plazo de inscripción."
-            action={
-              <Button href="/admin/curso/generaciones" icon="add" size="sm">
-                Crear generación
-              </Button>
-            }
+            title="Sin programas activos"
+            hint="Crea uno con «Nuevo programa», o inscribe una solicitud desde Solicitudes."
           />
-        </div>
-      ) : !generacion ? (
-        <div className="mt-8">
-          <EmptyState
-            icon="curso"
-            title="Ninguna generación abierta"
-            hint="Abre una generación para recibir inscripciones."
-            action={
-              <Button href="/admin/curso/generaciones" size="sm">
-                Ver generaciones
-              </Button>
+        ) : (
+          <DataTable
+            minWidthClassName="min-w-[56rem]"
+            head={
+              <>
+                <Th>Código</Th>
+                <Th>Alumno</Th>
+                <Th>Formato</Th>
+                <Th>Instructor</Th>
+                <Th>Sesiones</Th>
+                <Th>Práctica</Th>
+                <Th>Estado</Th>
+                <Th />
+              </>
             }
-          />
-        </div>
-      ) : (
-        <>
-          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Cupos tomados" value={`${generacion.seatsTaken} / ${generacion.seats}`} accent={generacion.seatsLeft === 0} />
-            <Stat label="Por pagar" value={String(porPagar)} accent={porPagar > 0} />
-            <Stat label="Recaudado" value={formatCLP(recaudado)} />
-            <Stat
-              label="Próxima sesión"
-              value={proxima?.startsAt ? fmtDateTime(proxima.startsAt) : "Sin agendar"}
-              accent={agendadas.length === 0}
-            />
-          </div>
+          >
+            {programas.map((p) => {
+              const vivas = p.sessions.filter((s) => s.status !== "cancelada");
+              const total = p.students.reduce((n, s) => n + s.practiceHoursTotal, 0);
+              const usadas = p.students.reduce((n, s) => n + s.practiceHoursRedeemed, 0);
+              const pendiente = p.students.some((s) => s.status === "reservada");
+              const nombre = p.students.map((s) => s.name).join(" y ");
+              return (
+                <Tr key={p.generationId} className="group relative focus-within:bg-ink-soft">
+                  <Td className="font-mono text-bone-quiet">{p.code}</Td>
+                  <Td className="text-bone">{nombre}</Td>
+                  <Td className="text-bone-dim">{p.plan === "duo" ? "En dúo" : "Individual"}</Td>
+                  <Td className="text-bone-dim">{p.instructor ?? "—"}</Td>
+                  <Td className="whitespace-nowrap text-bone-dim">
+                    <span className="font-mono">
+                      {vivas.length}/{COURSE_PROGRAM.sessions}
+                    </span>
+                    <span className="label-sm ml-2 text-bone-quiet">
+                      {p.nextSession?.startsAt ? `próx. ${fmtDateTime(p.nextSession.startsAt)}` : "sin fecha"}
+                    </span>
+                  </Td>
+                  <Td>
+                    <MeterCell pct={total > 0 ? (usadas / total) * 100 : 0} label={`${usadas}/${total} h`} />
+                  </Td>
+                  <Td>
+                    <StatusPill status={pendiente ? "reservada" : "pagada"} />
+                  </Td>
+                  <Td right>
+                    <Link
+                      href={`/admin/curso/inscripciones/${p.students[0].enrollmentId}`}
+                      aria-label={`Ver programa de ${nombre}`}
+                      className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
+                    >
+                      <Icon name="chevron" size={18} />
+                    </Link>
+                  </Td>
+                </Tr>
+              );
+            })}
+          </DataTable>
+        )}
+      </div>
 
-          <div className="mt-8">
-            <Card
-              title={`${generacion.code} · ${generacion.name}`}
-              action={<StatusPill status={generacion.status} />}
-            >
-              <MeterCell
-                pct={generacion.seats > 0 ? (generacion.seatsTaken / generacion.seats) * 100 : 0}
-                label={`${generacion.seatsTaken} de ${generacion.seats} cupos · quedan ${generacion.seatsLeft}`}
-              />
-              <p className="mt-4 label-sm text-bone-quiet">
-                {generacion.enrollDeadline ? `Cierra el ${fmtDate(generacion.enrollDeadline)}` : "Sin plazo de cierre"}
-                {generacion.startsOn ? ` · parte el ${fmtDate(generacion.startsOn)}` : ""}
-              </p>
-            </Card>
-          </div>
-
-          <div className="mt-8">
-            <Card title="Sesiones de prueba">
-              <p className="mb-4 text-sm text-bone-dim">
-                Registra una prueba ya hecha y queda el crédito de{" "}
-                {formatCLP(PRECIOS.prueba)}, válido 7 días desde la sesión. Se aplica solo al
-                inscribir a esa misma persona.
-              </p>
-              <ActionForm
-                action={issueTrialCreditAction}
-                success="Crédito emitido."
-                resetOnSuccess
-                className="grid gap-4 sm:grid-cols-[1fr_11rem_auto] sm:items-end"
-              >
-                <Field label="Email del alumno">
-                  <Input name="email" type="email" required maxLength={120} />
-                </Field>
-                <Field label="Día de la prueba">
-                  <Input name="sessionDate" type="date" required />
-                </Field>
-                <div className="pb-1">
-                  <SubmitButton size="sm" variant="secondary" pendingLabel="Emitiendo…">
-                    Emitir crédito
-                  </SubmitButton>
-                </div>
-              </ActionForm>
-              {creditos.length > 0 && (
-                <ul className="mt-5 flex flex-col gap-2 border-t hairline pt-4">
-                  {creditos.slice(0, 5).map((c) => (
-                    <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="text-sm text-bone-dim">{c.email}</span>
-                      <span className="label-sm text-bone-quiet">
-                        {c.consumedOrderId
-                          ? "Usado"
-                          : new Date(c.expiresAt) < new Date()
-                            ? "Vencido"
-                            : `Vence ${fmtDate(c.expiresAt)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-
-          <div className="mt-10">
-            <h2 className="label mb-3 text-bone-quiet">Inscritos</h2>
-            {vivos.length === 0 ? (
-              <EmptyState
-                size="compact"
-                icon="user"
-                title="Sin inscritos todavía"
-                hint="Las solicitudes que confirmes aparecen acá y toman cupo."
-              />
-            ) : (
-              <DataTable
-                minWidthClassName="min-w-[52rem]"
-                head={
-                  <>
-                    <Th>Cupo</Th>
-                    <Th>Alumno</Th>
-                    <Th>Contacto</Th>
-                    <Th>Formato</Th>
-                    <Th right>Monto</Th>
-                    <Th>Estado</Th>
-                    <Th />
-                  </>
-                }
-              >
-                {vivos.map((i) => (
-                  <Tr key={i.id} className="group relative focus-within:bg-ink-soft">
-                    <Td className="font-mono text-bone-quiet">{i.seatNo}</Td>
-                    <Td className="text-bone">{i.studentName}</Td>
-                    <Td>
-                      {/* relative z-10: queda por encima del enlace estirado de la fila */}
-                      <a
-                        href={`mailto:${i.studentEmail}`}
-                        className="label-sm relative z-10 -my-1 inline-block py-1 text-gold hover:text-bone"
-                      >
-                        {i.studentEmail}
-                      </a>
-                    </Td>
-                    <Td className="text-bone-dim">{i.plan === "duo" ? "En dúo" : "Individual"}</Td>
-                    <Td right className="whitespace-nowrap font-mono text-bone">
-                      {formatCLP(i.priceClp)}
-                    </Td>
-                    <Td>
-                      <StatusPill status={i.status} />
-                    </Td>
-                    <Td right>
-                      <Link
-                        href={`/admin/curso/inscripciones/${i.id}`}
-                        aria-label={`Ver inscripción de ${i.studentName}`}
-                        className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"
-                      >
-                        <Icon name="chevron" size={18} />
-                      </Link>
-                    </Td>
-                  </Tr>
-                ))}
-              </DataTable>
-            )}
-          </div>
-
-          <div className="mt-10">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="label text-bone-quiet">Sesiones</h2>
-              <Link href="/admin/curso/generaciones" className="label-sm -my-2 inline-block py-2 text-gold transition-colors hover:text-bone">
-                Agendar
-              </Link>
+      <div className="mt-10">
+        <Card title="Sesiones de prueba">
+          <p className="mb-4 text-sm text-bone-dim">
+            Registra una prueba ya hecha y queda el crédito de {formatCLP(PRECIOS.prueba)}, válido 7 días
+            desde la sesión. Se aplica solo al inscribir a esa misma persona.
+          </p>
+          <ActionForm
+            action={issueTrialCreditAction}
+            success="Crédito emitido."
+            resetOnSuccess
+            className="grid gap-4 sm:grid-cols-[1fr_11rem_auto] sm:items-end"
+          >
+            <Field label="Email del alumno">
+              <Input name="email" type="email" required maxLength={120} />
+            </Field>
+            <Field label="Día de la prueba">
+              <Input name="sessionDate" type="date" required />
+            </Field>
+            <div className="pb-1">
+              <SubmitButton size="sm" variant="secondary" pendingLabel="Emitiendo…">
+                Emitir crédito
+              </SubmitButton>
             </div>
-            {sesiones.length === 0 ? (
-              <EmptyState
-                size="compact"
-                icon="clock"
-                title="Sin sesiones agendadas"
-                hint="Al agendarlas quedan bloqueadas en la sala y dejan de venderse en /reservar."
-              />
-            ) : (
-              <DataTable
-                minWidthClassName="min-w-[40rem]"
-                head={
-                  <>
-                    <Th>#</Th>
-                    <Th>Sesión</Th>
-                    <Th>Cuándo</Th>
-                    <Th>Estado</Th>
-                    <Th />
-                  </>
-                }
-              >
-                {sesiones.map((s) => (
-                  <Tr key={s.id} muted={s.status !== "agendada"}>
-                    <Td className="font-mono text-bone-quiet">{s.n}</Td>
-                    <Td className="text-bone">{s.title}</Td>
-                    <Td className="whitespace-nowrap font-mono text-bone-dim">
-                      {s.startsAt ? fmtDateTime(s.startsAt) : "—"}
-                    </Td>
-                    <Td>
-                      <StatusPill status={s.status === "agendada" ? "confirmed" : "cancelled"} />
-                    </Td>
-                    <Td right>
-                      {s.status === "agendada" && (
-                        <ConfirmForm
-                          action={cancelSessionAction}
-                          hidden={{ sessionId: s.id }}
-                          trigger={{ label: "Cancelar", variant: "ghost", size: "sm" }}
-                          title={`Cancelar la sesión ${s.n}`}
-                          message="La sesión deja de bloquear la sala y ese horario vuelve a estar disponible para reservar. Queda registrada en el historial."
-                          cta="Cancelar sesión"
-                          success="Sesión cancelada."
-                        />
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
-              </DataTable>
-            )}
-          </div>
-        </>
-      )}
+          </ActionForm>
+          {creditos.length > 0 && (
+            <ul className="mt-5 flex flex-col gap-2 border-t hairline pt-4">
+              {creditos.slice(0, 5).map((c) => (
+                <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm text-bone-dim">{c.email}</span>
+                  <span className="label-sm text-bone-quiet">
+                    {c.consumedOrderId
+                      ? "Usado"
+                      : new Date(c.expiresAt) < new Date()
+                        ? "Vencido"
+                        : `Vence ${fmtDate(c.expiresAt)}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

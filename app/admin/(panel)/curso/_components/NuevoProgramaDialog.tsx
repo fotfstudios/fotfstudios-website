@@ -8,35 +8,29 @@ import { Field, Input, Select, Textarea } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { formatCLP } from "@/src/domain/money/money";
 import type { CoursePlan } from "@/src/domain/course/course";
-import { createEnrollmentAction, lookupTrialCreditAction } from "../actions";
+import { createProgramAction, lookupTrialCreditAction } from "../actions";
 
 /**
- * Inscribir TOMA CUPO, así que vive detrás de un diálogo y no de un botón suelto
- * en una fila. El precio se muestra pero no se edita: sale de la generación,
- * porque el dueño elige a quién inscribir, no cuánto cobrarle.
+ * Crear un programa 1:1 abre un pedido, así que vive detrás de un diálogo y no de
+ * un botón suelto. El precio se muestra pero no se edita: sale de PRECIOS, porque
+ * el dueño elige a quién inscribir, no cuánto cobrarle. Se abre desde el listado
+ * del curso o desde una solicitud (con sus datos ya puestos).
  */
-export function InscribirDialog({
-  generationId,
-  generationCode,
+export function NuevoProgramaDialog({
   prices,
-  seatsLeft,
   lead,
   trigger,
 }: {
-  generationId: string;
-  generationCode: string;
   prices: { duo: number; individual: number };
-  seatsLeft: number;
   lead?: { id: string; name: string; email: string; phone: string; plan: string } | null;
   trigger?: { label: string; variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "md" };
 }) {
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState<CoursePlan>(lead?.plan === "individual" ? "individual" : "duo");
+  const [plan, setPlan] = useState<CoursePlan>(lead?.plan === "duo" ? "duo" : "individual");
   const [credit, setCredit] = useState<{ id: string; amountClp: number } | null>(null);
 
-  const needed = plan === "duo" ? 2 : 1;
-  const noCabe = seatsLeft < needed;
-  const bruto = (plan === "duo" ? prices.duo : prices.individual) * needed;
+  const people = plan === "duo" ? 2 : 1;
+  const bruto = (plan === "duo" ? prices.duo : prices.individual) * people;
   const descuento = credit ? Math.min(credit.amountClp, bruto) : 0;
   const total = bruto - descuento;
 
@@ -56,24 +50,23 @@ export function InscribirDialog({
         icon="add"
         onClick={() => setOpen(true)}
       >
-        {trigger?.label ?? "Inscribir"}
+        {trigger?.label ?? "Nuevo programa"}
       </Button>
 
       {open && (
-        <Dialog title={`Inscribir en ${generationCode}`} onClose={() => setOpen(false)}>
+        <Dialog title={lead ? `Inscribir a ${lead.name}` : "Nuevo programa"} onClose={() => setOpen(false)}>
           <ActionForm
-            action={createEnrollmentAction}
-            success="Inscripción creada."
+            action={createProgramAction}
+            success="Programa creado. Agenda sus sesiones desde la ficha."
             onDone={() => setOpen(false)}
             className="flex flex-col gap-5"
           >
-            <input type="hidden" name="generationId" value={generationId} />
             {lead && <input type="hidden" name="leadId" value={lead.id} />}
 
-            <Field label="Formato" hint={`Quedan ${seatsLeft} ${seatsLeft === 1 ? "cupo" : "cupos"}.`}>
+            <Field label="Formato">
               <Select name="plan" value={plan} onChange={(e) => setPlan(e.target.value as CoursePlan)}>
-                <option value="duo">En dúo · 2 cupos</option>
-                <option value="individual">Individual · 1 cupo</option>
+                <option value="individual">Individual · 1 persona</option>
+                <option value="duo">En dúo · 2 personas (precio por persona)</option>
               </Select>
             </Field>
 
@@ -113,6 +106,10 @@ export function InscribirDialog({
               </>
             )}
 
+            <Field label="Instructor" hint="Opcional. Texto libre; se copia a cada sesión al agendar.">
+              <Input name="instructor" maxLength={60} />
+            </Field>
+
             <Field label="Notas" hint="Opcional.">
               <Textarea name="notes" maxLength={500} rows={2} />
             </Field>
@@ -131,17 +128,11 @@ export function InscribirDialog({
               pendiente de pago.
             </p>
 
-            {noCabe ? (
-              <p role="alert" className="label-sm text-sirena">
-                No quedan cupos suficientes para este formato.
-              </p>
-            ) : (
-              <div>
-                <SubmitButton icon="add" pendingLabel="Inscribiendo…">
-                  Crear inscripción
-                </SubmitButton>
-              </div>
-            )}
+            <div>
+              <SubmitButton icon="add" pendingLabel="Creando…">
+                Crear programa
+              </SubmitButton>
+            </div>
           </ActionForm>
         </Dialog>
       )}

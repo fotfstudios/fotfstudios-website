@@ -76,7 +76,9 @@ export function AnularPagada({
             )}
 
             <p className="label-sm text-bone-quiet">
-              El cupo vuelve al inventario solo si se devuelve el total. Le avisamos por email.
+              Sin reembolso o devolviendo el total, la inscripción se anula y, si no queda otro alumno, las
+              sesiones agendadas se liberan de la sala. Un reembolso parcial la deja viva. Le avisamos por
+              email.
             </p>
 
             <div>

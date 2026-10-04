@@ -22,7 +22,6 @@ import type {
   CourseSessionRow,
   StudentCourseView,
   NewEnrollment,
-  NewGeneration,
   NewProgram,
 } from "@/src/application/ports/course";
 import {
@@ -222,61 +221,11 @@ export class SupabaseCourseRepository
 
   // ── Generaciones ─────────────────────────────────────────────────────────
 
-  async listGenerations(): Promise<CourseGenerationView[]> {
-    const { data, error } = await this.db
-      .from("course_generations")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    return this.withSeats(data ?? []);
-  }
-
-  /** La vigente: la abierta (a lo más una, por índice parcial) o la que se dicta. */
-  async currentGeneration(): Promise<CourseGenerationView | null> {
-    const { data, error } = await this.db
-      .from("course_generations")
-      .select("*")
-      .in("status", ["abierta", "en_curso"])
-      // 'abierta' antes que 'en_curso': si conviven, la que recibe inscripciones manda.
-      .order("status", { ascending: true })
-      .limit(1);
-    if (error) throw new Error(error.message);
-    if (!data?.length) return null;
-    return (await this.withSeats(data))[0];
-  }
-
   async getGeneration(id: string): Promise<CourseGenerationView | null> {
     const { data, error } = await this.db.from("course_generations").select("*").eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
     return (await this.withSeats([data]))[0];
-  }
-
-  async createGeneration(input: NewGeneration): Promise<string> {
-    const resource = await this.defaultResourceId();
-    const { data, error } = await this.db
-      .from("course_generations")
-      .insert({
-        resource_id: resource,
-        code: input.code,
-        name: input.name,
-        seats: input.seats,
-        price_duo_clp: input.prices.duo,
-        price_individual_clp: input.prices.individual,
-        price_prueba_clp: input.prices.prueba,
-        pricing_label: input.pricingLabel ?? null,
-        enroll_deadline: input.enrollDeadline ?? null,
-        starts_on: input.startsOn ?? null,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    return data.id;
-  }
-
-  async setGenerationStatus(id: string, status: GenerationStatus): Promise<void> {
-    const { error } = await this.db.from("course_generations").update({ status }).eq("id", id);
-    if (error) throw new Error(error.message);
   }
 
   async setProgramInstructor(generationId: string, instructor: string | null): Promise<void> {
@@ -307,6 +256,12 @@ export class SupabaseCourseRepository
     if (!data?.length) throw new Error("curso_session_unscheduled");
   }
 
+  async practiceValidUntil(generationId: string): Promise<string | null> {
+    const { data, error } = await this.db.rpc("course_practice_valid_until", { p_generation: generationId });
+    if (error) throw new Error(error.message);
+    return data ?? null;
+  }
+
   async listLivePrograms(): Promise<CourseProgramView[]> {
     const { data, error } = await this.db
       .from("course_enrollments")
@@ -324,11 +279,10 @@ export class SupabaseCourseRepository
     const programs = await Promise.all(
       [...byGen.entries()].map(async ([generationId, rows]) => {
         const g = rows[0].course_generations;
-        const [sessions, valid] = await Promise.all([
+        const [sessions, validUntil] = await Promise.all([
           this.listSessions(generationId),
-          this.db.rpc("course_practice_valid_until", { p_generation: generationId }),
+          this.practiceValidUntil(generationId),
         ]);
-        if (valid.error) throw new Error(valid.error.message);
         return {
           generationId,
           kind: (g?.kind ?? "cohorte") as GenerationKind,
@@ -350,7 +304,7 @@ export class SupabaseCourseRepository
           sessions,
           nextSession:
             sessions.find((s) => s.status === "agendada" && s.endsAt !== null && s.endsAt > now) ?? null,
-          practiceValidUntil: valid.data ?? null,
+          practiceValidUntil: validUntil,
           createdAt: g?.created_at ?? rows[0].created_at,
         };
       }),
@@ -629,15 +583,6 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
-  async transferEnrollment(enrollmentId: string, targetGenerationId: string): Promise<string> {
-    const { data, error } = await this.db.rpc("transfer_enrollment", {
-      p_enrollment: enrollmentId,
-      p_target: targetGenerationId,
-    });
-    if (error) throw new Error(error.message);
-    return data as unknown as string;
-  }
-
   async substituteStudent(
     enrollmentId: string,
     student: { name: string; email: string; phone?: string | null },
@@ -810,11 +755,10 @@ export class SupabaseCourseRepository
     const rows = (data ?? []).filter((r) => r.student_email?.toLowerCase() === lower);
     return Promise.all(
       rows.map(async (r) => {
-        const [sessions, valid] = await Promise.all([
+        const [sessions, validUntil] = await Promise.all([
           this.listSessions(r.generation_id),
-          this.db.rpc("course_practice_valid_until", { p_generation: r.generation_id }),
+          this.practiceValidUntil(r.generation_id),
         ]);
-        if (valid.error) throw new Error(valid.error.message);
         return {
           enrollmentId: r.id,
           generationCode: r.course_generations?.code ?? "",
@@ -828,7 +772,7 @@ export class SupabaseCourseRepository
           instructor: r.course_generations?.instructor ?? null,
           practiceHoursTotal: r.practice_hours_total,
           practiceHoursRedeemed: r.practice_hours_redeemed,
-          practiceValidUntil: valid.data ?? null,
+          practiceValidUntil: validUntil,
           sessions: sessions
             .filter((s) => s.status === "agendada")
             .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, endsAt: s.endsAt, status: s.status })),

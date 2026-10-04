@@ -43,6 +43,10 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   abierta: { label: "Abierta", tone: "gold" },
   en_curso: { label: "En curso", tone: "gold" },
   cerrada: { label: "Cerrada", tone: "mute" },
+  cancelada: { label: "Cancelada", tone: "mute" },
+  // Curso — sesión
+  agendada: { label: "Agendada", tone: "dim" },
+  dictada: { label: "Dictada", tone: "gold" },
   // Curso — inscripción
   reservada: { label: "Por pagar", tone: "dim" },
   pagada: { label: "Pagada", tone: "gold" },
