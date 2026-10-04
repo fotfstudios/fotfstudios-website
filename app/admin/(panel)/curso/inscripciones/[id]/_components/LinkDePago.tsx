@@ -39,7 +39,7 @@ export function LinkDePago({ enrollmentId, waDigits }: { enrollmentId: string; w
   }
 
   const waHref = waDigits
-    ? `https://wa.me/${waDigits}?text=${encodeURIComponent(`Tu cupo en el Curso de DJ. Paga acá: ${initPoint}`)}`
+    ? `https://wa.me/${waDigits}?text=${encodeURIComponent(`Tu inscripción al Curso de DJ. Paga acá: ${initPoint}`)}`
     : null;
 
   return (

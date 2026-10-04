@@ -9,9 +9,11 @@ import {
   LEAD_PLAN_LABELS,
   type CourseLeadStatus,
 } from "@/src/domain/course/course";
+import { PRECIOS } from "@/lib/curso-content";
+import { NuevoProgramaDialog } from "../../_components/NuevoProgramaDialog";
 import { requestReviewAction, setLeadStatusAction } from "../actions";
 
-/** Qué transiciones ofrece cada estado. 'inscrita' se alcanza inscribiendo, no acá. */
+/** Qué transiciones ofrece cada estado. 'inscrita' se alcanza con «Inscribir» (crea el programa). */
 const TRANSITIONS: Record<CourseLeadStatus, { status: CourseLeadStatus; label: string }[]> = {
   nueva: [
     { status: "contactada", label: "Marcar contactada" },
@@ -83,6 +85,13 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
             </Td>
             <Td right>
               <div className="flex flex-col items-end gap-1.5">
+                {(r.status === "nueva" || r.status === "contactada") && (
+                  <NuevoProgramaDialog
+                    prices={PRECIOS}
+                    lead={{ id: r.id, name: r.name, email: r.email, phone: r.phone, plan: r.plan }}
+                    trigger={{ label: "Inscribir", variant: "secondary", size: "sm" }}
+                  />
+                )}
                 {TRANSITIONS[r.status].map((t) => (
                   <ActionForm key={t.status} action={setLeadStatusAction} success="Solicitud actualizada.">
                     <input type="hidden" name="id" value={r.id} />

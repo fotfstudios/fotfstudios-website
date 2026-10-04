@@ -7,17 +7,23 @@ import { CopyButton } from "@/components/admin/ui/CopyButton";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { Textarea } from "@/components/admin/ui/Field";
+import { Field, Input, Textarea } from "@/components/admin/ui/Field";
 import { TaxDocsCard } from "@/components/admin/tax-docs/TaxDocsCard";
 import { adminRepository, courseRepository } from "@/src/composition";
 import { courseCancellationPolicy } from "@/src/domain/course/cancellation-policy";
 import { describeTaxDocs } from "@/src/domain/tax/tax-doc-steps";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { cancelEnrollmentAction, recordTaxDocFolioAction, setEnrollmentNotesAction } from "../../actions";
+import {
+  cancelEnrollmentAction,
+  recordTaxDocFolioAction,
+  setEnrollmentNotesAction,
+  setProgramInstructorAction,
+} from "../../actions";
 import { AnularPagada } from "./_components/AnularPagada";
 import { CobroCurso } from "./_components/CobroCurso";
 import { Practica } from "./_components/Practica";
+import { Sesiones } from "./_components/Sesiones";
 import { SinDinero } from "./_components/SinDinero";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +31,8 @@ export const metadata = { title: "Inscripción — Admin", robots: { index: fals
 
 /** Cómo se llama cada alternativa sin dinero, en la voz del dueño. */
 const REMEDY_LABEL: Record<string, string> = {
-  transfer: "traspasar el cupo a la siguiente generación",
   substitute: "designar un reemplazante",
-  reschedule_sessions: "reagendar las sesiones que falten",
+  reschedule_sessions: "reagendar las sesiones",
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,18 +47,17 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
   const inscripcion = await repo.enrollmentById(id);
   if (!inscripcion) notFound();
 
-  const [compañeros, taxDocs, sesiones] = await Promise.all([
+  const [compañeros, taxDocs, sesiones, programa, practicaVence, resource] = await Promise.all([
     inscripcion.orderId ? repo.enrollmentsByOrder(inscripcion.orderId) : Promise.resolve([inscripcion]),
     inscripcion.orderId ? adminRepository().taxDocsForOrder(inscripcion.orderId) : Promise.resolve([]),
     repo.listSessions(inscripcion.generationId),
+    repo.getGeneration(inscripcion.generationId),
+    repo.practiceValidUntil(inscripcion.generationId),
+    adminRepository().defaultResource(),
   ]);
   const canRecordFolio = hasPermission(await currentClaims(), "reservations.boleta");
   const taxSteps = describeTaxDocs(taxDocs, { now: new Date().toISOString() });
   const practicas = await repo.practiceRedemptions(inscripcion.id);
-  // Destinos posibles del traslado: cualquier otra generación que reciba gente.
-  const destinos = (await repo.listGenerations())
-    .filter((g) => g.id !== inscripcion.generationId && g.status !== "cerrada" && g.status !== "cancelada")
-    .map((g) => ({ id: g.id, code: g.code, name: g.name, seatsLeft: g.seatsLeft }));
 
   // Qué dicen los términos para ESTA inscripción, hoy. Se calcula en el servidor
   // para que el dueño vea la regla ya resuelta y no tenga que contar días.
@@ -97,8 +101,8 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
                   </a>
                 </Dato>
               )}
-              <Dato label="Cupo">
-                <span className="font-mono text-bone">#{inscripcion.seatNo}</span>
+              <Dato label="Programa">
+                <span className="font-mono text-bone">{inscripcion.generationCode}</span>
               </Dato>
               {duo.length > 0 && (
                 <Dato label="Va en dúo con">
@@ -106,7 +110,32 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
                 </Dato>
               )}
             </dl>
+            {(inscripcion.status === "pagada" || inscripcion.status === "reservada") && (
+              <ActionForm
+                action={setProgramInstructorAction}
+                success="Instructor guardado."
+                className="mt-5 grid gap-4 border-t hairline pt-5 sm:grid-cols-[1fr_auto] sm:items-end"
+              >
+                <input type="hidden" name="enrollmentId" value={inscripcion.id} />
+                <Field label="Instructor" hint="Texto libre. Las sesiones ya agendadas conservan el suyo.">
+                  <Input name="instructor" maxLength={60} defaultValue={programa?.instructor ?? ""} />
+                </Field>
+                <div className="pb-1">
+                  <SubmitButton size="sm" variant="secondary" pendingLabel="Guardando…">
+                    Guardar
+                  </SubmitButton>
+                </div>
+              </ActionForm>
+            )}
           </Card>
+
+          <Sesiones
+            enrollmentId={inscripcion.id}
+            sessions={sesiones}
+            practiceValidUntil={practicaVence}
+            canSchedule={inscripcion.status === "pagada" || inscripcion.status === "reservada"}
+            tz={resource?.timezone ?? "America/Santiago"}
+          />
 
           <Card title="Notas">
             <ActionForm action={setEnrollmentNotesAction} success="Notas guardadas." className="flex flex-col gap-4">
@@ -148,11 +177,7 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
           )}
 
           {(inscripcion.status === "pagada" || inscripcion.status === "reservada") && (
-            <SinDinero
-              enrollmentId={inscripcion.id}
-              studentName={inscripcion.studentName}
-              destinos={destinos}
-            />
+            <SinDinero enrollmentId={inscripcion.id} studentName={inscripcion.studentName} />
           )}
 
           {inscripcion.status === "pagada" && (
@@ -173,15 +198,15 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
           {inscripcion.status === "reservada" && (
             <Card title="Anular">
               <p className="mb-4 text-sm text-bone-dim">
-                Libera {compañeros.length === 1 ? "el cupo" : `los ${compañeros.length} cupos`} y cancela el
-                pedido.
+                Cancela el pedido pendiente. Si no queda otro alumno en el programa, sus sesiones agendadas
+                se liberan de la sala.
               </p>
               <ConfirmForm
                 action={cancelEnrollmentAction}
                 hidden={{ enrollmentId: inscripcion.id }}
                 trigger={{ label: "Anular inscripción", variant: "danger", size: "sm" }}
                 title="Anular inscripción"
-                message="El cupo vuelve a quedar libre y el cobro pendiente se cancela. No se emite boleta. Le avisamos por email."
+                message="El cobro pendiente se cancela y las sesiones agendadas del programa se liberan de la sala. No se emite boleta. Le avisamos por email."
                 cta="Anular inscripción"
                 success="Inscripción anulada."
               />

@@ -68,29 +68,8 @@ export interface CourseGenerationView {
   createdAt: string;
 }
 
-export interface NewGeneration {
-  code: string;
-  name: string;
-  seats: number;
-  prices: CoursePrices;
-  pricingLabel?: string | null;
-  enrollDeadline?: string | null;
-  startsOn?: string | null;
-}
-
 export interface CourseGenerationRepository {
-  /** @deprecated cohortes — se va con el admin por generaciones (PR 4 del curso 1:1). */
-  listGenerations(): Promise<CourseGenerationView[]>;
-  /**
-   * @deprecated cohortes — con el curso 1:1 conviven muchos programas abiertos y
-   * "la vigente" deja de existir. Solo la usa el admin por generaciones (PR 4).
-   */
-  currentGeneration(): Promise<CourseGenerationView | null>;
   getGeneration(id: string): Promise<CourseGenerationView | null>;
-  /** @deprecated cohortes — los programas nacen con createProgram. */
-  createGeneration(input: NewGeneration): Promise<string>;
-  /** @deprecated cohortes. */
-  setGenerationStatus(id: string, status: GenerationStatus): Promise<void>;
   /** Instructor del programa (texto libre; vacío = sin asignar). Las sesiones ya agendadas no cambian. */
   setProgramInstructor(generationId: string, instructor: string | null): Promise<void>;
   setSessionInstructor(sessionId: string, instructor: string | null): Promise<void>;
@@ -101,6 +80,8 @@ export interface CourseGenerationRepository {
    * Incluye cohortes antiguas con alumnos vivos: el admin las muestra igual.
    */
   listLivePrograms(): Promise<CourseProgramView[]>;
+  /** Último día para usar la práctica (YYYY-MM-DD); null = sin sesiones, no vence. Regla en SQL. */
+  practiceValidUntil(generationId: string): Promise<string | null>;
 }
 
 /** Un programa como lo ve el admin: quién, cuándo, cuánta práctica le queda. */
@@ -208,7 +189,11 @@ export interface NewProgram {
 export interface CourseEnrollmentRepository {
   /** Programa + pedido + cupos en una sola transacción. */
   createProgram(input: NewProgram): Promise<{ orderId: string; generationId: string; enrollmentIds: string[] }>;
-  /** @deprecated cohortes — inscribe en una generación existente. */
+  /**
+   * Inscribe en una generación YA existente (cohorte). El admin ya no la usa —
+   * los programas nacen con createProgram—; queda porque la RPC sigue viva debajo de
+   * create_course_program y los tests de integración arman inscripciones con ella.
+   */
   createEnrollment(input: NewEnrollment): Promise<string>;
   listEnrollments(generationId: string): Promise<CourseEnrollmentRow[]>;
   enrollmentById(id: string): Promise<CourseEnrollmentRow | null>;
@@ -222,8 +207,6 @@ export interface CourseEnrollmentRepository {
    * queda donde está; esto solo devuelve el asiento al inventario.
    */
   cancelPaidEnrollment(orderId: string): Promise<void>;
-  /** @deprecated cohortes — traspasa el cupo a otra generación. Devuelve el id de la inscripción nueva. */
-  transferEnrollment(enrollmentId: string, targetGenerationId: string): Promise<string>;
   /** Cambia quién asiste, no quién pagó: la boleta no se toca. */
   substituteStudent(
     enrollmentId: string,

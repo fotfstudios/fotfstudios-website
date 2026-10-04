@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
-import { GENERATION_STATUSES, type GenerationStatus } from "@/src/domain/course/course";
 import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-policy";
-import { planSessions, selfOverlap } from "@/src/domain/course/sessions";
+import { COURSE_PROGRAM, planProgramSessions } from "@/src/domain/course/program";
+import { selfOverlap } from "@/src/domain/course/sessions";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import {
   adminRepository,
@@ -19,7 +19,14 @@ import {
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
-import { PRECIOS } from "@/lib/curso-content";
+import { PRECIOS, SESIONES } from "@/lib/curso-content";
+import {
+  courseMoveError,
+  courseScheduleError,
+  parseInstructor,
+  parseProgramSchedule,
+  parseSessionMove,
+} from "@/lib/course-admin";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k));
@@ -35,150 +42,137 @@ function required(fd: FormData, k: string, label: string): string {
   return v;
 }
 
-/** Precio en CLP desde el formulario. Entero, no negativo, con tope sano. */
-function precio(fd: FormData, k: string, label: string): number {
-  const n = num(fd, k);
-  if (!Number.isInteger(n) || n < 0 || n > 9_999_990) throw new Error(`${label}: precio inválido.`);
-  return n;
+/** Ficha + listado + agenda: todo lo que pinta sesiones de un programa. */
+function revalidateProgram(enrollmentId?: string) {
+  revalidatePath("/admin/curso");
+  revalidatePath("/admin/agenda");
+  if (enrollmentId) revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
 }
 
-export async function createGenerationAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("course.manage");
-
-    const seats = num(fd, "seats");
-    if (!Number.isInteger(seats) || seats < 1 || seats > 12) {
-      throw new Error("Cupos: entre 1 y 12.");
-    }
-    const deadline = str(fd, "enrollDeadline");
-    const startsOn = str(fd, "startsOn");
-    if (deadline && !DATE_RE.test(deadline)) throw new Error("Fecha de cierre inválida.");
-    if (startsOn && !DATE_RE.test(startsOn)) throw new Error("Fecha de inicio inválida.");
-
-    await courseRepository().createGeneration({
-      code: required(fd, "code", "el código"),
-      name: required(fd, "name", "el nombre"),
-      seats,
-      prices: {
-        duo: precio(fd, "priceDuo", "Dúo"),
-        individual: precio(fd, "priceIndividual", "Individual"),
-        prueba: precio(fd, "pruebaPrice", "Sesión de prueba"),
-      },
-      pricingLabel: str(fd, "pricingLabel") || null,
-      enrollDeadline: deadline || null,
-      startsOn: startsOn || null,
-    });
-    revalidatePath("/admin/curso");
-    revalidatePath("/admin/curso/generaciones");
-  });
-}
-
-export async function setGenerationStatusAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("course.manage");
-    const id = str(fd, "id");
-    const status = str(fd, "status");
-    if (!(GENERATION_STATUSES as readonly string[]).includes(status)) throw new Error("Estado inválido.");
-
-    try {
-      await courseRepository().setGenerationStatus(id, status as GenerationStatus);
-    } catch (e) {
-      // El índice parcial `course_generations_one_open` permite UNA sola abierta:
-      // el mensaje crudo de Postgres no le dice nada al dueño.
-      const msg = e instanceof Error ? e.message : "";
-      throw new Error(
-        /one_open/.test(msg) ? "Ya hay una generación abierta. Ciérrala primero." : "No se pudo cambiar el estado.",
-      );
-    }
-    revalidatePath("/admin/curso");
-    revalidatePath("/admin/curso/generaciones");
-  });
+/** Resuelve el programa de una inscripción: la ficha habla de inscripciones, la DB de programas. */
+async function programOf(enrollmentId: string): Promise<string> {
+  const e = await courseRepository().enrollmentById(enrollmentId);
+  if (!e) throw new Error("La inscripción ya no existe.");
+  return e.generationId;
 }
 
 /**
- * Agenda la grilla completa de una generación. Todo o nada: si una sesión choca,
- * no queda ninguna (una generación a medio agendar es peor que ninguna).
+ * Agenda las 6 sesiones del programa. Todo o nada: si una choca, no queda ninguna
+ * (un programa a medio agendar es peor que ninguno).
  */
-export async function scheduleGenerationAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+export async function scheduleProgramAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("course.manage");
-    const id = str(fd, "id");
-    const date = str(fd, "firstDate");
-    const startMinute = num(fd, "startMinute");
-    const durationHours = num(fd, "durationHours");
-    const sessions = num(fd, "sessions");
-
-    if (!DATE_RE.test(date)) throw new Error("Fecha inválida.");
-    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Hora inválida.");
-    if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 12) {
-      throw new Error("Duración inválida: entre 1 y 12 horas.");
-    }
-    if (!Number.isInteger(sessions) || sessions < 1 || sessions > 12) throw new Error("Sesiones: entre 1 y 12.");
+    const enrollmentId = str(fd, "enrollmentId");
+    const input = parseProgramSchedule({
+      firstDate: str(fd, "firstDate"),
+      startMinute: str(fd, "startMinute"),
+      everyWeeks: str(fd, "everyWeeks"),
+    });
+    if (!input.ok) throw new Error(input.error);
 
     const resource = await adminRepository().defaultResource();
     if (!resource) throw new Error("No hay sala configurada.");
 
-    const plan = planSessions({
-      firstDate: date,
-      startMinute,
-      durationHours,
-      titles: Array.from({ length: sessions }, (_, i) => `Sesión ${i + 1}`),
-      tz: resource.timezone,
-    });
-
-    // Se valida el auto-solape ANTES de la DB: el EXCLUDE compara filas distintas,
-    // así que un plan que se pisa a sí mismo fallaría recién en la segunda
-    // inserción y culparía a la sesión equivocada.
-    const overlap = selfOverlap(plan);
-    if (overlap) throw new Error(`La sesión ${overlap.n} se pisa con otra del mismo plan.`);
-
     try {
-      await courseRepository().scheduleSessions(id, plan);
+      const plan = planProgramSessions({
+        ...input.value,
+        titles: SESIONES.map((s) => s.title),
+        tz: resource.timezone,
+      });
+      // Se valida el auto-solape ANTES de la DB: el EXCLUDE compara filas distintas.
+      const overlap = selfOverlap(plan);
+      if (overlap) throw new Error(`La sesión ${overlap.n} se pisa con otra del mismo plan.`);
+      await courseRepository().scheduleSessions(await programOf(enrollmentId), plan);
     } catch (e) {
-      throw new Error(scheduleErrorMessage(e instanceof Error ? e.message : ""));
+      const raw = e instanceof Error ? e.message : "";
+      throw new Error(/se pisa con otra/.test(raw) ? raw : courseScheduleError(raw));
     }
-    revalidatePath("/admin/curso");
-    revalidatePath("/admin/curso/generaciones");
-    revalidatePath("/admin/agenda");
+    revalidateProgram(enrollmentId);
   });
 }
 
-/** Errores de los RPC → frase para el dueño (nunca el código crudo). */
-function scheduleErrorMessage(raw: string): string {
-  const slot = /curso_slot_taken:(\d+)/.exec(raw);
-  if (slot) return `La sesión ${slot[1]} choca con otra reserva o bloqueo. No se agendó ninguna.`;
-  const past = /curso_in_past:(\d+)/.exec(raw);
-  if (past) return `La sesión ${past[1]} queda en el pasado.`;
-  if (/curso_already_scheduled/.test(raw)) return "Esta generación ya tiene sus sesiones agendadas.";
-  if (/curso_generation_not_schedulable/.test(raw)) return "Solo se agendan generaciones en borrador o abiertas.";
-  return "No se pudieron agendar las sesiones.";
+/**
+ * Mueve una sesión agendada, o re-agenda una cancelada con un bloque nuevo (el RPC
+ * distingue). La duración no viaja: siempre es la del programa.
+ */
+export async function moveSessionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const input = parseSessionMove({ date: str(fd, "date"), startMinute: str(fd, "startMinute") });
+    if (!input.ok) throw new Error(input.error);
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    const { startsAt, endsAt } = rangeFor(
+      input.value.date,
+      input.value.startMinute,
+      COURSE_PROGRAM.sessionMinutes / 60,
+      resource.timezone,
+    );
+    try {
+      await courseRepository().moveSession(str(fd, "sessionId"), startsAt, endsAt);
+    } catch (e) {
+      throw new Error(courseMoveError(e instanceof Error ? e.message : ""));
+    }
+    revalidateProgram(str(fd, "enrollmentId"));
+  });
 }
 
 export async function cancelSessionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("course.manage");
     await courseRepository().cancelSession(str(fd, "sessionId"));
-    revalidatePath("/admin/curso");
-    revalidatePath("/admin/agenda");
+    revalidateProgram(str(fd, "enrollmentId") || undefined);
+  });
+}
+
+/** Marca una sesión como dictada. El bloque sigue en la sala (la hora ya se usó). */
+export async function markSessionDictadaAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    try {
+      await courseRepository().markSessionDictada(str(fd, "sessionId"));
+    } catch (e) {
+      throw new Error(courseMoveError(e instanceof Error ? e.message : ""));
+    }
+    revalidateProgram(str(fd, "enrollmentId"));
+  });
+}
+
+/** Instructor del programa; las sesiones ya agendadas conservan el suyo. */
+export async function setProgramInstructorAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const instructor = parseInstructor(str(fd, "instructor"));
+    if (!instructor.ok) throw new Error(instructor.error);
+    const enrollmentId = str(fd, "enrollmentId");
+    await courseRepository().setProgramInstructor(await programOf(enrollmentId), instructor.value);
+    revalidateProgram(enrollmentId);
+  });
+}
+
+export async function setSessionInstructorAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const instructor = parseInstructor(str(fd, "instructor"));
+    if (!instructor.ok) throw new Error(instructor.error);
+    await courseRepository().setSessionInstructor(str(fd, "sessionId"), instructor.value);
+    revalidateProgram(str(fd, "enrollmentId"));
   });
 }
 
 /**
- * Inscribe a una persona (o a un dúo) en la generación vigente: toma los cupos y
- * crea el pedido en una sola transacción. El PRECIO no viaja en el formulario —
- * sale de la generación— porque el dueño elige a quién inscribir, no cuánto
- * cobrarle.
+ * Crea un programa 1:1 (una persona, o un dúo): programa + pedido + cupos en una
+ * sola transacción. El PRECIO no viaja en el formulario —sale de PRECIOS— porque
+ * el dueño elige a quién inscribir, no cuánto cobrarle.
  */
-export async function createEnrollmentAction(
-  _prev: ActionResult | null,
-  fd: FormData,
-): Promise<ActionResult> {
+export async function createProgramAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("course.manage");
-    const generationId = str(fd, "generationId");
     const plan = str(fd, "plan");
-    if (!generationId) throw new Error("Falta la generación.");
     if (plan !== "duo" && plan !== "individual") throw new Error("Formato inválido.");
+    const instructor = parseInstructor(str(fd, "instructor"));
+    if (!instructor.ok) throw new Error(instructor.error);
 
     const students = [
       { name: required(fd, "name1", "el nombre"), email: required(fd, "email1", "el email"), phone: str(fd, "phone1") || null },
@@ -191,12 +185,12 @@ export async function createEnrollmentAction(
       });
     }
 
-    const repo = courseRepository();
     try {
-      await repo.createEnrollment({
-        generationId,
+      await courseRepository().createProgram({
         plan,
         students,
+        prices: PRECIOS,
+        instructor: instructor.value,
         leadId: str(fd, "leadId") || null,
         notes: str(fd, "notes") || null,
         creditId: str(fd, "creditId") || null,
@@ -214,12 +208,10 @@ export async function createEnrollmentAction(
 }
 
 function enrollErrorMessage(raw: string): string {
-  if (/curso_sin_cupos/.test(raw)) return "No quedan cupos suficientes en esta generación.";
-  if (/curso_generation_closed/.test(raw)) return "La generación no está recibiendo inscripciones.";
   if (/curso_duo_necesita_dos/.test(raw)) return "Un dúo necesita las dos personas.";
   if (/curso_individual_es_uno/.test(raw)) return "El formato individual lleva una sola persona.";
-  if (/seat_unique|seat_out_of_range/.test(raw)) return "No quedan cupos suficientes en esta generación.";
-  return "No se pudo crear la inscripción.";
+  if (/curso_credito_no_disponible/.test(raw)) return "El crédito de prueba ya no está disponible (vencido o usado).";
+  return "No se pudo crear el programa.";
 }
 
 /** Pago offline (efectivo/transferencia): cobra el total y emite la boleta pendiente. */
@@ -459,36 +451,6 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
   });
 }
 
-/**
- * Traspasa el cupo a otra generación. NO mueve plata: el pedido, su boleta y su
- * receptor quedan intactos, y el alumno no paga la diferencia si la generación
- * nueva subió de precio. Traspasar no es recomprar.
- */
-export async function transferEnrollmentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return run(async () => {
-    await requirePermission("course.manage");
-    const enrollmentId = str(fd, "enrollmentId");
-    const target = str(fd, "targetGenerationId");
-    if (!target) throw new Error("Elige la generación de destino.");
-
-    try {
-      await courseRepository().transferEnrollment(enrollmentId, target);
-    } catch (e) {
-      throw new Error(transferErrorMessage(e instanceof Error ? e.message : ""));
-    }
-    revalidatePath("/admin/curso");
-    revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
-  });
-}
-
-function transferErrorMessage(raw: string): string {
-  if (/curso_sin_cupos/.test(raw)) return "La generación de destino no tiene cupos libres.";
-  if (/curso_misma_generacion/.test(raw)) return "Esa es la generación en la que ya está.";
-  if (/curso_generation_closed/.test(raw)) return "Esa generación está cerrada.";
-  if (/curso_enrollment_not_active/.test(raw)) return "Esta inscripción ya no está activa.";
-  return "No se pudo traspasar el cupo.";
-}
-
 /** Designa un reemplazante: cambia quién asiste, no quién pagó. */
 export async function substituteStudentAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
@@ -531,7 +493,9 @@ export async function redeemPracticeAction(_prev: ActionResult | null, fd: FormD
 
     if (!DATE_RE.test(date)) throw new Error("Fecha inválida.");
     if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Hora inválida.");
-    if (!Number.isInteger(hours) || hours < 1 || hours > 4) throw new Error("Horas: entre 1 y 4.");
+    if (!Number.isInteger(hours) || hours < 1 || hours > COURSE_PROGRAM.practiceHours) {
+      throw new Error(`Horas: entre 1 y ${COURSE_PROGRAM.practiceHours}.`);
+    }
 
     const resource = await adminRepository().defaultResource();
     if (!resource) throw new Error("No hay sala configurada.");
