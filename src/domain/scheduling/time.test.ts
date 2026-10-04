@@ -40,4 +40,14 @@ describe("dayBoundsUtc / toLocalMinutesInterval", () => {
     const { startsAt, endsAt } = rangeFor("2024-07-15", 1080, 1, SCL);
     expect(toLocalMinutesInterval("2024-07-15", SCL, startsAt, endsAt)).toEqual({ start: 1080, end: 1140 });
   });
+
+  it("hora y media exacta: 16:00 + 1,5 h termina a las 17:30", () => {
+    const { startsAt, endsAt } = rangeFor("2026-10-08", 960, 1.5, SCL);
+    expect(toLocalMinutesInterval("2026-10-08", SCL, startsAt, endsAt)).toEqual({ start: 960, end: 1050 });
+  });
+
+  it("inicio a la media hora: 16:30 + 1 h termina a las 17:30", () => {
+    const { startsAt, endsAt } = rangeFor("2026-10-09", 990, 1, SCL);
+    expect(toLocalMinutesInterval("2026-10-09", SCL, startsAt, endsAt)).toEqual({ start: 990, end: 1050 });
+  });
 });

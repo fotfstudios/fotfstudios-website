@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateManualBooking } from "./manual-booking";
+import { durationStepFor, validateManualBooking } from "./manual-booking";
 
 /**
  * Toda reserva necesita cliente (ficha o walk-in), así que el base trae un
@@ -49,6 +49,28 @@ describe("validateManualBooking", () => {
   it.each([Number.NaN, 0, -2, 17, 1.5, "2"])("rechaza duración inválida: %s", (durationHours) => {
     const r = validateManualBooking({ ...base, durationHours });
     expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas." });
+  });
+
+  describe("duración por método", () => {
+    it("la cortesía avanza en medias horas; lo que cobra, en horas enteras", () => {
+      expect(durationStepFor("cortesia")).toBe(0.5);
+      for (const m of ["pendiente", "efectivo", "transferencia"] as const) expect(durationStepFor(m)).toBe(1);
+    });
+
+    it("acepta una cortesía de 1,5 h", () => {
+      const r = validateManualBooking({ ...base, method: "cortesia", durationHours: 1.5 });
+      expect(r.ok && r.value.durationHours).toBe(1.5);
+    });
+
+    it.each([0.5, 1.25, 16.5])("rechaza una cortesía de %s h", (durationHours) => {
+      const r = validateManualBooking({ ...base, method: "cortesia", durationHours });
+      expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas, en medias horas." });
+    });
+
+    it.each(["pendiente", "efectivo", "transferencia"])("con cobro (%s) 1,5 h sigue siendo inválido", (method) => {
+      const r = validateManualBooking({ ...base, method, durationHours: 1.5 });
+      expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas." });
+    });
   });
 
   it.each(["", "tarjeta", "CORTESIA", 3])("rechaza método inválido: %s", (method) => {

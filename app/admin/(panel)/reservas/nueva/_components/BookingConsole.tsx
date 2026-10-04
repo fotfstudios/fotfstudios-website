@@ -12,7 +12,8 @@ import { Skeleton } from "@/components/admin/ui/Skeleton";
 import { btn } from "@/components/admin/ui/styles";
 import { useToast } from "@/components/admin/ui/Toaster";
 import { hhmm } from "@/components/booking/format";
-import type { ManualPaymentMethod } from "@/lib/manual-booking";
+import { fmtHours } from "@/components/admin/format";
+import { durationStepFor, type ManualPaymentMethod } from "@/lib/manual-booking";
 import { manualBookingWhatsAppMessage, waLink } from "@/lib/whatsapp";
 import { formatCLP } from "@/src/domain/money/money";
 import {
@@ -250,8 +251,9 @@ export default function BookingConsole({
       : null;
 
   // Cotización en vivo (también para cortesía: valor de referencia). Debounce + abort.
+  // Solo en horas enteras: el motor no cotiza fracciones (una cortesía de 1,5 h va sin valor).
   const quoteKey =
-    selectedStart !== null ? `${date}|${selectedStart}|${duration}|${rec}|${extras.join(",")}` : null;
+    selectedStart !== null && Number.isInteger(duration) ? `${date}|${selectedStart}|${duration}|${rec}|${extras.join(",")}` : null;
   useEffect(() => {
     if (quoteKey === null || selectedStart === null) return;
     const ctrl = new AbortController();
@@ -416,7 +418,7 @@ export default function BookingConsole({
   const dayLabel = DateTime.fromISO(date).setLocale("es").toFormat("ccc d LLL");
   const selectionLabel =
     selectedStart !== null
-      ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${duration}h`
+      ? `${dayLabel} · ${hhmm(selectedStart)}–${hhmm(selectedStart + duration * 60)} · ${fmtHours(duration)}`
       : null;
   const hourlyKeys = new Set(addons.filter((a) => a.kind === "per_hour").map((a) => a.key));
 
@@ -442,7 +444,7 @@ export default function BookingConsole({
             label: "Día y hora",
             value: `${DateTime.fromISO(snapshot.date).setLocale("es").toFormat("ccc d LLL")} · ${hhmm(snapshot.startMinute)}–${hhmm(snapshot.startMinute + snapshot.durationHours * 60)}`,
           },
-          { label: "Duración", value: `${snapshot.durationHours}h` },
+          { label: "Duración", value: fmtHours(snapshot.durationHours) },
           { label: "Cliente", value: snapshot.name ?? "Sin nombre" },
           { label: "Método", value: METHOD_LABEL[snapshot.method] },
           { label: result.amount !== null ? "Total" : "Valor", value: result.amount !== null ? formatCLP(result.amount) : "Sin cobro" },
@@ -489,6 +491,7 @@ export default function BookingConsole({
                     maxDuration={maxDuration}
                     volumeDiscounts={volumeDiscounts}
                     onChange={setDuration}
+                    step={durationStepFor(method)}
                   />
                 </div>
               </div>
@@ -675,7 +678,11 @@ export default function BookingConsole({
         duration={duration}
         hourlyKeys={hourlyKeys}
         method={method}
-        onMethod={setMethod}
+        onMethod={(m) => {
+          setMethod(m);
+          // Lo que cobra va en horas enteras: al salir de cortesía, 1,5 h vuelve a 1 h.
+          if (durationStepFor(m) === 1 && !Number.isInteger(duration)) setDuration(Math.floor(duration));
+        }}
         warning={warning}
         error={submitError}
         pending={pending}

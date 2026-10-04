@@ -24,6 +24,9 @@ export const fmtTimeRange = (startIso: string, endIso: string, zone = "America/S
   return `${s.toFormat("HH:mm")}–${e.toFormat("HH:mm")} · ${hours} h`;
 };
 
+/** Duración corta para etiquetas: "2h", "1,5h" (es-CL). */
+export const fmtHours = (h: number): string => `${h.toLocaleString("es-CL", { maximumFractionDigits: 1 })}h`;
+
 /** Porcentaje es-CL: entero salvo bajo 10% (1 decimal). `pct` en escala 0-100. */
 export const fmtPct = (pct: number): string =>
   `${pct.toLocaleString("es-CL", {

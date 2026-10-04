@@ -11,10 +11,17 @@ import { err, ok, type Result } from "@/src/domain/shared/result";
 export const MANUAL_METHODS = ["pendiente", "efectivo", "transferencia", "cortesia"] as const;
 export type ManualPaymentMethod = (typeof MANUAL_METHODS)[number];
 
+/**
+ * Paso de la duración según el método. Una cortesía no se cobra, así que admite
+ * medias horas (una sesión del curso dura 1,5 h); lo que cobra va en horas
+ * enteras porque el motor de precios no cotiza fracciones.
+ */
+export const durationStepFor = (method: ManualPaymentMethod): 0.5 | 1 => (method === "cortesia" ? 0.5 : 1);
+
 export interface ManualBookingFields {
   date: string; // "YYYY-MM-DD"
   startMinute: number; // 0..1439
-  durationHours: number; // 1..16
+  durationHours: number; // 1..16; la cortesía admite medias horas
   method: ManualPaymentMethod;
   addonKeys: string[];
   notes: string; // trimmed; "" = sin notas
@@ -110,14 +117,23 @@ export function validateManualBooking(raw: {
     return err("Hora de inicio inválida.");
   }
 
-  const durationHours = raw.durationHours;
-  if (typeof durationHours !== "number" || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 16) {
-    return err("Duración inválida: entre 1 y 16 horas.");
-  }
-
+  // El método va antes que la duración porque el paso depende de él.
   const method = raw.method;
   if (typeof method !== "string" || !(MANUAL_METHODS as readonly string[]).includes(method)) {
     return err("Método de pago inválido.");
+  }
+
+  const step = durationStepFor(method as ManualPaymentMethod);
+  const durationHours = raw.durationHours;
+  if (
+    typeof durationHours !== "number" ||
+    !Number.isInteger(durationHours / step) ||
+    durationHours < 1 ||
+    durationHours > 16
+  ) {
+    return err(
+      step === 1 ? "Duración inválida: entre 1 y 16 horas." : "Duración inválida: entre 1 y 16 horas, en medias horas.",
+    );
   }
 
   const addonKeys = Array.isArray(raw.addonKeys) ? raw.addonKeys : null;
