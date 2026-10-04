@@ -31,7 +31,8 @@ export interface ManualBookingMessageInput {
 
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-const horas = (h: number) => (h === 1 ? "1 hora" : `${h} horas`);
+const horas = (h: number) =>
+  h === 1 ? "1 hora" : `${h.toLocaleString("es-CL", { maximumFractionDigits: 1 })} horas`;
 
 /** Confirmación de reserva para enviar por WhatsApp (marcadores *negrita* / `mono`). */
 export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): string {

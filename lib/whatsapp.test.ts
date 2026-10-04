@@ -85,6 +85,12 @@ describe("manualBookingWhatsAppMessage", () => {
     expect(msg).toContain("18:00–19:00 h");
   });
 
+  it("cortesía de hora y media: decimal en es-CL y fin a la media hora", () => {
+    const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null, durationHours: 1.5 });
+    expect(msg).toContain("*Duración:* 1,5 horas");
+    expect(msg).toContain("18:00–19:30 h");
+  });
+
   it("variante pendiente: no dice 'confirmada' ni 'pagado', total queda a pagar", () => {
     const msg = manualBookingWhatsAppMessage({ ...base, method: "pendiente" });
     expect(msg).toContain("quedó agendada, *pendiente de pago*.");

@@ -1,3 +1,4 @@
+import { fmtHours } from "@/components/admin/format";
 import { Card } from "@/components/admin/ui/Card";
 import { Icon } from "@/components/admin/ui/icons";
 import { Skeleton } from "@/components/admin/ui/Skeleton";
@@ -121,7 +122,7 @@ export function CobroCard({
         </div>
       ) : quoting ? (
         <Skeleton className="mt-3 h-12 w-40" />
-      ) : quoteError && hasSelection ? (
+      ) : hasSelection ? (
         <div className="mt-2 font-display text-5xl text-bone-dim">—</div>
       ) : (
         <p className="mt-3 label-sm text-bone-quiet">Selecciona un horario para ver el total.</p>
@@ -131,6 +132,9 @@ export function CobroCard({
         <p className={`mt-2 label-sm ${isCortesia ? "text-bone-quiet" : "text-sirena"}`}>
           {isCortesia ? "Sin tarifa para este horario." : "No se pudo calcular el total."}
         </p>
+      )}
+      {isCortesia && hasSelection && !quote && !quoting && !quoteError && (
+        <p className="mt-2 label-sm text-bone-quiet">Valor de referencia solo en horas enteras.</p>
       )}
 
       {quoting && (
@@ -158,7 +162,7 @@ export function CobroCard({
             <li key={a.key} className="flex justify-between gap-3 text-bone-dim">
               <span>
                 {a.name}
-                {hourlyKeys.has(a.key) ? ` · ${duration}h` : ""}
+                {hourlyKeys.has(a.key) ? ` · ${fmtHours(duration)}` : ""}
               </span>
               <span className="font-mono text-bone">{formatCLP(a.amount)}</span>
             </li>
