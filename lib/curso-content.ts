@@ -22,9 +22,6 @@ export const CURSO = {
    * statically rendered pages freeze any runtime date math at build time.
    */
   lanzamiento: "Precio de lanzamiento · primeros 10 alumnos",
-
-  /** Default seats when creating a generation in the admin — not shown on the landing. */
-  cupos: 6,
 } as const;
 
 /**

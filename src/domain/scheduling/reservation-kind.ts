@@ -12,7 +12,7 @@
  *   booking → un cliente pagó (o va a pagar) esa hora. Genera ingreso y boleta.
  *   block   → mantención, cierre, uso interno. No se vende, no factura.
  *   curso   → una sesión del Curso de DJ. Tampoco se vende por hora (el alumno
- *             paga la generación completa), pero la sala SÍ está trabajando —
+ *             paga el programa completo), pero la sala SÍ está trabajando —
  *             por eso cuenta en ocupación aunque no cuente en ingresos.
  */
 

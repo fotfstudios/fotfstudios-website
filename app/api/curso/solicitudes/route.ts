@@ -20,12 +20,12 @@ function rateKey(ip: string): string {
 /**
  * POST /api/curso/solicitudes → alta pública de una solicitud del Curso de DJ.
  *
- * Una solicitud NO toma cupo: se guarda como 'nueva' y el asiento se consume recién
- * cuando el dueño la confirma en el admin. Eso saca la carrera de asientos del borde
- * público — un bot no puede agotar la generación.
+ * Una solicitud NO crea nada que cobrar: se guarda como 'nueva' y el programa (con su
+ * pedido) nace recién cuando el dueño la inscribe en el admin. Un bot que llene el
+ * formulario solo llena la bandeja.
  *
  * Valida con parseCourseLead() (el MISMO módulo que corre el formulario), aplica rate
- * limit sobre las solicitudes bien formadas, inserta estampando la generación vigente y
+ * limit sobre las solicitudes bien formadas, la inserta y
  * dispara best-effort el aviso al dueño + confirmación al alumno. El honeypot devuelve
  * 200 idéntico al éxito para no delatar el filtro.
  */

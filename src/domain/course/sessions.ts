@@ -1,9 +1,9 @@
 /**
- * Layout de las sesiones de una generación — puro, sin IO.
+ * Layout de las sesiones de un programa (o de una cohorte antigua) — puro, sin IO.
  *
  * La trampa de este módulo es el horario de verano. Chile cambia de hora el
- * primer domingo de septiembre (→ −03) y el primero de abril (→ −04), así que una
- * generación de 4 semanas que parta a mediados de agosto o de marzo VA a cruzar
+ * primer domingo de septiembre (→ −03) y el primero de abril (→ −04), así que un
+ * programa de 6 sesiones semanales que parta en agosto o en marzo VA a cruzar
  * una transición. Si las fechas se generan sumando 7×24 h en UTC, la mitad de las
  * sesiones queda corrida una hora: el alumno llega a las 20:00 y la sala está
  * ocupada, o peor, la sesión choca con una reserva pagada.

@@ -49,21 +49,23 @@ export default async function PagoCursoPage({
         {pagada ? (
           <>
             <p className="label text-gold">Pago recibido</p>
-            <h1 className="font-display mt-3 text-5xl text-bone md:text-6xl">Tu cupo está confirmado.</h1>
+            <h1 className="font-display mt-3 text-5xl text-bone md:text-6xl">Tu curso está confirmado.</h1>
             <p className="mt-6 leading-relaxed text-bone-dim">
-              Te mandamos un correo a <span className="text-bone">{primera.studentEmail}</span> con las fechas
-              de las sesiones y la dirección de la sala.
+              Te mandamos un correo a <span className="text-bone">{primera.studentEmail}</span> con la
+              confirmación y la dirección de la sala. Si aún no fijamos las fechas de tus sesiones, lo hacemos
+              contigo por WhatsApp.
             </p>
             <p className="mt-4 label-sm text-bone-mute">
-              Generación {primera.generationCode} · {formatCLP(primera.orderAmountClp ?? primera.priceClp)}
+              Curso de Iniciación DJ · {formatCLP(primera.orderAmountClp ?? primera.priceClp)} · referencia{" "}
+              {primera.generationCode}
             </p>
           </>
         ) : anulada ? (
           <>
             <p className="label text-bone-mute">Inscripción anulada</p>
-            <h1 className="font-display mt-3 text-5xl text-bone md:text-6xl">Este cupo ya no está.</h1>
+            <h1 className="font-display mt-3 text-5xl text-bone md:text-6xl">Esta inscripción ya no está activa.</h1>
             <p className="mt-6 leading-relaxed text-bone-dim">
-              Si crees que es un error o quieres entrar a la siguiente generación, escríbenos y lo vemos.
+              Si crees que es un error o quieres retomar el curso, escríbenos y fijamos fechas nuevas.
             </p>
           </>
         ) : (
@@ -72,7 +74,7 @@ export default async function PagoCursoPage({
             <h1 className="font-display mt-3 text-5xl text-bone md:text-6xl">Estamos confirmando.</h1>
             <p className="mt-6 leading-relaxed text-bone-dim">
               A veces Mercado Pago demora un momento en avisarnos. Apenas nos llegue, te mandamos el correo
-              con las fechas. Si pasa un rato y no llega nada, escríbenos.
+              de confirmación. Si pasa un rato y no llega nada, escríbenos.
             </p>
           </>
         )}
