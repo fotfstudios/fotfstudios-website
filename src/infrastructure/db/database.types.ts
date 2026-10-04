@@ -226,13 +226,13 @@ isOneToOne: false
                   ]
                 },"course_generations": {
                   Row: {
-                    "code": string,"created_at": string,"currency": string,"enroll_deadline": string | null,"id": string,"name": string,"notes": string | null,"practice_hours_per_seat": number,"practice_valid_until": string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label": string | null,"resource_id": string,"seats": number,"starts_on": string | null,"status": string
+                    "code": string,"created_at": string,"currency": string,"enroll_deadline": string | null,"id": string,"instructor": string | null,"kind": string,"name": string,"notes": string | null,"practice_hours_per_seat": number,"practice_valid_until": string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label": string | null,"resource_id": string,"seats": number,"starts_on": string | null,"status": string
                   }
                   Insert: {
-                    "code": string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"name": string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label"?: string | null,"resource_id": string,"seats"?: number,"starts_on"?: string | null,"status"?: string
+                    "code": string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"instructor"?: string | null,"kind"?: string,"name": string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label"?: string | null,"resource_id": string,"seats"?: number,"starts_on"?: string | null,"status"?: string
                   }
                   Update: {
-                    "code"?: string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"name"?: string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp"?: number,"price_individual_clp"?: number,"price_prueba_clp"?: number,"pricing_label"?: string | null,"resource_id"?: string,"seats"?: number,"starts_on"?: string | null,"status"?: string
+                    "code"?: string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"instructor"?: string | null,"kind"?: string,"name"?: string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp"?: number,"price_individual_clp"?: number,"price_prueba_clp"?: number,"pricing_label"?: string | null,"resource_id"?: string,"seats"?: number,"starts_on"?: string | null,"status"?: string
                   }
                   Relationships: [
                     {
@@ -289,13 +289,13 @@ isOneToOne: true
                   ]
                 },"course_sessions": {
                   Row: {
-                    "created_at": string,"generation_id": string,"id": string,"n": number,"reservation_id": string | null,"status": string,"title": string
+                    "created_at": string,"generation_id": string,"id": string,"instructor": string | null,"n": number,"reservation_id": string | null,"status": string,"title": string
                   }
                   Insert: {
-                    "created_at"?: string,"generation_id": string,"id"?: string,"n": number,"reservation_id"?: string | null,"status"?: string,"title": string
+                    "created_at"?: string,"generation_id": string,"id"?: string,"instructor"?: string | null,"n": number,"reservation_id"?: string | null,"status"?: string,"title": string
                   }
                   Update: {
-                    "created_at"?: string,"generation_id"?: string,"id"?: string,"n"?: number,"reservation_id"?: string | null,"status"?: string,"title"?: string
+                    "created_at"?: string,"generation_id"?: string,"id"?: string,"instructor"?: string | null,"n"?: number,"reservation_id"?: string | null,"status"?: string,"title"?: string
                   }
                   Relationships: [
                     {
@@ -910,6 +910,9 @@ isOneToOne: false
 "confirm_payment":
 { Args: { "p_order": string,"p_payment_id": string }; Returns: string
                            },
+"course_practice_valid_until":
+{ Args: { "p_generation": string }; Returns: string
+                           },
 "create_boleta_amount":
 { Args: { "p_order": string,"p_settlement"?: string,"p_total": number }; Returns: string
                            },
@@ -918,6 +921,9 @@ isOneToOne: false
                            },
 "create_course_enrollment":
 { Args: { "p_amount": number,"p_credit"?: string,"p_generation": string,"p_lead"?: string,"p_net": number,"p_notes"?: string,"p_plan": string,"p_students": Json,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string }; Returns: string
+                           },
+"create_course_program":
+{ Args: { "p_amount": number,"p_credit"?: string,"p_instructor"?: string,"p_lead"?: string,"p_net": number,"p_notes"?: string,"p_plan": string,"p_price_duo": number,"p_price_individual": number,"p_price_prueba": number,"p_resource": string,"p_students": Json,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string }; Returns: string
                            },
 "create_hold":
 { Args: { "p_ends": string,"p_resource": string,"p_starts": string,"p_ttl"?: string }; Returns: string
@@ -1033,6 +1039,9 @@ isOneToOne: false
                            },
 "release_abandoned_redemptions":
 { Args: { "p_older_than"?: string }; Returns: number
+                           },
+"release_course_program_sessions":
+{ Args: { "p_generation": string }; Returns: number
                            },
 "release_order_redemption":
 { Args: { "p_order": string,"p_ref"?: string }; Returns: undefined
