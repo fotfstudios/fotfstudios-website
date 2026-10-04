@@ -9,13 +9,12 @@
  * el curso y la práctica no se venden en /reservar, el dueño decide.
  */
 import { overlaps } from "@/src/domain/scheduling/availability";
-import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 
 const DAY_END = 24 * 60;
 /** Ventana con la que se mira el inicio: una media hora, el paso del selector. */
 const STEP = 30;
 
-export type SlotTag = "ocupado" | "bloqueo" | "no alcanza" | "pasado" | "fuera de horario" | null;
+export type SlotTag = "ocupado" | "bloqueo" | "curso" | "no alcanza" | "pasado" | "fuera de horario" | null;
 
 export interface PickerSlot {
   minute: number;
@@ -49,7 +48,12 @@ export function pickerSlots(input: PickerInput): PickerSlot[] {
 
     const headHits = busy.filter((o) => overlaps(head, o));
     if (headHits.length > 0) {
-      const tag = headHits.some((o) => isRoomBlock(o.kind)) ? "bloqueo" : "ocupado";
+      // Lo más específico gana: un bloqueo de mantención, luego una sesión de curso.
+      const tag: SlotTag = headHits.some((o) => o.kind === "block")
+        ? "bloqueo"
+        : headHits.some((o) => o.kind === "curso")
+          ? "curso"
+          : "ocupado";
       return { minute, tag, disabled: true };
     }
     if (full.end > DAY_END || busy.some((o) => overlaps(full, o))) {

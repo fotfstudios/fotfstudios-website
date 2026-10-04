@@ -913,6 +913,14 @@ isOneToOne: false
 "course_practice_valid_until":
 { Args: { "p_generation": string }; Returns: string
                            },
+"course_session_contact":
+{ Args: { "p_generation": string }; Returns: {
+              "email": string,"name": string,"phone": string
+            }[]
+                           },
+"course_sync_session_contacts":
+{ Args: { "p_generation": string,"p_reservation"?: string }; Returns: undefined
+                           },
 "create_boleta_amount":
 { Args: { "p_order": string,"p_settlement"?: string,"p_total": number }; Returns: string
                            },

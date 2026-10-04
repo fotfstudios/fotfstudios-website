@@ -3,7 +3,7 @@ import { pickerSlots, type PickerInput } from "./slot-picker";
 
 /** Día abierto 10:00–22:00 con una reserva 16:00–17:30 y un bloqueo 12:00–13:00. */
 const base: PickerInput = {
-  starts: [9 * 60, 15 * 60, 15 * 60 + 30, 16 * 60, 17 * 60, 17 * 60 + 30, 12 * 60, 22 * 60, 22 * 60 + 30],
+  starts: [9 * 60, 20 * 60, 15 * 60, 15 * 60 + 30, 16 * 60, 17 * 60, 17 * 60 + 30, 12 * 60, 22 * 60, 22 * 60 + 30],
   durationMin: 90,
   occupancy: [
     { id: "r1", start: 16 * 60, end: 17 * 60 + 30, kind: "booking" },
@@ -36,6 +36,11 @@ describe("pickerSlots — qué horas se pueden elegir de verdad", () => {
 
   it("un bloqueo de sala se distingue de una reserva", () => {
     expect(tagAt(base, 12 * 60)).toMatchObject({ tag: "bloqueo", disabled: true });
+  });
+
+  it("una sesión de curso se rotula como curso, no como bloqueo", () => {
+    const conCurso = { ...base, occupancy: [{ id: "c1", start: 20 * 60, end: 21 * 60 + 30, kind: "curso" }] };
+    expect(tagAt(conCurso, 20 * 60)).toMatchObject({ tag: "curso", disabled: true });
   });
 
   it("fuera del horario de apertura se puede elegir, pero avisado", () => {

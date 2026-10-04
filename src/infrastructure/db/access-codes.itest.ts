@@ -92,10 +92,26 @@ describe("generación", () => {
     expect((await row(id)).access_code).toBeNull();
   });
 
-  it("no asigna a una sesión de curso: no tiene PIN", async () => {
+  // El alumno de una sesión guiada entra a la sala igual que un cliente: necesita el PIN.
+  it("asigna PIN a una sesión de curso con alumno", async () => {
     const id = await booking({ startsInMin: 60, kind: "curso" });
     await new AccessCodeService(repo, notifier()).sweep();
+    expect((await row(id)).access_code).toMatch(/^\d+$/);
+  });
+
+  // Sin email = programa sin pagar (el contacto solo se copia de una inscripción pagada):
+  // no se genera un código que el dueño tendría que cargar en la Yale para nadie.
+  it("no asigna PIN a una sesión de curso sin alumno pagado", async () => {
+    const id = await booking({ startsInMin: 60, kind: "curso", email: null });
+    await new AccessCodeService(repo, notifier()).sweep();
     expect((await row(id)).access_code).toBeNull();
+  });
+
+  it("manda el PIN de una sesión de curso cargada, 10 min antes", async () => {
+    await booking({ startsInMin: 8, kind: "curso", code: "4321", loaded: true });
+    const n = notifier();
+    await new AccessCodeService(repo, n).sweep();
+    expect(n.notifyAccessCode).toHaveBeenCalledTimes(1);
   });
 
   it("no pisa un PIN que ya existe", async () => {
@@ -202,22 +218,23 @@ describe("el ciclo del dueño", () => {
   });
 
   it("las listas de /admin/cerradura usan los MISMOS predicados que los conteos, y ordenan por inicio", async () => {
-    // por cargar: dos futuras sin cargar (la de 60 min antes que la de 180), una cargada,
-    // una terminada, una held y una de curso: solo las dos primeras.
+    // por cargar: dos futuras sin cargar (la de 60 min antes que la de 300), una cargada,
+    // una terminada, una held y una sesión de curso con PIN: las dos primeras y la de
+    // curso (el alumno también entra con PIN), por inicio.
     // (slots de 60 min separados ≥ 60 min: reservations_no_overlap es una exclusion constraint)
     const soon = await booking({ startsInMin: 60, code: "482917" });
     const later = await booking({ startsInMin: 300, code: "555666" });
     await booking({ startsInMin: 180, code: "111222", loaded: true });
     await booking({ startsInMin: -120, code: "333444" });
     await booking({ startsInMin: 420, code: "777888", status: "held" });
-    await booking({ startsInMin: 540, code: "999000", kind: "curso" });
+    const curso = await booking({ startsInMin: 540, code: "999000", kind: "curso" });
     // por quitar: dos terminadas con código sin quitar (la más vieja primero), una ya quitada
     const oldest = await booking({ startsInMin: -600, code: "121212" });
     const recent = await booking({ startsInMin: -240, code: "343434", loaded: true, sent: true });
     await booking({ startsInMin: -360, code: "565656", removed: true });
 
     const toLoad = await repo.accessToLoad();
-    expect(toLoad.map((r) => r.id)).toEqual([soon, later]);
+    expect(toLoad.map((r) => r.id)).toEqual([soon, later, curso]);
     expect(toLoad).toHaveLength(await repo.accessToLoadCount());
     expect(toLoad[0]).toMatchObject({ accessCode: "482917", customerName: "Ana", customerEmail: "ana@e.cl" });
 

@@ -68,15 +68,27 @@ describe("remindersDue — la ventana", () => {
     expect(due[0]).toMatchObject({ customerName: "Ana", customerEmail: "ana@e.cl" });
   });
 
-  it("excluye: en 30 h (todavía no), en 1 h (ya es ahora), reservada hace 3 h, held, curso, ya recordada", async () => {
+  it("excluye: en 30 h (todavía no), en 1 h (ya es ahora), reservada hace 3 h, held, ya recordada", async () => {
     // Horas distintas: la sala tiene exclusion constraint de solapamiento.
     await booking({ startsInH: 30 });
     await booking({ startsInH: 1 });
     await booking({ startsInH: 10, ageH: 3 });
     await booking({ startsInH: 13, status: "held" });
-    await booking({ startsInH: 16, kind: "curso" });
     await booking({ startsInH: 20, reminded: true });
     expect(await repo.remindersDue()).toEqual([]);
+  });
+});
+
+describe("sesiones del curso", () => {
+  it("una sesión guiada con alumno recibe su recordatorio como cualquier reserva", async () => {
+    const id = await booking({ startsInH: 16, kind: "curso" });
+    expect((await repo.remindersDue()).map((r) => r.id)).toEqual([id]);
+  });
+
+  it("sin alumno pagado (sin email) no hay a quién recordarle", async () => {
+    await booking({ startsInH: 16, kind: "curso", email: null });
+    const due = await repo.remindersDue();
+    expect(due.every((r) => r.customerEmail === null)).toBe(true);
   });
 });
 
