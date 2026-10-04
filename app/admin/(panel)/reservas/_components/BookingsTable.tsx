@@ -95,7 +95,8 @@ export function BookingsTable({
 function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
   const isBlock = isRoomBlock(b.kind);
   const isHold = !!b.rescheduleId; // cupo guardado para un reagendamiento pendiente (sin orden)
-  const isCourtesy = !isBlock && !b.orderId && !isHold;
+  const isPractice = !!b.practiceEnrollmentId;
+  const isCourtesy = !isBlock && !b.orderId && !isHold && !isPractice;
   const isRefunded = b.orderStatus === "refunded";
   const overdue =
     b.orderStatus === "pending_payment" &&
@@ -122,6 +123,7 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
               <span className="truncate text-bone">{name}</span>
               {isHold && <span className="label-sm shrink-0 text-gold">Cupo reagendamiento</span>}
               {isCourtesy && <span className="label-sm shrink-0 text-gold">Cortesía</span>}
+              {isPractice && <span className="label-sm shrink-0 text-gold">Práctica</span>}
             </div>
             {secondary && (
               <div className="mt-0.5 max-w-64 truncate font-mono text-xs text-bone-quiet">{secondary}</div>

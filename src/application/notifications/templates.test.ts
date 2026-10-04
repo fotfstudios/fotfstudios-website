@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -875,5 +875,43 @@ describe("correos del curso 1:1 — sin vocabulario de cohorte", () => {
     expect(m.html).toContain("Recuerda emitir la boleta");
     expect(m.html).not.toMatch(/cupo|generaci/i);
     expect(m.text).not.toMatch(/cupo|generaci/i);
+  });
+});
+
+describe("recordatorio de una sesión guiada del curso", () => {
+  const CTX = {
+    address: "Viña del Mar", mapsUrl: "https://maps.example", whatsappUrl: "https://wa.me/56962803298",
+    courseUrl: "https://fotfstudios.cl/cuenta/curso",
+  };
+  const m = courseSessionReminder(
+    { name: "Martín", when: "jueves 8 de octubre, 16:00–17:30 h", n: 3, title: "Frases y mezcla larga", instructor: "Benja" },
+    CTX,
+  );
+
+  it("dice qué sesión es, cuándo y quién la dicta", () => {
+    expect(m.template).toBe("courseSessionReminder");
+    expect(m.subject).toBe("Tu sesión 3 del curso se acerca · jueves 8 de octubre, 16:00–17:30 h");
+    expect(m.html).toContain("Sesión 3 · Frases y mezcla larga");
+    expect(m.html).toContain("Benja te espera en la sala");
+    expect(m.text).toContain("Sesión 3 · Frases y mezcla larga");
+  });
+
+  it("no dice que entra solo (es una clase guiada) y promete el PIN y el aviso de 24 h", () => {
+    expect(m.html + m.text).not.toMatch(/entras solo|sin esperar a nadie/i);
+    expect(m.html).toContain("código de acceso te llega por email 10 minutos antes");
+    expect(m.html).toMatch(/24 horas/);
+    expect(m.html).toContain("https://fotfstudios.cl/cuenta/curso");
+  });
+
+  it("sin instructor asignado no inventa uno", () => {
+    const sin = courseSessionReminder({ name: "Martín", when: "x", n: 1, title: "Sonido", instructor: null }, CTX);
+    expect(sin.html).not.toContain("te espera en la sala");
+  });
+
+  it("escapa el título y el nombre (anti-XSS)", () => {
+    const x = courseSessionReminder({ name: "<b>M</b>", when: "x", n: 1, title: "<i>T</i>", instructor: "<u>I</u>" }, CTX);
+    expect(x.html).not.toContain("<i>T</i>");
+    expect(x.html).not.toContain("<u>I</u>");
+    expect(x.html).not.toContain("<b>M</b>");
   });
 });

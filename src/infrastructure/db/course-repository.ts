@@ -639,7 +639,7 @@ export class SupabaseCourseRepository
   async practiceRedemptions(enrollmentId: string) {
     const { data, error } = await this.db
       .from("course_practice_redemptions")
-      .select("id, reservation_id, hours, released_at, reservations(starts_at)")
+      .select("id, reservation_id, hours, released_at, reservations(starts_at, ends_at)")
       .eq("enrollment_id", enrollmentId)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
@@ -648,6 +648,7 @@ export class SupabaseCourseRepository
       reservationId: r.reservation_id,
       hours: r.hours,
       startsAt: r.reservations?.starts_at ?? null,
+      endsAt: r.reservations?.ends_at ?? null,
       releasedAt: r.released_at,
     }));
   }
@@ -773,9 +774,10 @@ export class SupabaseCourseRepository
     const rows = (data ?? []).filter((r) => r.student_email?.toLowerCase() === lower);
     return Promise.all(
       rows.map(async (r) => {
-        const [sessions, validUntil] = await Promise.all([
+        const [sessions, validUntil, practicas] = await Promise.all([
           this.listSessions(r.generation_id),
           this.practiceValidUntil(r.generation_id),
+          this.practiceRedemptions(r.id),
         ]);
         return {
           enrollmentId: r.id,
@@ -795,6 +797,10 @@ export class SupabaseCourseRepository
           sessions: sessions
             .filter((s) => s.status === "agendada" || s.status === "dictada")
             .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, endsAt: s.endsAt, status: s.status })),
+          practice: practicas
+            .filter((p) => !p.releasedAt && p.startsAt && p.endsAt)
+            .map((p) => ({ startsAt: p.startsAt!, endsAt: p.endsAt!, hours: p.hours }))
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
         };
       }),
     );

@@ -8,7 +8,16 @@ export interface ReminderRepository {
    * (recién reservada, la confirmación ya hizo de recordatorio).
    */
   remindersDue(): Promise<
-    { id: string; orderId: string | null; startsAt: string; endsAt: string; customerName: string | null; customerEmail: string | null }[]
+    {
+      id: string;
+      orderId: string | null;
+      startsAt: string;
+      endsAt: string;
+      customerName: string | null;
+      customerEmail: string | null;
+      /** Sesión guiada del curso (kind=curso); null para una reserva de sala o práctica. */
+      course: { n: number; title: string; instructor: string | null } | null;
+    }[]
   >;
   /** Reclama `reminder_sent_at` solo si estaba en null. true = esta corrida lo marcó. */
   markReminderSent(reservationId: string): Promise<boolean>;
@@ -31,7 +40,7 @@ export interface ReminderSweepResult {
 export class ReminderService {
   constructor(
     private readonly repo: ReminderRepository,
-    private readonly notifications: Pick<NotificationService, "notifyReminder">,
+    private readonly notifications: Pick<NotificationService, "notifyReminder" | "notifyCourseSessionReminder">,
   ) {}
 
   async sweep(): Promise<ReminderSweepResult> {
@@ -45,13 +54,23 @@ export class ReminderService {
       const claimed = await this.repo.markReminderSent(r.id);
       if (!claimed) continue;
       try {
-        await this.notifications.notifyReminder({
-          email: r.customerEmail,
-          name: r.customerName,
-          orderId: r.orderId,
-          startsAt: r.startsAt,
-          endsAt: r.endsAt,
-        });
+        if (r.course) {
+          await this.notifications.notifyCourseSessionReminder({
+            email: r.customerEmail,
+            name: r.customerName,
+            startsAt: r.startsAt,
+            endsAt: r.endsAt,
+            ...r.course,
+          });
+        } else {
+          await this.notifications.notifyReminder({
+            email: r.customerEmail,
+            name: r.customerName,
+            orderId: r.orderId,
+            startsAt: r.startsAt,
+            endsAt: r.endsAt,
+          });
+        }
         sent++;
       } catch (e) {
         console.error("[reminders:send]", r.id, e);

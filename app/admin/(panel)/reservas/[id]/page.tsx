@@ -176,7 +176,10 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   }
 
   const isBlock = isRoomBlock(b.kind);
-  const isCourtesy = !isBlock && !b.orderId;
+  // Hora de práctica del curso: sin pedido como una cortesía, pero su saldo vive en la
+  // ficha del alumno. Acá solo se mira; moverla o cancelarla se hace allá.
+  const isPractice = !!b.practiceEnrollmentId;
+  const isCourtesy = !isBlock && !b.orderId && !isPractice;
   const isPaid = !isBlock && !!b.paidAt; // pagada → puede reembolsarse
   // Solo para "Ver ficha ↗": /admin/clientes exige este permiso y sin él daría 403.
   const claims = await currentClaims();
@@ -184,7 +187,8 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const canRecordFolio = hasPermission(claims, "reservations.boleta");
   const taxSteps = describeTaxDocs(b.taxDocs, { now: new Date().toISOString() });
   // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
-  const canReassign = !isBlock && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
+  const canReassign =
+    !isBlock && !isPractice && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
 
   // Cobro o reembolso de reagendamiento pendiente: a lo más UNA fila por reserva
   // (índice único en la migración H3/H5). Con `pending_charge` la reserva sigue en su
@@ -196,6 +200,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // confirmadas (sin plata no aplica la política — misma flexibilidad que crearlas).
   // Los props del picker se calculan en el server (force-dynamic) solo si aplica.
   const canReschedule =
+    !isPractice &&
     b.status !== "cancelled" &&
     !pending &&
     ((isPaid && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed) ||
@@ -204,7 +209,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a la
   // vez: bloqueado acá y en RefundService.cancelBooking (H1) hasta que "Reintentar" lo
   // resuelva; un cobro pendiente sí se puede cancelar — "Anular cobro" ya lo cierra primero.
-  const canCancel = b.status !== "cancelled" && pending?.status !== "pending_refund";
+  const canCancel = !isPractice && b.status !== "cancelled" && pending?.status !== "pending_refund";
 
 
   const waDigits = (b.customerPhone ?? "").replace(/\D/g, "");
@@ -249,6 +254,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             <StatusPill status={b.status} />
             {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-quiet"><Icon name="block" size={13} /> Bloqueo</span>}
             {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
+            {isPractice && <span className="label-sm text-gold">Práctica · curso DJ</span>}
           </p>
         </div>
       </header>
@@ -422,6 +428,21 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </Card>
             );
           })()}
+
+          {isPractice && (
+            <Card title="Práctica del curso">
+              <p className="text-sm leading-relaxed text-bone-dim">
+                Es una hora de práctica libre de un alumno del curso. Se cancela o se cambia desde su
+                ficha: así la hora vuelve a su saldo.
+              </p>
+              <Link
+                href={`/admin/curso/inscripciones/${b.practiceEnrollmentId}`}
+                className="label-sm mt-4 inline-block py-2 text-gold transition-colors hover:text-bone"
+              >
+                Ir a la ficha del alumno →
+              </Link>
+            </Card>
+          )}
 
           {pending && <PendingRescheduleCard reservationId={b.id} pending={pending} tz={TZ} customerPhone={b.customerPhone} />}
 

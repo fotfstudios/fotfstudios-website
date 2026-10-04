@@ -186,6 +186,33 @@ export function customerReminder(
 }
 
 /**
+ * Recordatorio de una sesión GUIADA del curso (lo dispara el mismo barrido que el de
+ * la sala). Distinto del de la sala a propósito: es una clase, así que no dice "entras
+ * solo, sin esperar a nadie"; nombra la sesión y a quien la dicta, y recuerda la regla
+ * de las 24 h de los términos para reagendar sin costo.
+ */
+export function courseSessionReminder(
+  v: { name: string | null; when: string; n: number; title: string; instructor: string | null },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const sesion = `Sesión ${v.n} · ${v.title}`;
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu sesión ${v.n} del curso se acerca</h1>
+     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
+     <p style="margin:0 0 16px"><strong>${esc(sesion)}</strong></p>
+     ${v.instructor ? `<p style="color:${T.boneDim};margin:0 0 16px">${esc(v.instructor)} te espera en la sala.</p>` : ""}
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email 10 minutos antes</strong> (revisa spam). Trae tus audífonos y un USB con tu música.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `${sesion} · ${v.when}`,
+  );
+  const text = `Tu sesión ${v.n} del curso se acerca: ${v.when}. ${sesion}.${v.instructor ? ` ${v.instructor} te espera en la sala.` : ""} ${ctx.address}. Tu código de acceso te llega por email 10 minutos antes (revisa spam). Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "courseSessionReminder", subject: `Tu sesión ${v.n} del curso se acerca · ${v.when}`, html, text };
+}
+
+/**
  * Email al cliente: su pago se aprobó pero el horario ya no estaba reservado
  * (`paid_no_hold`). Antes no recibía NADA — plata fuera, cero correo — mientras el
  * dueño recibía la alerta. Reconoce el pago, dice la verdad y promete WhatsApp; no

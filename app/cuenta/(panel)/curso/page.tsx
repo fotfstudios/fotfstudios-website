@@ -109,6 +109,27 @@ export default async function CuentaCurso() {
                 )}
               </div>
 
+              {pagado && curso.practice.length > 0 && (
+                <div className="mt-6 border-t hairline pt-5">
+                  <h3 className="label-sm mb-3 text-bone-quiet">Práctica libre agendada</h3>
+                  <ul className="flex flex-col">
+                    {curso.practice.map((p) => (
+                      <li
+                        key={p.startsAt}
+                        className="flex flex-wrap items-baseline gap-x-4 border-t hairline py-3 first:border-0 first:pt-0"
+                      >
+                        <span className="text-bone">
+                          {p.hours} {p.hours === 1 ? "hora" : "horas"}
+                        </span>
+                        <span className="ml-auto font-mono text-sm text-bone-dim">
+                          {fmtDate(p.startsAt)} · {fmtTimeRange(p.startsAt, p.endsAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {pagado && (
                 <p className="mt-5 label-sm text-bone-quiet">
                   Qué traer: tus audífonos y un USB con tu música.

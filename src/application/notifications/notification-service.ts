@@ -19,6 +19,7 @@ import {
   customerReschedulePaymentLink,
   customerRescheduleFailed,
   customerReminder,
+  courseSessionReminder,
   customerCourtesyCancelled,
   customerHoldExpired,
   customerPaymentNoSlot,
@@ -227,6 +228,32 @@ export class NotificationService {
       ...customerReminder(
         { name: input.name, when: this.when(input.startsAt, input.endsAt) },
         { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, statusUrl },
+      ),
+    });
+    return true;
+  }
+
+  /** Recordatorio de una sesión guiada del curso: nombra la sesión y a quien la dicta. */
+  async notifyCourseSessionReminder(input: {
+    email: string | null;
+    name: string | null;
+    startsAt: string;
+    endsAt: string | null;
+    n: number;
+    title: string;
+    instructor: string | null;
+  }): Promise<boolean> {
+    if (!input.email) return false;
+    await this.mailer.send({
+      to: input.email,
+      ...courseSessionReminder(
+        { name: input.name, when: this.when(input.startsAt, input.endsAt), n: input.n, title: input.title, instructor: input.instructor },
+        {
+          address: this.config.address,
+          mapsUrl: this.config.mapsUrl,
+          whatsappUrl: this.config.whatsappUrl,
+          courseUrl: `${this.config.siteUrl}/cuenta/curso`,
+        },
       ),
     });
     return true;

@@ -8,6 +8,7 @@ const due = (over: Partial<ReminderDue> = {}): ReminderDue => ({
   endsAt: "2026-09-15T20:00:00Z",
   customerName: "Ana",
   customerEmail: "ana@e.cl",
+  course: null,
   ...over,
 });
 type ReminderDue = Awaited<ReturnType<ReminderRepository["remindersDue"]>>[number];
@@ -18,7 +19,10 @@ const make = (rows: ReminderDue[]) => {
     markReminderSent: vi.fn(async () => true),
     releaseReminderSent: vi.fn(async () => {}),
   };
-  const notifications = { notifyReminder: vi.fn(async () => true) };
+  const notifications = {
+    notifyReminder: vi.fn(async () => true),
+    notifyCourseSessionReminder: vi.fn(async () => true),
+  };
   return { repo, notifications, service: new ReminderService(repo, notifications) };
 };
 
@@ -58,5 +62,23 @@ describe("ReminderService.sweep — recordatorio 24 h antes", () => {
     expect(await service.sweep()).toEqual({ sent: 0, skippedNoEmail: 1 });
     expect(repo.markReminderSent).not.toHaveBeenCalled();
     expect(notifications.notifyReminder).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReminderService.sweep — sesión guiada del curso", () => {
+  it("usa el recordatorio del curso, con la sesión y su instructor", async () => {
+    const curso = due({ id: "c1", orderId: null, course: { n: 3, title: "Frases y mezcla larga", instructor: "Benja" } });
+    const { service, notifications } = make([curso]);
+    expect(await service.sweep()).toEqual({ sent: 1, skippedNoEmail: 0 });
+    expect(notifications.notifyReminder).not.toHaveBeenCalled();
+    expect(notifications.notifyCourseSessionReminder).toHaveBeenCalledWith({
+      email: "ana@e.cl",
+      name: "Ana",
+      startsAt: "2026-09-15T18:00:00Z",
+      endsAt: "2026-09-15T20:00:00Z",
+      n: 3,
+      title: "Frases y mezcla larga",
+      instructor: "Benja",
+    });
   });
 });

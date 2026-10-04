@@ -229,7 +229,14 @@ export interface CourseEnrollmentRepository {
   /** Cancela una práctica y devuelve la hora al saldo. Idempotente. */
   releasePracticeHours(reservationId: string): Promise<void>;
   practiceRedemptions(enrollmentId: string): Promise<
-    { id: string; reservationId: string; hours: number; startsAt: string | null; releasedAt: string | null }[]
+    {
+      id: string;
+      reservationId: string;
+      hours: number;
+      startsAt: string | null;
+      endsAt: string | null;
+      releasedAt: string | null;
+    }[]
   >;
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;
 }
@@ -277,4 +284,6 @@ export interface StudentCourseView {
   /** YYYY-MM-DD; null = sin sesiones agendadas, no vence. */
   practiceValidUntil: string | null;
   sessions: { n: number; title: string; startsAt: string | null; endsAt: string | null; status: string }[];
+  /** Horas de práctica agendadas (no canceladas), por fecha. */
+  practice: { startsAt: string; endsAt: string; hours: number }[];
 }
