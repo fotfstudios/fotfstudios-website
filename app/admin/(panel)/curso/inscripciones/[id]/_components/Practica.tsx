@@ -5,13 +5,14 @@ import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { Field, Input, Select } from "@/components/admin/ui/Field";
 import { MeterCell } from "@/components/admin/ui/MeterCell";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
+import { hhmm } from "@/components/booking/format";
 import { redeemPracticeAction, releasePracticeAction } from "../../../actions";
 
-const HOURS = Array.from({ length: 14 }, (_, i) => 540 + i * 60);
-const hh = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:00`;
+/** Inicios cada media hora, 09:00–22:30. La práctica dura horas enteras (lo exige el RPC); solo el inicio admite :30. */
+const STARTS = Array.from({ length: 28 }, (_, i) => 540 + i * 30);
 
 /**
- * Las 4 horas de práctica libre, como saldo. No se pre-bloquean: se materializan
+ * Las horas de práctica libre, como saldo. No se pre-bloquean: se materializan
  * como reserva recién al agendarlas, y ahí recién ocupan la cabina.
  */
 export function Practica({
@@ -72,9 +73,9 @@ export function Practica({
           </Field>
           <Field label="Hora">
             <Select name="startMinute" defaultValue={900}>
-              {HOURS.map((m) => (
+              {STARTS.map((m) => (
                 <option key={m} value={m}>
-                  {hh(m)}
+                  {hhmm(m)}
                 </option>
               ))}
             </Select>
