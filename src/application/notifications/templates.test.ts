@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseReviewRequest, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -324,7 +324,6 @@ describe("reembolso de inscripción de curso (pagada)", () => {
       { whatsappUrl: "https://wa.me/56962803298" },
     );
     expect(m.subject).toMatch(/cancelada/i);
-    expect(m.html).toContain("G3");
     expect(m.html).toContain("$149.990");
     expect(m.html).toContain("medio de pago original");
     expect(m.text).toContain("$149.990");
@@ -339,10 +338,9 @@ describe("reembolso de inscripción de curso (pagada)", () => {
     );
     expect(m.html).not.toMatch(/ningún cobro|reembolsamos|tarjeta|\$/);
     expect(m.text).not.toMatch(/ningún cobro|reembolsamos|\$/);
-    expect(m.html).toContain("G3");
   });
 
-  it("escapa nombre y generación (anti-XSS)", () => {
+  it("escapa el nombre (anti-XSS)", () => {
     const m = courseEnrollmentRefunded(
       { name: "<b>Ana</b>", generation: "<i>G3</i>", refunded: null },
       { whatsappUrl: "https://wa.me/56962803298" },
@@ -807,5 +805,75 @@ describe("pedido de reseña en Google", () => {
 
   it("no ofrece nada a cambio (política de reseñas de Google)", () => {
     expect(m.html + m.text).not.toMatch(/descuento|gratis|regalo|sorteo|premio/i);
+  });
+});
+
+/**
+ * Curso 1:1: cada alumno tiene su propio programa. El correo al alumno nunca habla
+ * de "generación" ni de "cupos" ni ofrece "la siguiente" — eso era la cohorte.
+ */
+describe("correos del curso 1:1 — sin vocabulario de cohorte", () => {
+  const WA = { whatsappUrl: "https://wa.me/56962803298" };
+  const COHORTE = /generaci|cupo|siguiente/i;
+  const PLACE = { address: "Viña del Mar", mapsUrl: "https://maps.example", ...WA };
+
+  it("pagado: 'Tu curso está confirmado', sesiones y las 6 horas de práctica", () => {
+    const m = courseEnrollmentPaid(
+      { name: "Martín", generation: "P0001", total: "$249.990", sessions: ["jueves 8 de octubre, 16:00–17:30 h"] },
+      PLACE,
+    );
+    expect(m.subject).toBe("Tu curso está confirmado — Curso de DJ");
+    expect(m.html).toContain("Tu curso está confirmado");
+    expect(m.html).toContain("jueves 8 de octubre, 16:00–17:30 h");
+    expect(m.html).toContain("6 horas de práctica libre");
+    expect(m.text).toContain("6 horas de práctica libre");
+    expect(m.html).not.toMatch(COHORTE);
+    expect(m.text).not.toMatch(COHORTE);
+  });
+
+  it("pagado sin fechas: promete coordinarlas por WhatsApp", () => {
+    const m = courseEnrollmentPaid({ name: "Martín", generation: "P0001", total: "$249.990", sessions: [] }, PLACE);
+    expect(m.html).toMatch(/fechas de tus 6 sesiones/);
+  });
+
+  it("link de pago: 'Tu curso te espera', sin cupos", () => {
+    const m = courseEnrollmentPending(
+      { name: "Martín", generation: "P0001", total: "$249.990", initPoint: "https://mp.example/p", expiresInHours: 72 },
+      { termsUrl: "https://fotfstudios.cl/terminos", ...WA },
+    );
+    expect(m.html).toContain("Tu curso te espera");
+    expect(m.subject).not.toMatch(COHORTE);
+    expect(m.html).not.toMatch(COHORTE);
+    expect(m.text).not.toMatch(COHORTE);
+  });
+
+  it("anulada (impaga): sin cupos ni 'la siguiente'", () => {
+    const m = courseEnrollmentCancelled({ name: "Martín", generation: "P0001" }, WA);
+    expect(m.html).toContain("No se hizo ningún cobro");
+    expect(m.html).not.toMatch(COHORTE);
+    expect(m.text).not.toMatch(COHORTE);
+  });
+
+  it("cancelada (pagada): sin cupos ni 'la siguiente generación'", () => {
+    const m = courseEnrollmentRefunded({ name: "Martín", generation: "P0001", refunded: "$249.990" }, WA);
+    expect(m.html).not.toMatch(COHORTE);
+    expect(m.text).not.toMatch(COHORTE);
+  });
+
+  it("aviso al dueño de solicitud: sin conteo de cupos", () => {
+    const m = ownerNewCourseLead({
+      name: "Martín", email: "m@e.cl", phone: "+56911111111", plan: "individual",
+      experience: "cero", availability: "Tardes", message: null,
+    });
+    expect(m.html).not.toMatch(/cupo|generaci/i);
+    expect(m.text).not.toMatch(/cupo|generaci/i);
+  });
+
+  it("aviso al dueño de pago: código del programa y sin conteo de cupos", () => {
+    const m = ownerCoursePaid({ name: "Martín", generation: "P0001", total: "$249.990", method: "transferencia" });
+    expect(m.subject).toContain("P0001");
+    expect(m.html).toContain("Recuerda emitir la boleta");
+    expect(m.html).not.toMatch(/cupo|generaci/i);
+    expect(m.text).not.toMatch(/cupo|generaci/i);
   });
 });

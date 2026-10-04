@@ -4,6 +4,7 @@ import type {
   CoursePlan,
   CoursePrices,
   EnrollmentStatus,
+  GenerationKind,
   GenerationStatus,
 } from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
@@ -19,6 +20,8 @@ export interface CourseSessionRow {
   reservationId: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  /** Texto libre; el de la sesión gana sobre el del programa. */
+  instructor: string | null;
 }
 
 /** Un choque entre una sesión propuesta y lo que ya hay en la sala. */
@@ -42,12 +45,19 @@ export interface CourseSchedulingRepository {
   listSessions(generationId: string): Promise<CourseSessionRow[]>;
 }
 
-/** Una generación con su aritmética de cupos ya resuelta. */
+/**
+ * Una generación con su aritmética de cupos ya resuelta. Desde el curso 1:1, una
+ * fila `kind="programa"` es el programa de UN pedido (1 cupo, o 2 en dúo);
+ * `"cohorte"` es el formato antiguo.
+ */
 export interface CourseGenerationView {
   id: string;
+  kind: GenerationKind;
   code: string;
   name: string;
   status: GenerationStatus;
+  instructor: string | null;
+  practiceHoursPerSeat: number;
   seats: number;
   seatsTaken: number;
   seatsLeft: number;
@@ -69,12 +79,55 @@ export interface NewGeneration {
 }
 
 export interface CourseGenerationRepository {
+  /** @deprecated cohortes — se va con el admin por generaciones (PR 4 del curso 1:1). */
   listGenerations(): Promise<CourseGenerationView[]>;
-  /** La generación vigente: la abierta, o la que está dictándose. */
+  /**
+   * @deprecated cohortes — con el curso 1:1 conviven muchos programas abiertos y
+   * "la vigente" deja de existir. Solo la usa el admin por generaciones (PR 4).
+   */
   currentGeneration(): Promise<CourseGenerationView | null>;
   getGeneration(id: string): Promise<CourseGenerationView | null>;
+  /** @deprecated cohortes — los programas nacen con createProgram. */
   createGeneration(input: NewGeneration): Promise<string>;
+  /** @deprecated cohortes. */
   setGenerationStatus(id: string, status: GenerationStatus): Promise<void>;
+  /** Instructor del programa (texto libre; vacío = sin asignar). Las sesiones ya agendadas no cambian. */
+  setProgramInstructor(generationId: string, instructor: string | null): Promise<void>;
+  setSessionInstructor(sessionId: string, instructor: string | null): Promise<void>;
+  /** Marca una sesión agendada como dictada. El bloque sigue ocupando la sala. */
+  markSessionDictada(sessionId: string): Promise<void>;
+  /**
+   * Programas con al menos un alumno vivo (reservada/pagada), más recientes primero.
+   * Incluye cohortes antiguas con alumnos vivos: el admin las muestra igual.
+   */
+  listLivePrograms(): Promise<CourseProgramView[]>;
+}
+
+/** Un programa como lo ve el admin: quién, cuándo, cuánta práctica le queda. */
+export interface CourseProgramView {
+  generationId: string;
+  kind: GenerationKind;
+  code: string;
+  name: string;
+  status: GenerationStatus;
+  instructor: string | null;
+  plan: CoursePlan;
+  orderId: string | null;
+  orderStatus: string | null;
+  students: {
+    enrollmentId: string;
+    name: string;
+    email: string;
+    status: EnrollmentStatus;
+    practiceHoursTotal: number;
+    practiceHoursRedeemed: number;
+  }[];
+  sessions: CourseSessionRow[];
+  /** La primera sesión agendada que aún no termina; null si no hay. */
+  nextSession: CourseSessionRow | null;
+  /** Último día para usar la práctica (YYYY-MM-DD); null = sin sesiones, no vence. */
+  practiceValidUntil: string | null;
+  createdAt: string;
 }
 
 export interface CourseLeadRow extends CourseLeadInput {
@@ -92,8 +145,8 @@ export interface CourseLeadsListResult {
 }
 
 export interface CourseLeadRepository {
-  /** Alta pública. `generationId` estampa la generación vigente al enviar. */
-  createLead(input: CourseLeadInput, generationId: string | null): Promise<string>;
+  /** Alta pública. Ya no se estampa generación: en el curso 1:1 el programa nace al inscribir. */
+  createLead(input: CourseLeadInput): Promise<string>;
   listLeads(q: SolicitudesListQuery): Promise<CourseLeadsListResult>;
   getLead(id: string): Promise<CourseLeadRow | null>;
   updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void>;
@@ -136,8 +189,26 @@ export interface NewEnrollment {
   termsSource?: "customer" | "staff";
 }
 
+/**
+ * Un programa 1:1 nuevo. Los precios vienen de `lib/curso-content.ts` (PRECIOS) y
+ * quedan congelados en la fila del programa.
+ */
+export interface NewProgram {
+  plan: CoursePlan;
+  students: { name: string; email: string; phone?: string | null }[];
+  prices: CoursePrices;
+  instructor?: string | null;
+  leadId?: string | null;
+  notes?: string | null;
+  creditId?: string | null;
+  termsVersion?: string;
+  termsSource?: "customer" | "staff";
+}
+
 export interface CourseEnrollmentRepository {
-  /** Toma los cupos y crea el pedido en una sola transacción. Devuelve el orderId. */
+  /** Programa + pedido + cupos en una sola transacción. */
+  createProgram(input: NewProgram): Promise<{ orderId: string; generationId: string; enrollmentIds: string[] }>;
+  /** @deprecated cohortes — inscribe en una generación existente. */
   createEnrollment(input: NewEnrollment): Promise<string>;
   listEnrollments(generationId: string): Promise<CourseEnrollmentRow[]>;
   enrollmentById(id: string): Promise<CourseEnrollmentRow | null>;
@@ -151,7 +222,7 @@ export interface CourseEnrollmentRepository {
    * queda donde está; esto solo devuelve el asiento al inventario.
    */
   cancelPaidEnrollment(orderId: string): Promise<void>;
-  /** Traspasa el cupo a otra generación. Devuelve el id de la inscripción nueva. */
+  /** @deprecated cohortes — traspasa el cupo a otra generación. Devuelve el id de la inscripción nueva. */
   transferEnrollment(enrollmentId: string, targetGenerationId: string): Promise<string>;
   /** Cambia quién asiste, no quién pagó: la boleta no se toca. */
   substituteStudent(
@@ -208,5 +279,10 @@ export interface StudentCourseView {
   orderAmountClp: number | null;
   paidAt: string | null;
   seatNo: number;
-  sessions: { n: number; title: string; startsAt: string | null; status: string }[];
+  instructor: string | null;
+  practiceHoursTotal: number;
+  practiceHoursRedeemed: number;
+  /** YYYY-MM-DD; null = sin sesiones agendadas, no vence. */
+  practiceValidUntil: string | null;
+  sessions: { n: number; title: string; startsAt: string | null; endsAt: string | null; status: string }[];
 }

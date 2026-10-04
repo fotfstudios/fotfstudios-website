@@ -18,15 +18,18 @@ import type {
   CourseLeadRepository,
   CourseLeadRow,
   CourseLeadsListResult,
+  CourseProgramView,
   CourseSessionRow,
   StudentCourseView,
   NewEnrollment,
   NewGeneration,
+  NewProgram,
 } from "@/src/application/ports/course";
 import {
   type CourseLeadStatus,
   type CoursePlan,
   type EnrollmentStatus,
+  type GenerationKind,
   type GenerationStatus,
   courseOrderAmounts,
   seatsLeft,
@@ -201,7 +204,7 @@ export class SupabaseCourseRepository
   async listSessions(generationId: string): Promise<CourseSessionRow[]> {
     const { data, error } = await this.db
       .from("course_sessions")
-      .select("id, n, title, status, reservation_id, reservations(starts_at, ends_at)")
+      .select("id, n, title, status, instructor, reservation_id, reservations(starts_at, ends_at)")
       .eq("generation_id", generationId)
       .order("n", { ascending: true });
     if (error) throw new Error(error.message);
@@ -213,6 +216,7 @@ export class SupabaseCourseRepository
       reservationId: r.reservation_id,
       startsAt: r.reservations?.starts_at ?? null,
       endsAt: r.reservations?.ends_at ?? null,
+      instructor: r.instructor,
     }));
   }
 
@@ -275,6 +279,85 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
+  async setProgramInstructor(generationId: string, instructor: string | null): Promise<void> {
+    const { error } = await this.db
+      .from("course_generations")
+      .update({ instructor: instructor?.trim() || null })
+      .eq("id", generationId);
+    if (error) throw new Error(error.message);
+  }
+
+  async setSessionInstructor(sessionId: string, instructor: string | null): Promise<void> {
+    const { error } = await this.db
+      .from("course_sessions")
+      .update({ instructor: instructor?.trim() || null })
+      .eq("id", sessionId);
+    if (error) throw new Error(error.message);
+  }
+
+  async markSessionDictada(sessionId: string): Promise<void> {
+    // Solo desde 'agendada': una cancelada no se dictó, y repetir no es un no-op silencioso.
+    const { data, error } = await this.db
+      .from("course_sessions")
+      .update({ status: "dictada" })
+      .eq("id", sessionId)
+      .eq("status", "agendada")
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("curso_session_unscheduled");
+  }
+
+  async listLivePrograms(): Promise<CourseProgramView[]> {
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select(
+        "id, generation_id, plan, student_name, student_email, status, practice_hours_total, practice_hours_redeemed, order_id, created_at, orders(status), course_generations(kind, code, name, status, instructor, created_at)",
+      )
+      .in("status", ["reservada", "pagada"])
+      .order("seat_no", { ascending: true });
+    if (error) throw new Error(error.message);
+
+    const byGen = new Map<string, NonNullable<typeof data>>();
+    for (const e of data ?? []) byGen.set(e.generation_id, [...(byGen.get(e.generation_id) ?? []), e]);
+
+    const now = new Date().toISOString();
+    const programs = await Promise.all(
+      [...byGen.entries()].map(async ([generationId, rows]) => {
+        const g = rows[0].course_generations;
+        const [sessions, valid] = await Promise.all([
+          this.listSessions(generationId),
+          this.db.rpc("course_practice_valid_until", { p_generation: generationId }),
+        ]);
+        if (valid.error) throw new Error(valid.error.message);
+        return {
+          generationId,
+          kind: (g?.kind ?? "cohorte") as GenerationKind,
+          code: g?.code ?? "",
+          name: g?.name ?? "",
+          status: (g?.status ?? "abierta") as GenerationStatus,
+          instructor: g?.instructor ?? null,
+          plan: rows[0].plan as CoursePlan,
+          orderId: rows[0].order_id,
+          orderStatus: rows[0].orders?.status ?? null,
+          students: rows.map((e) => ({
+            enrollmentId: e.id,
+            name: e.student_name,
+            email: e.student_email,
+            status: e.status as EnrollmentStatus,
+            practiceHoursTotal: e.practice_hours_total,
+            practiceHoursRedeemed: e.practice_hours_redeemed,
+          })),
+          sessions,
+          nextSession:
+            sessions.find((s) => s.status === "agendada" && s.endsAt !== null && s.endsAt > now) ?? null,
+          practiceValidUntil: valid.data ?? null,
+          createdAt: g?.created_at ?? rows[0].created_at,
+        };
+      }),
+    );
+    return programs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   /**
    * Resuelve los cupos de un lote de generaciones en UNA consulta. El conteo se
    * hace con `seatsTaken` del dominio, no con un `.eq("status", …)` acá: así la
@@ -300,9 +383,12 @@ export class SupabaseCourseRepository
       const taken = seatsTaken(byGen.get(r.id) ?? []);
       return {
         id: r.id,
+        kind: r.kind as GenerationKind,
         code: r.code,
         name: r.name,
         status: r.status as GenerationStatus,
+        instructor: r.instructor,
+        practiceHoursPerSeat: r.practice_hours_per_seat,
         seats: r.seats,
         seatsTaken: taken,
         seatsLeft: seatsLeft(r.seats, taken),
@@ -327,11 +413,10 @@ export class SupabaseCourseRepository
 
   // ── Solicitudes (bandeja pública) ────────────────────────────────────────
 
-  async createLead(input: CourseLeadInput, generationId: string | null): Promise<string> {
+  async createLead(input: CourseLeadInput): Promise<string> {
     const { data, error } = await this.db
       .from("course_leads")
       .insert({
-        generation_id: generationId,
         name: input.name,
         email: input.email,
         phone: input.phone,
@@ -409,26 +494,59 @@ export class SupabaseCourseRepository
 
   // ── Inscripciones ────────────────────────────────────────────────────────
 
+  /**
+   * Montos del pedido. El crédito baja el EFECTIVO: el pedido cobra menos, y la
+   * boleta cubre exactamente lo cobrado (el precio de lista queda en la línea del
+   * curso). El curso es EXENTO de IVA: neto = total, IVA = 0 — no se usa la tasa
+   * del price book de la sala, que cotiza horas de cabina (afectas).
+   */
+  private async orderAmounts(unit: number, seats: number, creditId?: string | null) {
+    const bruto = unit * seats;
+    let cobrado = bruto;
+    if (creditId) {
+      const credit = await this.creditById(creditId);
+      if (!credit) throw new Error("curso_credito_no_disponible");
+      cobrado = bruto - creditDiscount(credit, bruto);
+    }
+    return courseOrderAmounts(cobrado);
+  }
+
+  async createProgram(input: NewProgram): Promise<{ orderId: string; generationId: string; enrollmentIds: string[] }> {
+    // El precio sale de PRECIOS (lib/curso-content), nunca del formulario: el admin
+    // elige a quién inscribir, no cuánto cobrarle.
+    const unit = input.plan === "duo" ? input.prices.duo : input.prices.individual;
+    const { amount, net, tax } = await this.orderAmounts(unit, input.students.length, input.creditId);
+
+    const { data, error } = await this.db.rpc("create_course_program", {
+      p_resource: await this.defaultResourceId(),
+      p_plan: input.plan,
+      p_students: input.students.map((s) => ({ name: s.name, email: s.email, phone: s.phone ?? null })),
+      p_amount: amount,
+      p_net: net,
+      p_tax: tax,
+      p_price_duo: input.prices.duo,
+      p_price_individual: input.prices.individual,
+      p_price_prueba: input.prices.prueba,
+      p_instructor: input.instructor ?? undefined,
+      p_lead: input.leadId ?? undefined,
+      p_terms_version: input.termsVersion ?? undefined,
+      p_terms_source: input.termsSource ?? undefined,
+      p_notes: input.notes ?? undefined,
+      p_credit: input.creditId ?? undefined,
+    });
+    if (error) throw new Error(error.message);
+    const orderId = data as unknown as string;
+    const rows = await this.enrollmentsByOrder(orderId);
+    return { orderId, generationId: rows[0].generationId, enrollmentIds: rows.map((r) => r.id) };
+  }
+
   async createEnrollment(input: NewEnrollment): Promise<string> {
     const gen = await this.getGeneration(input.generationId);
     if (!gen) throw new Error("curso_generation_missing");
 
-    // El precio sale de la GENERACIÓN, nunca del formulario: el admin elige a
-    // quién inscribir, no cuánto cobrarle.
+    // El precio sale de la GENERACIÓN, nunca del formulario.
     const unit = input.plan === "duo" ? gen.prices.duo : gen.prices.individual;
-    const bruto = unit * input.students.length;
-
-    // El crédito baja el EFECTIVO: el pedido cobra menos, y la boleta cubre
-    // exactamente lo cobrado. El precio de lista queda en la línea del curso.
-    let cobrado = bruto;
-    if (input.creditId) {
-      const credit = await this.creditById(input.creditId);
-      if (!credit) throw new Error("curso_credito_no_disponible");
-      cobrado = bruto - creditDiscount(credit, bruto);
-    }
-    // El curso es EXENTO de IVA: neto = total, IVA = 0. No se usa la tasa del
-    // price book de la sala, que cotiza horas de cabina (afectas).
-    const { amount, net, tax } = courseOrderAmounts(cobrado);
+    const { amount, net, tax } = await this.orderAmounts(unit, input.students.length, input.creditId);
 
     const { data, error } = await this.db.rpc("create_course_enrollment", {
       p_generation: input.generationId,
@@ -681,7 +799,7 @@ export class SupabaseCourseRepository
       // Literal, no concatenado: el inferidor de tipos de PostgREST necesita el
       // string literal para resolver las relaciones embebidas.
       .select(
-        "id, generation_id, seat_no, plan, status, price_clp, paid_at, student_email, orders(amount_clp), course_generations(code, name)",
+        "id, generation_id, seat_no, plan, status, price_clp, paid_at, student_email, practice_hours_total, practice_hours_redeemed, orders(amount_clp), course_generations(code, name, instructor)",
       )
       .ilike("student_email", email)
       .in("status", ["reservada", "pagada"])
@@ -692,7 +810,11 @@ export class SupabaseCourseRepository
     const rows = (data ?? []).filter((r) => r.student_email?.toLowerCase() === lower);
     return Promise.all(
       rows.map(async (r) => {
-        const sessions = await this.listSessions(r.generation_id);
+        const [sessions, valid] = await Promise.all([
+          this.listSessions(r.generation_id),
+          this.db.rpc("course_practice_valid_until", { p_generation: r.generation_id }),
+        ]);
+        if (valid.error) throw new Error(valid.error.message);
         return {
           enrollmentId: r.id,
           generationCode: r.course_generations?.code ?? "",
@@ -703,9 +825,13 @@ export class SupabaseCourseRepository
           orderAmountClp: r.orders?.amount_clp ?? null,
           paidAt: r.paid_at,
           seatNo: r.seat_no,
+          instructor: r.course_generations?.instructor ?? null,
+          practiceHoursTotal: r.practice_hours_total,
+          practiceHoursRedeemed: r.practice_hours_redeemed,
+          practiceValidUntil: valid.data ?? null,
           sessions: sessions
             .filter((s) => s.status === "agendada")
-            .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, status: s.status })),
+            .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, endsAt: s.endsAt, status: s.status })),
         };
       }),
     );

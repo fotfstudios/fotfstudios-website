@@ -132,7 +132,6 @@ describe("createEnrollment — cupos y pedido en una sola transacción", () => {
         availability: "tardes",
         message: null,
       },
-      gen,
     );
     await repo.createEnrollment({ generationId: gen, plan: "individual", students: [alumno(1)], leadId });
     expect((await repo.getLead(leadId))?.status).toBe("inscrita");

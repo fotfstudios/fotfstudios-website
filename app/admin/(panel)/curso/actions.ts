@@ -19,6 +19,7 @@ import {
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { PRECIOS } from "@/lib/curso-content";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const num = (fd: FormData, k: string) => Number(fd.get(k));
@@ -249,8 +250,7 @@ async function notifyPaid(orderId: string, method: string): Promise<void> {
   const repo = courseRepository();
   const inscripciones = await repo.enrollmentsByOrder(orderId);
   if (inscripciones.length === 0) return;
-  const gen = await repo.getGeneration(inscripciones[0].generationId);
-  const sesiones = gen ? await repo.listSessions(gen.id) : [];
+  const sesiones = await repo.listSessions(inscripciones[0].generationId);
   await notificationService().notifyCoursePaid({
     students: inscripciones.map((i) => ({ name: i.studentName, email: i.studentEmail })),
     generation: inscripciones[0].generationCode,
@@ -260,7 +260,6 @@ async function notifyPaid(orderId: string, method: string): Promise<void> {
     sessions: sesiones
       .filter((s) => s.status === "agendada" && s.startsAt)
       .map((s) => ({ startsAt: s.startsAt!, endsAt: s.endsAt })),
-    seatsLeft: gen?.seatsLeft ?? 0,
   });
 }
 
@@ -368,10 +367,9 @@ export async function issueTrialCreditAction(_prev: ActionResult | null, fd: For
     if (!DATE_RE.test(date)) throw new Error("Fecha de la sesión inválida.");
 
     const repo = courseRepository();
-    const generacion = await repo.currentGeneration();
-    // El monto sale de la generación vigente, no del formulario.
-    const amount = generacion?.prices.prueba;
-    if (!amount) throw new Error("No hay generación vigente que fije el precio de la prueba.");
+    // El monto sale del precio publicado (lib/curso-content), no del formulario: con
+    // el curso 1:1 ya no hay una "generación vigente" que lo fije.
+    const amount = PRECIOS.prueba;
 
     const resource = await adminRepository().defaultResource();
     const { startsAt } = rangeFor(date, 12 * 60, 1, resource?.timezone ?? "America/Santiago");

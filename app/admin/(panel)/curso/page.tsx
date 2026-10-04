@@ -18,6 +18,7 @@ import { courseRepository } from "@/src/composition";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { cancelSessionAction, issueTrialCreditAction } from "./actions";
+import { PRECIOS } from "@/lib/curso-content";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Curso — Admin", robots: { index: false } };
@@ -128,7 +129,7 @@ export default async function CursoPage() {
             <Card title="Sesiones de prueba">
               <p className="mb-4 text-sm text-bone-dim">
                 Registra una prueba ya hecha y queda el crédito de{" "}
-                {formatCLP(generacion.prices.prueba)}, válido 7 días desde la sesión. Se aplica solo al
+                {formatCLP(PRECIOS.prueba)}, válido 7 días desde la sesión. Se aplica solo al
                 inscribir a esa misma persona.
               </p>
               <ActionForm
