@@ -6,6 +6,7 @@ import {
   parseInstructor,
   parseProgramSchedule,
   parseSessionMove,
+  parseSessionNumber,
 } from "./course-admin";
 
 describe("halfHourStarts", () => {
@@ -76,6 +77,7 @@ describe("courseScheduleError — RPC → frase para el dueño", () => {
     ["curso_already_scheduled", "Este programa ya tiene sus sesiones agendadas."],
     ["curso_fuera_de_ventana", "La última sesión queda fuera de las 10 semanas del curso."],
     ["curso_generation_not_schedulable", "Este programa ya no está activo."],
+    ["curso_session_already_scheduled:2", "La sesión 2 ya está agendada: usa Editar para moverla."],
     ["boom", "No se pudieron agendar las sesiones."],
   ])("%s", (raw, msg) => {
     expect(courseScheduleError(raw)).toBe(msg);
@@ -91,5 +93,15 @@ describe("courseMoveError", () => {
     ["boom", "No se pudo mover la sesión."],
   ])("%s", (raw, msg) => {
     expect(courseMoveError(raw)).toBe(msg);
+  });
+});
+
+describe("parseSessionNumber", () => {
+  it("acepta 1..6 (las sesiones del programa)", () => {
+    expect(parseSessionNumber("1")).toEqual({ ok: true, value: 1 });
+    expect(parseSessionNumber("6")).toEqual({ ok: true, value: 6 });
+  });
+  it.each(["0", "7", "2.5", "", "x"])("rechaza %j", (raw) => {
+    expect(parseSessionNumber(raw)).toEqual({ ok: false, error: "Sesión inválida." });
   });
 });

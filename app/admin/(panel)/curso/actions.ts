@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
+import { type DayConsoleData, loadDayConsole } from "@/components/admin/day-occupancy";
 import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-policy";
 import { COURSE_PROGRAM, planProgramSessions } from "@/src/domain/course/program";
 import { selfOverlap } from "@/src/domain/course/sessions";
@@ -26,6 +27,7 @@ import {
   parseInstructor,
   parseProgramSchedule,
   parseSessionMove,
+  parseSessionNumber,
 } from "@/lib/course-admin";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -87,6 +89,53 @@ export async function scheduleProgramAction(_prev: ActionResult | null, fd: Form
     } catch (e) {
       const raw = e instanceof Error ? e.message : "";
       throw new Error(/se pisa con otra/.test(raw) ? raw : courseScheduleError(raw));
+    }
+    revalidateProgram(enrollmentId);
+  });
+}
+
+/** Ocupación real de la sala en un día, para los selectores de hora del curso. */
+export async function courseDayAction(date: string): Promise<ActionDataResult<DayConsoleData>> {
+  return runData(async () => {
+    await requirePermission("course.manage");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida.");
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    return loadDayConsole(resource.id, resource.timezone, date);
+  });
+}
+
+/**
+ * Agenda UNA sesión del programa en la fecha que se acordó con el alumno. El
+ * título sale del currículo (SESIONES) y la duración del programa: el formulario
+ * solo trae el número, el día y la hora.
+ */
+export async function scheduleSessionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const enrollmentId = str(fd, "enrollmentId");
+    const n = parseSessionNumber(str(fd, "n"));
+    if (!n.ok) throw new Error(n.error);
+    const when = parseSessionMove({ date: str(fd, "date"), startMinute: str(fd, "startMinute") });
+    if (!when.ok) throw new Error(when.error);
+
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    const { startsAt, endsAt } = rangeFor(
+      when.value.date,
+      when.value.startMinute,
+      COURSE_PROGRAM.sessionMinutes / 60,
+      resource.timezone,
+    );
+    try {
+      await courseRepository().scheduleSession(await programOf(enrollmentId), {
+        n: n.value,
+        title: SESIONES[n.value - 1]?.title ?? `Sesión ${n.value}`,
+        startsAt,
+        endsAt,
+      });
+    } catch (e) {
+      throw new Error(courseScheduleError(e instanceof Error ? e.message : ""));
     }
     revalidateProgram(enrollmentId);
   });

@@ -1,15 +1,9 @@
 import { fmtDateTime } from "@/components/admin/format";
-import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
-import { Field, Input, Select } from "@/components/admin/ui/Field";
 import { MeterCell } from "@/components/admin/ui/MeterCell";
-import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { hhmm } from "@/components/booking/format";
-import { redeemPracticeAction, releasePracticeAction } from "../../../actions";
-
-/** Inicios cada media hora, 09:00–22:30. La práctica dura horas enteras (lo exige el RPC); solo el inicio admite :30. */
-const STARTS = Array.from({ length: 28 }, (_, i) => 540 + i * 30);
+import { releasePracticeAction } from "../../../actions";
+import { AgendarPracticaDialog } from "./AgendarPracticaDialog";
 
 /**
  * Las horas de práctica libre, como saldo. No se pre-bloquean: se materializan
@@ -20,11 +14,13 @@ export function Practica({
   total,
   redeemed,
   redemptions,
+  tz,
 }: {
   enrollmentId: string;
   total: number;
   redeemed: number;
   redemptions: { id: string; reservationId: string; hours: number; startsAt: string | null; releasedAt: string | null }[];
+  tz: string;
 }) {
   const libres = Math.max(0, total - redeemed);
   const vivas = redemptions.filter((r) => !r.releasedAt);
@@ -61,34 +57,9 @@ export function Practica({
       )}
 
       {libres > 0 ? (
-        <ActionForm
-          action={redeemPracticeAction}
-          success="Práctica agendada."
-          resetOnSuccess
-          className="mt-5 grid gap-4 border-t hairline pt-5 sm:grid-cols-[1fr_7rem_6rem_auto] sm:items-end"
-        >
-          <input type="hidden" name="enrollmentId" value={enrollmentId} />
-          <Field label="Día">
-            <Input type="date" name="date" required />
-          </Field>
-          <Field label="Hora">
-            <Select name="startMinute" defaultValue={900}>
-              {STARTS.map((m) => (
-                <option key={m} value={m}>
-                  {hhmm(m)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Horas">
-            <Input type="number" name="hours" min={1} max={libres} defaultValue={1} required />
-          </Field>
-          <div className="pb-1">
-            <SubmitButton size="sm" variant="secondary" pendingLabel="Agendando…">
-              Agendar
-            </SubmitButton>
-          </div>
-        </ActionForm>
+        <div className="mt-5 border-t hairline pt-5">
+          <AgendarPracticaDialog enrollmentId={enrollmentId} libres={libres} tz={tz} />
+        </div>
       ) : (
         <p className="mt-5 border-t hairline pt-4 label-sm text-bone-quiet">
           {total === 0 ? "Esta inscripción no incluye horas de práctica." : "Ya usó todas sus horas."}

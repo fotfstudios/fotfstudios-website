@@ -51,6 +51,12 @@ export function parseSessionMove(raw: { date: string; startMinute: string }): Re
   return ok({ date, startMinute });
 }
 
+/** Número de sesión del programa (1..6), tal como llega del formulario. */
+export function parseSessionNumber(raw: string): Result<number> {
+  const n = Number(raw);
+  return raw !== "" && Number.isInteger(n) && n >= 1 && n <= COURSE_PROGRAM.sessions ? ok(n) : err("Sesión inválida.");
+}
+
 /** Texto libre; vacío = sin instructor asignado. */
 export function parseInstructor(raw: string): Result<string | null> {
   const v = raw.trim();
@@ -65,6 +71,8 @@ export function courseScheduleError(raw: string): string {
   if (slot) return `La sesión ${slot[1]} choca con otra reserva o bloqueo. No se agendó ninguna.`;
   const past = /curso_in_past:(\d+)/.exec(raw);
   if (past) return `La sesión ${past[1]} queda en el pasado.`;
+  const already = /curso_session_already_scheduled:(\d+)/.exec(raw);
+  if (already) return `La sesión ${already[1]} ya está agendada: usa Editar para moverla.`;
   if (/curso_already_scheduled/.test(raw)) return "Este programa ya tiene sus sesiones agendadas.";
   if (/curso_fuera_de_ventana/.test(raw)) {
     return `La última sesión queda fuera de las ${COURSE_PROGRAM.windowWeeks} semanas del curso.`;
