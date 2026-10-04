@@ -182,6 +182,24 @@ export class SupabaseCourseRepository
     return data ?? 0;
   }
 
+  async scheduleSession(
+    generationId: string,
+    s: { n: number; title: string; startsAt: string; endsAt: string; instructor?: string | null },
+    createdBy?: string,
+  ): Promise<string> {
+    const { data, error } = await this.db.rpc("schedule_course_session", {
+      p_generation: generationId,
+      p_n: s.n,
+      p_title: s.title,
+      p_starts: s.startsAt,
+      p_ends: s.endsAt,
+      p_instructor: s.instructor ?? undefined,
+      p_created_by: createdBy ?? undefined,
+    });
+    if (error) throw new Error(error.message);
+    return data as unknown as string;
+  }
+
   async moveSession(sessionId: string, startsAt: string, endsAt: string, createdBy?: string): Promise<void> {
     const { error } = await this.db.rpc("move_course_session", {
       p_session: sessionId,
