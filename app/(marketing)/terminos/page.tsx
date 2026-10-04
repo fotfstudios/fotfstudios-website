@@ -7,7 +7,7 @@ import WhatsAppCta from "@/components/WhatsAppCta";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "14 de septiembre de 2026";
+const UPDATED = "4 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -225,25 +225,39 @@ export default function TerminosPage() {
 
         <ProseSection title="Curso de Iniciación DJ">
           <p>
-            El curso se paga <strong className="text-bone">100% por adelantado</strong> al
-            inscribirte.
+            El curso es 1:1 (o en dúo) y se paga <strong className="text-bone">100% por adelantado</strong>{" "}
+            al inscribirte. Fijamos contigo las fechas de tus 6 sesiones.
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              Si cancelas hasta 7 días antes del inicio de la primera sesión, te devolvemos el
-              100% de lo pagado.
+              Si cancelas hasta 7 días antes del inicio de tu primera sesión, te devolvemos el 100% de lo
+              pagado.
             </li>
             <li>
-              Con menos de 7 días de anticipación, no hay reembolso en dinero: puedes traspasar tu
-              cupo a la siguiente generación del curso, o a un reemplazante que tú nos indiques.
+              Con menos de 7 días de anticipación no hay reembolso en dinero: reagendamos tus sesiones, o
+              puedes indicarnos un reemplazante que tome tu lugar antes de la primera sesión.
             </li>
             <li>
-              Una vez iniciado el curso, tampoco hay reembolso en dinero. Las sesiones que te
-              falten se pueden reagendar dentro de la misma generación.
+              Una vez iniciado el curso tampoco hay reembolso en dinero. Las sesiones que te falten se
+              reagendan dentro de la ventana del curso.
             </li>
             <li>
-              El valor de la sesión de prueba ($19.990) se descuenta del precio del curso si te
-              inscribes dentro de los 7 días siguientes a la sesión de prueba.
+              Las 6 sesiones se realizan dentro de las 10 semanas siguientes a la primera. Las 6 horas de
+              práctica libre se agendan con nosotros y vencen 90 días después de tu última sesión.
+            </li>
+            <li>
+              Si no puedes venir a una sesión, avísanos con 24 horas o más y se reagenda sin costo. Con
+              menos de 24 horas o sin aviso tienes una sesión de gracia por curso, que también se reagenda;
+              después de esa, la sesión se considera dictada.
+            </li>
+            <li>Si la sesión la cancelamos nosotros, se reagenda sin costo para ti.</li>
+            <li>
+              En dúo, las dos personas van en un solo pedido y las horas de práctica se agendan en pareja
+              por defecto.
+            </li>
+            <li>
+              El valor de la sesión de prueba ($19.990) se descuenta del precio del curso si te inscribes
+              dentro de los 7 días siguientes a la sesión de prueba.
             </li>
           </ul>
         </ProseSection>
