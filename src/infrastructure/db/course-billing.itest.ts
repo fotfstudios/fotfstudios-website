@@ -31,9 +31,8 @@ async function raw(sql: string, params: unknown[] = []) {
 
 let genSeq = 0;
 /**
- * `status` es parámetro porque el índice course_generations_one_open solo admite
- * UNA generación abierta: un test de traslado necesita dos, y el destino sirve
- * igual en borrador (es justo donde se mueve a alguien cuya cohorte se canceló).
+ * `status` es parámetro: el destino de un traslado sirve igual en borrador (es
+ * justo donde se mueve a alguien cuya cohorte se canceló).
  */
 async function generation(seats = 6, status = "abierta"): Promise<string> {
   const { rows } = await raw(
@@ -54,8 +53,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  // Dejar la DB como la encontramos: una generación "abierta" que sobreviva
-  // choca con course_generations_one_open en el siguiente archivo que inserte una.
+  // Dejar la DB como la encontramos para el siguiente archivo.
   await raw("truncate course_credits, course_enrollments, course_sessions, course_leads, course_generations cascade");
   await raw("truncate reservations, orders, order_lines, tax_documents, customers cascade");
   if (connected) await pg.end();
@@ -608,10 +606,10 @@ describe("horas de práctica libre", () => {
     return rows[0].id as string;
   }
 
-  it("una inscripción pagada nace con 4 horas", async () => {
+  it("una inscripción pagada nace con 6 horas", async () => {
     const id = await pagada();
     const e = await repo.enrollmentById(id);
-    expect(e?.practiceHoursTotal).toBe(4);
+    expect(e?.practiceHoursTotal).toBe(6);
     expect(e?.practiceHoursRedeemed).toBe(0);
   });
 
@@ -631,7 +629,7 @@ describe("horas de práctica libre", () => {
   it("no se puede redimir más saldo del que hay", async () => {
     const id = await pagada();
     await repo.redeemPracticeHours(id, {
-      startsAt: `${day}T10:00:00-04:00`, endsAt: `${day}T14:00:00-04:00`, hours: 4,
+      startsAt: `${day}T10:00:00-04:00`, endsAt: `${day}T16:00:00-04:00`, hours: 6,
     });
     await expect(
       repo.redeemPracticeHours(id, {

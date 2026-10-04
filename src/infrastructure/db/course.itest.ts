@@ -29,8 +29,8 @@ async function resourceId(): Promise<string> {
 
 /**
  * Generación de prueba. El `code` es único por sí mismo, así que va parametrizado:
- * si dos generaciones compartieran código, el test de "una sola abierta" chocaría
- * contra la constraint equivocada y pasaría por la razón errónea.
+ * si dos generaciones compartieran código, el test de "varias abiertas" chocaría
+ * contra la constraint de código y fallaría por la razón errónea.
  */
 let genSeq = 0;
 async function generation(seats = 6, status = "abierta", code?: string): Promise<string> {
@@ -117,9 +117,10 @@ describe("cupos: la sobreventa es imposible por esquema, no por conteo en la app
     await expect(enroll(gen, 1, { email: "x1@correo.cl" })).rejects.toThrow(/seat_unique/);
   });
 
-  it("solo puede haber una generación abierta a la vez", async () => {
+  // Desde el curso 1:1 cada pedido es su propio programa (una fila): conviven muchos abiertos.
+  it("varias generaciones abiertas conviven", async () => {
     await generation();
-    await expect(generation()).rejects.toThrow(/course_generations_one_open/);
+    await expect(generation()).resolves.toBeTruthy();
   });
 
   it("una generación cerrada convive con la abierta", async () => {
