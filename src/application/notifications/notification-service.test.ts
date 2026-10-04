@@ -509,7 +509,8 @@ describe("notifyCourseRefunded — inscripción pagada cancelada", () => {
     expect(tos).toEqual(["ana@e.cl", "beto@e.cl"]);
     const msg = mailer.send.mock.calls[0][0];
     expect(msg.html).toContain("$149.990");
-    expect(msg.html).toContain("G3");
+    // El código del programa es interno: el alumno no lo ve.
+    expect(msg.html).not.toContain("G3");
   });
 
   it("sin reembolso: nunca dice que no hubo cobro", async () => {
@@ -547,7 +548,6 @@ describe("un solo formato de horario en todos los correos (H7)", () => {
       totalClp: 149990,
       method: "efectivo",
       sessions: [{ startsAt: "2026-10-05T22:00:00Z", endsAt: "2026-10-06T00:00:00Z" }],
-      seatsLeft: 3,
     });
     const html = mailer.send.mock.calls[0][0].html;
     expect(html).toContain("lunes 5 de octubre, 19:00–21:00 h");

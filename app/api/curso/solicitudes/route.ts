@@ -65,13 +65,11 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const repo = courseRepository(client);
-    // La generación vigente se estampa al enviar: si mañana se abre otra, esta
-    // solicitud sigue perteneciendo a la que estaba abierta cuando la persona escribió.
-    const generacion = await repo.currentGeneration().catch(() => null);
-    await repo.createLead(parsed.value, generacion?.id ?? null);
+    // Curso 1:1: la solicitud no pertenece a ninguna generación; el programa nace al inscribir.
+    await repo.createLead(parsed.value);
 
     await notificationService(client)
-      .notifyCourseLead(parsed.value, generacion ? { code: generacion.code, seatsLeft: generacion.seatsLeft } : null)
+      .notifyCourseLead(parsed.value)
       .catch((e) => console.error("[curso-leads:email]", e));
 
     return Response.json({ ok: true });

@@ -46,7 +46,7 @@ afterAll(async () => {
 
 describe("createLead", () => {
   it("inserta con status 'nueva' por defecto y devuelve el id", async () => {
-    const id = await repo.createLead(input(), null);
+    const id = await repo.createLead(input());
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     const { rows } = await raw(
       "select status, name, plan, experience, message, generation_id from course_leads where id = $1",
@@ -64,13 +64,13 @@ describe("createLead", () => {
 
   // Una solicitud NO es una inscripción: no puede tocar el cupo.
   it("una solicitud no crea ninguna inscripción", async () => {
-    await repo.createLead(input(), null);
+    await repo.createLead(input());
     const { rows } = await raw("select count(*)::int as n from course_enrollments");
     expect(rows[0].n).toBe(0);
   });
 
   it("el mensaje opcional acepta null", async () => {
-    const id = await repo.createLead(input({ message: null }), null);
+    const id = await repo.createLead(input({ message: null }));
     const { rows } = await raw("select message from course_leads where id = $1", [id]);
     expect(rows[0].message).toBeNull();
   });
@@ -78,8 +78,8 @@ describe("createLead", () => {
 
 describe("listLeads — bandeja del admin", () => {
   it("filtra por tab, cuenta por estado y ordena por fecha desc", async () => {
-    const a = await repo.createLead(input({ name: "A", email: "a@correo.cl" }), null);
-    const b = await repo.createLead(input({ name: "B", email: "b@correo.cl" }), null);
+    const a = await repo.createLead(input({ name: "A", email: "a@correo.cl" }));
+    const b = await repo.createLead(input({ name: "B", email: "b@correo.cl" }));
     await repo.updateLeadStatus(b, "contactada");
 
     const nuevas = await repo.listLeads(q());
@@ -98,7 +98,7 @@ describe("listLeads — bandeja del admin", () => {
     const vacia = await repo.listLeads(q());
     expect(vacia.grandTotal).toBe(0);
 
-    const id = await repo.createLead(input(), null);
+    const id = await repo.createLead(input());
     await repo.updateLeadStatus(id, "descartada");
     const sinNuevas = await repo.listLeads(q());
     expect(sinNuevas.rows).toHaveLength(0);
@@ -106,22 +106,22 @@ describe("listLeads — bandeja del admin", () => {
   });
 
   it("el triage es reversible", async () => {
-    const id = await repo.createLead(input(), null);
+    const id = await repo.createLead(input());
     await repo.updateLeadStatus(id, "descartada");
     await repo.updateLeadStatus(id, "nueva");
     expect((await repo.getLead(id))?.status).toBe("nueva");
   });
 
   it("nuevasCount alimenta el badge de la barra lateral", async () => {
-    await repo.createLead(input({ email: "1@correo.cl" }), null);
-    await repo.createLead(input({ email: "2@correo.cl" }), null);
-    const tercero = await repo.createLead(input({ email: "3@correo.cl" }), null);
+    await repo.createLead(input({ email: "1@correo.cl" }));
+    await repo.createLead(input({ email: "2@correo.cl" }));
+    const tercero = await repo.createLead(input({ email: "3@correo.cl" }));
     await repo.updateLeadStatus(tercero, "contactada");
     expect(await repo.nuevasCount()).toBe(2);
   });
 
   it("pagina sin perder el tab", async () => {
-    for (let i = 0; i < 3; i++) await repo.createLead(input({ email: `p${i}@correo.cl` }), null);
+    for (let i = 0; i < 3; i++) await repo.createLead(input({ email: `p${i}@correo.cl` }));
     const page2 = await repo.listLeads({ estado: "nuevas", page: 2, perPage: 2 });
     expect(page2.rows).toHaveLength(1);
     expect(page2.total).toBe(3);

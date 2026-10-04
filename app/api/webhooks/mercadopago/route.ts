@@ -194,8 +194,7 @@ async function notifyCoursePaidFromWebhook(
   const repo = new SupabaseCourseRepository(client);
   const inscripciones = await repo.enrollmentsByOrder(orderId);
   if (inscripciones.length === 0) return;
-  const gen = await repo.getGeneration(inscripciones[0].generationId);
-  const sesiones = gen ? await repo.listSessions(gen.id) : [];
+  const sesiones = await repo.listSessions(inscripciones[0].generationId);
   await notificationService(client).notifyCoursePaid({
     students: inscripciones.map((i) => ({ name: i.studentName, email: i.studentEmail })),
     generation: inscripciones[0].generationCode,
@@ -204,6 +203,5 @@ async function notifyCoursePaidFromWebhook(
     sessions: sesiones
       .filter((s) => s.status === "agendada" && s.startsAt)
       .map((s) => ({ startsAt: s.startsAt!, endsAt: s.endsAt })),
-    seatsLeft: gen?.seatsLeft ?? 0,
   });
 }

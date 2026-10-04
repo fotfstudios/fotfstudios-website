@@ -14,8 +14,13 @@ import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { planSessions } from "@/src/domain/course/sessions";
 import { futureDate } from "@/tests/dates";
+import { SupabaseCourseRepository } from "./course-repository";
+import { createServiceClient } from "./supabase-client";
 
 const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
+const repo = new SupabaseCourseRepository(
+  createServiceClient(process.env.SUPABASE_URL ?? "http://127.0.0.1:54421", process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""),
+);
 const pg = new Client({ connectionString: DB_URL });
 let connected = false;
 
@@ -347,5 +352,118 @@ describe("vencimiento de la práctica", () => {
     const day = futureDate(3);
     await raw("update course_generations set practice_valid_until = ($2::date - 1) where id = $1", [generationId, day]);
     await expect(redeem(enrollmentId, day)).rejects.toThrow(/practica_vencida/);
+  });
+});
+
+const PRECIOS = { duo: 149990, individual: 249990, prueba: 19990 };
+
+describe("adapter: createProgram", () => {
+  it("crea el programa con los precios que recibe y devuelve sus ids", async () => {
+    const r = await repo.createProgram({
+      plan: "individual", students: [alumno(1)], prices: PRECIOS, instructor: "Benja",
+    });
+    expect(r.enrollmentIds).toHaveLength(1);
+    const g = await repo.getGeneration(r.generationId);
+    expect(g).toMatchObject({ kind: "programa", seats: 1, instructor: "Benja", practiceHoursPerSeat: 6 });
+    expect(g?.prices).toEqual(PRECIOS);
+    const o = (await raw("select amount_clp, net_clp, tax_clp from orders where id = $1", [r.orderId])).rows[0];
+    expect(o).toEqual({ amount_clp: 249990, net_clp: 249990, tax_clp: 0 }); // exento de IVA
+  });
+
+  it("dúo: cobra el precio por persona × 2", async () => {
+    const r = await repo.createProgram({ plan: "duo", students: [alumno(1), alumno(2)], prices: PRECIOS });
+    expect(r.enrollmentIds).toHaveLength(2);
+    const o = (await raw("select amount_clp from orders where id = $1", [r.orderId])).rows[0];
+    expect(o.amount_clp).toBe(299980);
+  });
+
+  it("descuenta el crédito de la sesión de prueba", async () => {
+    const creditId = await repo.issueTrialCredit({
+      email: alumno(1).email, amountClp: 19990, sessionStartsAt: new Date().toISOString(),
+    });
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS, creditId });
+    const o = (await raw("select amount_clp from orders where id = $1", [r.orderId])).rows[0];
+    expect(o.amount_clp).toBe(230000);
+  });
+});
+
+describe("adapter: listLivePrograms", () => {
+  it("un programa vivo trae alumnos, sesiones, próxima sesión, instructor y vencimiento de práctica", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS, instructor: "Benja" });
+    await schedule(r.generationId);
+
+    const [p] = await repo.listLivePrograms();
+    expect(p).toMatchObject({ generationId: r.generationId, kind: "programa", plan: "individual", instructor: "Benja" });
+    expect(p.code).toMatch(/^P\d{4}$/);
+    expect(p.orderId).toBe(r.orderId);
+    expect(p.orderStatus).toBe("pending_payment");
+    expect(p.students).toEqual([
+      expect.objectContaining({ enrollmentId: r.enrollmentIds[0], name: "Alumno 1", status: "reservada", practiceHoursTotal: 6, practiceHoursRedeemed: 0 }),
+    ]);
+    expect(p.sessions).toHaveLength(6);
+    expect(p.sessions[0].instructor).toBe("Benja");
+    expect(p.nextSession?.n).toBe(1);
+    expect(p.practiceValidUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("sin sesiones: próxima sesión y vencimiento vacíos", async () => {
+    await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    const [p] = await repo.listLivePrograms();
+    expect(p.sessions).toEqual([]);
+    expect(p.nextSession).toBeNull();
+    expect(p.practiceValidUntil).toBeNull();
+  });
+
+  it("no lista programas anulados; sí la cohorte antigua con un alumno vivo", async () => {
+    const dead = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await repo.cancelCourseOrder(dead.orderId);
+
+    const { rows } = await raw(
+      `insert into course_generations (resource_id, code, name, status, seats, price_duo_clp, price_individual_clp, price_prueba_clp)
+       values ($1, 'G01', 'Primera generación', 'abierta', 6, 79990, 139990, 19990) returning id`,
+      [await resourceId()],
+    );
+    await repo.createEnrollment({ generationId: rows[0].id, plan: "individual", students: [alumno(2)] });
+
+    const list = await repo.listLivePrograms();
+    expect(list.map((p) => p.code)).toEqual(["G01"]);
+    expect(list[0].kind).toBe("cohorte");
+  });
+});
+
+describe("adapter: instructor y sesión dictada", () => {
+  it("setProgramInstructor / setSessionInstructor; vacío borra", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await repo.setProgramInstructor(r.generationId, "Cami");
+    expect((await repo.getGeneration(r.generationId))?.instructor).toBe("Cami");
+    await repo.setProgramInstructor(r.generationId, "  ");
+    expect((await repo.getGeneration(r.generationId))?.instructor).toBeNull();
+
+    await schedule(r.generationId);
+    const s1 = (await repo.listSessions(r.generationId))[0];
+    await repo.setSessionInstructor(s1.id, "Benja");
+    expect((await repo.listSessions(r.generationId))[0].instructor).toBe("Benja");
+  });
+
+  it("markSessionDictada: la sesión queda dictada y su bloque sigue ocupando la sala", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await schedule(r.generationId);
+    const s1 = (await repo.listSessions(r.generationId))[0];
+    await repo.markSessionDictada(s1.id);
+    const after = (await sessionsOf(r.generationId))[0];
+    expect(after).toMatchObject({ status: "dictada", res_status: "confirmed" });
+    await expect(repo.markSessionDictada(s1.id)).rejects.toThrow(/curso_session_unscheduled/);
+  });
+});
+
+describe("adapter: coursesForEmail (lo que ve el alumno)", () => {
+  it("trae instructor, saldo y vencimiento de práctica, y el fin de cada sesión", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS, instructor: "Benja" });
+    await schedule(r.generationId);
+    const [c] = await repo.coursesForEmail(alumno(1).email);
+    expect(c).toMatchObject({ instructor: "Benja", practiceHoursTotal: 6, practiceHoursRedeemed: 0 });
+    expect(c.practiceValidUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(c.sessions).toHaveLength(6);
+    expect(c.sessions[0].endsAt).toBeTruthy();
   });
 });

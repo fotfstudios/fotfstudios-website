@@ -5,6 +5,7 @@
  * Program and prices: docs/superpowers/specs/2026-09-25-curso-dj-1a1-design.md.
  */
 import { ADDONS, GUIDED_RATE, RATES, VOLUME } from "@/lib/pricing";
+import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { SITE } from "@/lib/site";
 
 export const CURSO = {
@@ -26,12 +27,15 @@ export const CURSO = {
   cupos: 6,
 } as const;
 
-/** Program shape: the one place copy, JSON-LD and the OG card read the numbers from. */
+/**
+ * Program shape for copy, JSON-LD and the OG card. Derived from the domain
+ * (`COURSE_PROGRAM`), which the admin also schedules with — one set of numbers.
+ */
 export const PROGRAMA = {
-  sesiones: 6,
-  minutosPorSesion: 90,
-  horasClase: 9,
-  horasPractica: 6,
+  sesiones: COURSE_PROGRAM.sessions,
+  minutosPorSesion: COURSE_PROGRAM.sessionMinutes,
+  horasClase: COURSE_PROGRAM.classHours,
+  horasPractica: COURSE_PROGRAM.practiceHours,
 } as const;
 
 /** "1,5" — session length in hours, formatted for Chilean copy. */

@@ -392,12 +392,9 @@ export class NotificationService {
    * razones que notifyApplication — el email del alumno es input no verificado y no
    * debe suprimir el aviso que dispara el triage. Un solo disparo best-effort.
    */
-  async notifyCourseLead(
-    lead: CourseLeadInput,
-    gen: { code: string; seatsLeft: number } | null,
-  ): Promise<void> {
+  async notifyCourseLead(lead: CourseLeadInput): Promise<void> {
     if (this.config.ownerEmail) {
-      await this.mailer.send({ to: this.config.ownerEmail, ...ownerNewCourseLead(lead, gen) });
+      await this.mailer.send({ to: this.config.ownerEmail, ...ownerNewCourseLead(lead) });
     }
     await this.mailer.send({
       to: lead.email,
@@ -489,7 +486,6 @@ export class NotificationService {
     method: string;
     /** Sesiones agendadas en ISO; el formato lo pone el servicio (uno solo, venga de donde venga). */
     sessions: { startsAt: string; endsAt?: string | null }[];
-    seatsLeft: number;
   }): Promise<void> {
     const total = formatCLP(v.totalClp);
     const sessions = v.sessions.map((s) => this.when(s.startsAt, s.endsAt ?? null));
@@ -512,7 +508,6 @@ export class NotificationService {
           generation: v.generation,
           total,
           method: v.method,
-          seatsLeft: v.seatsLeft,
         }),
       });
     }

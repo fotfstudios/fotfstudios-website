@@ -11,6 +11,13 @@
 export const GENERATION_STATUSES = ["borrador", "abierta", "en_curso", "cerrada", "cancelada"] as const;
 export type GenerationStatus = (typeof GENERATION_STATUSES)[number];
 
+/**
+ * `programa` = el curso 1:1 de UN pedido (1 cupo, o 2 en dúo); `cohorte` = el
+ * formato grupal antiguo. Espeja el CHECK de course_generations.kind.
+ */
+export const GENERATION_KINDS = ["cohorte", "programa"] as const;
+export type GenerationKind = (typeof GENERATION_KINDS)[number];
+
 export const GENERATION_STATUS_LABELS: Record<GenerationStatus, string> = {
   borrador: "Borrador",
   abierta: "Abierta",
