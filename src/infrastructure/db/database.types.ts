@@ -1076,6 +1076,9 @@ isOneToOne: false
 "schedule_course_generation":
 { Args: { "p_created_by"?: string,"p_generation": string,"p_sessions": Json }; Returns: number
                            },
+"schedule_course_session":
+{ Args: { "p_created_by"?: string,"p_ends": string,"p_generation": string,"p_instructor"?: string,"p_n": number,"p_starts": string,"p_title": string }; Returns: string
+                           },
 "substitute_student":
 { Args: { "p_email": string,"p_enrollment": string,"p_name": string,"p_phone"?: string }; Returns: undefined
                            },

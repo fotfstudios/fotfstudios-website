@@ -100,6 +100,13 @@ export default async function CuentaCurso() {
                     ))}
                   </ul>
                 )}
+                {curso.sessions.length > 0 && curso.sessions.length < COURSE_PROGRAM.sessions && (
+                  <p className="mt-3 text-sm text-bone-quiet">
+                    {COURSE_PROGRAM.sessions - curso.sessions.length === 1
+                      ? "Queda 1 sesión por agendar: la fijamos contigo por WhatsApp."
+                      : `Quedan ${COURSE_PROGRAM.sessions - curso.sessions.length} sesiones por agendar: las fijamos contigo por WhatsApp.`}
+                  </p>
+                )}
               </div>
 
               {pagado && (

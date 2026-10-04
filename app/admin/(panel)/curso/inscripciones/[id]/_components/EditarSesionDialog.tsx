@@ -4,25 +4,35 @@ import { useState } from "react";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Button } from "@/components/admin/ui/Button";
 import { Dialog } from "@/components/admin/ui/Dialog";
-import { Field, Input, Select } from "@/components/admin/ui/Field";
+import { Field, Input } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { hhmm } from "@/components/booking/format";
-import { moveSessionAction, setSessionInstructorAction } from "../../../actions";
+import { SlotPicker } from "@/components/admin/SlotPicker";
+import { COURSE_PROGRAM } from "@/src/domain/course/program";
+import { courseDayAction, moveSessionAction, setSessionInstructorAction } from "../../../actions";
 
 /**
  * Una sesión se edita en un solo diálogo: la fecha/hora (mover, o re-agendar si
- * estaba cancelada — el RPC distingue) y su instructor. La duración no se elige:
- * siempre es la del programa.
+ * estaba cancelada — el RPC distingue) y su instructor. El selector muestra la
+ * ocupación real del día e ignora el propio bloque de la sesión, para que moverla
+ * media hora no choque consigo misma. La duración siempre es la del programa.
  */
 export function EditarSesionDialog({
   enrollmentId,
   session,
-  starts,
+  tz,
 }: {
   enrollmentId: string;
-  session: { id: string; n: number; title: string; status: string; date: string | null; startMinute: number | null; instructor: string | null };
-  /** Horas de inicio ofrecidas (minutos del día). */
-  starts: number[];
+  session: {
+    id: string;
+    n: number;
+    title: string;
+    status: string;
+    reservationId: string | null;
+    date: string | null;
+    startMinute: number | null;
+    instructor: string | null;
+  };
+  tz: string;
 }) {
   const [open, setOpen] = useState(false);
   const cancelada = session.status === "cancelada";
@@ -39,23 +49,19 @@ export function EditarSesionDialog({
               action={moveSessionAction}
               success={cancelada ? "Sesión re-agendada." : "Sesión movida."}
               onDone={() => setOpen(false)}
-              className="grid gap-4 sm:grid-cols-[1fr_8rem_auto] sm:items-end"
+              className="flex flex-col gap-5"
             >
               <input type="hidden" name="enrollmentId" value={enrollmentId} />
               <input type="hidden" name="sessionId" value={session.id} />
-              <Field label="Día">
-                <Input type="date" name="date" required defaultValue={session.date ?? ""} />
-              </Field>
-              <Field label="Hora">
-                <Select name="startMinute" defaultValue={session.startMinute ?? starts[0]}>
-                  {starts.map((m) => (
-                    <option key={m} value={m}>
-                      {hhmm(m)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <div className="pb-1">
+              <SlotPicker
+                loadDay={courseDayAction}
+                durationMin={COURSE_PROGRAM.sessionMinutes}
+                tz={tz}
+                defaultDate={session.date ?? undefined}
+                defaultMinute={session.startMinute ?? undefined}
+                ignoreId={cancelada ? undefined : (session.reservationId ?? undefined)}
+              />
+              <div>
                 <SubmitButton size="sm" variant="secondary" pendingLabel="Guardando…">
                   {cancelada ? "Reagendar" : "Mover"}
                 </SubmitButton>

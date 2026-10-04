@@ -480,3 +480,74 @@ describe("adapter: coursesForEmail (lo que ve el alumno)", () => {
     expect(c.sessions[0].status).toBe("dictada");
   });
 });
+
+/** Una sesión sola, en hora de Chile: así se agenda "a pedido". */
+const oneSession = (generationId: string, n: number, day: string, hhmm = "16:00", endHhmm = "17:30") =>
+  repo.scheduleSession(generationId, {
+    n,
+    title: `Sesión ${n}`,
+    startsAt: `${day}T${hhmm}:00-03:00`,
+    endsAt: `${day}T${endHhmm}:00-03:00`,
+  });
+
+describe("schedule_course_session — una sesión a la vez (por agendar)", () => {
+  const day = futureDate(4, 3); // jueves, 3 semanas adelante
+
+  it("agenda solo la sesión pedida: bloque de sala, fila agendada e instructor del programa", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS, instructor: "Benja" });
+    await oneSession(r.generationId, 3, day);
+
+    const rows = await sessionsOf(r.generationId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ n: 3, status: "agendada", res_status: "confirmed", instructor: "Benja" });
+    const res = (await raw("select kind from reservations where id = $1", [rows[0].reservation_id])).rows[0];
+    expect(res.kind).toBe("curso");
+  });
+
+  it("una sesión ya agendada no se agenda dos veces (para eso está Editar)", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await oneSession(r.generationId, 1, day);
+    await expect(oneSession(r.generationId, 1, futureDate(5, 3))).rejects.toThrow(/curso_session_already_scheduled:1/);
+  });
+
+  it("si choca con otra reserva no deja nada a medias", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await raw(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at)
+       values ($1, 'booking', 'confirmed', $2, $3)`,
+      [await resourceId(), `${day}T17:00:00-03:00`, `${day}T18:00:00-03:00`],
+    );
+    await expect(oneSession(r.generationId, 2, day)).rejects.toThrow(/curso_slot_taken:2/);
+    expect(await sessionsOf(r.generationId)).toHaveLength(0);
+  });
+
+  it("no agenda en el pasado ni fuera de 1..12", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await expect(oneSession(r.generationId, 1, "2026-01-08")).rejects.toThrow(/curso_in_past:1/);
+    await expect(oneSession(r.generationId, 13, day)).rejects.toThrow(/curso_bad_session/);
+  });
+
+  it("una sesión cancelada se puede volver a agendar desde cero", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await oneSession(r.generationId, 1, day);
+    const [s1] = await repo.listSessions(r.generationId);
+    await repo.cancelSession(s1.id);
+    await oneSession(r.generationId, 1, futureDate(5, 3), "18:00", "19:30");
+    const rows = await sessionsOf(r.generationId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "agendada", res_status: "confirmed" });
+    expect(rows[0].reservation_id).not.toBe(s1.reservationId);
+  });
+
+  it("un programa anulado ya no se agenda", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await repo.cancelCourseOrder(r.orderId);
+    await expect(oneSession(r.generationId, 1, day)).rejects.toThrow(/curso_generation_not_schedulable/);
+  });
+
+  it("con una sesión ya agendada, «agendar las 6» queda vetado (no duplica)", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await oneSession(r.generationId, 1, day);
+    await expect(schedule(r.generationId)).rejects.toThrow(/curso_already_scheduled/);
+  });
+});

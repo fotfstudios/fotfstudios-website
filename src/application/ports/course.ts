@@ -40,6 +40,15 @@ export interface CourseSchedulingRepository {
   previewConflicts(resourceId: string, plan: readonly CourseSessionPlan[]): Promise<CourseConflict[]>;
   /** Agenda TODAS las sesiones o ninguna. Devuelve cuántas creó. */
   scheduleSessions(generationId: string, plan: readonly CourseSessionPlan[], createdBy?: string): Promise<number>;
+  /**
+   * Agenda UNA sesión (curso 1:1 "por agendar"): la sala se toma recién con fecha acordada.
+   * Devuelve el id de la sesión. Rechaza si ya está agendada o dictada (para eso está moveSession).
+   */
+  scheduleSession(
+    generationId: string,
+    s: { n: number; title: string; startsAt: string; endsAt: string; instructor?: string | null },
+    createdBy?: string,
+  ): Promise<string>;
   moveSession(sessionId: string, startsAt: string, endsAt: string, createdBy?: string): Promise<void>;
   cancelSession(sessionId: string, createdBy?: string): Promise<void>;
   listSessions(generationId: string): Promise<CourseSessionRow[]>;

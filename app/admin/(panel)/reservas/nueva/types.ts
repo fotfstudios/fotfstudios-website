@@ -2,24 +2,10 @@
  * Tipos compartidos de la consola de reserva manual (módulo plano: actions.ts
  * es "use server" y solo puede exportar funciones async).
  */
-import type { DayAvailability } from "@/src/application/availability/availability-service";
 import type { ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
 
-/** Reserva/bloqueo existente del día, en minutos locales (para la cinta y la lista). */
-export interface OccupancyEntry {
-  id: string;
-  start: number;
-  end: number;
-  name: string | null;
-  kind: string;
-  status: string;
-}
-
-/** Datos del día para la consola: horario + huecos anónimos + ocupación con nombres. */
-export interface DayConsoleData {
-  avail: DayAvailability;
-  occupancy: OccupancyEntry[];
-}
+/** La ocupación del día vive en components/admin/day-occupancy.ts (compartida con el curso). */
+export type { DayConsoleData, OccupancyEntry } from "@/components/admin/day-occupancy";
 
 export interface ManualBookingInput {
   date: string;
