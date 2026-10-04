@@ -38,7 +38,7 @@ const MAP: Record<string, { label: string; tone: Tone }> = {
   inscrita: { label: "Inscrita", tone: "gold" },
   // Curso — kind de reserva
   curso: { label: "Curso", tone: "dim" },
-  // Curso — generación
+  // Curso — programa (o cohorte antigua)
   borrador: { label: "Borrador", tone: "mute" },
   abierta: { label: "Abierta", tone: "gold" },
   en_curso: { label: "En curso", tone: "gold" },

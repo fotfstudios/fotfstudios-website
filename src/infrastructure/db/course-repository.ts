@@ -732,7 +732,7 @@ export class SupabaseCourseRepository
    * Los cursos de un alumno, por email.
    *
    * El portal del cliente lista reservas con `kind='booking'`, así que el curso
-   * no aparece solo: no es una reserva, es un asiento. Se consulta por email con
+   * no aparece solo: no es una reserva, es un programa. Se consulta por email con
    * el mismo cuidado que bookingsForEmail — ilike para no distinguir mayúsculas
    * y re-filtro exacto en minúsculas, porque ilike trata `_` como comodín y por
    * ahí se podría colar la inscripción de otra persona.
@@ -773,8 +773,9 @@ export class SupabaseCourseRepository
           practiceHoursTotal: r.practice_hours_total,
           practiceHoursRedeemed: r.practice_hours_redeemed,
           practiceValidUntil: validUntil,
+          // Las dictadas se quedan: la lista del alumno no se achica a medida que avanza.
           sessions: sessions
-            .filter((s) => s.status === "agendada")
+            .filter((s) => s.status === "agendada" || s.status === "dictada")
             .map((s) => ({ n: s.n, title: s.title, startsAt: s.startsAt, endsAt: s.endsAt, status: s.status })),
         };
       }),

@@ -376,7 +376,7 @@ export class SupabaseAdminRepository {
     ]);
 
     // "Sesiones" cuenta horas VENDIDAS: ni bloqueos ni sesiones de curso son
-    // una reserva de cliente (el curso se cobra por generación, no por hora).
+    // una reserva de cliente (el curso se cobra por programa, no por hora).
     const sessions = agenda.filter((b) => isSellableSession(b.kind));
     const sesionesHoy = sessions.filter((b) => DateTime.fromISO(b.startsAt) < todayEnd).length;
     return {

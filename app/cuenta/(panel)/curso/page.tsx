@@ -1,4 +1,4 @@
-import { fmtDateTime } from "@/components/admin/format";
+import { fmtDate, fmtDay, fmtTimeRange } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SITE } from "@/lib/site";
 import { courseRepository } from "@/src/composition";
+import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { formatCLP } from "@/src/domain/money/money";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * El curso del alumno. Vive aparte de /cuenta/reservas porque no es una reserva:
- * es un asiento en una generación, con su propia agenda y su propio estado de pago.
+ * es su propio programa 1:1, con agenda y estado de pago propios.
  */
 export default async function CuentaCurso() {
   const session = await requireCustomer();
@@ -44,20 +45,30 @@ export default async function CuentaCurso() {
       ) : (
         cursos.map((curso) => {
           const pagado = curso.status === "pagada";
+          const libres = Math.max(0, curso.practiceHoursTotal - curso.practiceHoursRedeemed);
           return (
             <Card
               key={curso.enrollmentId}
-              title={`${curso.generationCode} · ${curso.generationName}`}
+              title="Curso de Iniciación DJ"
               action={<StatusPill status={curso.status} />}
             >
               <dl className="flex flex-col gap-3">
                 <Fila label="Formato">{curso.plan === "duo" ? "En dúo" : "Individual"}</Fila>
+                {curso.instructor && <Fila label="Instructor">{curso.instructor}</Fila>}
                 <Fila label="Total">
                   {formatCLP(curso.orderAmountClp ?? curso.priceClp)}
                   {/* Espacio explícito: el margen es visual, pero un lector de
                       pantalla lee el texto pegado sin él. */}
                   {!pagado && <span className="ml-2 text-bone-quiet"> · pendiente de pago</span>}
                 </Fila>
+                {pagado && (
+                  <Fila label="Práctica">
+                    {libres} de {curso.practiceHoursTotal} {curso.practiceHoursTotal === 1 ? "hora libre" : "horas libres"}
+                    {curso.practiceValidUntil && (
+                      <span className="text-bone-quiet"> · vencen el {fmtDay(curso.practiceValidUntil)}</span>
+                    )}
+                  </Fila>
+                )}
                 {pagado && (
                   <Fila label="Dónde">
                     {SITE.address}
@@ -69,7 +80,7 @@ export default async function CuentaCurso() {
                 <h3 className="label-sm mb-3 text-bone-quiet">Sesiones</h3>
                 {curso.sessions.length === 0 ? (
                   <p className="text-sm text-bone-quiet">
-                    Todavía estamos cerrando las fechas. Te avisamos por WhatsApp apenas estén.
+                    Fijamos contigo las fechas de tus {COURSE_PROGRAM.sessions} sesiones por WhatsApp.
                   </p>
                 ) : (
                   <ul className="flex flex-col">
@@ -78,7 +89,12 @@ export default async function CuentaCurso() {
                         <span className="font-mono text-bone-quiet">{String(s.n).padStart(2, "0")}</span>
                         <span className="text-bone">{s.title}</span>
                         <span className="ml-auto font-mono text-sm text-bone-dim">
-                          {s.startsAt ? fmtDateTime(s.startsAt) : "Por confirmar"}
+                          {s.startsAt
+                            ? s.endsAt
+                              ? `${fmtDate(s.startsAt)} · ${fmtTimeRange(s.startsAt, s.endsAt)}`
+                              : fmtDate(s.startsAt)
+                            : "Por confirmar"}
+                          {s.status === "dictada" && <span className="label-sm ml-2 text-bone-quiet"> · Dictada</span>}
                         </span>
                       </li>
                     ))}

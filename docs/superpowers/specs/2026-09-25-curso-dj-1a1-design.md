@@ -745,6 +745,16 @@ prod migration is applied; staging must be `ACTIVE_HEALTHY`); gen 01 state in pr
 `mark_refunded` edit (run `tax-reversal`, `webhook` and `course-billing` itests locally with
 sandbox creds); `db:types` parity (`npm ci` first).
 
+### Landed (2026-10-04)
+
+| Spec step | PR | Notes |
+|---|---|---|
+| — | #248 | Outside the sequence: half-hour practice starts + 1,5 h courtesies (unblocked the first 1:1 student that week). |
+| PR 1 (schema) | #249 | Migration is `20261005120000_curso_programa.sql`. Two deviations: session release is an `after update of status` **trigger** on `course_enrollments` (covers five exit paths, including the adapter's direct UPDATE) instead of edits to `mark_refunded` / `cancel_course_order`; and a `kind` column (`cohorte` / `programa`) so an emptied cohort keeps its schedule. Also: `move_course_session` re-schedules a cancelled session; practice expiry is computed (`course_practice_valid_until`). |
+| PR 2 (domain/ports/emails) | #250 | `COURSE_PROGRAM` in `src/domain/course/program.ts`; `PROGRAMA` derives from it. Practice expiry has no TS twin — the adapter calls the SQL function. |
+| PR 3 (admin) | #251 | Terms §6 + `TERMS_VERSION` 2026-10-04 + cancellation policy without `transfer` were folded in here so the admin and the published terms changed in one deploy. |
+| PR 4a/4b remainder | this PR | `/cuenta/curso`, `/curso-dj/pago`, paused-state copy, stale comments, `lib/curso-copy-contract.test.ts`. `CURSO_ABIERTO` was already true since #221. |
+
 ## 11. Open items for the owner
 
 - Confirm the final prices ($249.990 / $149.990 / $19.990; list $269.990 / $159.990) and the

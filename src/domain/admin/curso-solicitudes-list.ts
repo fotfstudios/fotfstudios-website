@@ -1,8 +1,8 @@
 /**
  * Bandeja de solicitudes del curso en el admin (puro, sin IO). Misma forma simple
  * que postulaciones-list: solo tabs por estado con conteos y paginación, sin
- * búsqueda ni orden configurable. Con 6 cupos por generación, filtrar de más sería
- * ceremonia. El estado vive en la URL (?estado=&p=).
+ * búsqueda ni orden configurable. Con el volumen de un curso 1:1, filtrar de más
+ * sería ceremonia. El estado vive en la URL (?estado=&p=).
  */
 import type { CourseLeadStatus } from "@/src/domain/course/course";
 

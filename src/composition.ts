@@ -307,7 +307,7 @@ export function applicationRepository(
   return new SupabaseApplicationRepository(client);
 }
 
-/** Curso de DJ: agenda de sesiones de una generación (bloques de sala). */
+/** Curso de DJ: agenda de sesiones de un programa (bloques de sala). */
 export function courseRepository(
   client: SupabaseClient<Database> = db(),
 ): SupabaseCourseRepository {
@@ -400,7 +400,7 @@ export async function expireAbandonedManualHolds(client: SupabaseClient<Database
   return ids.length;
 }
 
-/** Barre inscripciones de curso abandonadas (>72 h sin pagar) y libera sus cupos. */
+/** Barre inscripciones de curso abandonadas (>72 h sin pagar); un programa sin alumnos suelta sus sesiones. */
 export async function expireAbandonedCourseHolds(client: SupabaseClient<Database> = db()): Promise<number> {
   const { data } = await client.rpc("expire_abandoned_course_holds");
   return data ?? 0;

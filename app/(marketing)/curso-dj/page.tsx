@@ -36,7 +36,7 @@ const SESSION_DURATION = `PT${Math.floor(PROGRAMA.minutosPorSesion / 60)}H${PROG
 // En pausa la página conserva su URL y título (el ranking), pero no promete
 // sesiones, horas ni cupos que se están redefiniendo.
 const DESCRIPTION_PAUSA =
-  "El curso de DJ de FOTF Studios en Viña del Mar se está rearmando: nueva generación y nuevo programa. Escríbenos por WhatsApp y te avisamos cuando abran las inscripciones.";
+  "El curso de DJ de FOTF Studios en Viña del Mar se está rearmando como programa 1:1. Escríbenos por WhatsApp y te avisamos cuando abran las inscripciones.";
 
 export const metadata: Metadata = pageMetadata({
   title: "Curso de DJ en Viña del Mar · Clases 1:1",

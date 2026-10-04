@@ -466,4 +466,17 @@ describe("adapter: coursesForEmail (lo que ve el alumno)", () => {
     expect(c.sessions).toHaveLength(6);
     expect(c.sessions[0].endsAt).toBeTruthy();
   });
+
+  // Si "dictada" desapareciera, la lista del alumno se achicaría a medida que avanza el curso.
+  it("una sesión dictada sigue en la lista del alumno; una cancelada no", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await schedule(r.generationId);
+    const [s1, s2] = await repo.listSessions(r.generationId);
+    await repo.markSessionDictada(s1.id);
+    await repo.cancelSession(s2.id);
+
+    const [c] = await repo.coursesForEmail(alumno(1).email);
+    expect(c.sessions.map((s) => s.n)).toEqual([1, 3, 4, 5, 6]);
+    expect(c.sessions[0].status).toBe("dictada");
+  });
 });

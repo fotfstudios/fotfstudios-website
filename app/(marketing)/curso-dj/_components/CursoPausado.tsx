@@ -46,7 +46,7 @@ export default function CursoPausado() {
             Estamos rearmando el curso.
           </h1>
           <p className="font-editorial mx-auto mt-6 max-w-xl text-2xl text-bone-dim">
-            Nueva generación, nuevo programa. Vuelve pronto.
+            Nuevo programa 1:1. Vuelve pronto.
           </p>
           <p className="mx-auto mt-6 max-w-xl leading-relaxed text-bone-dim">
             Si quieres que te avisemos cuando abramos inscripciones, escríbenos. Mientras tanto,
