@@ -953,6 +953,9 @@ isOneToOne: false
                            } |
 { Args: { "p_method": string,"p_order": string,"p_payment_id": string }; Returns: string
                            },
+"convert_booking_to_trial":
+{ Args: { "p_reservation": string }; Returns: string
+                           },
 "course_practice_valid_until":
 { Args: { "p_generation": string }; Returns: string
                            },
