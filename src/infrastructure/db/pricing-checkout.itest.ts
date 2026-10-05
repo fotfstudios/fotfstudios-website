@@ -395,11 +395,11 @@ describe("CheckoutService.createBooking — descuento + canje", () => {
     expect(r.value.pointsApplied).toBe(75_970);
 
     const o = await pg.query<{ status: string; mp_payment_id: string | null }>(
-      "select status, mp_payment_id from orders where id=$1",
+      "select status, mp_payment_id, payment_method from orders where id=$1",
       [r.value.orderId],
     );
     expect(o.rows[0].status).toBe("paid");
-    expect(o.rows[0].mp_payment_id).toBe("offline:puntos");
+    expect(o.rows[0]).toMatchObject({ mp_payment_id: null, payment_method: "puntos" });
 
     // $0 no emite boleta.
     const bol = await pg.query<{ n: string }>(
