@@ -48,7 +48,12 @@ export function NuevoProgramaDialog({
         variant={trigger?.variant ?? "primary"}
         size={trigger?.size}
         icon="add"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          // Desde una solicitud el email ya viene puesto y nadie sale del campo: sin esto
+          // el crédito de la prueba no se buscaba y el descuento se perdía en silencio.
+          if (lead?.email) void buscarCredito(lead.email);
+        }}
       >
         {trigger?.label ?? "Nuevo programa"}
       </Button>

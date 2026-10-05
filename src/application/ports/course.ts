@@ -127,6 +127,13 @@ export interface CourseLeadRow extends CourseLeadInput {
   status: CourseLeadStatus;
   generationId: string | null;
   createdAt: string;
+  /** Prueba agendada desde esta solicitud (y su crédito, si ya se pagó). */
+  trial?: {
+    reservationId: string;
+    startsAt: string;
+    status: string;
+    credit: { expiresAt: string; consumedOrderId: string | null; voidedAt: string | null } | null;
+  } | null;
 }
 
 export interface CourseLeadsListResult {
@@ -142,6 +149,8 @@ export interface CourseLeadRepository {
   listLeads(q: SolicitudesListQuery): Promise<CourseLeadsListResult>;
   getLead(id: string): Promise<CourseLeadRow | null>;
   updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void>;
+  /** La solicitud queda enlazada a la prueba agendada; una "nueva" pasa a "contactada". */
+  linkTrialToLead(leadId: string, reservationId: string): Promise<void>;
   /** Badge de la barra lateral. */
   nuevasCount(): Promise<number>;
 }
@@ -275,6 +284,10 @@ export interface CourseCreditRepository {
   /** Crédito vigente y sin usar de este email, si lo hay. */
   applicableCredit(email: string): Promise<CourseCredit | null>;
   listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]>;
+  /** Pruebas recientes con su crédito (lista de /admin/curso), la más nueva primero. */
+  listTrialCredits(limit?: number): Promise<TrialCreditRow[]>;
+  /** Extiende un crédito vivo o vencido (RPC extend_course_credit). Devuelve el nuevo vencimiento. */
+  extendCredit(creditId: string, days?: number): Promise<string>;
 }
 
 /** Lo que un alumno ve de su propio curso. */
@@ -307,4 +320,20 @@ export interface CustomerCourseRow {
   createdAt: string;
   practiceHoursTotal: number;
   practiceHoursRedeemed: number;
+}
+
+/** Una prueba del curso y su crédito, para la lista del admin. */
+export interface TrialCreditRow {
+  creditId: string;
+  email: string;
+  /** Nombre del alumno (de la reserva de la prueba); null en un crédito emitido a mano. */
+  name: string | null;
+  amountClp: number;
+  expiresAt: string;
+  consumedOrderId: string | null;
+  voidedAt: string | null;
+  extendedCount: number;
+  /** La reserva de la prueba (null = emitido a mano por "Registrar prueba antigua"). */
+  reservationId: string | null;
+  sessionStartsAt: string | null;
 }

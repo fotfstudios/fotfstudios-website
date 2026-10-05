@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import type { OfflineMethod } from "@/src/domain/money/payment-method";
-import { DOOR_ACCESS_KINDS, isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
+import { SELLABLE_KINDS, SELLABLE_ORDER_KINDS, DOOR_ACCESS_KINDS, isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
@@ -426,7 +426,7 @@ export class SupabaseAdminRepository {
     const [agenda, pendingPay, last30] = await Promise.all([
       this.bookingsBetween(todayStart.toUTC().toISO()!, horizon.toUTC().toISO()!),
       // Solo reservas de sala: un pedido de curso o un delta de reagendamiento tienen su propio cobro.
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment").eq("kind", "booking"),
+      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment").in("kind", [...SELLABLE_ORDER_KINDS]),
       this.analyticsReservations(last30Start.toUTC().toISO()!, todayEnd.toUTC().toISO()!),
     ]);
 
@@ -467,7 +467,7 @@ export class SupabaseAdminRepository {
       case "confirmadas":
         // Positivo, no `neq("block")`: la lista de reservas es sobre CLIENTES,
         // así que un kind nuevo no debe colarse acá por omisión.
-        return qb.eq("kind", "booking").eq("status", "confirmed");
+        return qb.in("kind", [...SELLABLE_KINDS]).eq("status", "confirmed");
       case "espera":
         return qb.eq("status", "held");
       case "canceladas":
@@ -633,7 +633,7 @@ export class SupabaseAdminRepository {
         .from("orders")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending_payment")
-        .eq("kind", "booking"),
+        .in("kind", [...SELLABLE_ORDER_KINDS]),
       this.pendingTaxDocsSummary(),
     ]);
 
@@ -678,7 +678,7 @@ export class SupabaseAdminRepository {
         .from("orders")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending_payment")
-        .eq("kind", "booking"),
+        .in("kind", [...SELLABLE_ORDER_KINDS]),
       // Los dos pasos manuales del PIN: cargarlo en la Yale y sacarlo después.
       this.accessToLoadCount(),
       this.accessToRemoveCount(),
@@ -907,7 +907,7 @@ export class SupabaseAdminRepository {
 
     const [docs, res, deltas, enr, ords] = await Promise.all([
       this.taxDocsForOrders(orderIds),
-      this.db.from("reservations").select("id, order_id, customer_name, starts_at").in("order_id", orderIds).eq("kind", "booking"),
+      this.db.from("reservations").select("id, order_id, customer_name, starts_at").in("order_id", orderIds).in("kind", [...SELLABLE_KINDS]),
       this.db.from("reschedules").select("delta_order_id, reservation_id").in("delta_order_id", orderIds),
       this.db.from("course_enrollments").select("id, order_id, student_name, course_generations(code)").in("order_id", orderIds),
       this.db.from("orders").select("id, customer_name").in("id", orderIds),
@@ -1167,7 +1167,7 @@ export class SupabaseAdminRepository {
    */
   async logTaxDocEmitted(doc: TaxDocRaw, folio: string, previousFolio: string | null, actor: string | null): Promise<void> {
     const { data: r } = await this.db
-      .from("reservations").select("id").eq("order_id", doc.orderId).eq("kind", "booking").limit(1).maybeSingle();
+      .from("reservations").select("id").eq("order_id", doc.orderId).in("kind", [...SELLABLE_KINDS]).limit(1).maybeSingle();
     let reservationId = r?.id ?? null;
     if (!reservationId) {
       const { data: d } = await this.db

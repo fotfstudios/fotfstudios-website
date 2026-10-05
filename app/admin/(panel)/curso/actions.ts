@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { TRIAL_CREDIT_DAYS } from "@/src/domain/course/credit";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
@@ -423,6 +424,25 @@ export async function issueTrialCreditAction(_prev: ActionResult | null, fd: For
       note: str(fd, "note") || null,
     });
     revalidatePath("/admin/curso");
+  });
+}
+
+/** "Extender 7 días": el crédito de una prueba (vigente o vencido) vale una semana más. */
+export async function extendTrialCreditAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.billing");
+    const creditId = str(fd, "creditId");
+    if (!/^[0-9a-f-]{36}$/i.test(creditId)) throw new Error("Crédito inválido.");
+    try {
+      await courseRepository().extendCredit(creditId, TRIAL_CREDIT_DAYS);
+    } catch (e) {
+      if (e instanceof Error && e.message === "curso_credito_no_extensible") {
+        throw new Error("Ese crédito ya se usó o se anuló: no se puede extender.");
+      }
+      throw e;
+    }
+    revalidatePath("/admin/curso");
+    revalidatePath("/admin/curso/solicitudes");
   });
 }
 

@@ -17,7 +17,7 @@ import { isOfflineMethod, type OfflineMethod } from "@/src/domain/money/payment-
  *   · MÉTODO — solo si ya pagó: transferencia o efectivo. Si los puntos cubren el
  *     100 %, el método es "puntos" y lo decide el servidor (no se elige).
  */
-export const MANUAL_TYPES = ["ensayo", "cortesia"] as const;
+export const MANUAL_TYPES = ["ensayo", "cortesia", "prueba"] as const;
 export type ManualBookingType = (typeof MANUAL_TYPES)[number];
 
 /**
@@ -204,6 +204,15 @@ export function validateManualBooking(raw: {
     const d = validateDiscount(raw.discount);
     if (!d.ok) return err(d.error);
     discount = d.value;
+  }
+
+  // Prueba del Curso de DJ: 1 h guiada a precio fijo. El crédito que deja va al email
+  // de la ficha, así que la ficha es obligatoria (sin walk-in).
+  if (type === "prueba") {
+    if (durationHours !== 1) return err("La prueba dura 1 hora.");
+    if (addonKeys.length > 0) return err("La prueba no lleva extras.");
+    if (pointsToRedeem > 0 || discount) return err("La prueba tiene precio fijo: sin descuento ni puntos.");
+    if (customerId === null) return err("Para una prueba elige un cliente con ficha (el crédito va a su email).");
   }
 
   // Pago: al final, porque "pagó con puntos" depende del canje de arriba.

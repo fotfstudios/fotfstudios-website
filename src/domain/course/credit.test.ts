@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { creditDiscount, creditExpiryFrom, isCreditApplicable, TRIAL_CREDIT_DAYS } from "./credit";
+import { canExtendCredit, creditDiscount, creditExpiryFrom, isCreditApplicable, TRIAL_CREDIT_DAYS, trialCreditState } from "./credit";
 
 const credit = (over: Partial<Parameters<typeof isCreditApplicable>[0]> = {}) => ({
   id: "c1",
@@ -62,5 +62,19 @@ describe("creditDiscount", () => {
   // Un crédito no puede dejar el pedido en negativo ni volverse un pago al alumno.
   it("nunca supera el total del pedido", () => {
     expect(creditDiscount(credit({ amountClp: 50000 }), 19990)).toBe(19990);
+  });
+});
+
+describe("trialCreditState", () => {
+  const now = new Date("2026-10-08T12:00:00Z");
+  const base = { consumedOrderId: null, voidedAt: null, expiresAt: "2026-10-12T19:00:00Z" };
+  it("vigente / vencido por fecha; usado y anulado ganan", () => {
+    expect(trialCreditState(base, now)).toBe("vigente");
+    expect(trialCreditState({ ...base, expiresAt: "2026-10-01T00:00:00Z" }, now)).toBe("vencido");
+    expect(trialCreditState({ ...base, consumedOrderId: "o1" }, now)).toBe("usado");
+    expect(trialCreditState({ ...base, voidedAt: "2026-10-07T00:00:00Z" }, now)).toBe("anulado");
+  });
+  it("se extiende lo vigente y lo vencido, no lo usado ni lo anulado", () => {
+    expect(["vigente", "vencido", "usado", "anulado"].map((s) => canExtendCredit(s as never))).toEqual([true, true, false, false]);
   });
 });

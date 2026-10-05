@@ -37,6 +37,8 @@ export interface ManualBookingInput {
   discount?: ManualDiscountInput;
   /** Atestación del staff: el dueño confirma que el cliente aceptó los T&C (registra terms_source='staff'). */
   termsAccepted?: boolean;
+  /** Solicitud del curso desde la que se agenda una prueba (?lead=): se enlaza al crearla. */
+  leadId?: string | null;
 }
 
 export interface ManualBookingResult {

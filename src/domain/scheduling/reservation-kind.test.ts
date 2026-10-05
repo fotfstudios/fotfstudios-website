@@ -12,8 +12,9 @@ import {
 } from "./reservation-kind";
 
 describe("reservation-kind — semántica de cada kind", () => {
-  it("solo booking es una hora vendida", () => {
+  it("se vende la hora de sala y la prueba del curso", () => {
     expect(isSellableSession("booking")).toBe(true);
+    expect(isSellableSession("prueba")).toBe(true);
     expect(isSellableSession("block")).toBe(false);
     expect(isSellableSession("curso")).toBe(false);
   });
@@ -66,6 +67,25 @@ describe("reservation-kind — semántica de cada kind", () => {
     expect(needsReminder("curso")).toBe(true);
     expect(needsReminder("block")).toBe(false);
     expect(needsReminder("otro")).toBe(false);
-    expect([...REMINDER_KINDS].sort()).toEqual(["booking", "curso"]);
+    expect([...REMINDER_KINDS].sort()).toEqual(["booking", "curso", "prueba"]);
+  });
+});
+
+describe("la prueba del curso", () => {
+  it("se vende, ocupa la sala, tiene recordatorio — pero sin PIN: es guiada", async () => {
+    const k = await import("./reservation-kind");
+    expect(k.isSellableSession("prueba")).toBe(true);
+    expect(k.occupiesCabin("prueba")).toBe(true);
+    expect(k.needsReminder("prueba")).toBe(true);
+    expect(k.needsDoorAccess("prueba")).toBe(false);
+    expect(k.isRoomBlock("prueba")).toBe(false);
+    expect(k.isTrialSession("prueba")).toBe(true);
+  });
+
+  it("solo una reserva de sala se reagenda por los RPC", async () => {
+    const k = await import("./reservation-kind");
+    expect(k.canReschedule("booking")).toBe(true);
+    expect(k.canReschedule("prueba")).toBe(false);
+    expect(k.canReschedule("curso")).toBe(false);
   });
 });

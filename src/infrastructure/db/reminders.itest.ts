@@ -124,7 +124,7 @@ describe("el reclamo", () => {
 describe("ReminderService.sweep contra la DB", () => {
   it("manda una vez y la segunda corrida no encuentra nada", async () => {
     await booking({ startsInH: 20 });
-    const notifications = { notifyReminder: vi.fn(async () => true), notifyCourseSessionReminder: vi.fn(async () => true) };
+    const notifications = { notifyReminder: vi.fn(async () => true), notifyCourseSessionReminder: vi.fn(async () => true), notifyTrialReminder: vi.fn(async () => true) };
     const svc = new ReminderService(repo, notifications);
     expect(await svc.sweep()).toEqual({ sent: 1, skippedNoEmail: 0 });
     expect(await svc.sweep()).toEqual({ sent: 0, skippedNoEmail: 0 });
@@ -136,6 +136,7 @@ describe("ReminderService.sweep contra la DB", () => {
     const notifications = {
       notifyReminder: vi.fn<() => Promise<boolean>>(async () => { throw new Error("resend down"); }),
       notifyCourseSessionReminder: vi.fn(async () => true),
+      notifyTrialReminder: vi.fn(async () => true),
     };
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const svc = new ReminderService(repo, notifications);

@@ -17,6 +17,8 @@ export interface ReminderRepository {
       customerEmail: string | null;
       /** Sesión guiada del curso (kind=curso); null para una reserva de sala o práctica. */
       course: { n: number; title: string; instructor: string | null } | null;
+      /** La prueba del curso lleva su propio recordatorio (guiada: sin PIN). */
+      trial?: boolean;
     }[]
   >;
   /** Reclama `reminder_sent_at` solo si estaba en null. true = esta corrida lo marcó. */
@@ -40,7 +42,7 @@ export interface ReminderSweepResult {
 export class ReminderService {
   constructor(
     private readonly repo: ReminderRepository,
-    private readonly notifications: Pick<NotificationService, "notifyReminder" | "notifyCourseSessionReminder">,
+    private readonly notifications: Pick<NotificationService, "notifyReminder" | "notifyCourseSessionReminder" | "notifyTrialReminder">,
   ) {}
 
   async sweep(): Promise<ReminderSweepResult> {
@@ -54,7 +56,14 @@ export class ReminderService {
       const claimed = await this.repo.markReminderSent(r.id);
       if (!claimed) continue;
       try {
-        if (r.course) {
+        if (r.trial) {
+          await this.notifications.notifyTrialReminder({
+            email: r.customerEmail,
+            name: r.customerName,
+            startsAt: r.startsAt,
+            endsAt: r.endsAt,
+          });
+        } else if (r.course) {
           await this.notifications.notifyCourseSessionReminder({
             email: r.customerEmail,
             name: r.customerName,

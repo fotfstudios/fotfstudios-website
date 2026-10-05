@@ -48,6 +48,11 @@ export class CustomerDirectoryService {
     return this.repo.search(needle, limit);
   }
 
+  /** Ficha por email (normalizado en la DB). Solo lectura: no crea nada. */
+  findByEmail(email: string): Promise<CustomerProfile | null> {
+    return this.repo.findByEmail(email.trim().toLowerCase());
+  }
+
   /** La ficha elegida, para re-leerla en el servidor antes de escribir nada. */
   get(id: string): Promise<CustomerProfile | null> {
     return this.repo.getProfile(id);

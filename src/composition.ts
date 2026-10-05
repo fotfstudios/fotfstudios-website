@@ -52,6 +52,8 @@ import { ResendMailer, NoopMailer } from "@/src/infrastructure/email/resend-mail
 import { SmtpMailer } from "@/src/infrastructure/email/smtp-mailer";
 import { LoggedMailer } from "@/src/application/notifications/logged-mailer";
 import { ReminderService } from "@/src/application/reminders/reminder-service";
+import { TrialFollowUpService } from "@/src/application/reminders/trial-followup-service";
+import { SupabaseTrialCreditRepository } from "@/src/infrastructure/db/trial-credit-repository";
 import { PaymentReminderService } from "@/src/application/reminders/payment-reminder-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
 import { SupabasePaymentReminderRepository } from "@/src/infrastructure/db/payment-reminder-repository";
@@ -501,6 +503,11 @@ export function calendarSyncRepository(client: SupabaseClient<Database> = db()):
 /** Recordatorio de sesión (hasta 24 h antes): mismo cron de 5 min que el PIN, mismo patrón de reclamo. */
 export function reminderService(client: SupabaseClient<Database> = db()): ReminderService {
   return new ReminderService(new SupabaseReminderRepository(client), notificationService(client));
+}
+
+/** Seguimiento del crédito de las pruebas del curso (día después + 2 días antes de vencer): cron de 5 min. */
+export function trialFollowUpService(client: SupabaseClient<Database> = db()): TrialFollowUpService {
+  return new TrialFollowUpService(new SupabaseTrialCreditRepository(client), notificationService(client));
 }
 
 /** Recordatorio de pago de reservas manuales pendientes (~24 h antes de liberarse): mismo cron de 5 min. */

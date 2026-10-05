@@ -1,4 +1,7 @@
 import { fmtDate } from "@/components/admin/format";
+import Link from "next/link";
+import { btn } from "@/components/admin/ui/styles";
+import { trialCreditState } from "@/src/domain/course/credit";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
@@ -82,9 +85,15 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
             <Td className="max-w-[16rem] text-bone-dim">{r.availability}</Td>
             <Td>
               <StatusPill status={r.status} />
+              {r.trial && <TrialLine trial={r.trial} />}
             </Td>
             <Td right>
               <div className="flex flex-col items-end gap-1.5">
+                {(r.status === "nueva" || r.status === "contactada") && !hasLiveTrial(r.trial) && (
+                  <Link href={`/admin/reservas/nueva?tipo=prueba&lead=${r.id}`} className={btn("secondary", "sm")}>
+                    Agendar prueba
+                  </Link>
+                )}
                 {(r.status === "nueva" || r.status === "contactada") && (
                   <NuevoProgramaDialog
                     prices={PRECIOS}
@@ -115,5 +124,38 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
         );
       })}
     </DataTable>
+  );
+}
+
+/** Una prueba cancelada o vencida sin pagar no cuenta: se puede agendar otra. */
+function hasLiveTrial(t: CourseLeadRow["trial"]): boolean {
+  return !!t && (t.status === "confirmed" || t.status === "held");
+}
+
+/** "Prueba 8 oct · crédito vence 15 oct" / "Crédito usado" / "Crédito vencido". */
+function TrialLine({ trial }: { trial: NonNullable<CourseLeadRow["trial"]> }) {
+  const live = hasLiveTrial(trial);
+  const state = trial.credit ? trialCreditState(trial.credit) : null;
+  const credit =
+    state === "vigente"
+      ? `crédito vence ${fmtDate(trial.credit!.expiresAt)}`
+      : state === "vencido"
+        ? "crédito vencido"
+        : state === "usado"
+          ? "crédito usado"
+          : state === "anulado"
+            ? "prueba devuelta"
+            : trial.status === "held"
+              ? "pendiente de pago"
+              : null;
+  return (
+    <Link
+      href={`/admin/reservas/${trial.reservationId}`}
+      className={`label-sm mt-1.5 block hover:text-gold ${state === "vencido" ? "text-sirena" : live ? "text-gold" : "text-bone-quiet"}`}
+    >
+      Prueba {fmtDate(trial.startsAt)}
+      {credit ? ` · ${credit}` : ""}
+      {!live && !trial.credit ? " · cancelada" : ""}
+    </Link>
   );
 }

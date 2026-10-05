@@ -126,6 +126,7 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
           <>
             <div className="flex max-w-64 items-center gap-2">
               <span className="truncate text-bone">{name}</span>
+              {b.kind === "prueba" && <span className="label-sm shrink-0 text-gold">Prueba del curso</span>}
               {isCurso && (
                 <span className="label-sm shrink-0 text-gold">
                   Curso{b.courseSession ? ` · Sesión ${b.courseSession.n}` : ""}

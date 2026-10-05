@@ -31,6 +31,8 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       p_points: p.pointsRedeemed ?? 0,
       p_terms_version: p.termsVersion,
       p_terms_source: p.termsSource,
+      // Solo cuando es una prueba: el checkout público nunca lo manda (default 'booking').
+      ...(p.orderKind ? { p_order_kind: p.orderKind } : {}),
     }),
     );
     if (error) throw new Error(error.message);

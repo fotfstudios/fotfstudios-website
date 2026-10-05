@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { type ActionDataResult, runData } from "@/components/admin/ui/action";
 import { validateManualBooking } from "@/lib/manual-booking";
-import { adminRepository, checkoutService, customerDirectory, notificationService, pricingService } from "@/src/composition";
+import { adminRepository, checkoutService, courseRepository, customerDirectory, notificationService, pricingService } from "@/src/composition";
+import { PRECIOS } from "@/lib/curso-content";
 import { TERMS_VERSION } from "@/lib/site";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { rangeFor } from "@/src/domain/scheduling/time";
@@ -110,6 +111,59 @@ export async function createManualBookingAction(
         .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
       return { reservationId, orderId: null, amount: null, customer: savedCustomer, pointsApplied: 0, paymentMethod: null };
+    }
+
+    // Prueba del Curso de DJ: 1 h guiada a precio fijo (PRECIOS.prueba, IVA incluido). Nace
+    // como reserva `prueba` + pedido `trial`; al pagarse, la DB emite el crédito al email
+    // de la ficha (por eso la ficha con email es obligatoria). Sin PIN: es guiada.
+    if (type === "prueba") {
+      if (!record?.email) throw new Error("Para una prueba el cliente necesita email: el crédito va a ese correo.");
+      const attested = input.termsAccepted === true;
+      const booking = await checkoutService().createTrialBooking(
+        {
+          resourceId: resource.id,
+          date,
+          startMinute,
+          price: PRECIOS.prueba,
+          customer,
+          customerId: record.id,
+          ...(attested ? { termsSource: "staff" as const, termsVersion: TERMS_VERSION } : {}),
+        },
+        { firmHold: !paid },
+      );
+      if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
+      if (paid && method) {
+        try {
+          const status = await repo.confirmOffline(booking.value.orderId, method);
+          if (status !== "confirmed") throw new Error(`confirm_payment: ${status}`);
+        } catch {
+          await repo.cancelUnpaidOrder(booking.value.orderId).catch(() => {});
+          throw new Error("No se pudo registrar el pago. La prueba fue liberada; intenta de nuevo.");
+        }
+      }
+      const reservationId = await repo.setNotesForOrder(booking.value.orderId, notes || null).catch(() => null);
+      const leadId = typeof input.leadId === "string" && /^[0-9a-f-]{36}$/i.test(input.leadId) ? input.leadId : null;
+      if (leadId && reservationId) {
+        await courseRepository()
+          .linkTrialToLead(leadId, reservationId)
+          .catch((e) => console.error("[prueba:lead]", e));
+      }
+      // Pagada → confirmación de la prueba (notifyOrder elige la plantilla por el pedido);
+      // pendiente → el mismo aviso de pago pendiente que una reserva manual.
+      await (paid
+        ? notificationService().notifyOrder(booking.value.orderId)
+        : notificationService().notifyBookingHeld(booking.value.orderId, { clockStart: new Date().toISOString() })
+      ).catch((e) => console.error("[prueba:notify]", e));
+      revalidatePath("/admin/reservas");
+      revalidatePath("/admin/curso");
+      return {
+        reservationId,
+        orderId: booking.value.orderId,
+        amount: booking.value.amount,
+        customer: savedCustomer,
+        pointsApplied: 0,
+        paymentMethod: paid ? method : null,
+      };
     }
 
     // Pendiente de pago: crea la reserva con hold firme y orden pending_payment; se

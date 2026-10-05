@@ -15,7 +15,7 @@
 import { DateTime } from "luxon";
 import { toLocalMinutesInterval, weekdayFor } from "@/src/domain/scheduling/time";
 
-import { occupiesCabin, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
+import { isSellableSession, occupiesCabin, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 
 export interface AnalyticsOrderRow {
   id: string;
@@ -134,7 +134,7 @@ function methodOf(o: AnalyticsOrderRow): string | null {
 const netOf = (o: AnalyticsOrderRow) => o.amountClp - o.refundedAmountClp;
 /** Sesión vendida: booking con orden pagada (o pagada y luego reembolsada). */
 const isSold = (r: AnalyticsReservationRow) =>
-  r.kind === "booking" && !!r.order && (r.order.status === "paid" || r.order.status === "refunded");
+  isSellableSession(r.kind) && !!r.order && (r.order.status === "paid" || r.order.status === "refunded");
 
 function deltaPct(current: number, prev: number | null): number | null {
   if (prev == null || prev === 0) return null;
@@ -261,7 +261,7 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSummary {
   // ── Embudo — categorías mutuamente excluyentes: online/offline = vendidas VIGENTES
   // (confirmed); cancelada = reserva cancelada sin reembolso (pago retenido o impago);
   // reembolsada gana sobre cancelada (toda reserva reembolsada quedó cancelada).
-  const bookings = rows.filter((r) => r.kind === "booking");
+  const bookings = rows.filter((r) => isSellableSession(r.kind));
   const vigente = (r: AnalyticsReservationRow) => r.status === "confirmed" && r.order?.status === "paid";
   const paidBy = (m: string) => bookings.filter((r) => vigente(r) && methodOf(r.order!) === m).length;
   const funnel = {

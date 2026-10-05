@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Field, Input } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
-import { fmtDate, fmtDateTime } from "@/components/admin/format";
+import { fmtDateTime } from "@/components/admin/format";
 import { Button } from "@/components/admin/ui/Button";
 import { Card } from "@/components/admin/ui/Card";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
@@ -18,6 +18,7 @@ import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { issueTrialCreditAction } from "./actions";
+import { TrialsTable } from "./_components/TrialsTable";
 import { PRECIOS } from "@/lib/curso-content";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,9 @@ export default async function CursoPage() {
   await requirePermission("course.manage");
 
   const repo = courseRepository();
-  const [programas, creditos] = await Promise.all([
+  const [programas, pruebas] = await Promise.all([
     repo.listLivePrograms(),
-    repo.listCredits().catch(() => []),
+    repo.listTrialCredits().catch(() => []),
   ]);
 
   const porPagar = programas.filter((p) => p.students.some((s) => s.status === "reservada")).length;
@@ -133,43 +134,40 @@ export default async function CursoPage() {
       <div className="mt-10">
         <Card title="Sesiones de prueba">
           <p className="mb-4 text-sm text-bone-dim">
-            Registra una prueba ya hecha y queda el crédito de {formatCLP(PRECIOS.prueba)}, válido 7 días
-            desde la sesión. Se aplica solo al inscribir a esa misma persona.
+            Se agendan desde <Link href="/admin/reservas/nueva?tipo=prueba" className="text-gold hover:underline">Reserva manual → Prueba del curso</Link> (1 h,{" "}
+            {formatCLP(PRECIOS.prueba)}). Al pagarse dejan un crédito por lo pagado que vale 7 días desde la sesión: se
+            aplica solo al inscribir a esa misma persona, y puedes extenderlo.
           </p>
-          <ActionForm
-            action={issueTrialCreditAction}
-            success="Crédito emitido."
-            resetOnSuccess
-            className="grid gap-4 sm:grid-cols-[1fr_11rem_auto] sm:items-end"
-          >
-            <Field label="Email del alumno">
-              <Input name="email" type="email" required maxLength={120} />
-            </Field>
-            <Field label="Día de la prueba">
-              <Input name="sessionDate" type="date" required />
-            </Field>
-            <div className="pb-1">
-              <SubmitButton size="sm" variant="secondary" pendingLabel="Emitiendo…">
-                Emitir crédito
-              </SubmitButton>
-            </div>
-          </ActionForm>
-          {creditos.length > 0 && (
-            <ul className="mt-5 flex flex-col gap-2 border-t hairline pt-4">
-              {creditos.slice(0, 5).map((c) => (
-                <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-sm text-bone-dim">{c.email}</span>
-                  <span className="label-sm text-bone-quiet">
-                    {c.consumedOrderId
-                      ? "Usado"
-                      : new Date(c.expiresAt) < new Date()
-                        ? "Vencido"
-                        : `Vence ${fmtDate(c.expiresAt)}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
+          {pruebas.length > 0 ? (
+            <TrialsTable rows={pruebas} />
+          ) : (
+            <EmptyState size="compact" title="Sin pruebas todavía" hint="Las pruebas pagadas aparecen acá con su crédito." />
           )}
+          <details className="mt-6 border-t hairline pt-4">
+            <summary className="label-sm cursor-pointer text-bone-quiet hover:text-bone">
+              Registrar una prueba antigua (agendada como ensayo)
+            </summary>
+            <div className="mt-4">
+            <ActionForm
+              action={issueTrialCreditAction}
+              success="Crédito emitido."
+              resetOnSuccess
+              className="grid gap-4 sm:grid-cols-[1fr_11rem_auto] sm:items-end"
+            >
+              <Field label="Email del alumno">
+                <Input name="email" type="email" required maxLength={120} />
+              </Field>
+              <Field label="Día de la prueba">
+                <Input name="sessionDate" type="date" required />
+              </Field>
+              <div className="pb-1">
+                <SubmitButton size="sm" variant="secondary" pendingLabel="Emitiendo…">
+                  Emitir crédito
+                </SubmitButton>
+              </div>
+            </ActionForm>
+            </div>
+          </details>
         </Card>
       </div>
     </>

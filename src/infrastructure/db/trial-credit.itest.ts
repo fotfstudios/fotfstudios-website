@@ -203,3 +203,32 @@ describe("inscribirse cierra la solicitud", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("SupabaseTrialCreditRepository (barrido de seguimiento)", () => {
+  const repoFor = async () => {
+    const { SupabaseTrialCreditRepository } = await import("./trial-credit-repository");
+    return new SupabaseTrialCreditRepository(
+      createServiceClient(process.env.SUPABASE_URL ?? "http://127.0.0.1:54421", process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""),
+    );
+  };
+
+  it("trae el crédito vivo con el fin de la prueba y el nombre; el reclamo es único", async () => {
+    const id = await trial();
+    await pg.query("select confirm_payment($1, null::text, 'transferencia')", [id]);
+    const r = await repoFor();
+    const [c] = await r.liveCandidates();
+    expect(c).toMatchObject({ email: "martin@e.cl", name: "Martín", amount: 19990, followupSentAt: null });
+    expect(new Date(c.sessionEndsAt!).getTime()).toBe(new Date(`${DAY}T17:00:00-03:00`).getTime());
+    expect(await r.claim(c.id, "followup")).toBe(true);
+    expect(await r.claim(c.id, "followup")).toBe(false);
+    await r.release(c.id, "followup");
+    expect(await r.claim(c.id, "followup")).toBe(true);
+  });
+
+  it("un crédito anulado o usado no es candidato", async () => {
+    const id = await trial();
+    await pg.query("select confirm_payment($1, null::text, 'transferencia')", [id]);
+    await pg.query("update course_credits set voided_at = now()");
+    expect(await (await repoFor()).liveCandidates()).toEqual([]);
+  });
+});

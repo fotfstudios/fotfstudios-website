@@ -8,6 +8,7 @@
  */
 import { manualHoldDeadline } from "@/src/domain/scheduling/manual-hold-deadline";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
+import { isSellableSession } from "@/src/domain/scheduling/reservation-kind";
 
 export type PaymentBadgeTone = "ok" | "pending" | "muted" | "alert";
 
@@ -34,8 +35,8 @@ export interface PaymentBadgeInput {
 }
 
 export function paymentBadge(b: PaymentBadgeInput, now: Date = new Date()): PaymentBadge | null {
-  // Ni el bloqueo ni la sesión guiada del curso se cobran por hora.
-  if (b.kind !== "booking") return null;
+  // Ni el bloqueo ni la sesión guiada del curso se cobran (la prueba sí).
+  if (!isSellableSession(b.kind)) return null;
   if (!b.orderId) {
     if (b.practiceEnrollmentId) return { label: "Práctica del curso", tone: "muted" };
     if (b.rescheduleId) return { label: "Cupo de reagendamiento", tone: "muted" };

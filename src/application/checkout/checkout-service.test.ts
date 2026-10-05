@@ -429,7 +429,7 @@ describe("CheckoutService.createBooking — promo de primera reserva (checkout p
     );
     expect(params.lines.reduce((s, l) => s + l.subtotal_clp, 0)).toBe(26000);
     // El snapshot sigue siendo el quote del motor (sin promo), como con el descuento manual.
-    expect(params.snapshot.total).toBe(30000);
+    expect((params.snapshot as Quote).total).toBe(30000);
   });
 
   it("la promo se aplica ANTES del canje: los puntos se capan contra el total ya rebajado", async () => {
@@ -543,5 +543,55 @@ describe("CheckoutService.createBooking — expectedAmount", () => {
     const r = await svc.createBooking(input);
 
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("CheckoutService.createTrialBooking — prueba del curso", () => {
+  const terms = { currency: "CLP", taxPct: 0.19, timezone: "America/Santiago" };
+  const make = () => {
+    const createCheckout = vi.fn(async () => "o-trial");
+    const pricing = { fixedPriceTerms: vi.fn(async () => terms) } as unknown as PricingService;
+    return { createCheckout, svc: new CheckoutService(pricing, { createCheckout }) };
+  };
+  const input = {
+    resourceId: "r1",
+    date: "2099-10-08",
+    startMinute: 16 * 60,
+    price: 19990,
+    customer: { name: "Martín", email: "martin@e.cl" },
+    customerId: "c1",
+  };
+
+  it("1 h a precio fijo con IVA, pedido trial, una sola línea", async () => {
+    const { svc, createCheckout } = make();
+    const r = await svc.createTrialBooking(input, { firmHold: true });
+    expect(r).toEqual({ ok: true, value: { orderId: "o-trial", amount: 19990, pointsApplied: 0, paidWithPoints: false } });
+    const p = (createCheckout.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    expect(p).toMatchObject({
+      orderKind: "trial",
+      amount: 19990,
+      net: 16798,
+      tax: 3192,
+      currency: "CLP",
+      customerId: "c1",
+      holdTtlMinutes: null,
+      startsAt: "2099-10-08T19:00:00.000Z",
+      endsAt: "2099-10-08T20:00:00.000Z",
+      snapshot: { trial: true, price: 19990 },
+    });
+    expect(p.lines).toEqual([
+      { line_type: "room_time", description: "Sesión de prueba · Curso de DJ · 1 h", quantity: 1, unit_price_clp: 19990, subtotal_clp: 19990 },
+    ]);
+  });
+
+  it("en el pasado se rechaza", async () => {
+    const { svc } = make();
+    expect(await svc.createTrialBooking({ ...input, date: "2020-01-01" })).toEqual({ ok: false, error: "too_soon" });
+  });
+
+  it("horario tomado → slot_taken", async () => {
+    const { svc, createCheckout } = make();
+    createCheckout.mockRejectedValueOnce(new Error("conflicting key value violates exclusion constraint 23P01"));
+    expect(await svc.createTrialBooking(input)).toEqual({ ok: false, error: "slot_taken" });
   });
 });
