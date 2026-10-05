@@ -5,12 +5,21 @@ import { fmtDate, fmtDateTime, fmtTimeRange } from "@/components/admin/format";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { Icon } from "@/components/admin/ui/icons";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
-import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { isCourseSession, isMaintenanceBlock } from "@/src/domain/scheduling/reservation-kind";
+import { paymentBadge, type PaymentBadgeTone } from "@/src/domain/admin/payment-badge";
 import type { ReservaOrden } from "@/src/domain/admin/reservas-list";
 import type { AdminBooking } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 
 const TZ = "America/Santiago";
+
+/** Color de la columna Pago. Sirena solo para lo urgente (pago vencido). */
+const TONE: Record<PaymentBadgeTone, string> = {
+  ok: "text-bone",
+  pending: "text-gold",
+  muted: "text-bone-quiet",
+  alert: "text-sirena",
+};
 
 type Bucket = "hoy" | "manana" | "semana" | "proximas" | "pasadas";
 const BUCKET_LABEL: Record<Bucket, string> = {
@@ -63,7 +72,7 @@ export function BookingsTable({
       <Fragment key={b.id}>
         {header && (
           <tr className="border-b hairline bg-ink/50">
-            <td colSpan={5} className="label-sm px-4 py-2 text-bone-quiet">
+            <td colSpan={6} className="label-sm px-4 py-2 text-bone-quiet">
               {BUCKET_LABEL[header]}
               {exactCounts ? ` · ${bucketCounts[header]}` : ""}
             </td>
@@ -76,12 +85,13 @@ export function BookingsTable({
 
   return (
     <DataTable
-      minWidthClassName="min-w-[42rem]"
+      minWidthClassName="min-w-[50rem]"
       head={
         <>
           <Th>Cuándo</Th>
           <Th>Cliente</Th>
           <Th>Estado</Th>
+          <Th>Pago</Th>
           <Th right>Monto</Th>
           <Th />
         </>
@@ -93,17 +103,12 @@ export function BookingsTable({
 }
 
 function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
-  const isBlock = isRoomBlock(b.kind);
-  const isHold = !!b.rescheduleId; // cupo guardado para un reagendamiento pendiente (sin orden)
-  const isPractice = !!b.practiceEnrollmentId;
-  const isCourtesy = !isBlock && !b.orderId && !isHold && !isPractice;
+  const isBlock = isMaintenanceBlock(b.kind);
+  const isCurso = isCourseSession(b.kind);
   const isRefunded = b.orderStatus === "refunded";
-  const overdue =
-    b.orderStatus === "pending_payment" &&
-    b.status !== "cancelled" &&
-    b.status !== "expired" &&
-    DateTime.fromISO(b.startsAt) < now;
-  const name = b.customerName ?? b.customerEmail ?? "—";
+  // El cobro va en su propia columna (antes el estado de la reserva hacía de todo).
+  const pago = paymentBadge(b, now.toJSDate());
+  const name = b.customerName ?? b.customerEmail ?? (isCurso ? "Sin alumno asignado" : "—");
   const secondary = b.customerName ? (b.customerEmail ?? b.customerPhone) : b.customerPhone;
 
   return (
@@ -121,9 +126,11 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
           <>
             <div className="flex max-w-64 items-center gap-2">
               <span className="truncate text-bone">{name}</span>
-              {isHold && <span className="label-sm shrink-0 text-gold">Cupo reagendamiento</span>}
-              {isCourtesy && <span className="label-sm shrink-0 text-gold">Cortesía</span>}
-              {isPractice && <span className="label-sm shrink-0 text-gold">Práctica</span>}
+              {isCurso && (
+                <span className="label-sm shrink-0 text-gold">
+                  Curso{b.courseSession ? ` · Sesión ${b.courseSession.n}` : ""}
+                </span>
+              )}
             </div>
             {secondary && (
               <div className="mt-0.5 max-w-64 truncate font-mono text-xs text-bone-quiet">{secondary}</div>
@@ -133,8 +140,16 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
       </Td>
       <Td>
         <StatusPill status={b.status} />
-        {isRefunded && <div className="label-sm mt-1 text-bone-quiet">Reembolsada</div>}
-        {overdue && <div className="label-sm mt-1 text-sirena">Pago vencido</div>}
+      </Td>
+      <Td>
+        {pago ? (
+          <>
+            <div className={`label-sm ${TONE[pago.tone]}`}>{pago.label}</div>
+            {pago.dueAt && <div className="mt-0.5 font-mono text-xs text-bone-quiet">vence {fmtDateTime(pago.dueAt)}</div>}
+          </>
+        ) : (
+          <span className="text-bone-quiet">—</span>
+        )}
       </Td>
       <Td right className="whitespace-nowrap">
         <div className={`font-mono ${isRefunded ? "text-bone-quiet" : "text-bone"}`}>
@@ -150,6 +165,8 @@ function BookingRow({ b, now }: { b: AdminBooking; now: DateTime }) {
           aria-label={
             isBlock
               ? `Ver bloqueo — ${fmtDateTime(b.startsAt)}`
+              : isCurso
+                ? `Ver sesión del curso — ${fmtDateTime(b.startsAt)}`
               : `Ver reserva de ${name} — ${fmtDateTime(b.startsAt)}`
           }
           className="inline-flex text-bone-quiet outline-none transition-colors after:absolute after:inset-0 group-hover:text-gold focus-visible:after:border focus-visible:after:border-gold"

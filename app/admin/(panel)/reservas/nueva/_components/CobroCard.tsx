@@ -6,7 +6,8 @@ import { btn, inputCls } from "@/components/admin/ui/styles";
 import { fmtPts } from "@/components/cuenta/format";
 import { tierLabel } from "@/components/booking/format";
 import { formatCLP } from "@/src/domain/money/money";
-import type { ManualPaymentMethod } from "@/lib/manual-booking";
+import { Choice, type ChoiceOption } from "@/components/admin/ui/Choice";
+import { PAYMENT_METHOD_LABEL, type OfflineMethod } from "@/src/domain/money/payment-method";
 import type { DiscountMode } from "@/src/domain/pricing/manual-discount";
 import { DiscountPicker, type DiscountOption } from "./DiscountPicker";
 
@@ -59,16 +60,19 @@ export interface PointsState {
   onAll: () => void;
 }
 
-const METHODS: { key: ManualPaymentMethod; label: string }[] = [
-  { key: "pendiente", label: "Pendiente" },
-  { key: "efectivo", label: "Efectivo" },
-  { key: "transferencia", label: "Transferencia" },
-  { key: "cortesia", label: "Cortesía" },
+const PAID_OPTIONS: ChoiceOption<"no" | "si">[] = [
+  { value: "no", label: "No · pendiente" },
+  { value: "si", label: "Sí" },
+];
+const METHOD_OPTIONS: ChoiceOption<OfflineMethod>[] = [
+  { value: "transferencia", label: PAYMENT_METHOD_LABEL.transferencia },
+  { value: "efectivo", label: PAYMENT_METHOD_LABEL.efectivo },
 ];
 
 /**
- * La caja: TOTAL como ancla, desglose, método de pago y el CTA. Con cortesía
- * el total pasa a "valor cortesía" (informativo, sin cobro ni boleta).
+ * La caja: TOTAL como ancla, desglose, el pago y el CTA. El pago son dos preguntas
+ * separadas: ¿ya pagó? (si no, nace pendiente) y, si pagó, cómo. Con cortesía no
+ * hay pago: el total pasa a "valor cortesía" (informativo, sin cobro ni boleta).
  */
 export function CobroCard({
   isCortesia,
@@ -81,8 +85,11 @@ export function CobroCard({
   selectionLabel,
   duration,
   hourlyKeys,
+  paid,
+  onPaid,
   method,
   onMethod,
+  coversAll,
   warning,
   error,
   pending,
@@ -99,15 +106,19 @@ export function CobroCard({
   selectionLabel: string | null;
   duration: number;
   hourlyKeys: Set<string>;
-  method: ManualPaymentMethod;
-  onMethod: (m: ManualPaymentMethod) => void;
+  paid: boolean;
+  onPaid: (paid: boolean) => void;
+  method: OfflineMethod | null;
+  onMethod: (m: OfflineMethod) => void;
+  /** Los puntos cubren el total: queda pagada con Puntos FOTF, sin preguntas. */
+  coversAll: boolean;
   warning: string | null;
   error: string | null;
   pending: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
-  const isPendiente = method === "pendiente";
+  const isPendiente = !isCortesia && !paid && !coversAll;
   // Mismo orden que el servidor: el descuento manual baja el total y recién
   // sobre ESE total se descuentan los puntos (así no se "pierden" puntos contra
   // un total que el descuento iba a bajar igual).
@@ -235,25 +246,28 @@ export function CobroCard({
         </div>
       )}
 
-      <div className="mt-6 border-t hairline pt-5">
-        <span className="label-sm text-bone-quiet">Método de pago</span>
-        <div role="radiogroup" aria-label="Método de pago" className="mt-2.5 grid grid-cols-4 border hairline">
-          {METHODS.map((m, i) => (
-            <button
-              key={m.key}
-              type="button"
-              role="radio"
-              aria-checked={method === m.key}
-              onClick={() => onMethod(m.key)}
-              className={`px-1 py-2.5 text-center font-mono text-[0.625rem] font-medium uppercase tracking-[0.06em] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-gold ${
-                i > 0 ? "border-l hairline" : ""
-              } ${method === m.key ? "bg-gold text-ink" : "text-bone-dim hover:text-gold"}`}
-            >
-              {m.label}
-            </button>
-          ))}
+      {!isCortesia && (
+        <div className="mt-6 flex flex-col gap-4 border-t hairline pt-5">
+          {coversAll ? (
+            <p className="text-sm text-bone">
+              Se paga con <strong>Puntos FOTF</strong>: queda pagada al crearla.
+            </p>
+          ) : (
+            <>
+              <Choice
+                name="paid"
+                legend="¿Ya pagó?"
+                options={PAID_OPTIONS}
+                value={paid ? "si" : "no"}
+                onChange={(v) => onPaid(v === "si")}
+              />
+              {paid && (
+                <Choice name="method" legend="Método de pago" options={METHOD_OPTIONS} value={method} onChange={onMethod} />
+              )}
+            </>
+          )}
         </div>
-      </div>
+      )}
 
       {warning && (
         <div
@@ -292,7 +306,7 @@ export function CobroCard({
         {isCortesia
           ? "Sin cobro ni boleta."
           : isPendiente
-            ? "Sin cobro ahora · se liquida después (efectivo/transferencia o link de pago)."
+            ? "Sin cobro ahora · se liquida después (transferencia/efectivo o link de pago)."
             : "IVA incluido · queda pagada · boleta por emitir."}
       </p>
     </Card>

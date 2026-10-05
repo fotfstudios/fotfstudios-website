@@ -966,17 +966,18 @@ export function authVerificationCode(v: { token: string }): EmailContent {
 
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
-  v: BookingView & { email: string | null },
+  v: BookingView & { email: string | null; method?: string | null },
 ): EmailContent {
+  const paidBy = v.method ? ` · pagó por ${v.method}` : "";
   const html = shell(
     `<h1 style="font-size:22px;margin:0 0 8px">Nueva reserva pagada</h1>
      <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
      <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(v.email ?? "sin email")}</p>
      <table style="width:100%;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};margin:8px 0">${rows(v.lines)}</table>
-     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong></p>
+     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong>${esc(paidBy)}</p>
      <p style="color:${T.gold};margin:16px 0">Recuerda cargar el PIN en la cerradura y emitir la boleta.</p>`,
     `${v.when} · ${v.total} · ${v.name ?? "Cliente"}`,
   );
-  const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}. Cargar el PIN en la cerradura + emitir boleta.`;
+  const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. Cargar el PIN en la cerradura + emitir boleta.`;
   return { template: "ownerNotification", subject: `Nueva reserva — ${v.when}`, html, text };
 }

@@ -55,6 +55,14 @@ export interface AdminBooking {
    * y cancela SOLO desde la ficha del alumno (si no, el saldo de horas no se entera).
    */
   practiceEnrollmentId: string | null;
+  /** `orders.payment_method` (null sin pagar o sin pedido). */
+  paymentMethod: string | null;
+  /** Vencimiento del hold: con valor = checkout web en curso; null = hold firme (manual). */
+  expiresAt: string | null;
+  /** Reloj de 72 h de una pendiente manual: creación de la orden o último link de pago. */
+  paymentClockStart: string | null;
+  /** Sesión guiada del curso (kind=curso): número, título y la inscripción a la que pertenece. */
+  courseSession: { n: number; title: string } | null;
 }
 
 /** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
@@ -255,17 +263,28 @@ type ResRow = {
   reschedule_id?: string | null;
   /** Uno-a-uno (reservation_id es único), pero PostgREST puede devolver arreglo: se aceptan ambos. */
   course_practice_redemptions?: { enrollment_id: string } | { enrollment_id: string }[] | null;
+  course_sessions?: { n: number; title: string } | { n: number; title: string }[] | null;
+  expires_at?: string | null;
   orders: {
     amount_clp: number;
     status: string;
     paid_at: string | null;
     refunded_at: string | null;
     refunded_amount_clp: number | null;
+    payment_method?: string | null;
+    created_at?: string;
+    payment_intents?: { created_at: string }[] | null;
   } | null;
 };
 
-const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp), course_practice_redemptions(enrollment_id)";
+/**
+ * Columnas de la lista. Con un filtro de PAGO (pendiente/pagada) el pedido se embebe
+ * con !inner: así el filtro sobre orders.status descarta la reserva entera, no solo
+ * su pedido embebido (sin !inner, PostgREST devolvería la reserva con orders = null).
+ */
+const listSelect = (inner = false) =>
+  `id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, expires_at, orders${inner ? "!inner" : ""}(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, payment_method, created_at, payment_intents(created_at)), course_practice_redemptions(enrollment_id), course_sessions(n, title)`;
+const SELECT = listSelect();
 
 /** Subconjunto estructural del query builder de PostgREST que usan los filtros de la lista. */
 interface ReservasFilterable {
@@ -275,6 +294,7 @@ interface ReservasFilterable {
   eq(column: string, value: string): this;
   neq(column: string, value: string): this;
   in(column: string, values: string[]): this;
+  is(column: string, value: null): this;
 }
 
 const ACCESS_WORK_SELECT = "id, starts_at, ends_at, customer_name, customer_email, access_code";
@@ -317,7 +337,23 @@ const map = (r: ResRow): AdminBooking => ({
   rescheduleId: r.reschedule_id ?? null,
   customerId: r.customer_id ?? null,
   practiceEnrollmentId: practiceOf(r.course_practice_redemptions),
+  paymentMethod: r.orders?.payment_method ?? null,
+  expiresAt: r.expires_at ?? null,
+  paymentClockStart: clockStartOf(r.orders),
+  courseSession: sessionOf(r.course_sessions),
 });
+
+/** greatest(orders.created_at, último link de pago): el mismo reloj que el barrido de 72 h. */
+function clockStartOf(o: ResRow["orders"]): string | null {
+  if (!o?.created_at) return null;
+  const stamps = [o.created_at, ...(o.payment_intents ?? []).map((p) => p.created_at)];
+  return stamps.reduce((a, b) => (new Date(b) > new Date(a) ? b : a));
+}
+
+function sessionOf(s: ResRow["course_sessions"]): { n: number; title: string } | null {
+  const one = Array.isArray(s) ? s[0] : s;
+  return one ? { n: one.n, title: one.title } : null;
+}
 
 function practiceOf(p: ResRow["course_practice_redemptions"]): string | null {
   const one = Array.isArray(p) ? p[0] : p;
@@ -350,13 +386,15 @@ export class SupabaseAdminRepository {
     const orden = ordenSpec(qy);
     const from = (qy.page - 1) * qy.perPage;
 
-    const dataQ = this.reservasFiltered(this.db.from("reservations").select(SELECT), qy, qy.estado, nowUtc)
+    // Pendiente/pagada filtran por orders.status: necesitan el pedido como !inner.
+    const inner = qy.pago === "pendiente" || qy.pago === "pagada";
+    const dataQ = this.reservasFiltered(this.db.from("reservations").select(listSelect(inner)), qy, qy.estado, nowUtc)
       .order(orden.column, { ascending: orden.ascending, nullsFirst: false })
       .order("id", { ascending: true })
       .range(from, from + qy.perPage - 1);
     const countFor = (tab: ReservaTab) =>
       this.reservasFiltered(
-        this.db.from("reservations").select("id", { count: "exact", head: true }),
+        this.db.from("reservations").select(inner ? "id, orders!inner(status)" : "id", { count: "exact", head: true }),
         qy,
         tab,
         nowUtc,
@@ -387,7 +425,8 @@ export class SupabaseAdminRepository {
 
     const [agenda, pendingPay, last30] = await Promise.all([
       this.bookingsBetween(todayStart.toUTC().toISO()!, horizon.toUTC().toISO()!),
-      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment"),
+      // Solo reservas de sala: un pedido de curso o un delta de reagendamiento tienen su propio cobro.
+      this.db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment").eq("kind", "booking"),
       this.analyticsReservations(last30Start.toUTC().toISO()!, todayEnd.toUTC().toISO()!),
     ]);
 
@@ -420,6 +459,10 @@ export class SupabaseAdminRepository {
     // (lo que está pasando en la cabina es lo más relevante del default).
     if (qy.tiempo === "proximas") qb = qb.gte("ends_at", nowUtc);
     else if (qy.tiempo === "pasadas") qb = qb.lt("ends_at", nowUtc);
+    // Cobro (el pedido viene como !inner en pendiente/pagada; ver listSelect).
+    if (qy.pago === "pendiente") qb = qb.eq("orders.status", "pending_payment");
+    else if (qy.pago === "pagada") qb = qb.eq("orders.status", "paid");
+    else if (qy.pago === "sin_cobro") qb = qb.eq("kind", "booking").is("order_id", null).is("reschedule_id", null);
     switch (tab) {
       case "confirmadas":
         // Positivo, no `neq("block")`: la lista de reservas es sobre CLIENTES,
@@ -668,7 +711,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, payment_method, pricing_snapshot), course_practice_redemptions(enrollment_id)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, payment_method, pricing_snapshot), course_practice_redemptions(enrollment_id), course_sessions(n, title)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {

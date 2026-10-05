@@ -943,3 +943,16 @@ describe("pago duplicado (aviso al dueño)", () => {
     expect(sin.html).toContain("sin email");
   });
 });
+
+describe("aviso al dueño de reserva pagada", () => {
+  const view = { when: "jueves 8 de octubre, 16:00–17:00 h", name: "Ana", total: "$9.990", lines: [] } as never;
+  it("dice cómo se pagó cuando se sabe", () => {
+    const m = ownerNotification({ ...(view as object), email: "ana@e.cl", method: "Transferencia" } as never);
+    expect(m.html).toContain("pagó por Transferencia");
+    expect(m.text).toContain("pagó por Transferencia");
+  });
+  it("sin método no inventa uno", () => {
+    const m = ownerNotification({ ...(view as object), email: "ana@e.cl" } as never);
+    expect(m.text).not.toContain("pagó por");
+  });
+});

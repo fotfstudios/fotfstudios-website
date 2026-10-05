@@ -10,11 +10,15 @@ const base = {
   date: "2026-07-09",
   startMinute: 600,
   durationHours: 2,
-  method: "efectivo",
+  type: "ensayo",
+  paid: true,
+  method: "efectivo" as unknown,
   addonKeys: [] as unknown,
   notes: "",
   walkInName: "Walk-in de prueba",
 };
+/** Una cortesía no tiene pago: ni "ya pagó" ni método. */
+const cortesia = { type: "cortesia", paid: false, method: null };
 
 describe("validateManualBooking", () => {
   it("acepta un input válido y normaliza notas", () => {
@@ -25,6 +29,8 @@ describe("validateManualBooking", () => {
         date: "2026-07-09",
         startMinute: 600,
         durationHours: 2,
+        type: "ensayo",
+        paid: true,
         method: "efectivo",
         addonKeys: ["audio", "guided"],
         notes: "Pagó al llegar",
@@ -51,42 +57,77 @@ describe("validateManualBooking", () => {
     expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas." });
   });
 
-  describe("duración por método", () => {
-    it("la cortesía avanza en medias horas; lo que cobra, en horas enteras", () => {
+  describe("duración por tipo", () => {
+    it("la cortesía avanza en medias horas; el ensayo (que cobra), en horas enteras", () => {
       expect(durationStepFor("cortesia")).toBe(0.5);
-      for (const m of ["pendiente", "efectivo", "transferencia"] as const) expect(durationStepFor(m)).toBe(1);
+      expect(durationStepFor("ensayo")).toBe(1);
     });
 
     it("acepta una cortesía de 1,5 h", () => {
-      const r = validateManualBooking({ ...base, method: "cortesia", durationHours: 1.5 });
+      const r = validateManualBooking({ ...base, ...cortesia, durationHours: 1.5 });
       expect(r.ok && r.value.durationHours).toBe(1.5);
     });
 
     it.each([0.5, 1.25, 16.5])("rechaza una cortesía de %s h", (durationHours) => {
-      const r = validateManualBooking({ ...base, method: "cortesia", durationHours });
+      const r = validateManualBooking({ ...base, ...cortesia, durationHours });
       expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas, en medias horas." });
     });
 
-    it.each(["pendiente", "efectivo", "transferencia"])("con cobro (%s) 1,5 h sigue siendo inválido", (method) => {
-      const r = validateManualBooking({ ...base, method, durationHours: 1.5 });
+    it.each([
+      [true, "efectivo"],
+      [false, null],
+    ])("un ensayo (pagado=%s) de 1,5 h sigue siendo inválido", (paid, method) => {
+      const r = validateManualBooking({ ...base, paid, method, durationHours: 1.5 });
       expect(r).toEqual({ ok: false, error: "Duración inválida: entre 1 y 16 horas." });
     });
   });
 
-  it.each(["", "tarjeta", "CORTESIA", 3])("rechaza método inválido: %s", (method) => {
-    const r = validateManualBooking({ ...base, method });
-    expect(r).toEqual({ ok: false, error: "Método de pago inválido." });
-  });
+  // Tipo, ¿ya pagó? y método son tres ejes: antes vivían mezclados en una sola
+  // lista "pendiente / efectivo / transferencia / cortesía".
+  describe("tipo, pago y método", () => {
+    it.each(["", "pendiente", "efectivo", "CORTESIA", 3, undefined])("rechaza tipo inválido: %s", (type) => {
+      expect(validateManualBooking({ ...base, type })).toEqual({ ok: false, error: "Tipo de reserva inválido." });
+    });
 
-  it("acepta los cuatro métodos", () => {
-    for (const method of ["pendiente", "efectivo", "transferencia", "cortesia"]) {
-      expect(validateManualBooking({ ...base, method }).ok).toBe(true);
-    }
-  });
+    it("ensayo pendiente: sin método", () => {
+      const r = validateManualBooking({ ...base, paid: false, method: null });
+      expect(r.ok && { paid: r.value.paid, method: r.value.method }).toEqual({ paid: false, method: null });
+    });
 
-  it("acepta el método 'pendiente'", () => {
-    const r = validateManualBooking({ ...base, method: "pendiente" });
-    expect(r.ok).toBe(true);
+    it.each(["transferencia", "efectivo"])("ensayo pagado por %s", (method) => {
+      const r = validateManualBooking({ ...base, method });
+      expect(r.ok && r.value.method).toBe(method);
+    });
+
+    it.each(["tarjeta", "mercadopago", "puntos", "pendiente", 3])("rechaza método inválido: %s", (method) => {
+      expect(validateManualBooking({ ...base, method })).toEqual({ ok: false, error: "Método de pago inválido." });
+    });
+
+    it("pagado sin método y sin canje → hay que elegirlo", () => {
+      expect(validateManualBooking({ ...base, method: null })).toEqual({ ok: false, error: "Elige el método de pago." });
+    });
+
+    it("pendiente CON método → contradicción", () => {
+      expect(validateManualBooking({ ...base, paid: false, method: "efectivo" })).toEqual({
+        ok: false,
+        error: "Una reserva pendiente no lleva método de pago.",
+      });
+    });
+
+    it.each([
+      [true, null],
+      [false, "efectivo"],
+      [true, "transferencia"],
+    ])("una cortesía no admite pago (pagado=%s, método=%s)", (paid, method) => {
+      expect(validateManualBooking({ ...base, type: "cortesia", paid, method })).toEqual({
+        ok: false,
+        error: "Una cortesía ya es sin cobro: no admite pago.",
+      });
+    });
+
+    it("'paid' tiene que ser booleano", () => {
+      expect(validateManualBooking({ ...base, paid: "si" })).toEqual({ ok: false, error: "Indica si ya pagó." });
+    });
   });
 
   it.each([[["audio", "no válido!"]], ["audio"], [[""]], [[7]]])("rechaza add-ons inválidos: %j", (addonKeys) => {
@@ -162,7 +203,7 @@ describe("validateManualBooking — descuento manual", () => {
   it("rechaza un descuento en una cortesía (no hay nada que cobrar)", () => {
     const r = validateManualBooking({
       ...base,
-      method: "cortesia",
+      ...cortesia,
       discount: { target: { kind: "room" }, mode: "pct", value: 20, reason: "" },
     });
     expect(r.ok).toBe(false);
@@ -266,13 +307,18 @@ describe("validateManualBooking — canje de puntos", () => {
   });
 
   it("una cortesía no admite canje: ya es sin cobro", () => {
-    expect(validateManualBooking({ ...conFicha, method: "cortesia", pointsToRedeem: 1000 })).toEqual({
+    expect(validateManualBooking({ ...conFicha, ...cortesia, pointsToRedeem: 1000 })).toEqual({
       ok: false,
       error: "Una cortesía ya es sin cobro: no admite canje de puntos.",
     });
   });
 
   it("una cortesía CON ficha y sin canje sigue siendo válida", () => {
-    expect(validateManualBooking({ ...conFicha, method: "cortesia" }).ok).toBe(true);
+    expect(validateManualBooking({ ...conFicha, ...cortesia }).ok).toBe(true);
+  });
+
+  it("pagado SIN método vale si hay canje (el servidor verifica que cubra el total)", () => {
+    const r = validateManualBooking({ ...conFicha, method: null, pointsToRedeem: 9990 });
+    expect(r.ok && { method: r.value.method, points: r.value.pointsToRedeem }).toEqual({ method: null, points: 9990 });
   });
 });

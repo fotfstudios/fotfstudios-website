@@ -7,7 +7,8 @@ import { DateTime } from "luxon";
 import { SITE, SITE_URL } from "@/lib/site";
 import { formatCLP } from "@/src/domain/money/money";
 import { normalizePhoneCl } from "@/src/domain/contact/contact";
-import type { ManualPaymentMethod } from "@/lib/manual-booking";
+import type { ManualBookingType } from "@/lib/manual-booking";
+import type { PaymentMethod } from "@/src/domain/money/payment-method";
 
 // Se re-exporta: `waLink` y los callers/tests de lib/whatsapp lo siguen importando
 // desde acá, pero la implementación vive en el dominio (un solo hogar).
@@ -25,7 +26,9 @@ export interface ManualBookingMessageInput {
   startMinute: number;
   durationHours: number;
   total: number | null; // null = cortesía (sin cobro)
-  method: ManualPaymentMethod;
+  type: ManualBookingType;
+  /** Cómo quedó pagada; null = pendiente de pago (o cortesía). */
+  paymentMethod: PaymentMethod | null;
   addonNames: string[];
 }
 
@@ -41,7 +44,8 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
   const end = p.startMinute + p.durationHours * 60;
   // "pendiente": el hold es firme pero el pago aún no se registra — nunca se le
   // dice al cliente que está "confirmada" ni "pagada" (sería falso).
-  const isPendiente = p.method === "pendiente";
+  const isCortesia = p.type === "cortesia" || p.total === null;
+  const isPendiente = !isCortesia && p.paymentMethod === null;
 
   const lines: string[] = [
     isPendiente
@@ -52,12 +56,19 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
     `${bold("Duración:")} ${horas(p.durationHours)}`,
   ];
   if (p.addonNames.length > 0) lines.push(`${bold("Extras:")} ${p.addonNames.join(", ")}`);
-  if (p.method === "cortesia" || p.total === null) {
+  if (isCortesia || p.total === null) {
     lines.push(`${bold("Cortesía:")} sesión sin cobro.`);
   } else if (isPendiente) {
     lines.push(`${bold("Total a pagar (IVA incl.):")} \`${formatCLP(p.total)}\` — pendiente de pago`);
   } else {
-    const via = p.method === "transferencia" ? "por transferencia" : "en efectivo";
+    const via =
+      p.paymentMethod === "transferencia"
+        ? "por transferencia"
+        : p.paymentMethod === "puntos"
+          ? "con Puntos FOTF"
+          : p.paymentMethod === "mercadopago"
+            ? "por Mercado Pago"
+            : "en efectivo";
     lines.push(`${bold("Total (IVA incl.):")} \`${formatCLP(p.total)}\` — pagado ${via}`);
   }
   lines.push(

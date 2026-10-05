@@ -144,7 +144,7 @@ export class NotificationService {
     }
     if (this.config.ownerEmail) {
       await this.mailer
-        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email }) })
+        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod) }) })
         .catch((e) => console.error("[notify:owner]", orderId, e));
     }
     return true;

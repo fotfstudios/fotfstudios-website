@@ -3,6 +3,7 @@
  * es "use server" y solo puede exportar funciones async).
  */
 import type { ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
+import type { PaymentMethod } from "@/src/domain/money/payment-method";
 
 /** La ocupación del día vive en components/admin/day-occupancy.ts (compartida con el curso). */
 export type { DayConsoleData, OccupancyEntry } from "@/components/admin/day-occupancy";
@@ -12,7 +13,12 @@ export interface ManualBookingInput {
   startMinute: number;
   durationHours: number;
   addonKeys: string[];
-  method: string;
+  /** Tipo de reserva: "ensayo" | "cortesia" (lo valida lib/manual-booking). */
+  type: string;
+  /** ¿Ya pagó? false = pendiente. */
+  paid: boolean;
+  /** Con `paid`: "transferencia" | "efectivo"; null si lo cubren los puntos. */
+  method: string | null;
   /**
    * Ficha elegida en el picker, o null para un walk-in solo-nombre. El cliente
    * NO manda nombre/email/teléfono: el servidor los lee de `customers`.
@@ -48,4 +54,6 @@ export interface ManualBookingResult {
   customer: { name: string | null; phone: string | null };
   /** Puntos efectivamente descontados (los capa el servidor contra el total y el saldo). */
   pointsApplied: number;
+  /** Cómo quedó pagada (null = pendiente o cortesía). "puntos" si el canje cubrió todo. */
+  paymentMethod: PaymentMethod | null;
 }

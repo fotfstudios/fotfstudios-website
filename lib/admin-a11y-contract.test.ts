@@ -171,3 +171,21 @@ describe("tablas y toasts", () => {
     expect(src).toMatch(/tone === "ok"[\s\S]*?setTimeout|setTimeout[\s\S]*?tone === "ok"/);
   });
 });
+
+describe("selectores de una opción", () => {
+  it("Choice usa radios nativos agrupados por <fieldset>/<legend> y borde ink-edge", () => {
+    const src = read("components/admin/ui/Choice.tsx");
+    expect(src).toContain("<fieldset");
+    expect(src).toContain("<legend");
+    expect(src).toContain('type="radio"');
+    expect(src).toContain("border-ink-edge");
+    expect(src).not.toContain("hairline");
+  });
+
+  it('nadie arma un grupo role="radio" a mano: se usa Choice', () => {
+    const offenders = TOOL_DIRS.flatMap(tsxUnder)
+      .filter((f) => !f.endsWith("components/admin/ui/Choice.tsx"))
+      .filter((f) => read(f).includes('role="radio"'));
+    expect(offenders).toEqual([]);
+  });
+});

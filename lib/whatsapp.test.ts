@@ -36,7 +36,8 @@ describe("manualBookingWhatsAppMessage", () => {
     startMinute: 18 * 60,
     durationHours: 2,
     total: 49_980,
-    method: "efectivo" as const,
+    type: "ensayo" as const,
+    paymentMethod: "efectivo" as const,
     addonNames: ["Grabación de audio"],
   };
 
@@ -50,8 +51,13 @@ describe("manualBookingWhatsAppMessage", () => {
     expect(msg).toContain("*Dirección:*");
   });
 
+  it("pagada 100 % con puntos lo dice", () => {
+    const msg = manualBookingWhatsAppMessage({ ...base, paymentMethod: "puntos" });
+    expect(msg).toContain("pagado con Puntos FOTF");
+  });
+
   it("variante transferencia", () => {
-    const msg = manualBookingWhatsAppMessage({ ...base, method: "transferencia" });
+    const msg = manualBookingWhatsAppMessage({ ...base, paymentMethod: "transferencia" });
     expect(msg).toContain("pagado por transferencia");
   });
 
@@ -62,12 +68,12 @@ describe("manualBookingWhatsAppMessage", () => {
   });
 
   it("cortesía también lleva los links de términos", () => {
-    const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null });
+    const msg = manualBookingWhatsAppMessage({ ...base, type: "cortesia", paymentMethod: null, total: null });
     expect(msg).toContain("https://www.fotfstudios.cl/terminos");
   });
 
   it("variante cortesía: sin línea de total", () => {
-    const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null });
+    const msg = manualBookingWhatsAppMessage({ ...base, type: "cortesia", paymentMethod: null, total: null });
     expect(msg).toContain("*Cortesía:* sesión sin cobro.");
     expect(msg).not.toContain("Total");
   });
@@ -86,13 +92,13 @@ describe("manualBookingWhatsAppMessage", () => {
   });
 
   it("cortesía de hora y media: decimal en es-CL y fin a la media hora", () => {
-    const msg = manualBookingWhatsAppMessage({ ...base, method: "cortesia", total: null, durationHours: 1.5 });
+    const msg = manualBookingWhatsAppMessage({ ...base, type: "cortesia", paymentMethod: null, total: null, durationHours: 1.5 });
     expect(msg).toContain("*Duración:* 1,5 horas");
     expect(msg).toContain("18:00–19:30 h");
   });
 
   it("variante pendiente: no dice 'confirmada' ni 'pagado', total queda a pagar", () => {
-    const msg = manualBookingWhatsAppMessage({ ...base, method: "pendiente" });
+    const msg = manualBookingWhatsAppMessage({ ...base, paymentMethod: null });
     expect(msg).toContain("quedó agendada, *pendiente de pago*.");
     expect(msg).not.toContain("está confirmada");
     expect(msg).not.toContain("pagado en efectivo");

@@ -3,7 +3,7 @@ import { hhmm } from "@/components/booking/format";
 /** Estado visible de un inicio posible (lo computa BookingConsole). */
 export interface SlotView {
   minute: number;
-  tag: "ocupado" | "bloqueo" | "no alcanza" | "pasado" | null;
+  tag: "ocupado" | "bloqueo" | "curso" | "no alcanza" | "pasado" | null;
   disabled: boolean;
   /** Seleccionable solo como cortesía (pasado / fuera de horario) — se pinta en sirena. */
   warn: boolean;

@@ -7,22 +7,35 @@
 import { DateTime } from "luxon";
 import type { ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
 import { err, ok, type Result } from "@/src/domain/shared/result";
-
-export const MANUAL_METHODS = ["pendiente", "efectivo", "transferencia", "cortesia"] as const;
-export type ManualPaymentMethod = (typeof MANUAL_METHODS)[number];
+import { isOfflineMethod, type OfflineMethod } from "@/src/domain/money/payment-method";
 
 /**
- * Paso de la duración según el método. Una cortesía no se cobra, así que admite
+ * Tres ejes que antes se mezclaban en una sola lista de "método de pago"
+ * (pendiente / efectivo / transferencia / cortesía):
+ *   · TIPO de reserva — qué se cobra: ensayo (tarifa de sala) o cortesía (sin cobro).
+ *   · ¿YA PAGÓ? — si no, nace pendiente y se liquida después.
+ *   · MÉTODO — solo si ya pagó: transferencia o efectivo. Si los puntos cubren el
+ *     100 %, el método es "puntos" y lo decide el servidor (no se elige).
+ */
+export const MANUAL_TYPES = ["ensayo", "cortesia"] as const;
+export type ManualBookingType = (typeof MANUAL_TYPES)[number];
+
+/**
+ * Paso de la duración según el tipo. Una cortesía no se cobra, así que admite
  * medias horas (una sesión del curso dura 1,5 h); lo que cobra va en horas
  * enteras porque el motor de precios no cotiza fracciones.
  */
-export const durationStepFor = (method: ManualPaymentMethod): 0.5 | 1 => (method === "cortesia" ? 0.5 : 1);
+export const durationStepFor = (type: ManualBookingType): 0.5 | 1 => (type === "cortesia" ? 0.5 : 1);
 
 export interface ManualBookingFields {
   date: string; // "YYYY-MM-DD"
   startMinute: number; // 0..1439
   durationHours: number; // 1..16; la cortesía admite medias horas
-  method: ManualPaymentMethod;
+  type: ManualBookingType;
+  /** ¿Ya pagó? false = nace pendiente (se liquida después). Una cortesía siempre false. */
+  paid: boolean;
+  /** Solo con `paid`: cómo pagó. null = lo cubren los puntos (lo verifica el servidor). */
+  method: OfflineMethod | null;
   addonKeys: string[];
   notes: string; // trimmed; "" = sin notas
   /**
@@ -99,7 +112,9 @@ export function validateManualBooking(raw: {
   date: unknown;
   startMinute: unknown;
   durationHours: unknown;
-  method: unknown;
+  type: unknown;
+  paid: unknown;
+  method?: unknown;
   addonKeys: unknown;
   notes: unknown;
   customerId?: unknown;
@@ -117,13 +132,14 @@ export function validateManualBooking(raw: {
     return err("Hora de inicio inválida.");
   }
 
-  // El método va antes que la duración porque el paso depende de él.
-  const method = raw.method;
-  if (typeof method !== "string" || !(MANUAL_METHODS as readonly string[]).includes(method)) {
-    return err("Método de pago inválido.");
+  // El tipo va antes que la duración porque el paso depende de él.
+  const rawType = raw.type;
+  if (typeof rawType !== "string" || !(MANUAL_TYPES as readonly string[]).includes(rawType)) {
+    return err("Tipo de reserva inválido.");
   }
+  const type = rawType as ManualBookingType;
 
-  const step = durationStepFor(method as ManualPaymentMethod);
+  const step = durationStepFor(type);
   const durationHours = raw.durationHours;
   if (
     typeof durationHours !== "number" ||
@@ -177,24 +193,37 @@ export function validateManualBooking(raw: {
   if (pointsToRedeem > 0 && customerId === null) {
     return err("Para canjear puntos, elige un cliente con ficha.");
   }
-  if (pointsToRedeem > 0 && method === "cortesia") {
+  if (pointsToRedeem > 0 && type === "cortesia") {
     return err("Una cortesía ya es sin cobro: no admite canje de puntos.");
   }
 
   // Una cortesía no crea pedido ni líneas: no hay nada sobre lo cual descontar.
   let discount: ManualDiscountInput | undefined;
   if (raw.discount != null) {
-    if (method === "cortesia") return err("Una cortesía ya es sin cobro: no admite descuento.");
+    if (type === "cortesia") return err("Una cortesía ya es sin cobro: no admite descuento.");
     const d = validateDiscount(raw.discount);
     if (!d.ok) return err(d.error);
     discount = d.value;
   }
 
+  // Pago: al final, porque "pagó con puntos" depende del canje de arriba.
+  if (typeof raw.paid !== "boolean") return err("Indica si ya pagó.");
+  const paid = raw.paid;
+  const rawMethod = raw.method == null || raw.method === "" ? null : raw.method;
+  if (rawMethod !== null && !isOfflineMethod(rawMethod)) return err("Método de pago inválido.");
+  const method = rawMethod;
+  if (type === "cortesia" && (paid || method)) return err("Una cortesía ya es sin cobro: no admite pago.");
+  if (!paid && method) return err("Una reserva pendiente no lleva método de pago.");
+  // Sin método solo si hay canje: si los puntos no cubren el total lo rechaza el servidor.
+  if (paid && !method && pointsToRedeem === 0) return err("Elige el método de pago.");
+
   return ok({
     date,
     startMinute,
     durationHours,
-    method: method as ManualPaymentMethod,
+    type,
+    paid,
+    method,
     addonKeys: addonKeys as string[],
     notes,
     customerId,
