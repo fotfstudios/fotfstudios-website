@@ -48,7 +48,7 @@ export default async function ClientesPage({
           <EmptyState
             icon="user"
             title="Sin clientes todavía"
-            hint="Cada reserva pagada con email crea su ficha sola. También puedes crearla a mano."
+            hint="Cada reserva con email, inscripción al curso o sesión de prueba crea su ficha sola. También puedes crearla a mano."
             action={<NuevoClienteButton size="sm" />}
           />
         </div>

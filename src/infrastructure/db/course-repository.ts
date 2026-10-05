@@ -19,6 +19,7 @@ import type {
   CourseLeadRow,
   CourseLeadsListResult,
   CourseProgramView,
+  CustomerCourseRow,
   CourseSessionRow,
   StudentCourseView,
   NewEnrollment,
@@ -272,6 +273,24 @@ export class SupabaseCourseRepository
       .select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error("curso_session_unscheduled");
+  }
+
+  async enrollmentsForCustomer(customerId: string): Promise<CustomerCourseRow[]> {
+    const { data, error } = await this.db
+      .from("course_enrollments")
+      .select("id, plan, status, created_at, practice_hours_total, practice_hours_redeemed, course_generations(code)")
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((e) => ({
+      enrollmentId: e.id,
+      generationCode: e.course_generations?.code ?? "",
+      plan: e.plan as CoursePlan,
+      status: e.status as EnrollmentStatus,
+      createdAt: e.created_at,
+      practiceHoursTotal: e.practice_hours_total,
+      practiceHoursRedeemed: e.practice_hours_redeemed,
+    }));
   }
 
   async practiceValidUntil(generationId: string): Promise<string | null> {
@@ -703,6 +722,14 @@ export class SupabaseCourseRepository
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    // Quien vino a una prueba es cliente: su ficha nace acá si no existía (misma regla
+    // que el checkout). Sin nombre ni teléfono: no pisa los de una ficha existente.
+    const ficha = await this.db.rpc("upsert_guest_customer", {
+      p_name: "",
+      p_email: input.email.toLowerCase(),
+      p_phone: "",
+    });
+    if (ficha.error) throw new Error(ficha.error.message);
     return data.id;
   }
 

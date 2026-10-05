@@ -89,6 +89,8 @@ export interface CourseGenerationRepository {
    * Incluye cohortes antiguas con alumnos vivos: el admin las muestra igual.
    */
   listLivePrograms(): Promise<CourseProgramView[]>;
+  /** Las inscripciones de una ficha de cliente (para su historial en /admin/clientes). */
+  enrollmentsForCustomer(customerId: string): Promise<CustomerCourseRow[]>;
   /** Último día para usar la práctica (YYYY-MM-DD); null = sin sesiones, no vence. Regla en SQL. */
   practiceValidUntil(generationId: string): Promise<string | null>;
 }
@@ -286,4 +288,15 @@ export interface StudentCourseView {
   sessions: { n: number; title: string; startsAt: string | null; endsAt: string | null; status: string }[];
   /** Horas de práctica agendadas (no canceladas), por fecha. */
   practice: { startsAt: string; endsAt: string; hours: number }[];
+}
+
+/** Una inscripción vista desde la ficha del cliente. */
+export interface CustomerCourseRow {
+  enrollmentId: string;
+  generationCode: string;
+  plan: CoursePlan;
+  status: EnrollmentStatus;
+  createdAt: string;
+  practiceHoursTotal: number;
+  practiceHoursRedeemed: number;
 }
