@@ -102,7 +102,7 @@ Net effect: `whatsapp_click` per page/source comparisons are biased — `/curso-
 | **0** | B1 blocking trigger `^/(admin\|cuenta)` on all tags · B4 unmark stale key events · C2 link GSC · (opt.) internal-IP filter | GTM + GA4 UI only — **no deploy** | ~30 min |
 | **1** | A3 + A2: promote `WhatsAppCta` to a shared `components/` component (dedupe the two copies), apply to the 11 links; instrument `BookingCta` both branches (`booking_cta_click`, params `mode: online\|whatsapp`, `placement`) | one small PR | ~1–2 h |
 | **2** | A1 + B5: `begin_checkout` (BookingWidget), `purchase` (EstadoClient, all 3 payment paths, numeric value from `/api/orders/[id]/status`, de-dupe guards), `generate_lead` (/unete). Then mark `purchase` key event in GA4. **Local-first with MP sandbox tunnel per CLAUDE.md** | PR + GA4 UI | ~half day incl. E2E |
-| **3** | B2 URL cleanup in GTM · B3 decide EM outbound clicks · C3 UTM convention for social links · Ads linking when campaigns start | GTM/GA4 UI + ops habit | opportunistic |
+| **3** | B2 URL cleanup in GTM · B3 decide EM outbound clicks · C3 UTM convention for social links · ~~Ads linking when campaigns start~~ **Meta done 2026-10-04:** Pixel `4414554888858269` via GTM v13 (see `docs/marketing/2026-10-meta-curso-prueba.md`) | GTM/GA4 UI + ops habit | opportunistic |
 
 ## Method
 

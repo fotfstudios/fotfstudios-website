@@ -27,8 +27,8 @@ dueño responde por WhatsApp y agenda la prueba.
 - **Secundaria (remarketing, semana 3+):** visitantes de `/curso-dj` y `/guia-dj`, gente que interactuó
   con @fotfstudios.
 - **Configuración del conjunto de anuncios:** público Advantage+ con sugerencias (intereses: DJ, Pioneer
-  DJ, rekordbox, Boiler Room, techno, house, producción musical). Edad 18–40. Ubicación: Viña del Mar
-  + 25 km, “personas que viven en esta ubicación”. Sin segmentar por género.
+  DJ, rekordbox, Boiler Room, techno, house, producción musical). Edad 18–40. Ubicación: Viña del
+  Mar con radio de 25 km, “personas que viven en esta ubicación”. Sin segmentar por género.
 
 ## 3. Mensajes
 
@@ -193,3 +193,6 @@ por los UTM de la sesión.
 | Fecha | Hito |
 |---|---|
 | 2026-10-04 | Brief aprobado |
+| 2026-10-04 | Cuenta publicitaria **FOTF Studios** (`1579608350060030`, CLP, Santiago) en el portafolio FOTF Studios; $50.000 cargados vía Mercado Pago; RUT verificado. No usar la cuenta personal `1581222003376372`. |
+| 2026-10-04 | Pixel/dataset **FOTF Studios** creado: ID `4414554888858269`, conectado a la cuenta publicitaria. Conversions API automática **desactivada** (solo Pixel vía GTM). |
+| 2026-10-04 | **GTM v13 “Meta Pixel curso” publicada** (23:07) con la plantilla oficial “Meta Pixel” de facebook: PageView (Initialization – All Pages), ViewContent (nuevo activador `INIT - /curso-dj`, Page Path empieza por `/curso-dj`), Lead (`CE - course_lead_submit`, `content_name=course_lead`, `content_category={{DLV - plan}}`). Las tres requieren `ad_storage` y llevan la excepción de rutas internas; opt-in CAPI de la plantilla desactivado. Verificado en Vista previa: PageView, ViewContent y Lead llegan a `facebook.com/tr` (200); con `ad_storage` denegado el Lead **no** se envía. Lead de prueba sintético (`plan=test-gtm-preview`, sin enviar el formulario). |
