@@ -189,16 +189,22 @@ isOneToOne: false
                   ]
                 },"course_enrollments": {
                   Row: {
-                    "cancelled_at": string | null,"created_at": string,"expires_at": string | null,"generation_id": string,"id": string,"lead_id": string | null,"notes": string | null,"order_id": string | null,"paid_at": string | null,"paid_method": string | null,"plan": string,"practice_hours_redeemed": number,"practice_hours_total": number,"price_clp": number,"seat_no": number,"status": string,"student_email": string,"student_name": string,"student_phone": string | null,"transferred_to": string | null
+                    "cancelled_at": string | null,"created_at": string,"customer_id": string | null,"expires_at": string | null,"generation_id": string,"id": string,"lead_id": string | null,"notes": string | null,"order_id": string | null,"paid_at": string | null,"paid_method": string | null,"plan": string,"practice_hours_redeemed": number,"practice_hours_total": number,"price_clp": number,"seat_no": number,"status": string,"student_email": string,"student_name": string,"student_phone": string | null,"transferred_to": string | null
                   }
                   Insert: {
-                    "cancelled_at"?: string | null,"created_at"?: string,"expires_at"?: string | null,"generation_id": string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan": string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp": number,"seat_no": number,"status"?: string,"student_email": string,"student_name": string,"student_phone"?: string | null,"transferred_to"?: string | null
+                    "cancelled_at"?: string | null,"created_at"?: string,"customer_id"?: string | null,"expires_at"?: string | null,"generation_id": string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan": string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp": number,"seat_no": number,"status"?: string,"student_email": string,"student_name": string,"student_phone"?: string | null,"transferred_to"?: string | null
                   }
                   Update: {
-                    "cancelled_at"?: string | null,"created_at"?: string,"expires_at"?: string | null,"generation_id"?: string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan"?: string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp"?: number,"seat_no"?: number,"status"?: string,"student_email"?: string,"student_name"?: string,"student_phone"?: string | null,"transferred_to"?: string | null
+                    "cancelled_at"?: string | null,"created_at"?: string,"customer_id"?: string | null,"expires_at"?: string | null,"generation_id"?: string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan"?: string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp"?: number,"seat_no"?: number,"status"?: string,"student_email"?: string,"student_name"?: string,"student_phone"?: string | null,"transferred_to"?: string | null
                   }
                   Relationships: [
                     {
+      foreignKeyName: "course_enrollments_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customers"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "course_enrollments_generation_id_fkey"
       columns: ["generation_id"]
 isOneToOne: false
@@ -841,6 +847,9 @@ isOneToOne: false
 "award_retro_points":
 { Args: { "p_customer": string }; Returns: number
                            },
+"backfill_course_customers":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "backfill_customers_from_bookings":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
@@ -915,7 +924,7 @@ isOneToOne: false
                            },
 "course_session_contact":
 { Args: { "p_generation": string }; Returns: {
-              "email": string,"name": string,"phone": string
+              "customer_id": string,"email": string,"name": string,"phone": string
             }[]
                            },
 "course_sync_session_contacts":

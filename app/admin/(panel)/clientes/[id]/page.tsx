@@ -13,7 +13,7 @@ import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { fmtPts, fmtPtsSigned } from "@/components/cuenta/format";
-import { customerDirectory } from "@/src/composition";
+import { courseRepository, customerDirectory } from "@/src/composition";
 import { CUSTOMER_CAPS, customerLabel } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
@@ -34,7 +34,11 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const dir = customerDirectory();
   const c = await dir.get(id);
   if (!c) notFound();
-  const [movements, bookings] = await Promise.all([dir.movements(c.id, MOVEMENTS_SHOWN + 1), dir.bookings(c)]);
+  const [movements, bookings, cursos] = await Promise.all([
+    dir.movements(c.id, MOVEMENTS_SHOWN + 1),
+    dir.bookings(c),
+    courseRepository().enrollmentsForCustomer(c.id),
+  ]);
 
   const hasAccount = c.authUserId !== null;
   const upcoming = bookings.filter((b) => b.status === "confirmed" || b.status === "held");
@@ -143,6 +147,42 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
               </p>
             )}
           </Card>
+
+          {cursos.length > 0 && (
+            <Card title="Curso de DJ">
+              <DataTable
+                minWidthClassName="min-w-[32rem]"
+                head={
+                  <>
+                    <Th>Programa</Th>
+                    <Th>Formato</Th>
+                    <Th>Estado</Th>
+                    <Th right>Práctica</Th>
+                  </>
+                }
+              >
+                {cursos.map((k) => (
+                  <Tr key={k.enrollmentId} muted={k.status !== "reservada" && k.status !== "pagada"}>
+                    <Td>
+                      <Link href={`/admin/curso/inscripciones/${k.enrollmentId}`} className="font-mono text-bone hover:text-gold">
+                        {k.generationCode}
+                      </Link>
+                      <span className="label-sm ml-2 text-bone-quiet">{fmtDate(k.createdAt)}</span>
+                    </Td>
+                    <Td className="text-bone-dim">{k.plan === "duo" ? "En dúo" : "Individual"}</Td>
+                    <Td>
+                      <StatusPill status={k.status} />
+                    </Td>
+                    <Td right>
+                      <span className="font-mono text-bone-dim">
+                        {k.practiceHoursRedeemed}/{k.practiceHoursTotal} h
+                      </span>
+                    </Td>
+                  </Tr>
+                ))}
+              </DataTable>
+            </Card>
+          )}
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
