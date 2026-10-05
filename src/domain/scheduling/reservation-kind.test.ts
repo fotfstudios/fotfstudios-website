@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  DOOR_ACCESS_KINDS,
   RESERVATION_KINDS,
   isRoomBlock,
   isReservationKind,
   isSellableSession,
+  needsDoorAccess,
   occupiesCabin,
 } from "./reservation-kind";
 
@@ -44,5 +46,15 @@ describe("reservation-kind — semántica de cada kind", () => {
       // …y nunca las dos cosas a la vez.
       expect(isSellableSession(kind) && isRoomBlock(kind)).toBe(false);
     }
+  });
+
+  // Quien entra a la sala necesita el PIN de la puerta y el recordatorio: el cliente
+  // que reservó y el alumno del curso. Un bloqueo de mantención no tiene a quién.
+  it("PIN y recordatorio: reserva de cliente y sesión de curso, nunca un bloqueo", () => {
+    expect(needsDoorAccess("booking")).toBe(true);
+    expect(needsDoorAccess("curso")).toBe(true);
+    expect(needsDoorAccess("block")).toBe(false);
+    expect(needsDoorAccess("otro")).toBe(false);
+    expect([...DOOR_ACCESS_KINDS].sort()).toEqual(["booking", "curso"]);
   });
 });

@@ -551,3 +551,59 @@ describe("schedule_course_session — una sesión a la vez (por agendar)", () =>
     await expect(schedule(r.generationId)).rejects.toThrow(/curso_already_scheduled/);
   });
 });
+
+/** Contacto copiado a la reserva de cada sesión: de él cuelgan el PIN y el recordatorio. */
+describe("contacto del alumno en las sesiones (PIN y recordatorio)", () => {
+  const day = futureDate(4, 3);
+  const contact = async (generationId: string) =>
+    (
+      await raw(
+        `select r.customer_name, r.customer_email, r.customer_phone from course_sessions cs
+           join reservations r on r.id = cs.reservation_id where cs.generation_id = $1 order by cs.n`,
+        [generationId],
+      )
+    ).rows;
+
+  it("programa pagado: la sesión lleva nombre, email y teléfono del alumno", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await pay(r.orderId);
+    await oneSession(r.generationId, 1, day);
+    expect(await contact(r.generationId)).toEqual([
+      { customer_name: "Alumno 1", customer_email: "p1@correo.cl", customer_phone: "+56912345678" },
+    ]);
+  });
+
+  it("programa impago: sin contacto (no hay PIN ni recordatorio); al pagar, aparece", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await oneSession(r.generationId, 1, day);
+    expect((await contact(r.generationId))[0].customer_email).toBeNull();
+    await pay(r.orderId);
+    expect((await contact(r.generationId))[0].customer_email).toBe("p1@correo.cl");
+  });
+
+  it("un reemplazante pasa a ser el contacto de las sesiones que vienen", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await pay(r.orderId);
+    await schedule(r.generationId);
+    await repo.substituteStudent(r.enrollmentIds[0], { name: "Reemplazo", email: "reemplazo@correo.cl" });
+    const rows = await contact(r.generationId);
+    expect(rows.every((c) => c.customer_email === "reemplazo@correo.cl" && c.customer_name === "Reemplazo")).toBe(true);
+  });
+
+  it("dúo: el contacto es el primer cupo (quien compró)", async () => {
+    const r = await repo.createProgram({ plan: "duo", students: [alumno(1), alumno(2)], prices: PRECIOS });
+    await pay(r.orderId);
+    await oneSession(r.generationId, 1, day);
+    expect((await contact(r.generationId))[0].customer_email).toBe("p1@correo.cl");
+  });
+
+  it("re-agendar una sesión cancelada también lleva el contacto", async () => {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await pay(r.orderId);
+    await oneSession(r.generationId, 1, day);
+    const [s1] = await repo.listSessions(r.generationId);
+    await repo.cancelSession(s1.id);
+    await repo.moveSession(s1.id, `${futureDate(5, 3)}T18:00:00-03:00`, `${futureDate(5, 3)}T19:30:00-03:00`);
+    expect((await contact(r.generationId))[0].customer_email).toBe("p1@correo.cl");
+  });
+});

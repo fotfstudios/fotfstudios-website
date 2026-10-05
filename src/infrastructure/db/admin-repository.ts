@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
+import { DOOR_ACCESS_KINDS, isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BackingBoleta } from "@/src/domain/scheduling/refund-split";
@@ -1187,7 +1187,9 @@ export class SupabaseAdminRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select("id")
-      .eq("kind", "booking")
+      // Cliente: siempre. Sesión de curso: solo con alumno pagado (con email); sin él
+      // sería un código que el dueño cargaría en la Yale para nadie.
+      .or("kind.eq.booking,and(kind.eq.curso,customer_email.not.is.null)")
       .eq("status", "confirmed")
       .is("access_code", null)
       .gte("ends_at", new Date().toISOString());
@@ -1220,7 +1222,7 @@ export class SupabaseAdminRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select("id, access_code, starts_at, customer_name, customer_email")
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .not("access_code", "is", null)
       .not("access_loaded_at", "is", null)
@@ -1267,7 +1269,7 @@ export class SupabaseAdminRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select(ACCESS_WORK_SELECT)
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .not("access_code", "is", null)
       .is("access_loaded_at", null)
@@ -1282,7 +1284,7 @@ export class SupabaseAdminRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select(ACCESS_WORK_SELECT)
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .not("access_code", "is", null)
       .is("access_removed_at", null)
       .lt("ends_at", new Date().toISOString())
@@ -1297,7 +1299,7 @@ export class SupabaseAdminRepository {
     const { count } = await this.db
       .from("reservations")
       .select("id", { count: "exact", head: true })
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .not("access_code", "is", null)
       .is("access_loaded_at", null)
@@ -1310,7 +1312,7 @@ export class SupabaseAdminRepository {
     const { count } = await this.db
       .from("reservations")
       .select("id", { count: "exact", head: true })
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .not("access_code", "is", null)
       .is("access_removed_at", null)
       .lt("ends_at", new Date().toISOString());

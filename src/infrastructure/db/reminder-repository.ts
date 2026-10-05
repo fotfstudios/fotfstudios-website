@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DOOR_ACCESS_KINDS } from "@/src/domain/scheduling/reservation-kind";
 import type { ReminderRepository } from "@/src/application/reminders/reminder-service";
 import type { Database } from "./database.types";
 
@@ -13,7 +14,7 @@ export class SupabaseReminderRepository implements ReminderRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select("id, order_id, starts_at, ends_at, customer_name, customer_email")
-      .eq("kind", "booking")
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .is("reminder_sent_at", null)
       .gt("starts_at", new Date(now.getTime() + REMINDER_WINDOW.minHoursAhead * h).toISOString())
