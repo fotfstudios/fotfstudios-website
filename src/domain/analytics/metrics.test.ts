@@ -26,11 +26,12 @@ function mkRes(
           refundedAmountClp: 0,
           createdAt: "2026-07-01T12:00:00Z",
           mpPaymentId: "123",
+          paymentMethod: "mercadopago",
           customerEmail: "a@e.cl",
           feeAmount: null,
           ...(orderOver ?? {}),
         };
-  return { kind: "booking", status: "confirmed", ...rest, order } as AnalyticsReservationRow;
+  return { kind: "booking", status: "confirmed", practice: false, ...rest, order } as AnalyticsReservationRow;
 }
 
 // Semana local de referencia: lunes 2026-07-06 … domingo 2026-07-12 (invierno, UTC-4).
@@ -135,18 +136,32 @@ describe("computeAnalytics — ocupación", () => {
 });
 
 describe("computeAnalytics — embudo y add-ons", () => {
-  it("clasifica online/offline/cortesía/cancelada/reembolsada/hold vencido", () => {
+  it("clasifica por método de pago, cortesía (sin la práctica del curso), cancelada, reembolsada y hold vencido", () => {
     const rows = [
-      mkRes({ startsAt: local("2026-07-06", 10), endsAt: local("2026-07-06", 11) }), // online
-      mkRes({ startsAt: local("2026-07-06", 12), endsAt: local("2026-07-06", 13), order: { id: "o2", mpPaymentId: "offline:efectivo" } as never }),
+      mkRes({ startsAt: local("2026-07-06", 10), endsAt: local("2026-07-06", 11) }), // mercadopago
+      mkRes({ startsAt: local("2026-07-06", 12), endsAt: local("2026-07-06", 13), order: { id: "o2", paymentMethod: "efectivo", mpPaymentId: null } as never }),
+      // Fila previa a la columna: el método sale del prefijo viejo.
+      mkRes({ startsAt: local("2026-07-09", 12), endsAt: local("2026-07-09", 13), order: { id: "o2b", paymentMethod: null, mpPaymentId: "offline:transferencia" } as never }),
+      mkRes({ startsAt: local("2026-07-09", 15), endsAt: local("2026-07-09", 16), order: { id: "o2c", paymentMethod: "puntos", amountClp: 0 } as never }),
       mkRes({ startsAt: local("2026-07-06", 14), endsAt: local("2026-07-06", 15), order: null as never }), // cortesía
+      // Hora de práctica del curso: sin pedido, pero NO es cortesía.
+      mkRes({ startsAt: local("2026-07-06", 16), endsAt: local("2026-07-06", 17), order: null as never, practice: true } as never),
       mkRes({ startsAt: local("2026-07-07", 10), endsAt: local("2026-07-07", 11), status: "cancelled", order: { id: "o4", status: "paid" } as never }),
       mkRes({ startsAt: local("2026-07-07", 12), endsAt: local("2026-07-07", 13), status: "cancelled", order: { id: "o5", status: "refunded", refundedAmountClp: 9990 } as never }),
       mkRes({ startsAt: local("2026-07-07", 14), endsAt: local("2026-07-07", 15), status: "expired", order: { id: "o6", status: "pending_payment" } as never }),
       mkRes({ kind: "block", startsAt: local("2026-07-08", 10), endsAt: local("2026-07-08", 12), order: null as never }),
     ];
     const f = computeAnalytics({ ...BASE, rows }).funnel;
-    expect(f).toEqual({ online: 1, offline: 1, courtesy: 1, cancelled: 1, refunded: 1, expiredHolds: 1 });
+    expect(f).toEqual({
+      mercadopago: 1,
+      transferencia: 1,
+      efectivo: 1,
+      puntos: 1,
+      courtesy: 1,
+      cancelled: 1,
+      refunded: 1,
+      expiredHolds: 1,
+    });
   });
 
   it("attach rate por addon_key sobre sesiones pagadas", () => {

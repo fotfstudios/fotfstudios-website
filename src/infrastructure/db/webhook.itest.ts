@@ -117,6 +117,49 @@ describe("webhook", () => {
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
   });
 
+  // La guardia de pago duplicado (migración 20261007120000): la reserva se marcó pagada en
+  // efectivo y DESPUÉS el cliente pagó el link de MP. Antes el webhook lo aceptaba en
+  // silencio y pisaba el snapshot con la tarjeta; ahora no toca nada y deja el rastro.
+  it("approved sobre una orden ya pagada en efectivo → duplicate_payment: orden intacta, evento, sin snapshot", async () => {
+    const b = await book(720, "dup@e.cl");
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const orderId = b.value.orderId;
+    expect(await new SupabaseAdminRepository(db).confirmOffline(orderId, "efectivo")).toBe("confirmed");
+
+    const svc = new WebhookService(
+      new StubGateway({
+        id: "pay_dup",
+        status: "approved",
+        externalReference: orderId,
+        amount: 9990,
+        paymentTypeId: "credit_card",
+        paymentMethodId: "visa",
+      }),
+      repo,
+    );
+    expect(await svc.handlePaymentNotification("pay_dup")).toEqual({
+      result: "duplicate_payment",
+      orderId,
+      paymentId: "pay_dup",
+      duplicateAmount: 9990,
+    });
+
+    const o = await pg.query<{ method: string; snap: unknown }>(
+      "select payment_method method, payment_snapshot snap from orders where id=$1",
+      [orderId],
+    );
+    expect(o.rows[0]).toEqual({ method: "efectivo", snap: null });
+    const ev = await pg.query<{ ref: string; amount: number }>(
+      "select payment_ref ref, amount_clp amount from booking_events where order_id=$1 and type='duplicate_payment'",
+      [orderId],
+    );
+    expect(ev.rows).toEqual([{ ref: "pay_dup", amount: 9990 }]);
+    expect(
+      (await pg.query("select 1 from tax_documents where order_id=$1 and kind='boleta'", [orderId])).rowCount,
+    ).toBe(1);
+  });
+
   it("approved con el cupo ya revendido → paid_unreserved, no confirma reserva ni emite boleta", async () => {
     const b = await book(600, "d@e.cl");
     expect(b.ok).toBe(true);

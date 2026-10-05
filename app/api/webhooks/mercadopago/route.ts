@@ -84,7 +84,8 @@ export async function POST(req: Request): Promise<Response> {
     new SupabaseCourseRepository(client),
   );
   try {
-    const { result, orderId, refundedAmount, chargeFailure } = await service.handlePaymentNotification(resourceId);
+    const { result, orderId, refundedAmount, chargeFailure, duplicateAmount } =
+      await service.handlePaymentNotification(resourceId);
     if (result === "paid" && orderId) {
       // Envío de emails (best-effort; el cron diario es el respaldo).
       await notificationService(client).notifyOrder(orderId).catch((e) => console.error("[mp-webhook:email]", e));
@@ -94,6 +95,12 @@ export async function POST(req: Request): Promise<Response> {
       await notificationService(client)
         .notifyPaymentNeedsReview(orderId, resourceId)
         .catch((e) => console.error("[mp-webhook:review]", e));
+    } else if (result === "duplicate_payment" && orderId) {
+      // La orden ya estaba pagada con otro pago: no se tocó nada; el dueño lo devuelve.
+      console.error(`[mp-webhook] PAGO DUPLICADO — devolver (order ${orderId}, pago ${resourceId})`);
+      await notificationService(client)
+        .notifyDuplicatePayment(orderId, resourceId, duplicateAmount ?? 0)
+        .catch((e) => console.error("[mp-webhook:duplicate]", e));
     } else if (result === "course_paid" && orderId) {
       // Inscripción de curso pagada por MP: cupos confirmados y boleta emitida por
       // el finalizador. El email va por el camino del curso (notifyOrder ignora

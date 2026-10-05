@@ -186,6 +186,26 @@ export function customerReminder(
 }
 
 /**
+ * Pago duplicado: la orden YA estaba pagada (p. ej. marcada en efectivo) y el cliente
+ * igual pagó el link de MP. La guardia no tocó nada; el dueño tiene que devolver ESTE
+ * pago desde el panel de Mercado Pago. Sirena: hay plata del cliente que no corresponde.
+ */
+export function ownerDuplicatePayment(
+  v: { when: string; email: string | null; paymentId: string; amount: string; storedMethod: string | null },
+): EmailContent {
+  const already = v.storedMethod ? ` por ${esc(v.storedMethod)}` : "";
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px;color:${T.sirena}">Pago duplicado — devolver</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">Llegó un pago de Mercado Pago para una reserva que <strong style="color:${T.bone}">ya estaba pagada${already}</strong>. No se registró: hay que <strong style="color:${T.bone}">devolverlo desde el panel de Mercado Pago</strong>.</p>
+     <p style="margin:0 0 4px">Reserva: <strong>${esc(v.when)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">Pago a devolver: #${esc(v.paymentId)} · ${esc(v.amount)}</p>`,
+  );
+  const text = `PAGO DUPLICADO — devolver. Reserva ${v.when}, ya pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}. Cliente ${v.email ?? "?"}. Pago MP #${v.paymentId}, ${v.amount}. Devolverlo desde el panel de Mercado Pago.`;
+  return { template: "ownerDuplicatePayment", subject: `⚠️ Pago duplicado — devolver desde Mercado Pago · ${v.when}`, html, text };
+}
+
+/**
  * Recordatorio de una sesión GUIADA del curso (lo dispara el mismo barrido que el de
  * la sala). Distinto del de la sala a propósito: es una clase, así que no dice "entras
  * solo, sin esperar a nadie"; nombra la sesión y a quien la dicta, y recuerda la regla

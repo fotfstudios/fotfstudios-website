@@ -26,8 +26,12 @@ export class SupabaseWebhookRepository implements PaymentNotificationRepository 
     const { data, error } = await this.db.rpc("confirm_payment", {
       p_order: orderId,
       p_payment_id: payment.id,
+      p_method: "mercadopago",
     });
     if (error) throw new Error(error.message);
+    // Pago duplicado: la orden ya estaba pagada con OTRO pago. No se toca nada — tampoco
+    // el snapshot, que describe el pago que SÍ cuenta (antes se pisaba con el duplicado).
+    if (data === "already_paid") return "already_paid";
     // Snapshot del pago (método/comisión/neto) para observabilidad en el admin.
     // Best-effort: no bloquea la confirmación si falla.
     await this.db
@@ -42,6 +46,15 @@ export class SupabaseWebhookRepository implements PaymentNotificationRepository 
       p_order: orderId,
       ...(refundId ? { p_refund_id: refundId } : {}),
       ...(amount != null ? { p_refund_amount: amount } : {}),
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  async recordDuplicatePayment(orderId: string, paymentId: string, amount: number): Promise<void> {
+    const { error } = await this.db.rpc("log_duplicate_payment", {
+      p_order: orderId,
+      p_payment_id: paymentId,
+      p_amount: amount,
     });
     if (error) throw new Error(error.message);
   }

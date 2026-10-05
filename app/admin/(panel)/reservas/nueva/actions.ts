@@ -169,10 +169,9 @@ export async function createManualBookingAction(
     );
     if (!booking.ok) throw new Error(checkoutErrorMessage(booking.error));
 
-    // Un pedido 100% puntos ya lo confirmó `create_checkout` con
-    // `offline:puntos` (efectivo 0 → sin MP y sin boleta). Volver a confirmarlo
-    // acá sobrescribiría ese medio de pago por "efectivo" y registraría un cobro
-    // que nunca ocurrió.
+    // Un pedido 100% puntos ya lo confirmó `create_checkout` con método `puntos`
+    // (efectivo 0 → sin MP y sin boleta). Volver a confirmarlo acá registraría un
+    // cobro que nunca ocurrió (la guardia lo rechazaría como 'already_paid').
     try {
       if (!booking.value.paidWithPoints) {
         const status = await repo.confirmOffline(booking.value.orderId, method);

@@ -5,6 +5,7 @@ import { buildIcs, googleCalendarUrl } from "@/src/domain/calendar/ics";
 import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
+import { paymentMethodLabel } from "@/src/domain/money/payment-method";
 import { formatPoints } from "@/src/domain/points/points";
 import type { ApplicationInput } from "@/src/domain/applications/application";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
@@ -25,6 +26,7 @@ import {
   customerPaymentNoSlot,
   customerPointsBalance,
   ownerNeedsReview,
+  ownerDuplicatePayment,
   ownerNewApplication,
   ownerNotification,
   courseLeadConfirmation,
@@ -364,6 +366,27 @@ export class NotificationService {
         .send({ to: o.email, ...customerPaymentNoSlot({ name: o.name, when, total }, { whatsappUrl: this.config.whatsappUrl }) })
         .catch((e) => console.error("[notify:review:customer]", orderId, e));
     }
+  }
+
+  /**
+   * Pago duplicado (la guardia de confirm_payment lo rechazó): solo al dueño, que es
+   * quien devuelve el pago desde MP. Al cliente no se le escribe: su reserva sigue
+   * pagada y confirmada; el dueño decide cómo contarle.
+   */
+  async notifyDuplicatePayment(orderId: string, paymentId: string, amount: number): Promise<void> {
+    if (!this.config.ownerEmail) return;
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o) return;
+    await this.mailer.send({
+      to: this.config.ownerEmail,
+      ...ownerDuplicatePayment({
+        when: o.startsAt ? this.when(o.startsAt, o.endsAt) : "Curso de DJ",
+        email: o.email,
+        paymentId,
+        amount: formatCLP(amount),
+        storedMethod: paymentMethodLabel(o.paymentMethod),
+      }),
+    });
   }
 
   /** Reserva pendiente vencida (link de 72 h sin pagar): el horario se liberó. Best-effort. */

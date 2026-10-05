@@ -168,7 +168,7 @@ export async function reconcilePending(
       else if (res?.result === "paid_unreserved") {
         unreserved++;
         await notificationService(client)
-          .notifyPaymentNeedsReview(id, res.orderId ?? id)
+          .notifyPaymentNeedsReview(id, res.paymentId ?? "(sin id)")
           .catch((e) => console.error("[reconcile:review]", e));
       }
     } catch (e) {

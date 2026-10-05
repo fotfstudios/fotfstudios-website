@@ -163,6 +163,7 @@ describe("notifyOrder — un pedido de curso no usa la plantilla de reserva", ()
     startsAt: null,
     endsAt: null,
     notifiedAt: null,
+    paymentMethod: null,
     lines: [{ description: "Curso de Iniciación DJ · G01 · en dúo", subtotal: 159980 }],
   };
 
@@ -216,6 +217,7 @@ describe("notifyOrder — reclama notified_at antes de mandar", () => {
     startsAt: "2999-01-01T18:00:00Z",
     endsAt: "2999-01-01T20:00:00Z",
     notifiedAt: null,
+    paymentMethod: null,
     lines: [{ description: "Sala · 1h", subtotal: 9990 }],
   };
   const withOwner = (svc: ReturnType<typeof makeService>) =>
@@ -311,6 +313,7 @@ describe("notifyPending — un fallo no frena a las demás", () => {
       startsAt: "2999-01-01T18:00:00Z",
       endsAt: "2999-01-01T20:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     }));
     mailer.send.mockImplementation(async (m) => { if (m.to === "b@e.cl") throw new Error("boom"); });
@@ -336,6 +339,7 @@ describe("notifyBookingPaymentLink", () => {
     lines: [],
     kind: "booking",
     notifiedAt: null,
+    paymentMethod: null,
   };
 
   it("manda el link al cliente, con el horario en zona Santiago", async () => {
@@ -423,6 +427,7 @@ describe.each([
     lines: [],
     kind: "booking",
     notifiedAt: null,
+    paymentMethod: null,
   };
   // Reloj lun 5 oct 14:00 UTC + 72 h → promesa: viernes 9 de octubre 12:00 UTC = 09:00 en Santiago.
   const CLOCK = { clockStart: "2026-10-05T14:00:00Z", now: new Date("2026-10-05T14:00:00Z") };
@@ -534,6 +539,7 @@ describe("un solo formato de horario en todos los correos (H7)", () => {
       startsAt: "2999-07-12T18:00:00Z",
       endsAt: "2999-07-12T20:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     await service.notifyOrder("o1");
@@ -566,6 +572,7 @@ describe("notifyOrder — la confirmación lleva la reserva al bolsillo (H8)", (
     startsAt: "2999-07-12T18:00:00Z",
     endsAt: "2999-07-12T20:00:00Z",
     notifiedAt: null,
+    paymentMethod: null,
     lines: [{ description: "Sala · 2h", subtotal: 9990 }],
   };
 
@@ -647,6 +654,7 @@ describe("estados que antes eran silencio (H6)", () => {
     startsAt: "2999-07-12T18:00:00Z",
     endsAt: "2999-07-12T20:00:00Z",
     notifiedAt: "2999-01-01T00:00:00Z",
+    paymentMethod: null,
     lines: [],
   };
   const withOwner = (svc: ReturnType<typeof makeService>) =>
@@ -679,6 +687,26 @@ describe("estados que antes eran silencio (H6)", () => {
     await withOwner(base).notifyPaymentNeedsReview("o1", "pay1");
     expect(base.mailer.send).toHaveBeenCalledTimes(2);
     err.mockRestore();
+  });
+
+  it("pago duplicado: solo al dueño, con el pago a devolver y el método que ya estaba", async () => {
+    const base = makeService();
+    vi.mocked(base.repo.getOrderForEmail).mockResolvedValue({ ...order, paymentMethod: "efectivo" });
+    await withOwner(base).notifyDuplicatePayment("o1", "mp_999", 9990);
+    expect(base.mailer.send).toHaveBeenCalledTimes(1);
+    const msg = base.mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("owner@e.cl");
+    expect(msg.template).toBe("ownerDuplicatePayment");
+    expect(msg.html).toContain("mp_999");
+    expect(msg.html).toContain("ya estaba pagada por Efectivo");
+    expect(msg.text).toContain("$9.990");
+  });
+
+  it("pago duplicado: sin email del dueño no manda nada (y no al cliente)", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order);
+    await service.notifyDuplicatePayment("o1", "mp_999", 9990);
+    expect(mailer.send).not.toHaveBeenCalled();
   });
 
   it("hora liberada: manda al cliente de la orden con el horario", async () => {
@@ -730,6 +758,7 @@ describe("calendario también en cortesía y reagendamiento", () => {
       startsAt: "2999-07-13T18:00:00Z",
       endsAt: "2999-07-13T20:00:00Z",
       notifiedAt: "2999-01-01T00:00:00Z",
+      paymentMethod: null,
       lines: [],
     });
     await service.notifyReschedule("o9", { refundAmount: 0 });
@@ -753,6 +782,7 @@ describe("notifyRescheduleFailed — cobro de reagendamiento devuelto sin aplica
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: true })).toBe(true);
@@ -774,6 +804,7 @@ describe("notifyRescheduleFailed — cobro de reagendamiento devuelto sin aplica
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: false })).toBe(true);
@@ -796,6 +827,7 @@ describe("notifyRescheduleFailed — cobro de reagendamiento devuelto sin aplica
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     expect(await service.notifyRescheduleFailed("o1", { refundAmount: 6000, kept: true })).toBe(false);
@@ -816,6 +848,7 @@ describe("notifyReschedulePaymentLink — cobro de reagendamiento pendiente (H4)
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     expect(
@@ -847,6 +880,7 @@ describe("notifyReschedulePaymentLink — cobro de reagendamiento pendiente (H4)
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     expect(
@@ -909,6 +943,7 @@ describe("notifyCourtesyRescheduled (H6) + copy offline al reembolsar (M2)", () 
       startsAt: "2026-09-16T19:00:00Z",
       endsAt: "2026-09-16T21:00:00Z",
       notifiedAt: null,
+      paymentMethod: null,
       lines: [],
     });
     await service.notifyReschedule("o1", { refundAmount: 5000, offline: true });
