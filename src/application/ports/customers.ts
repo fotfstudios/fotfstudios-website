@@ -9,7 +9,7 @@ export interface CustomerProfile {
   phone: string | null;
   pointsBalance: number;
   createdAt: string;
-  /** Consentimiento de avisos por WhatsApp (migración 20261003120000). */
+  /** Consentimiento de avisos por WhatsApp (migración 20261008120000). */
   whatsapp: WhatsAppConsent;
 }
 

@@ -337,7 +337,7 @@ en `/admin/whatsapp`. Tras aprobar una plantilla que faltaba: **Reintentar falli
   recordatorio de pago de reservas manuales pendientes, migración `20261002120000`), y `calendar-sync` (`* * * * *`,
   `select public.run_calendar_sync_cron()`, migración `20261001120000`, mismos secretos de Vault que
   `access-codes`: empuja la agenda a Google Calendar; sin la ruta del PR del código recibe 404 y no pasa nada), y
-  `whatsapp-outbox` (`* * * * *`, `select public.run_whatsapp_outbox_cron()`, migración `20261003120000`, mismos
+  `whatsapp-outbox` (`* * * * *`, `select public.run_whatsapp_outbox_cron()`, migración `20261008120000`, mismos
   secretos: manda los avisos por WhatsApp; sin variables de Kapso la ruta responde `configured: false`).
   Verificar tras un deploy:
   `select jobname, status, start_time from cron.job_run_details d join cron.job j using (jobid) order by start_time desc limit 5;`

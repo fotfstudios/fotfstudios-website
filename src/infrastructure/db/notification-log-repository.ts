@@ -17,7 +17,7 @@ export class SupabaseNotificationLogRepository implements NotificationLogReposit
       p_ok: entry.ok,
       p_error: entry.error ?? "",
       // Solo WhatsApp manda el canal: el correo llama con la firma de 5 parámetros de siempre, así
-      // que este código sirve aunque la migración 20261003120000 todavía no corra en prod.
+      // que este código sirve aunque la migración 20261008120000 todavía no corra en prod.
       ...(entry.channel === "whatsapp" ? { p_channel: "whatsapp" } : {}),
     });
     if (error) throw new Error(error.message);

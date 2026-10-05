@@ -74,7 +74,7 @@ día que se configure.
 
 **El correo sigue mandando en v1.** Los barridos conservan el corte `skippedNoEmail`.
 
-## Parte 1 — Modelo de datos (PR1, `20261003120000_whatsapp.sql`, solo expansión)
+## Parte 1 — Modelo de datos (PR1, `20261008120000_whatsapp.sql`, solo expansión)
 
 1. **Consentimiento en `customers`:** `whatsapp_opt_in boolean not null default false`,
    `whatsapp_opt_in_at`, `whatsapp_opt_in_source in ('customer','staff','account')`,
