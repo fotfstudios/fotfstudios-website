@@ -238,15 +238,19 @@ describe("expire_abandoned_manual_holds", () => {
 // (marcar pagado + compartir link pueden correr en paralelo, gana el primero que
 // confirma, sin doble boleta).
 describe("liquidación idempotente de una pendiente", () => {
-  it("marcar pagado y luego 'pagar el link' → una sola confirmación, una sola boleta", async () => {
+  // Desde 20261007120000 el segundo pago ya no se traga en silencio: confirm_payment
+  // devuelve 'already_paid' sin tocar la orden, y la app lo registra y avisa al dueño.
+  it("marcar pagado y luego 'pagar el link' → una sola confirmación, una sola boleta, el segundo es 'already_paid'", async () => {
     const r = await firmCheckout(); // pending + held NULL
     // 1) Marcar pagado offline.
-    expect(await pg.query<{ c: string }>("select confirm_payment($1,$2) c", [r.orderId, "offline:efectivo"])).toBeTruthy();
-    // 2) El "pago del link" llega después (confirm_payment de nuevo, otro payment id).
-    await pg.query("select confirm_payment($1,$2)", [r.orderId, "mp_123"]);
-    const o = await pg.query<{ status: string; pid: string }>("select status, mp_payment_id pid from orders where id=$1", [r.orderId]);
+    const first = await pg.query<{ c: string }>("select confirm_payment($1, null::text, 'efectivo') c", [r.orderId]);
+    expect(first.rows[0].c).toBe("confirmed");
+    // 2) El "pago del link" llega después (otro payment id).
+    const second = await pg.query<{ c: string }>("select confirm_payment($1, $2, 'mercadopago') c", [r.orderId, "mp_123"]);
+    expect(second.rows[0].c).toBe("already_paid");
+    const o = await pg.query<{ status: string; method: string }>("select status, payment_method method from orders where id=$1", [r.orderId]);
     expect(o.rows[0].status).toBe("paid");
-    expect(o.rows[0].pid).toBe("offline:efectivo"); // gana el primero (where status <> 'paid')
+    expect(o.rows[0].method).toBe("efectivo"); // gana el primero; el segundo no toca nada
     expect((await pg.query<{ n: string }>("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [r.orderId])).rows[0].n).toBe("1");
   });
 
