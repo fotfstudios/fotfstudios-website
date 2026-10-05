@@ -28,6 +28,8 @@ export function NuevoProgramaDialog({
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState<CoursePlan>(lead?.plan === "duo" ? "duo" : "individual");
   const [credit, setCredit] = useState<{ id: string; amountClp: number } | null>(null);
+  /** Ficha que ya existe con este email: se usa tal cual (la DB nunca la renombra). */
+  const [ficha, setFicha] = useState<{ name: string | null; phone: string | null } | null>(null);
 
   const people = plan === "duo" ? 2 : 1;
   const bruto = (plan === "duo" ? prices.duo : prices.individual) * people;
@@ -36,10 +38,26 @@ export function NuevoProgramaDialog({
 
   // El crédito se busca al salir del campo de email: es una consulta por persona,
   // no algo que deba correr en cada tecla.
-  async function buscarCredito(email: string) {
-    if (!email.includes("@")) return setCredit(null);
+  // Con el email también se busca la ficha: si ya existe, sus datos rellenan lo que esté
+  // vacío (nunca lo tipeado) y se avisa que la inscripción la usa tal cual.
+  async function buscarCredito(email: string, form?: HTMLFormElement | null) {
+    if (!email.includes("@")) {
+      setCredit(null);
+      setFicha(null);
+      return;
+    }
     const r = await lookupTrialCreditAction(email);
-    setCredit(r.ok && r.data ? { id: r.data.id, amountClp: r.data.amountClp } : null);
+    const data = r.ok ? r.data : null;
+    setCredit(data?.credit ? { id: data.credit.id, amountClp: data.credit.amountClp } : null);
+    setFicha(data?.customer ?? null);
+    if (form && data?.customer) {
+      const fill = (field: string, value: string | null) => {
+        const el = form.elements.namedItem(field);
+        if (el instanceof HTMLInputElement && !el.value.trim() && value) el.value = value;
+      };
+      fill("name1", data.customer.name);
+      fill("phone1", data.customer.phone);
+    }
   }
 
   return (
@@ -86,13 +104,18 @@ export function NuevoProgramaDialog({
                   required
                   maxLength={120}
                   defaultValue={lead?.email ?? ""}
-                  onBlur={(e) => buscarCredito(e.target.value)}
+                  onBlur={(e) => buscarCredito(e.target.value, e.currentTarget.form)}
                 />
               </Field>
             </div>
             <Field label="WhatsApp" hint="Opcional.">
               <Input name="phone1" maxLength={40} defaultValue={lead?.phone ?? ""} />
             </Field>
+            {ficha && (
+              <p className="label-sm text-bone-quiet">
+                Ya es cliente{ficha.name ? `: ${ficha.name}` : ""}. La inscripción usa su ficha y no la renombra.
+              </p>
+            )}
 
             {plan === "duo" && (
               <>

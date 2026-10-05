@@ -33,6 +33,12 @@ import {
   ownerNeedsReview,
   ownerDuplicatePayment,
   trialConfirmation,
+  courseSessionsScheduled,
+  courseSessionMoved,
+  courseSessionCancelled,
+  practiceBooked,
+  practiceReleased,
+  GUIADA,
   trialReminder,
   trialFollowUp,
   trialCreditExpiring,
@@ -933,6 +939,109 @@ export class NotificationService {
   }
 
   /** El evento de calendario de una sesión (mismo uid/summary que los botones de /reserva/estado). */
+  /**
+   * Evento de calendario de una sesión GUIADA del curso: sin la promesa del PIN (la del de
+   * sala) y con el uid de la RESERVA, así mover la sesión actualiza el mismo evento.
+   */
+  private courseCalendarEvent(reservationId: string, startsAt: string, endsAt: string, n: number, title: string) {
+    return {
+      start: startsAt,
+      end: endsAt,
+      summary: `FOTF Studios — Curso DJ · Sesión ${n}`,
+      description: `${title}. ${GUIADA}`,
+      location: this.config.address,
+      uid: `fotf-r-${reservationId}@fotfstudios.cl`,
+      url: `${this.config.siteUrl}/cuenta/curso`,
+    };
+  }
+
+  private courseCtx() {
+    return {
+      address: this.config.address,
+      mapsUrl: this.config.mapsUrl,
+      whatsappUrl: this.config.whatsappUrl,
+      courseUrl: `${this.config.siteUrl}/cuenta/curso`,
+    };
+  }
+
+  /**
+   * Agenda del curso → a TODOS los alumnos del programa (un dúo son dos), pagado o no
+   * (decisión del dueño). `scheduled` va en UN correo con un .ics por sesión; `moved` y
+   * `cancelled` son por sesión. Solo correo: no hay plantilla de WhatsApp para el curso.
+   */
+  async notifyCourseSessions(
+    event: "scheduled" | "moved" | "cancelled",
+    input: {
+      students: { name: string | null; email: string | null }[];
+      sessions: { n: number; title: string; instructor: string | null; reservationId: string | null; startsAt: string; endsAt: string | null }[];
+      /** Solo `moved`: la hora anterior de la (única) sesión. */
+      previous?: { startsAt: string; endsAt: string | null };
+    },
+  ): Promise<number> {
+    if (input.sessions.length === 0) return 0;
+    const ctx = this.courseCtx();
+    const s0 = input.sessions[0];
+    const attachments =
+      event === "cancelled"
+        ? undefined
+        : input.sessions
+            .filter((s) => s.reservationId && s.endsAt)
+            .map((s) => ({
+              filename: `curso-sesion-${s.n}.ics`,
+              content: buildIcs(this.courseCalendarEvent(s.reservationId!, s.startsAt, s.endsAt!, s.n, s.title)),
+            }));
+    let sent = 0;
+    for (const st of input.students) {
+      if (!st.email) continue;
+      const content =
+        event === "scheduled"
+          ? courseSessionsScheduled(
+              {
+                name: st.name,
+                sessions: input.sessions.map((s) => ({ n: s.n, title: s.title, instructor: s.instructor, when: this.when(s.startsAt, s.endsAt) })),
+              },
+              ctx,
+            )
+          : event === "moved"
+            ? courseSessionMoved(
+                {
+                  name: st.name,
+                  n: s0.n,
+                  title: s0.title,
+                  before: input.previous ? this.when(input.previous.startsAt, input.previous.endsAt) : "—",
+                  after: this.when(s0.startsAt, s0.endsAt),
+                },
+                ctx,
+              )
+            : courseSessionCancelled({ name: st.name, n: s0.n, title: s0.title, when: this.when(s0.startsAt, s0.endsAt) }, ctx);
+      await this.mailer.send({ to: st.email, ...content, ...(attachments?.length ? { attachments } : {}) });
+      sent++;
+    }
+    return sent;
+  }
+
+  /** Práctica libre agendada o cancelada → al alumno de ese cupo. Solo correo. */
+  async notifyPractice(
+    event: "booked" | "released",
+    input: { name: string | null; email: string | null; reservationId: string; startsAt: string; endsAt: string; hoursLeft: number },
+  ): Promise<boolean> {
+    if (!input.email) return false;
+    const ctx = this.courseCtx();
+    const when = this.when(input.startsAt, input.endsAt);
+    if (event === "booked") {
+      // El evento de sala (con la promesa del PIN) es el correcto: en la práctica entra solo.
+      const ev = this.calendarEvent(`r-${input.reservationId}`, input.startsAt, input.endsAt, null);
+      await this.mailer.send({
+        to: input.email,
+        ...practiceBooked({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx),
+        attachments: [{ filename: "practica-fotf.ics", content: buildIcs(ev) }],
+      });
+    } else {
+      await this.mailer.send({ to: input.email, ...practiceReleased({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx) });
+    }
+    return true;
+  }
+
   private calendarEvent(key: string, startsAt: string, endsAt: string, orderId: string | null = key) {
     return {
       start: startsAt,
