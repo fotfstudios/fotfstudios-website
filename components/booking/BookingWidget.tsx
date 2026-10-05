@@ -67,7 +67,7 @@ export default function BookingWidget({
   addons?: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts?: { minHours: number; pct: number }[];
   /** Sesión de cliente (server la resuelve): prefill + puntos canjeables. */
-  customer?: { email: string; name: string; phone: string; points: number } | null;
+  customer?: { email: string; name: string; phone: string; points: number; whatsappOptIn: boolean } | null;
 }) {
   const router = useRouter();
   const today = todayInSantiago();
@@ -92,6 +92,11 @@ export default function BookingWidget({
   const [usePoints, setUsePoints] = useState(false);
   const [pointsInput, setPointsInput] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // Avisos por WhatsApp: marcado por defecto (decisión del dueño), salvo que el titular ya se
+  // haya dado de baja en /cuenta. Solo viaja si hay teléfono: sin número no hay a dónde avisar,
+  // y mandar false le daría de baja a quien se había dado de alta en otra reserva.
+  const [whatsappOptIn, setWhatsappOptIn] = useState(customer?.whatsappOptIn ?? true);
+  const hasPhone = phone.trim().length > 0;
   // Promo de primera reserva: elegibilidad por correo normalizado, recordada por
   // sesión de página. Es estado (no ref) para que el desglose se derive en render.
   const [promoCache, setPromoCache] = useState<Record<string, boolean>>({});
@@ -299,6 +304,7 @@ export default function BookingWidget({
             customer: { name, email, phone },
             pointsToRedeem: pointsApplied,
             termsAccepted: acceptedTerms,
+            ...(hasPhone ? { whatsappOptIn } : {}),
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
           }),
@@ -334,6 +340,8 @@ export default function BookingWidget({
     phone,
     pointsApplied,
     acceptedTerms,
+    hasPhone,
+    whatsappOptIn,
     payable,
     promoEmail,
   ]);
@@ -669,6 +677,20 @@ export default function BookingWidget({
                   className={inputCls}
                 />
               </div>
+              <label className={`mt-3 flex items-start gap-2.5 text-bone-dim ${hasPhone ? "" : "opacity-60"}`}>
+                <input
+                  type="checkbox"
+                  checked={hasPhone && whatsappOptIn}
+                  disabled={!hasPhone}
+                  onChange={(e) => setWhatsappOptIn(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+                />
+                <span className="label-sm leading-relaxed">
+                  {hasPhone
+                    ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
+                    : "Agrega tu celular para recibir también los avisos por WhatsApp."}
+                </span>
+              </label>
               {customer ? (
                 <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
                   Sesión iniciada como {customer.email}. Ya puedes usar tus puntos.

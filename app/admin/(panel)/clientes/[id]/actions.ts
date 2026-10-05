@@ -19,8 +19,19 @@ export async function updateCustomerAction(_prev: ActionResult | null, fd: FormD
   return run(async () => {
     await requirePermission("customers.manage");
     const id = str(fd, "id");
-    const r = await customerDirectory().update(id, { name: str(fd, "name"), email: str(fd, "email"), phone: str(fd, "phone") });
+    const dir = customerDirectory();
+    const r = await dir.update(id, { name: str(fd, "name"), email: str(fd, "email"), phone: str(fd, "phone") });
     if (!r.ok) throw new Error(r.error);
+    // Consentimiento de WhatsApp: solo si el formulario trae la casilla y su valor CAMBIÓ (guardar
+    // el nombre no re-fecha el alta ni pisa su origen). El staff registra lo que el cliente dijo.
+    if (fd.has("whatsapp_field")) {
+      const wanted = fd.get("whatsapp") === "on";
+      const current = await dir.get(id);
+      if (current && current.whatsapp.optIn !== wanted) {
+        const w = await dir.setWhatsAppOptIn(id, wanted);
+        if (!w.ok) throw new Error(w.error);
+      }
+    }
     revalidatePath(`/admin/clientes/${id}`);
     revalidatePath("/admin/clientes");
     revalidatePath("/admin/reservas");

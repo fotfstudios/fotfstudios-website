@@ -25,7 +25,7 @@ export default async function ReservarPage() {
   // Sesión de cliente (opcional): prefill de datos + puntos canjeables en el
   // widget. ensureCustomer otorga aquí también los retroactivos, para que un
   // primer login a mitad de reserva ya llegue con su saldo.
-  let customer: { email: string; name: string; phone: string; points: number } | null = null;
+  let customer: { email: string; name: string; phone: string; points: number; whatsappOptIn: boolean } | null = null;
   if (accountEnabled()) {
     const session = await currentCustomer();
     if (session) {
@@ -39,6 +39,9 @@ export default async function ReservarPage() {
           name: ensured.profile.name ?? "",
           phone: ensured.profile.phone ?? "",
           points: ensured.profile.pointsBalance,
+          // La casilla parte marcada salvo que el titular se haya dado de BAJA antes: una baja
+          // explícita se respeta; "nunca eligió" no es una baja.
+          whatsappOptIn: ensured.profile.whatsapp.optIn || ensured.profile.whatsapp.optOutAt === null,
         };
       }
       // Con email_conflict el widget sigue como invitado: un conflicto de

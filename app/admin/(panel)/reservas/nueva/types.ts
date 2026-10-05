@@ -39,6 +39,11 @@ export interface ManualBookingInput {
   termsAccepted?: boolean;
   /** Solicitud del curso desde la que se agenda una prueba (?lead=): se enlaza al crearla. */
   leadId?: string | null;
+  /**
+   * El cliente pidió avisos por WhatsApp (registra el alta en la ficha, origen 'staff'). Solo
+   * da de ALTA: desmarcado no da de baja a nadie (eso se hace en la ficha del cliente).
+   */
+  whatsappOptIn?: boolean;
 }
 
 export interface ManualBookingResult {

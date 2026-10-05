@@ -89,6 +89,19 @@ export class CustomerDirectoryService {
    * historial con él (`customer_email_in_use`) y un email sin forma
    * (`customer_email_invalid`). Acá solo se parsea la entrada y se traduce.
    */
+  /**
+   * Alta o baja de avisos por WhatsApp desde el admin (ficha del cliente o reserva manual). El
+   * staff registra lo que el cliente le dijo: origen "staff".
+   */
+  async setWhatsAppOptIn(id: string, optIn: boolean): Promise<Result<void, string>> {
+    try {
+      await this.repo.setWhatsAppOptIn(id, optIn, "staff");
+      return ok(undefined);
+    } catch (e) {
+      return err(legible(e));
+    }
+  }
+
   async update(id: string, raw: unknown): Promise<Result<void, string>> {
     const parsed = parseCustomerInput(raw);
     if (!parsed.ok) return err(parsed.error);

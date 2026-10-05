@@ -10,6 +10,7 @@ const ADOPTED: CustomerProfile = {
   phone: "+56912345678",
   pointsBalance: 1999,
   createdAt: "2026-01-01T00:00:00.000Z",
+  whatsapp: { optIn: true, optInAt: "2026-09-01T00:00:00.000Z", source: "customer", optOutAt: null },
 };
 
 /** Fake del puerto: solo lo que el test necesita, con vi.fn() para las aserciones. */
@@ -20,6 +21,8 @@ function fakeRepo(over: Partial<CustomerRepository> = {}): CustomerRepository {
     getProfile: vi.fn().mockResolvedValue(ADOPTED),
     findByAuthUser: vi.fn().mockResolvedValue(ADOPTED),
     updateContact: vi.fn().mockResolvedValue(undefined),
+    setWhatsAppOptIn: vi.fn().mockResolvedValue(undefined),
+    setWhatsAppOptInForOrder: vi.fn().mockResolvedValue(true),
     movements: vi.fn().mockResolvedValue([]),
     bookingsForEmail: vi.fn().mockResolvedValue([]),
     ...over,
@@ -149,5 +152,26 @@ describe("CustomerService: resolución por auth_user_id", () => {
     expect(err.message).toBe("No pudimos completar la operación. Intenta de nuevo.");
     expect(err.message).not.toMatch(/uuid|syntax/i);
     expect(String(err.cause)).toMatch(/invalid input syntax for type uuid/i);
+  });
+});
+
+describe("CustomerService — consentimiento de WhatsApp", () => {
+  it("el perfil da de baja con origen account cuando el interruptor cambió", async () => {
+    const repo = fakeRepo();
+    await new CustomerService(repo).updateProfileByUser("user-1", { name: "Ana", phone: "+56912345678" }, false);
+    expect(repo.setWhatsAppOptIn).toHaveBeenCalledWith("cust-adoptada", false, "account");
+  });
+
+  it("guardar el perfil sin cambiar el interruptor NO re-fecha ni pisa el origen", async () => {
+    const repo = fakeRepo();
+    await new CustomerService(repo).updateProfileByUser("user-1", { name: "Ana", phone: "+56912345678" }, true);
+    await new CustomerService(repo).updateProfileByUser("user-1", { name: "Ana", phone: "+56912345678" });
+    expect(repo.setWhatsAppOptIn).not.toHaveBeenCalled();
+  });
+
+  it("el checkout registra por pedido con origen customer", async () => {
+    const repo = fakeRepo();
+    expect(await new CustomerService(repo).setWhatsAppOptInForOrder("ord-1", true)).toBe(true);
+    expect(repo.setWhatsAppOptInForOrder).toHaveBeenCalledWith("ord-1", true, "customer");
   });
 });

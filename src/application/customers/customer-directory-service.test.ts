@@ -10,6 +10,7 @@ const MATIAS: CustomerProfile = {
   phone: "+56998887766",
   pointsBalance: 1999,
   createdAt: "2026-01-01T00:00:00.000Z",
+  whatsapp: { optIn: false, optInAt: null, source: null, optOutAt: null },
 };
 
 function fakeRepo(over: Partial<CustomerRepository> = {}): CustomerRepository {

@@ -4,6 +4,7 @@ import type {
   CustomerBooking,
   CustomerProfile,
   CustomerRepository,
+  WhatsAppConsentSource,
   EnsureCustomerResult,
   PointsEntryKind,
   PointsMovement,
@@ -17,9 +18,25 @@ import type { Database } from "./database.types";
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
 
 /** Columnas del perfil completo (una sola fuente para todas las consultas). */
-const PROFILE_COLS = "id, auth_user_id, email, name, phone, points_balance, created_at";
+const PROFILE_COLS =
+  "id, auth_user_id, email, name, phone, points_balance, created_at, whatsapp_opt_in, whatsapp_opt_in_at, whatsapp_opt_in_source, whatsapp_opt_out_at";
 
-function toProfile(r: Pick<CustomerRow, "id" | "auth_user_id" | "email" | "name" | "phone" | "points_balance" | "created_at">): CustomerProfile {
+type ProfileRow = Pick<
+  CustomerRow,
+  | "id"
+  | "auth_user_id"
+  | "email"
+  | "name"
+  | "phone"
+  | "points_balance"
+  | "created_at"
+  | "whatsapp_opt_in"
+  | "whatsapp_opt_in_at"
+  | "whatsapp_opt_in_source"
+  | "whatsapp_opt_out_at"
+>;
+
+function toProfile(r: ProfileRow): CustomerProfile {
   return {
     id: r.id,
     authUserId: r.auth_user_id,
@@ -28,6 +45,12 @@ function toProfile(r: Pick<CustomerRow, "id" | "auth_user_id" | "email" | "name"
     phone: r.phone,
     pointsBalance: r.points_balance,
     createdAt: r.created_at,
+    whatsapp: {
+      optIn: r.whatsapp_opt_in,
+      optInAt: r.whatsapp_opt_in_at,
+      source: (r.whatsapp_opt_in_source as WhatsAppConsentSource | null) ?? null,
+      optOutAt: r.whatsapp_opt_out_at,
+    },
   };
 }
 
@@ -285,5 +308,16 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       p_phone: d.phone as unknown as string,
     });
     if (error) throwDbError(error);
+  }
+
+  async setWhatsAppOptIn(customerId: string, optIn: boolean, source: WhatsAppConsentSource): Promise<void> {
+    const { error } = await this.db.rpc("set_whatsapp_opt_in", { p_customer: customerId, p_opt_in: optIn, p_source: source });
+    if (error) throwDbError(error);
+  }
+
+  async setWhatsAppOptInForOrder(orderId: string, optIn: boolean, source: WhatsAppConsentSource): Promise<boolean> {
+    const { data, error } = await this.db.rpc("set_whatsapp_opt_in_for_order", { p_order: orderId, p_opt_in: optIn, p_source: source });
+    if (error) throwDbError(error);
+    return data === true;
   }
 }

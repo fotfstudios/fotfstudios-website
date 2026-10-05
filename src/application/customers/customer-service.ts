@@ -85,14 +85,32 @@ export class CustomerService {
    * `run()` nunca dependa de qué método falló para decidir si el toast del
    * perfil es seguro de mostrar tal cual.
    */
-  async updateProfileByUser(userId: string, data: { name: string | null; phone: string | null }): Promise<void> {
+  async updateProfileByUser(
+    userId: string,
+    data: { name: string | null; phone: string | null },
+    /** Interruptor "Avisos por WhatsApp" del perfil. undefined = no se toca. */
+    whatsappOptIn?: boolean,
+  ): Promise<void> {
     try {
       const profile = await this.repo.findByAuthUser(userId);
       if (!profile) throw new Error("customer_not_found");
       await this.repo.updateContact(profile.id, { name: data.name, email: profile.email, phone: data.phone });
+      // Solo si CAMBIÓ: guardar el nombre no puede re-fechar el consentimiento ni pisar su
+      // origen (checkout/staff) con "account".
+      if (whatsappOptIn !== undefined && whatsappOptIn !== profile.whatsapp.optIn) {
+        await this.repo.setWhatsAppOptIn(profile.id, whatsappOptIn, "account");
+      }
     } catch (e) {
       throw legible(e);
     }
+  }
+
+  /**
+   * Consentimiento de WhatsApp marcado en /reservar, registrado en la ficha del pedido recién
+   * creado. Va APARTE de create_checkout a propósito: si falla, la reserva sigue en pie.
+   */
+  setWhatsAppOptInForOrder(orderId: string, optIn: boolean): Promise<boolean> {
+    return this.repo.setWhatsAppOptInForOrder(orderId, optIn, "customer");
   }
 
   bookingsForEmail(email: string): Promise<CustomerBooking[]> {
