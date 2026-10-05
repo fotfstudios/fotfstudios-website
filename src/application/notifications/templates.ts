@@ -202,13 +202,13 @@ export function courseSessionReminder(
      <p style="margin:0 0 16px"><strong>${esc(sesion)}</strong></p>
      ${v.instructor ? `<p style="color:${T.boneDim};margin:0 0 16px">${esc(v.instructor)} te espera en la sala.</p>` : ""}
      <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email 10 minutos antes</strong> (revisa spam). Trae tus audífonos y un USB con tu música.</p>
+     <p style="color:${T.boneDim};margin:16px 0">Es una sesión guiada: <strong style="color:${T.bone}">te recibimos en la puerta</strong>, no necesitas código. Trae tus audífonos y un USB con tu música.</p>
      <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.</p>
      <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
     `${sesion} · ${v.when}`,
   );
-  const text = `Tu sesión ${v.n} del curso se acerca: ${v.when}. ${sesion}.${v.instructor ? ` ${v.instructor} te espera en la sala.` : ""} ${ctx.address}. Tu código de acceso te llega por email 10 minutos antes (revisa spam). Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  const text = `Tu sesión ${v.n} del curso se acerca: ${v.when}. ${sesion}.${v.instructor ? ` ${v.instructor} te espera en la sala.` : ""} ${ctx.address}. Es una sesión guiada: te recibimos en la puerta, no necesitas código. Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseSessionReminder", subject: `Tu sesión ${v.n} del curso se acerca · ${v.when}`, html, text };
 }
 

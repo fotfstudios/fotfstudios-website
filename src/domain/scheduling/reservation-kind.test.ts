@@ -6,7 +6,9 @@ import {
   isReservationKind,
   isSellableSession,
   needsDoorAccess,
+  needsReminder,
   occupiesCabin,
+  REMINDER_KINDS,
 } from "./reservation-kind";
 
 describe("reservation-kind — semántica de cada kind", () => {
@@ -48,13 +50,22 @@ describe("reservation-kind — semántica de cada kind", () => {
     }
   });
 
-  // Quien entra a la sala necesita el PIN de la puerta y el recordatorio: el cliente
-  // que reservó y el alumno del curso. Un bloqueo de mantención no tiene a quién.
-  it("PIN y recordatorio: reserva de cliente y sesión de curso, nunca un bloqueo", () => {
+  // El PIN es para quien entra SOLO: el cliente que reservó (incluida la práctica libre
+  // del curso, que es kind=booking). La sesión guiada no: el instructor recibe al alumno.
+  it("PIN: solo la reserva de cliente; ni la sesión guiada ni un bloqueo", () => {
     expect(needsDoorAccess("booking")).toBe(true);
-    expect(needsDoorAccess("curso")).toBe(true);
+    expect(needsDoorAccess("curso")).toBe(false);
     expect(needsDoorAccess("block")).toBe(false);
     expect(needsDoorAccess("otro")).toBe(false);
-    expect([...DOOR_ACCESS_KINDS].sort()).toEqual(["booking", "curso"]);
+    expect([...DOOR_ACCESS_KINDS]).toEqual(["booking"]);
+  });
+
+  // El recordatorio sí le llega al alumno de la sesión guiada (con su propio correo).
+  it("recordatorio: reserva de cliente y sesión guiada, nunca un bloqueo", () => {
+    expect(needsReminder("booking")).toBe(true);
+    expect(needsReminder("curso")).toBe(true);
+    expect(needsReminder("block")).toBe(false);
+    expect(needsReminder("otro")).toBe(false);
+    expect([...REMINDER_KINDS].sort()).toEqual(["booking", "curso"]);
   });
 });

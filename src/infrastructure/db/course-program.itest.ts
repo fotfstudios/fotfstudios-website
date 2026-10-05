@@ -556,8 +556,8 @@ describe("schedule_course_session — una sesión a la vez (por agendar)", () =>
   });
 });
 
-/** Contacto copiado a la reserva de cada sesión: de él cuelgan el PIN y el recordatorio. */
-describe("contacto del alumno en las sesiones (PIN y recordatorio)", () => {
+/** Contacto copiado a la reserva de cada sesión: de él cuelga el recordatorio (la sesión guiada no lleva PIN). */
+describe("contacto del alumno en las sesiones (recordatorio)", () => {
   const day = futureDate(4, 3);
   const contact = async (generationId: string) =>
     (
@@ -577,7 +577,7 @@ describe("contacto del alumno en las sesiones (PIN y recordatorio)", () => {
     ]);
   });
 
-  it("programa impago: sin contacto (no hay PIN ni recordatorio); al pagar, aparece", async () => {
+  it("programa impago: sin contacto (no hay recordatorio); al pagar, aparece", async () => {
     const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
     await oneSession(r.generationId, 1, day);
     expect((await contact(r.generationId))[0].customer_email).toBeNull();
