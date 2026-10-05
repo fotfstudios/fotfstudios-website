@@ -18,6 +18,21 @@ export interface CourseCredit {
   consumedOrderId: string | null;
 }
 
+/** Estado de un crédito para el admin (lista de pruebas). */
+export type TrialCreditState = "vigente" | "usado" | "vencido" | "anulado";
+
+export function trialCreditState(
+  c: { consumedOrderId: string | null; voidedAt: string | null; expiresAt: string },
+  now: Date = new Date(),
+): TrialCreditState {
+  if (c.consumedOrderId) return "usado";
+  if (c.voidedAt) return "anulado";
+  return new Date(c.expiresAt).getTime() > now.getTime() ? "vigente" : "vencido";
+}
+
+/** ¿Se puede extender? Lo vigente y lo vencido (decisión del dueño, caso a caso). */
+export const canExtendCredit = (state: TrialCreditState): boolean => state === "vigente" || state === "vencido";
+
 /** Vencimiento del crédito a partir del inicio de la sesión de prueba. */
 export function creditExpiryFrom(sessionStartsAt: string | Date): string {
   const start = typeof sessionStartsAt === "string" ? new Date(sessionStartsAt) : sessionStartsAt;

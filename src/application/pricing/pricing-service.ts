@@ -52,6 +52,16 @@ export class PricingService {
     return ok({ quote: q.value, currency: pricing.ratePlan.currency, startsAt, endsAt });
   }
 
+  /**
+   * Lo que necesita una venta a precio fijo (la prueba del curso): moneda e IVA del plan
+   * activo y la zona horaria de la sala, sin cotizar nada con el motor.
+   */
+  async fixedPriceTerms(resourceId: string): Promise<{ currency: string; taxPct: number; timezone: string } | null> {
+    const pricing = await this.repo.getResourcePricing(resourceId);
+    if (!pricing) return null;
+    return { currency: pricing.ratePlan.currency, taxPct: pricing.ratePlan.taxPct, timezone: pricing.timezone };
+  }
+
   /** Add-ons y descuentos por volumen del plan activo, para mostrarlos en la UI. */
   async getCatalog(resourceId: string): Promise<PricingCatalog | null> {
     const pricing = await this.repo.getResourcePricing(resourceId);

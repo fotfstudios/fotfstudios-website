@@ -6,6 +6,7 @@ import type { Mailer } from "@/src/application/ports/mailer";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
+import { TRIAL_CREDIT_DAYS } from "@/src/domain/course/credit";
 import { formatPoints } from "@/src/domain/points/points";
 import type { ApplicationInput } from "@/src/domain/applications/application";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
@@ -27,6 +28,10 @@ import {
   customerPointsBalance,
   ownerNeedsReview,
   ownerDuplicatePayment,
+  trialConfirmation,
+  trialReminder,
+  trialFollowUp,
+  trialCreditExpiring,
   ownerNewApplication,
   ownerNotification,
   courseLeadConfirmation,
@@ -131,10 +136,14 @@ export class NotificationService {
         o.startsAt && o.endsAt
           ? [{ filename: "reserva-fotf.ics", content: buildIcs(this.calendarEvent(orderId, o.startsAt, o.endsAt)) }]
           : undefined;
+      const ctx = { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links };
       try {
         await this.mailer.send({
           to: o.email,
-          ...customerConfirmation(view, { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links }),
+          // Prueba del curso: guiada (sin PIN) y con el aviso del crédito para inscribirse.
+          ...(o.kind === "trial"
+            ? trialConfirmation({ ...view, creditDays: TRIAL_CREDIT_DAYS }, ctx)
+            : customerConfirmation(view, ctx)),
           ...(attachments ? { attachments } : {}),
         });
       } catch (e) {
@@ -144,7 +153,7 @@ export class NotificationService {
     }
     if (this.config.ownerEmail) {
       await this.mailer
-        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod) }) })
+        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod), trial: o.kind === "trial" }) })
         .catch((e) => console.error("[notify:owner]", orderId, e));
     }
     return true;
@@ -259,6 +268,37 @@ export class NotificationService {
       ),
     });
     return true;
+  }
+
+  /** Recordatorio ~24 h antes de una prueba del curso (guiada: sin PIN). */
+  async notifyTrialReminder(input: { email: string | null; name: string | null; startsAt: string; endsAt: string | null }): Promise<boolean> {
+    if (!input.email) return false;
+    await this.mailer.send({
+      to: input.email,
+      ...trialReminder(
+        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
+        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
+      ),
+    });
+    return true;
+  }
+
+  /**
+   * Seguimiento del crédito de una prueba: `followup` el día después de la sesión,
+   * `expiring` dos días antes de que venza. Lanza si el envío falla (el barrido suelta
+   * el reclamo y reintenta).
+   */
+  async notifyTrialCredit(
+    kind: "followup" | "expiring",
+    input: { email: string; name: string | null; amount: number; expiresAt: string },
+  ): Promise<void> {
+    const v = {
+      name: input.name,
+      amount: formatCLP(input.amount),
+      expiresOn: DateTime.fromISO(input.expiresAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL"),
+    };
+    const ctx = { courseUrl: `${this.config.siteUrl}/curso-dj`, whatsappUrl: this.config.whatsappUrl };
+    await this.mailer.send({ to: input.email, ...(kind === "followup" ? trialFollowUp(v, ctx) : trialCreditExpiring(v, ctx)) });
   }
 
   /**

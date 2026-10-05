@@ -90,6 +90,7 @@ export function CobroCard({
   method,
   onMethod,
   coversAll,
+  fixedLabel = null,
   warning,
   error,
   pending,
@@ -112,6 +113,8 @@ export function CobroCard({
   onMethod: (m: OfflineMethod) => void;
   /** Los puntos cubren el total: queda pagada con Puntos FOTF, sin preguntas. */
   coversAll: boolean;
+  /** Precio fijo (prueba del curso): una sola línea en vez del desglose del motor. */
+  fixedLabel?: string | null;
   warning: string | null;
   error: string | null;
   pending: boolean;
@@ -161,6 +164,12 @@ export function CobroCard({
 
       {quote && (
         <ul className="mt-5 space-y-2.5 border-t hairline pt-4 text-sm">
+          {fixedLabel && (
+            <li className="flex justify-between gap-3 text-bone-dim">
+              <span>{fixedLabel}</span>
+              <span className="font-mono text-bone">{formatCLP(quote.total)}</span>
+            </li>
+          )}
           {quote.tierLines.map((l) => (
             <li key={l.key} className="flex justify-between gap-3 text-bone-dim">
               <span>

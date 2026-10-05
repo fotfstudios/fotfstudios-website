@@ -185,6 +185,90 @@ export function customerReminder(
   return { template: "customerReminder", subject: `Tu sesión se acerca · ${v.when}`, html, text };
 }
 
+// ── Prueba del Curso de DJ ─────────────────────────────────────────────────
+// Sesión GUIADA y vendida: no promete PIN ("te recibimos en la puerta") y recuerda el
+// crédito para inscribirse. Los dos correos de seguimiento salen del barrido de 5 min.
+
+const GUIADA = "Es una sesión guiada: te recibimos en la puerta, no necesitas código.";
+
+/** Confirmación de una prueba pagada. */
+export function trialConfirmation(
+  v: BookingView & { creditDays: number },
+  ctx: {
+    address: string;
+    mapsUrl: string;
+    whatsappUrl: string;
+    links: { statusUrl: string; calendarUrl: string; accountUrl: string };
+  },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ está confirmada</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos para tu sesión de prueba de 1 hora.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:${T.boneQuiet};font-size:12px">IVA incluido</span></p>
+     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">Si después te inscribes en el curso, <strong style="color:${T.bone}">te descontamos los ${v.total}</strong>: el descuento vale ${v.creditDays} días desde la prueba.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `${v.when} · ${ctx.address}`,
+  );
+  const text = `Tu prueba del Curso de DJ está confirmada: ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. Si te inscribes en el curso te descontamos los ${v.total} (vale ${v.creditDays} días desde la prueba). Ver mi reserva: ${ctx.links.statusUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "trialConfirmation", subject: `Prueba del Curso de DJ confirmada · ${v.when}`, html, text };
+}
+
+/** Recordatorio ~24 h antes de la prueba (mismo barrido que el de la sala). */
+export function trialReminder(
+  v: { name: string | null; when: string },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ se acerca</h1>
+     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la cambiamos.</p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Prueba del Curso de DJ · ${v.when}`,
+  );
+  const text = `Tu prueba del Curso de DJ se acerca: ${v.when}. ${ctx.address}. ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "trialReminder", subject: `Tu prueba del Curso de DJ se acerca · ${v.when}`, html, text };
+}
+
+/** El día después de la prueba: la invitación a inscribirse con el descuento vigente. */
+export function trialFollowUp(
+  v: { name: string | null; amount: string; expiresOn: string },
+  ctx: { courseUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">¿Te animas con el curso?</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "gracias")} por venir a tu prueba. Si quieres seguir, armamos tu programa 1:1 con las fechas que te acomoden.</p>
+     <p style="margin:0 0 16px">Tu descuento de <strong>${esc(v.amount)}</strong> vale hasta el <strong>${esc(v.expiresOn)}</strong>.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver el curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Tu descuento de ${v.amount} vale hasta el ${v.expiresOn}`,
+  );
+  const text = `¿Te animas con el curso? Gracias por venir a tu prueba. Tu descuento de ${v.amount} vale hasta el ${v.expiresOn}. Ver el curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "trialFollowUp", subject: `¿Te animas con el curso? Tu descuento vale hasta el ${v.expiresOn}`, html, text };
+}
+
+/** Dos días antes de que venza el crédito de la prueba. */
+export function trialCreditExpiring(
+  v: { name: string | null; amount: string; expiresOn: string },
+  ctx: { courseUrl: string; whatsappUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu descuento del curso vence pronto</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} recordamos que tu descuento de <strong style="color:${T.bone}">${esc(v.amount)}</strong> en el Curso de DJ vale hasta el <strong style="color:${T.bone}">${esc(v.expiresOn)}</strong>.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">Escríbenos y armamos tu programa con las fechas que te acomoden.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver el curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Tu descuento de ${v.amount} vence el ${v.expiresOn}`,
+  );
+  const text = `Tu descuento de ${v.amount} en el Curso de DJ vale hasta el ${v.expiresOn}. Escríbenos y armamos tu programa. Ver el curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "trialCreditExpiring", subject: `Tu descuento del Curso de DJ vence el ${v.expiresOn}`, html, text };
+}
+
 /**
  * Pago duplicado: la orden YA estaba pagada (p. ej. marcada en efectivo) y el cliente
  * igual pagó el link de MP. La guardia no tocó nada; el dueño tiene que devolver ESTE
@@ -966,18 +1050,21 @@ export function authVerificationCode(v: { token: string }): EmailContent {
 
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
-  v: BookingView & { email: string | null; method?: string | null },
+  v: BookingView & { email: string | null; method?: string | null; trial?: boolean },
 ): EmailContent {
   const paidBy = v.method ? ` · pagó por ${v.method}` : "";
+  // Una prueba del curso es guiada: no hay PIN que cargar.
+  const what = v.trial ? "Nueva prueba del curso pagada" : "Nueva reserva pagada";
+  const todo = v.trial ? "Es guiada: sin PIN. Recuerda emitir la boleta." : "Recuerda cargar el PIN en la cerradura y emitir la boleta.";
   const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">Nueva reserva pagada</h1>
+    `<h1 style="font-size:22px;margin:0 0 8px">${what}</h1>
      <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
      <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(v.email ?? "sin email")}</p>
      <table style="width:100%;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};margin:8px 0">${rows(v.lines)}</table>
      <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong>${esc(paidBy)}</p>
-     <p style="color:${T.gold};margin:16px 0">Recuerda cargar el PIN en la cerradura y emitir la boleta.</p>`,
+     <p style="color:${T.gold};margin:16px 0">${todo}</p>`,
     `${v.when} · ${v.total} · ${v.name ?? "Cliente"}`,
   );
-  const text = `Nueva reserva pagada: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. Cargar el PIN en la cerradura + emitir boleta.`;
-  return { template: "ownerNotification", subject: `Nueva reserva — ${v.when}`, html, text };
+  const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}`;
+  return { template: "ownerNotification", subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} — ${v.when}`, html, text };
 }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { SELLABLE_KINDS } from "@/src/domain/scheduling/reservation-kind";
 import type {
   CustomerBooking,
   CustomerProfile,
@@ -111,7 +112,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       .from("reservations")
       .select(BOOKING_COLS)
       .ilike("customer_email", email)
-      .eq("kind", "booking")
+      .in("kind", [...SELLABLE_KINDS])
       .order("starts_at", { ascending: false })
       .limit(200);
     if (error) throwDbError(error);
@@ -129,7 +130,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     let query = this.db
       .from("reservations")
       .select(BOOKING_COLS)
-      .eq("kind", "booking")
+      .in("kind", [...SELLABLE_KINDS])
       .order("starts_at", { ascending: false })
       .limit(200);
     // El email histórico se guardó tal como lo tipearon → ilike; el re-filtro

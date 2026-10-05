@@ -22,6 +22,7 @@ const make = (rows: ReminderDue[]) => {
   const notifications = {
     notifyReminder: vi.fn(async () => true),
     notifyCourseSessionReminder: vi.fn(async () => true),
+    notifyTrialReminder: vi.fn(async () => true),
   };
   return { repo, notifications, service: new ReminderService(repo, notifications) };
 };
@@ -80,5 +81,19 @@ describe("ReminderService.sweep — sesión guiada del curso", () => {
       title: "Frases y mezcla larga",
       instructor: "Benja",
     });
+  });
+});
+
+describe("ReminderService.sweep — prueba del curso", () => {
+  it("una prueba recibe su recordatorio guiado, no el de la sala", async () => {
+    const { service, notifications } = make([due({ trial: true })]);
+    await service.sweep();
+    expect(notifications.notifyTrialReminder).toHaveBeenCalledWith({
+      email: "ana@e.cl",
+      name: "Ana",
+      startsAt: "2026-09-15T18:00:00Z",
+      endsAt: "2026-09-15T20:00:00Z",
+    });
+    expect(notifications.notifyReminder).not.toHaveBeenCalled();
   });
 });

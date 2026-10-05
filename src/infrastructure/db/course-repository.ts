@@ -24,6 +24,7 @@ import type {
   StudentCourseView,
   NewEnrollment,
   NewProgram,
+  TrialCreditRow,
 } from "@/src/application/ports/course";
 import {
   type CourseLeadStatus,
@@ -125,8 +126,29 @@ function toEnrollment(r: EnrollmentJoin): CourseEnrollmentRow {
 
 type LeadRow = Database["public"]["Tables"]["course_leads"]["Row"];
 
-function toLead(r: LeadRow): CourseLeadRow {
+type LeadTrialEmbed = {
+  id: string;
+  starts_at: string;
+  status: string;
+  course_credits: { expires_at: string; consumed_order_id: string | null; voided_at: string | null }[] | null;
+} | null;
+
+/** Lead + su prueba agendada (embed por course_leads.trial_reservation_id). */
+const LEAD_SELECT =
+  "*, trial:reservations!course_leads_trial_reservation_id_fkey(id, starts_at, status, course_credits!course_credits_source_reservation_id_fkey(expires_at, consumed_order_id, voided_at))";
+
+function toLead(r: LeadRow & { trial?: LeadTrialEmbed }): CourseLeadRow {
+  const t = r.trial ?? null;
+  const c = t?.course_credits?.[0] ?? null;
   return {
+    trial: t
+      ? {
+          reservationId: t.id,
+          startsAt: t.starts_at,
+          status: t.status,
+          credit: c ? { expiresAt: c.expires_at, consumedOrderId: c.consumed_order_id, voidedAt: c.voided_at } : null,
+        }
+      : null,
     id: r.id,
     name: r.name,
     email: r.email,
@@ -428,7 +450,7 @@ export class SupabaseCourseRepository
 
     let query = this.db
       .from("course_leads")
-      .select("*")
+      .select(LEAD_SELECT)
       .order("created_at", { ascending: false })
       .range(from, from + q.perPage - 1);
     if (status) query = query.eq("status", status);
@@ -443,7 +465,7 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
 
     return {
-      rows: (data ?? []).map(toLead),
+      rows: ((data as unknown as (LeadRow & { trial?: LeadTrialEmbed })[]) ?? []).map(toLead),
       total: tabCounts[q.estado],
       tabCounts,
       grandTotal: grand.count ?? 0,
@@ -454,6 +476,18 @@ export class SupabaseCourseRepository
     const { data, error } = await this.db.from("course_leads").select("*").eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
     return data ? toLead(data) : null;
+  }
+
+  async linkTrialToLead(leadId: string, reservationId: string): Promise<void> {
+    const { error } = await this.db.from("course_leads").update({ trial_reservation_id: reservationId }).eq("id", leadId);
+    if (error) throw new Error(error.message);
+    // Agendarle la prueba ES haberla contactado; nunca reabre una inscrita/descartada.
+    const { error: e2 } = await this.db
+      .from("course_leads")
+      .update({ status: "contactada" })
+      .eq("id", leadId)
+      .eq("status", "nueva");
+    if (e2) throw new Error(e2.message);
   }
 
   async updateLeadStatus(id: string, status: CourseLeadStatus): Promise<void> {
@@ -747,6 +781,8 @@ export class SupabaseCourseRepository
       .select("id, email, amount_clp, expires_at, consumed_order_id")
       .eq("email", email.toLowerCase())
       .is("consumed_order_id", null)
+      // Una prueba devuelta entera anula su crédito (mark_refunded).
+      .is("voided_at", null)
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: false })
       .limit(1)
@@ -755,6 +791,46 @@ export class SupabaseCourseRepository
     if (!data) return null;
     const credit = toCredit(data);
     return isCreditApplicable(credit, email) ? credit : null;
+  }
+
+  async listTrialCredits(limit = 30): Promise<TrialCreditRow[]> {
+    const { data, error } = await this.db
+      .from("course_credits")
+      .select(
+        "id, email, amount_clp, expires_at, consumed_order_id, voided_at, extended_count, source_reservation_id, reservations!course_credits_source_reservation_id_fkey(starts_at, customer_name)",
+      )
+      .order("issued_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    type Row = {
+      id: string;
+      email: string;
+      amount_clp: number;
+      expires_at: string;
+      consumed_order_id: string | null;
+      voided_at: string | null;
+      extended_count: number;
+      source_reservation_id: string | null;
+      reservations: { starts_at: string; customer_name: string | null } | null;
+    };
+    return ((data as unknown as Row[]) ?? []).map((r) => ({
+      creditId: r.id,
+      email: r.email,
+      name: r.reservations?.customer_name ?? null,
+      amountClp: r.amount_clp,
+      expiresAt: r.expires_at,
+      consumedOrderId: r.consumed_order_id,
+      voidedAt: r.voided_at,
+      extendedCount: r.extended_count,
+      reservationId: r.source_reservation_id,
+      sessionStartsAt: r.reservations?.starts_at ?? null,
+    }));
+  }
+
+  async extendCredit(creditId: string, days = 7): Promise<string> {
+    const { data, error } = await this.db.rpc("extend_course_credit", { p_credit: creditId, p_days: days });
+    if (error) throw new Error(/curso_credito_no_extensible/.test(error.message) ? "curso_credito_no_extensible" : error.message);
+    return data as string;
   }
 
   async listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]> {

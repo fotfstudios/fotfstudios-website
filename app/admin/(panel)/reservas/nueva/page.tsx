@@ -1,7 +1,8 @@
 import { DateTime } from "luxon";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
-import { adminRepository, availabilityService, customerDirectory, pricingService } from "@/src/composition";
+import { adminRepository, availabilityService, courseRepository, customerDirectory, pricingService } from "@/src/composition";
+import { PRECIOS } from "@/lib/curso-content";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
@@ -17,13 +18,25 @@ const HORIZON_DAYS = 180;
 export default async function NuevaReserva({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string; h?: string; c?: string }>;
+  searchParams: Promise<{ d?: string; h?: string; c?: string; tipo?: string; lead?: string }>;
 }) {
-  const { d, h, c } = await searchParams;
+  const { d, h, c, tipo, lead: leadParam } = await searchParams;
   const resource = await adminRepository().defaultResource();
+  // ?tipo=prueba&lead=<uuid>: "Agendar prueba" desde una solicitud del curso. Solo LEE
+  // (Next prefetchea los links: un GET no debe crear fichas). Si el email de la solicitud
+  // ya tiene ficha, se preselecciona; si no, se abre el alta rápida con sus datos.
+  const isTrial = tipo === "prueba";
+  const lead =
+    isTrial && leadParam && /^[0-9a-f-]{36}$/i.test(leadParam) ? await courseRepository().getLead(leadParam) : null;
   // ?c=<uuid>: llega desde "Nueva reserva" en la ficha del cliente. Se re-lee
   // en el servidor (nunca se confía en el id suelto) y si no existe se ignora.
-  const initialCustomer = c && /^[0-9a-f-]{36}$/i.test(c) ? await customerDirectory().get(c) : null;
+  const initialCustomer =
+    c && /^[0-9a-f-]{36}$/i.test(c)
+      ? await customerDirectory().get(c)
+      : lead
+        ? await customerDirectory().findByEmail(lead.email)
+        : null;
+  const initialCreating = lead && !initialCustomer ? { name: lead.name, email: lead.email, phone: lead.phone } : null;
   // Solo para decidir si el resumen ofrece "Ver ficha →"; /admin/clientes exige
   // este mismo permiso, así que sin él el enlace llevaría a un 403.
   const canManageCustomers = hasPermission(await currentClaims(), "customers.manage");
@@ -67,7 +80,10 @@ export default async function NuevaReserva({
       <BookingConsole
         // El prefill vive en useState: la key fuerza remount cuando cambia
         // (soft navigation al mismo segmento con otro ?d=&h= no re-monta sola).
-        key={`${initialDate}:${initialStartMinute ?? ""}:${initialCustomer?.id ?? ""}`}
+        // Con los PARÁMETROS de la URL, no con la ficha resuelta: al crear una prueba desde una
+        // solicitud, la revalidación encuentra la ficha recién creada por email y una key con
+        // su id remontaba la consola, perdiendo el panel de éxito.
+        key={`${initialDate}:${initialStartMinute ?? ""}:${c ?? ""}:${isTrial ? "prueba" : ""}:${lead?.id ?? ""}`}
         resourceId={resource.id}
         tz={resource.timezone}
         today={today}
@@ -81,6 +97,10 @@ export default async function NuevaReserva({
         canManageCustomers={canManageCustomers}
         initialCustomer={initialCustomer}
         volumeDiscounts={catalog?.volumeDiscounts ?? []}
+        trialPrice={PRECIOS.prueba}
+        initialType={isTrial ? "prueba" : "ensayo"}
+        leadId={lead?.id ?? null}
+        initialCreating={initialCreating}
       />
     </>
   );

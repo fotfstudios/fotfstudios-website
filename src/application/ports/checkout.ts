@@ -19,7 +19,8 @@ export interface CreateCheckoutParams {
   tax: number;
   currency: string;
   customer: Customer;
-  snapshot: Quote;
+  /** Cotización del motor; una prueba del curso (precio fijo) guarda su propio snapshot. */
+  snapshot: Quote | TrialSnapshot;
   lines: CheckoutLine[];
   /**
    * Ficha del directorio a la que se vincula la reserva (`customers.id`, NUNCA
@@ -38,6 +39,14 @@ export interface CreateCheckoutParams {
   termsVersion?: string;
   /** TTL del hold. undefined → 10 min (checkout cliente); null → hold firme (manual pendiente). */
   holdTtlMinutes?: number | null;
+  /** "trial" = prueba del Curso de DJ: reserva `prueba` + pedido `trial`. Sin valor: ensayo. */
+  orderKind?: "trial";
+}
+
+/** Snapshot de una prueba del curso: precio fijo, sin motor de tarifas. */
+export interface TrialSnapshot {
+  trial: true;
+  price: number;
 }
 
 export interface CheckoutRepository {

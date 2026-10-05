@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isSellableSession } from "@/src/domain/scheduling/reservation-kind";
 import { DateTime } from "luxon";
 import { fmtPct } from "@/components/admin/format";
 import { Bars } from "@/components/admin/ui/Bars";
@@ -102,7 +103,7 @@ export default async function AnaliticaPage({
   const pill = (active: boolean) =>
     `label px-4 py-2 transition-colors ${active ? "bg-gold text-ink" : "border hairline text-bone-dim hover:text-gold"}`;
   const delta = (pct: number | null) => (pct == null ? null : { pct });
-  const noData = rows.filter((x) => x.kind === "booking").length === 0;
+  const noData = rows.filter((x) => isSellableSession(x.kind)).length === 0;
 
   return (
     <>

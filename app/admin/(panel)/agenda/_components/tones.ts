@@ -43,6 +43,7 @@ const TONE_LABEL: Record<EventTone, string> = {
 export function eventTitle(b: EventLike): string {
   if (b.kind === "curso") return b.notes ?? "Sesión de curso";
   if (b.kind === "block") return "Bloqueo";
+  if (b.kind === "prueba") return `Prueba · ${b.customerName ?? b.customerEmail ?? "alumno"}`;
   return b.customerName ?? b.customerEmail ?? "Reserva";
 }
 

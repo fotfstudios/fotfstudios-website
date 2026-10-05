@@ -16,7 +16,7 @@ import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
-import { isCourseSession, isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { canReschedule as kindCanReschedule, isCourseSession, isRoomBlock, isTrialSession } from "@/src/domain/scheduling/reservation-kind";
 import { describeTaxDocs } from "@/src/domain/tax/tax-doc-steps";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
@@ -189,7 +189,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const taxSteps = describeTaxDocs(b.taxDocs, { now: new Date().toISOString() });
   // Cambiar cliente: reserva de sala vigente. La RPC vuelve a verificar todo.
   const canReassign =
-    !isBlock && !isPractice && b.kind === "booking" && (b.status === "held" || b.status === "confirmed");
+    !isBlock && !isPractice && kindCanReschedule(b.kind) && (b.status === "held" || b.status === "confirmed");
 
   // Cobro o reembolso de reagendamiento pendiente: a lo más UNA fila por reserva
   // (índice único en la migración H3/H5). Con `pending_charge` la reserva sigue en su
@@ -200,7 +200,10 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   // Reagendar: reservas pagadas (sin puntos, ≥12 h de anticipación) o cortesías
   // confirmadas (sin plata no aplica la política — misma flexibilidad que crearlas).
   // Los props del picker se calculan en el server (force-dynamic) solo si aplica.
+  // Una prueba del curso no pasa por los RPC de reagendar (son de `booking`): se cancela
+  // y se vuelve a crear.
   const canReschedule =
+    kindCanReschedule(b.kind) &&
     !isPractice &&
     b.status !== "cancelled" &&
     !pending &&
@@ -262,6 +265,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </span>
             )}
             {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
+            {isTrialSession(b.kind) && <span className="label-sm text-gold">Prueba del Curso DJ · sin PIN (guiada)</span>}
             {isPractice && <span className="label-sm text-gold">Práctica · curso DJ</span>}
           </p>
         </div>

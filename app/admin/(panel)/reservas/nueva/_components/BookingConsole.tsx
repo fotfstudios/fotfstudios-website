@@ -43,7 +43,7 @@ import { SuccessPanel } from "./SuccessPanel";
 const OOH_START = 8 * 60;
 const OOH_END = 24 * 60;
 
-const TYPE_LABEL: Record<ManualBookingType, string> = { ensayo: "Ensayo", cortesia: "Cortesía" };
+const TYPE_LABEL: Record<ManualBookingType, string> = { ensayo: "Ensayo", cortesia: "Cortesía", prueba: "Prueba del curso" };
 const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as ManualBookingType[]).map((value) => ({ value, label: TYPE_LABEL[value] }));
 
 interface SuccessState {
@@ -74,6 +74,10 @@ export default function BookingConsole({
   volumeDiscounts,
   canManageCustomers,
   initialCustomer = null,
+  trialPrice,
+  initialType = "ensayo",
+  leadId = null,
+  initialCreating = null,
 }: {
   resourceId: string;
   tz: string;
@@ -91,6 +95,14 @@ export default function BookingConsole({
   canManageCustomers: boolean;
   /** Ficha preseleccionada (?c= desde /admin/clientes). null = empezar por el buscador. */
   initialCustomer?: CustomerProfile | null;
+  /** Precio fijo de la prueba del curso (PRECIOS.prueba, IVA incluido). */
+  trialPrice: number;
+  /** Tipo preseleccionado (?tipo=prueba desde una solicitud del curso). */
+  initialType?: ManualBookingType;
+  /** Solicitud del curso desde la que se agenda la prueba (?lead=): se enlaza al crearla. */
+  leadId?: string | null;
+  /** Prefill del alta rápida (la solicitud sin ficha todavía). */
+  initialCreating?: { name?: string; email?: string; phone?: string } | null;
 }) {
   const toast = useToast();
 
@@ -108,7 +120,7 @@ export default function BookingConsole({
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
   /** Tipo de reserva (qué se cobra). Cortesía = sin cobro: oculta todo lo de pago. */
-  const [type, setType] = useState<ManualBookingType>("ensayo");
+  const [type, setType] = useState<ManualBookingType>(initialType);
   /** ¿Ya pagó? No = nace pendiente y se liquida después desde la ficha. */
   const [paid, setPaid] = useState(false);
   /** Cómo pagó (solo con `paid`). Sin valor por defecto: el registro nunca se adivina. */
@@ -116,7 +128,7 @@ export default function BookingConsole({
   /** Ficha elegida en el picker. null = todavía sin cliente. */
   const [customer, setCustomer] = useState<CustomerProfile | null>(initialCustomer);
   /** Prefill del alta rápida; null = no se está creando. */
-  const [creating, setCreating] = useState<{ name?: string; email?: string; phone?: string } | null>(null);
+  const [creating, setCreating] = useState<{ name?: string; email?: string; phone?: string } | null>(initialCreating);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInName, setWalkInName] = useState("");
   /** Puntos tipeados por el staff. Solo dígitos; el tope real lo pone el saldo. */
@@ -198,6 +210,8 @@ export default function BookingConsole({
   const avail = dayData?.avail ?? null;
   const occupancy = dayData?.occupancy ?? [];
   const isCortesia = type === "cortesia";
+  /** Prueba del curso: 1 h guiada a precio fijo, sin extras, descuento ni puntos. */
+  const isPrueba = type === "prueba";
   const open = avail && !avail.closed ? avail.openMinute : 0;
   const close = avail && !avail.closed ? avail.closeMinute : 0;
 
@@ -254,8 +268,11 @@ export default function BookingConsole({
 
   // Cotización en vivo (también para cortesía: valor de referencia). Debounce + abort.
   // Solo en horas enteras: el motor no cotiza fracciones (una cortesía de 1,5 h va sin valor).
+  // La prueba tiene precio fijo: no se cotiza con el motor.
   const quoteKey =
-    selectedStart !== null && Number.isInteger(duration) ? `${date}|${selectedStart}|${duration}|${rec}|${extras.join(",")}` : null;
+    !isPrueba && selectedStart !== null && Number.isInteger(duration)
+      ? `${date}|${selectedStart}|${duration}|${rec}|${extras.join(",")}`
+      : null;
   useEffect(() => {
     if (quoteKey === null || selectedStart === null) return;
     const ctrl = new AbortController();
@@ -285,7 +302,11 @@ export default function BookingConsole({
     };
   }, [quoteKey, resourceId, date, selectedStart, duration, rec, extras]);
 
-  const quote = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.quote : null;
+  const engineQuote = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.quote : null;
+  const quote: QuoteView | null =
+    isPrueba && selectedStart !== null
+      ? { total: trialPrice, net: 0, roomSubtotal: trialPrice, tierLines: [], addonLines: [], adjust: null }
+      : engineQuote;
   const quoteError = quoteKey !== null && quoteRes?.key === quoteKey ? quoteRes.error : false;
   const quoting = quoteKey !== null && quoteRes?.key !== quoteKey;
 
@@ -310,9 +331,9 @@ export default function BookingConsole({
       : null;
   // Misma función pura que corre el servidor → lo que se ve es lo que se cobra.
   const discountPreview = discountInput && quote ? applyManualDiscount(quote, discountInput) : null;
-  const appliedDiscount = discountInput && !isCortesia ? discountInput : null;
+  const appliedDiscount = discountInput && !isCortesia && !isPrueba ? discountInput : null;
 
-  const discountState: DiscountState | null = isCortesia
+  const discountState: DiscountState | null = isCortesia || isPrueba
     ? null
     : {
         on: discountOn,
@@ -344,7 +365,7 @@ export default function BookingConsole({
   // cobra nada, así que no hay contra qué canjear. El tope es el mínimo entre el
   // saldo y el total YA con descuento, que es el mismo orden que aplica el
   // servidor: así lo que se ve en pantalla es lo que se termina cobrando.
-  const canRedeem = !isCortesia && !!customer && customer.pointsBalance > 0;
+  const canRedeem = !isCortesia && !isPrueba && !!customer && customer.pointsBalance > 0;
   const pointsMax = canRedeem ? Math.max(0, Math.min(customer.pointsBalance, displayTotal ?? 0)) : 0;
   const pointsApplied = Math.min(Math.max(0, Number.parseInt(pointsValue || "0", 10) || 0), pointsMax);
 
@@ -360,7 +381,9 @@ export default function BookingConsole({
     !loadingDay &&
     !discountBroken &&
     (isCortesia ? true : quote !== null) &&
-    (!needsMethod || payMethod !== null);
+    (!needsMethod || payMethod !== null) &&
+    // El crédito de la prueba va al email de la ficha.
+    (!isPrueba || !!customer?.email);
 
   const submit = () => {
     if (selectedStart === null) return;
@@ -382,6 +405,7 @@ export default function BookingConsole({
       notes,
       ...(appliedDiscount ? { discount: appliedDiscount } : {}),
       termsAccepted: termsAttested,
+      ...(isPrueba && leadId ? { leadId } : {}),
     };
     startTransition(async () => {
       const res = await createManualBookingAction(input);
@@ -502,6 +526,15 @@ export default function BookingConsole({
             value={type}
             onChange={(t) => {
               setType(t);
+              if (t === "prueba") {
+                // Definición de la prueba: 1 hora, precio fijo, sin extras ni puntos.
+                setDuration(1);
+                setRec("none");
+                setExtras([]);
+                setPointsValue("");
+                setDiscountOn(false);
+                setWalkInOpen(false);
+              }
               // Lo que cobra va en horas enteras: al salir de cortesía, 1,5 h vuelve a 1 h.
               if (durationStepFor(t) === 1 && !Number.isInteger(duration)) setDuration(Math.floor(duration));
             }}
@@ -509,7 +542,9 @@ export default function BookingConsole({
           <p className="mt-2.5 label-sm text-bone-quiet">
             {isCortesia
               ? "Sin cobro ni boleta. Admite medias horas y horarios fuera de apertura."
-              : "Se cobra la tarifa de la sala. El pago se registra en la caja."}
+              : isPrueba
+                ? `Sesión guiada de 1 h a ${formatCLP(trialPrice)}. Sin PIN: la recibes tú. Al pagarse deja un crédito de 7 días para inscribirse.`
+                : "Se cobra la tarifa de la sala. El pago se registra en la caja."}
           </p>
         </Card>
 
@@ -529,13 +564,17 @@ export default function BookingConsole({
               <div>
                 <span className="label-sm text-bone-quiet">Duración</span>
                 <div className="mt-2">
-                  <DurationStepper
-                    duration={duration}
-                    maxDuration={maxDuration}
-                    volumeDiscounts={volumeDiscounts}
-                    onChange={setDuration}
-                    step={durationStepFor(type)}
-                  />
+                  {isPrueba ? (
+                    <p className="font-display text-2xl text-bone">1 h <span className="label-sm text-bone-quiet">· fija</span></p>
+                  ) : (
+                    <DurationStepper
+                      duration={duration}
+                      maxDuration={maxDuration}
+                      volumeDiscounts={volumeDiscounts}
+                      onChange={setDuration}
+                      step={durationStepFor(type)}
+                    />
+                  )}
                 </div>
               </div>
               <div>
@@ -586,7 +625,7 @@ export default function BookingConsole({
           )}
         </Card>
 
-        {addons.length > 0 && (
+        {addons.length > 0 && !isPrueba && (
           <Card title="Extras">
             <AddonPicker
               addons={addons}
@@ -728,6 +767,7 @@ export default function BookingConsole({
         method={payMethod}
         onMethod={setPayMethod}
         coversAll={coversAll}
+        fixedLabel={isPrueba ? "Sesión de prueba · Curso DJ · 1 h" : null}
         warning={warning}
         error={submitError}
         pending={pending}

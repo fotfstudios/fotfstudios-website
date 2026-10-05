@@ -5,6 +5,11 @@ import { applyManualDiscount, type ManualDiscount, type ManualDiscountInput } fr
 import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import { netFromGrossInclusive, taxFromGrossInclusive } from "@/src/domain/money/money";
+import { rangeFor } from "@/src/domain/scheduling/time";
+
+/** La prueba del Curso de DJ dura siempre 1 hora. */
+export const TRIAL_HOURS = 1;
 import type { FirstBookingPromoService } from "./first-booking-promo";
 
 export interface CreateBookingInput extends BookingQuoteInput {
@@ -30,6 +35,20 @@ export interface CreateBookingInput extends BookingQuoteInput {
    * widget vuelve a cotizar. Solo lo manda el checkout público.
    */
   expectedAmount?: number;
+}
+
+/** Prueba del Curso de DJ: 1 h guiada a precio fijo (sin motor, extras, descuento ni puntos). */
+export interface CreateTrialBookingInput {
+  resourceId: string;
+  date: string; // YYYY-MM-DD (local de la sala)
+  startMinute: number;
+  /** Precio fijo con IVA incluido (PRECIOS.prueba): lo pasa el borde, el dominio no lee lib/. */
+  price: number;
+  customer: Customer;
+  /** Ficha obligatoria: el crédito de la prueba se emite al email de la ficha. */
+  customerId: string;
+  termsSource?: "customer" | "staff";
+  termsVersion?: string;
 }
 
 export interface CreateBookingResult {
@@ -160,6 +179,58 @@ export class CheckoutService {
       // posible en create_checkout es la de reservations_no_overlap contra otro checkout del
       // mismo slot, así que para el cliente es "horario tomado", no un error crudo de Postgres.
       if (/deadlock|40P01/i.test(msg)) return err("slot_taken");
+      return err(`checkout_failed: ${msg}`);
+    }
+  }
+
+  /**
+   * Prueba del Curso de DJ (consola del admin). Precio fijo con IVA (venta de sala, igual
+   * que las pruebas ya emitidas): sin motor de tarifas, extras, descuento ni puntos. Nace
+   * como reserva `prueba` + pedido `trial`; al pagarse, confirm_payment emite el crédito.
+   */
+  async createTrialBooking(
+    input: CreateTrialBookingInput,
+    opts?: { firmHold?: boolean },
+  ): Promise<Result<CreateBookingResult, string>> {
+    const terms = await this.pricing.fixedPriceTerms(input.resourceId);
+    if (!terms) return err("recurso sin tarifa activa");
+    // Siempre 1 hora: es la definición de la prueba (decisión del dueño).
+    const { startsAt, endsAt } = rangeFor(input.date, input.startMinute, TRIAL_HOURS, terms.timezone);
+    // El admin puede agendar sobre la hora (walk-in), pero nunca en el pasado.
+    if (new Date(startsAt).getTime() <= Date.now()) return err("too_soon");
+    const lines: CheckoutLine[] = [
+      {
+        line_type: "room_time",
+        description: "Sesión de prueba · Curso de DJ · 1 h",
+        quantity: 1,
+        unit_price_clp: input.price,
+        subtotal_clp: input.price,
+      },
+    ];
+    try {
+      const orderId = await this.repo.createCheckout({
+        resourceId: input.resourceId,
+        startsAt,
+        endsAt,
+        amount: input.price,
+        net: netFromGrossInclusive(input.price, terms.taxPct),
+        tax: taxFromGrossInclusive(input.price, terms.taxPct),
+        currency: terms.currency,
+        customer: input.customer,
+        snapshot: { trial: true, price: input.price },
+        lines,
+        customerId: input.customerId,
+        termsSource: input.termsSource,
+        termsVersion: input.termsVersion,
+        holdTtlMinutes: opts?.firmHold ? null : undefined,
+        orderKind: "trial",
+      });
+      return ok({ orderId, amount: input.price, pointsApplied: 0, paidWithPoints: false });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/customer_not_found/i.test(msg)) return err("customer_not_found");
+      if (/customer_checkout_needs_email/i.test(msg)) return err("customer_checkout_needs_email");
+      if (/exclusion|23P01|overlap|conflict|deadlock|40P01/i.test(msg)) return err("slot_taken");
       return err(`checkout_failed: ${msg}`);
     }
   }

@@ -12,7 +12,7 @@
  */
 import { DateTime } from "luxon";
 
-export type ReservationKind = "booking" | "block" | "curso";
+export type ReservationKind = "booking" | "block" | "curso" | "prueba";
 export type ReservationStatus = "held" | "confirmed" | "cancelled" | "expired";
 
 /** Foto de una reserva (RPC `calendar_sync_snapshot`). Sin email ni teléfono, a propósito. */
@@ -88,6 +88,10 @@ function summary(s: ReservationSnapshot): string {
       return s.notes ? oneLine(s.notes) : "Curso DJ";
     case "block":
       return s.notes?.trim() ? `Bloqueo · ${oneLine(s.notes)}` : "Bloqueo";
+    case "prueba": {
+      const base = `Prueba Curso DJ · ${s.customerName?.trim() || "Alumno"} · ${duration(s.startsAt, s.endsAt)}`;
+      return s.status === "held" ? `${base} (pendiente de pago)` : base;
+    }
     case "booking": {
       const base = `Sala · ${s.customerName?.trim() || "Reserva"} · ${duration(s.startsAt, s.endsAt)}`;
       if (s.status !== "held") return base;
@@ -96,15 +100,21 @@ function summary(s: ReservationSnapshot): string {
   }
 }
 
-const KIND_LABEL: Record<ReservationKind, string> = { booking: "reserva", curso: "curso", block: "bloqueo" };
+const KIND_LABEL: Record<ReservationKind, string> = {
+  booking: "reserva",
+  curso: "curso",
+  block: "bloqueo",
+  prueba: "prueba del curso",
+};
 
 function description(s: ReservationSnapshot, siteUrl: string): string {
   const lines = [`Ficha: ${siteUrl.replace(/\/$/, "")}/admin/reservas/${s.id}`];
   if (s.orderId) lines.push(`Pedido: ${s.orderId}`);
   if (s.addons.length) lines.push(`Extras: ${s.addons.join(", ")}`);
   // Las notas de una reserva de cliente son texto libre del admin (y los reagendamientos les
-  // agregan líneas): pueden traer un teléfono. Solo salen las de bloqueos y cursos.
-  if (s.kind !== "booking" && s.notes?.trim()) lines.push(`Notas: ${s.notes.trim()}`);
+  // agregan líneas): pueden traer un teléfono. Solo salen las de bloqueos y cursos (una
+  // prueba es de un cliente: sus notas quedan privadas como las de una reserva).
+  if ((s.kind === "block" || s.kind === "curso") && s.notes?.trim()) lines.push(`Notas: ${s.notes.trim()}`);
   lines.push(`Tipo: ${KIND_LABEL[s.kind]}`);
   return lines.join("\n");
 }
@@ -113,6 +123,7 @@ function colorId(s: ReservationSnapshot): string | undefined {
   if (s.kind === "curso") return "9"; // arándano
   if (s.kind === "block") return "8"; // grafito
   if (s.status === "held") return "5"; // banana: pendiente
+  if (s.kind === "prueba") return "6"; // mandarina: prueba del curso
   return undefined; // reserva confirmada: el color del calendario
 }
 

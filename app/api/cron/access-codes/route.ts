@@ -1,4 +1,4 @@
-import { accessCodeService, paymentReminderService, reminderService } from "@/src/composition";
+import { accessCodeService, paymentReminderService, reminderService, trialFollowUpService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,13 @@ async function handle(req: Request): Promise<Response> {
         console.error("[cron-payment-reminders]", e);
         return { error: "server" as const };
       });
-    return Response.json({ ...access, reminders, paymentReminders });
+    const trialFollowUps = await trialFollowUpService()
+      .sweep()
+      .catch((e) => {
+        console.error("[cron-trial-followups]", e);
+        return { error: "server" as const };
+      });
+    return Response.json({ ...access, reminders, paymentReminders, trialFollowUps });
   } catch (e) {
     console.error("[cron-access-codes]", e);
     return Response.json({ error: "server" }, { status: 503 });

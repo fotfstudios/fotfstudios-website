@@ -322,3 +322,30 @@ describe("validateManualBooking — canje de puntos", () => {
     expect(r.ok && { method: r.value.method, points: r.value.pointsToRedeem }).toEqual({ method: null, points: 9990 });
   });
 });
+
+describe("validateManualBooking — prueba del curso", () => {
+  const ficha = "3f2b8c1e-9a4d-4e2f-8b7a-1c2d3e4f5a6b";
+  const prueba = { ...base, type: "prueba", durationHours: 1, customerId: ficha, walkInName: "" };
+
+  it("acepta una prueba de 1 h con ficha, pendiente o pagada", () => {
+    expect(validateManualBooking({ ...prueba, paid: false, method: null }).ok).toBe(true);
+    expect(validateManualBooking({ ...prueba, paid: true, method: "transferencia" }).ok).toBe(true);
+  });
+
+  it.each([
+    [{ durationHours: 2 }, "La prueba dura 1 hora."],
+    [{ addonKeys: ["audio"] }, "La prueba no lleva extras."],
+    [{ pointsToRedeem: 1000 }, "La prueba tiene precio fijo: sin descuento ni puntos."],
+    [
+      { discount: { target: { kind: "room" }, mode: "pct", value: 10, reason: "" } },
+      "La prueba tiene precio fijo: sin descuento ni puntos.",
+    ],
+    [{ customerId: null, walkInName: "Walk-in" }, "Para una prueba elige un cliente con ficha (el crédito va a su email)."],
+  ])("rechaza %j", (over, error) => {
+    expect(validateManualBooking({ ...prueba, ...over })).toEqual({ ok: false, error });
+  });
+
+  it("avanza en horas enteras (no es cortesía)", () => {
+    expect(durationStepFor("prueba")).toBe(1);
+  });
+});

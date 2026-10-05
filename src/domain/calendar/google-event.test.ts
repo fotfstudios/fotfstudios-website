@@ -183,3 +183,22 @@ describe("canonicalJson", () => {
     expect(canonicalJson(a)).not.toBe(canonicalJson(b));
   });
 });
+
+describe("la prueba del curso en el espejo", () => {
+  const prueba = (over: Partial<ReservationSnapshot> = {}) =>
+    snap({ kind: "prueba", endsAt: "2026-07-12T23:00:00+00:00", notes: "Llamar al +56 9 1234 5678", ...over });
+
+  it("se titula como prueba del curso, con el alumno y la duración", () => {
+    expect(toGoogleEvent(prueba(), { siteUrl: SITE }).summary).toBe("Prueba Curso DJ · Martín Pérez · 1h");
+  });
+
+  it("pendiente de pago lo dice en el título", () => {
+    expect(toGoogleEvent(prueba({ status: "held" }), { siteUrl: SITE }).summary).toContain("(pendiente de pago)");
+  });
+
+  it("sus notas NO salen a Google (son de un cliente, como las de una reserva)", () => {
+    const e = toGoogleEvent(prueba(), { siteUrl: SITE });
+    expect(e.description).not.toContain("+56");
+    expect(e.description).toContain("Tipo: prueba del curso");
+  });
+});

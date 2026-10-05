@@ -14,9 +14,12 @@
  *   curso   → una sesión del Curso de DJ. Tampoco se vende por hora (el alumno
  *             paga el programa completo), pero la sala SÍ está trabajando —
  *             por eso cuenta en ocupación aunque no cuente en ingresos.
+ *   prueba  → la sesión de prueba del Curso de DJ: VENDIDA (boleta, ingreso) y
+ *             GUIADA (el dueño o el instructor recibe al alumno: sin PIN). Su pago
+ *             emite el crédito para inscribirse.
  */
 
-export const RESERVATION_KINDS = ["booking", "block", "curso"] as const;
+export const RESERVATION_KINDS = ["booking", "block", "curso", "prueba"] as const;
 export type ReservationKind = (typeof RESERVATION_KINDS)[number];
 
 export function isReservationKind(k: string): k is ReservationKind {
@@ -30,6 +33,24 @@ export function isReservationKind(k: string): k is ReservationKind {
  * sesión guiada, que no es una venta.)
  */
 export function isSellableSession(kind: string): boolean {
+  return kind === "booking" || kind === "prueba";
+}
+
+/** Las kinds vendidas, para los filtros de las consultas (mismo criterio que isSellableSession). */
+export const SELLABLE_KINDS = ["booking", "prueba"] as const satisfies readonly ReservationKind[];
+/** Su espejo en `orders.kind`: el pedido de una prueba es `trial`. */
+export const SELLABLE_ORDER_KINDS = ["booking", "trial"] as const;
+
+/** ¿Es la sesión de prueba del Curso de DJ? */
+export function isTrialSession(kind: string): boolean {
+  return kind === "prueba";
+}
+
+/**
+ * ¿Se puede reagendar por los RPC de reagendamiento? Solo la reserva de sala: esos RPC
+ * son de `booking` (una prueba se cancela y se vuelve a crear).
+ */
+export function canReschedule(kind: string): boolean {
   return kind === "booking";
 }
 
@@ -72,7 +93,7 @@ export function needsDoorAccess(kind: string): boolean {
  * ¿Hay a quién recordarle la sesión? El cliente que reservó y el alumno de una
  * sesión guiada (su recordatorio es otro correo, sin PIN). Un bloqueo, a nadie.
  */
-export const REMINDER_KINDS = ["booking", "curso"] as const satisfies readonly ReservationKind[];
+export const REMINDER_KINDS = ["booking", "curso", "prueba"] as const satisfies readonly ReservationKind[];
 
 export function needsReminder(kind: string): boolean {
   return (REMINDER_KINDS as readonly string[]).includes(kind);
@@ -85,5 +106,5 @@ export function needsReminder(kind: string): boolean {
  * el idioma `!== "block"` es justo el que hizo frágil al `kind` original.
  */
 export function occupiesCabin(kind: string): boolean {
-  return kind === "booking" || kind === "curso";
+  return kind === "booking" || kind === "curso" || kind === "prueba";
 }
