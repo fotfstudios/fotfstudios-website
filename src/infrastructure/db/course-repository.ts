@@ -759,9 +759,9 @@ export class SupabaseCourseRepository
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    // Quien vino a una prueba es cliente: su ficha nace acá si no existía (misma regla
-    // que el checkout). Sin nombre ni teléfono: no pisa los de una ficha existente.
-    const ficha = await this.db.rpc("upsert_guest_customer", {
+    // Quien vino a una prueba es cliente: su ficha nace acá si no existía. ensure_customer
+    // solo rellena: nunca pisa los datos de una ficha existente.
+    const ficha = await this.db.rpc("ensure_customer", {
       p_name: "",
       p_email: input.email.toLowerCase(),
       p_phone: "",

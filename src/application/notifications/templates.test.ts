@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -955,5 +955,20 @@ describe("aviso al dueño de reserva pagada", () => {
   it("sin método no inventa uno", () => {
     const m = ownerNotification({ ...(view as object), email: "ana@e.cl" } as never);
     expect(m.text).not.toContain("pagó por");
+  });
+});
+
+describe("agenda del curso — escapan lo que viene del admin", () => {
+  const ctx = { address: "Los Chercanes 78a", mapsUrl: "https://maps", whatsappUrl: "https://wa.me/1", courseUrl: "https://x/cuenta/curso" };
+  const evil = "<b>x</b>";
+  it("nombre, título e instructor no se inyectan como HTML", () => {
+    const outs = [
+      courseSessionsScheduled({ name: evil, sessions: [{ n: 1, title: evil, when: "x", instructor: evil }] }, ctx),
+      courseSessionMoved({ name: evil, n: 1, title: evil, before: "a", after: "b" }, ctx),
+      courseSessionCancelled({ name: evil, n: 1, title: evil, when: "x" }, ctx),
+      practiceBooked({ name: evil, when: "x", hoursLeft: 2 }, ctx),
+      practiceReleased({ name: evil, when: "x", hoursLeft: 2 }, ctx),
+    ];
+    for (const o of outs) expect(o.html).not.toContain(evil);
   });
 });

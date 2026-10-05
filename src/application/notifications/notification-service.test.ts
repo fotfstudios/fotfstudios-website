@@ -1069,3 +1069,94 @@ describe("notifyReviewRequest", () => {
     expect(mailer.send).not.toHaveBeenCalled();
   });
 });
+
+describe("agenda del curso → aviso inmediato al alumno", () => {
+  type Msg = { to: string; template: string; subject: string; html: string; text: string; attachments?: { filename: string; content: string }[] };
+  const msgs = (m: { send: { mock: { calls: unknown[][] } } }) => m.send.mock.calls.map((c) => c[0] as Msg);
+  const duo = [
+    { name: "Martín", email: "martin@e.cl" },
+    { name: "Sofía", email: "sofia@e.cl" },
+    { name: "Sin correo", email: null },
+  ];
+  const s = (n: number, day: number) => ({
+    n,
+    title: `Tema ${n}`,
+    instructor: n === 1 ? "Benja" : null,
+    reservationId: `res-${n}`,
+    startsAt: `2026-10-${String(day).padStart(2, "0")}T19:00:00Z`,
+    endsAt: `2026-10-${String(day).padStart(2, "0")}T20:30:00Z`,
+  });
+
+  it("agendar 6 sesiones: UN correo por alumno (los dos del dúo), con las 6 y un .ics por sesión", async () => {
+    const { service, mailer } = makeService();
+    const sessions = [1, 2, 3, 4, 5, 6].map((n) => s(n, 7 + n));
+    expect(await service.notifyCourseSessions("scheduled", { students: duo, sessions })).toBe(2);
+    const [a, b] = msgs(mailer);
+    expect([a.to, b.to]).toEqual(["martin@e.cl", "sofia@e.cl"]);
+    expect(a.template).toBe("courseSessionsScheduled");
+    expect(a.subject).toBe("Tus 6 sesiones del curso están agendadas");
+    expect(a.html).toContain("Sesión 6 · Tema 6");
+    expect(a.html).toContain("con Benja");
+    expect(a.attachments).toHaveLength(6);
+    // Guiada: el evento no promete PIN y su uid es el de la reserva (mover actualiza el mismo).
+    expect(a.attachments![0].content).toContain("UID:fotf-r-res-1@fotfstudios.cl");
+    expect(a.attachments![0].content).toContain("te recibimos en la puerta");
+    expect(a.attachments![0].content).not.toContain("código de acceso");
+  });
+
+  it("una sola sesión: asunto con su fecha", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourseSessions("scheduled", { students: [duo[0]], sessions: [s(1, 8)] });
+    expect(msgs(mailer)[0].subject).toMatch(/^Sesión 1 del curso agendada · jueves 8 de octubre, 16:00–17:30 h$/);
+  });
+
+  it("mover: antes → ahora, y el .ics con el MISMO uid", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourseSessions("moved", {
+      students: [duo[0]],
+      sessions: [s(2, 15)],
+      previous: { startsAt: "2026-10-14T19:00:00Z", endsAt: "2026-10-14T20:30:00Z" },
+    });
+    const m = msgs(mailer)[0];
+    expect(m.template).toBe("courseSessionMoved");
+    expect(m.text).toContain("Antes: miércoles 14 de octubre, 16:00–17:30 h. Ahora: jueves 15 de octubre, 16:00–17:30 h");
+    expect(m.attachments![0].content).toContain("UID:fotf-r-res-2@fotfstudios.cl");
+  });
+
+  it("cancelar: sin .ics y con la promesa de reagendar", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyCourseSessions("cancelled", { students: [duo[0]], sessions: [s(3, 16)] });
+    const m = msgs(mailer)[0];
+    expect(m.template).toBe("courseSessionCancelled");
+    expect(m.attachments).toBeUndefined();
+    expect(m.text).toContain("la reagendamos contigo por WhatsApp");
+  });
+
+  it("práctica agendada: entra solo con su PIN, horas que le quedan y .ics de sala", async () => {
+    const { service, mailer } = makeService();
+    const ok = await service.notifyPractice("booked", {
+      name: "Martín",
+      email: "martin@e.cl",
+      reservationId: "p1",
+      startsAt: "2026-10-09T20:00:00Z",
+      endsAt: "2026-10-09T21:00:00Z",
+      hoursLeft: 5,
+    });
+    expect(ok).toBe(true);
+    const m = msgs(mailer)[0];
+    expect(m.template).toBe("practiceBooked");
+    expect(m.html).toContain("código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes");
+    expect(m.text).toContain("Te quedan 5 horas");
+    expect(m.attachments![0].content).toContain("UID:fotf-r-p1@fotfstudios.cl");
+  });
+
+  it("práctica cancelada: vuelve al saldo; sin email no manda nada", async () => {
+    const { service, mailer } = makeService();
+    const input = { name: "M", reservationId: "p1", startsAt: "2026-10-09T20:00:00Z", endsAt: "2026-10-09T21:00:00Z", hoursLeft: 1 };
+    expect(await service.notifyPractice("released", { ...input, email: null })).toBe(false);
+    await service.notifyPractice("released", { ...input, email: "m@e.cl" });
+    const m = msgs(mailer)[0];
+    expect(m.template).toBe("practiceReleased");
+    expect(m.text).toContain("Te queda 1 hora");
+  });
+});

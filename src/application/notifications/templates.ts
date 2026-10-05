@@ -189,7 +189,113 @@ export function customerReminder(
 // Sesión GUIADA y vendida: no promete PIN ("te recibimos en la puerta") y recuerda el
 // crédito para inscribirse. Los dos correos de seguimiento salen del barrido de 5 min.
 
-const GUIADA = "Es una sesión guiada: te recibimos en la puerta, no necesitas código.";
+export const GUIADA = "Es una sesión guiada: te recibimos en la puerta, no necesitas código.";
+
+// ── Agenda del Curso de DJ (al agendar, mover o cancelar) ──────────────────
+// Confirmaciones inmediatas, no recordatorios: el recordatorio de 24 h llega aparte (y no
+// llega si se agenda con menos de ~14 h, así que estas son a veces el único aviso).
+
+type SessionLine = { n: number; title: string; when: string; instructor: string | null };
+
+const sessionLi = (s: SessionLine) =>
+  `<li style="margin:0 0 8px"><strong>Sesión ${s.n} · ${esc(s.title)}</strong><br><span style="color:${T.boneDim}">${esc(s.when)}${s.instructor ? ` · con ${esc(s.instructor)}` : ""}</span></li>`;
+
+/** Una o varias sesiones guiadas recién agendadas, en un solo correo. */
+export function courseSessionsScheduled(
+  v: { name: string | null; sessions: SessionLine[] },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const one = v.sessions.length === 1;
+  const title = one ? `Agendamos tu sesión ${v.sessions[0].n} del curso` : `Agendamos tus ${v.sessions.length} sesiones del curso`;
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">${title}</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos en:</p>
+     <ul style="padding-left:18px;margin:0 0 16px">${v.sessions.map(sessionLi).join("")}</ul>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y un USB con tu música.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    v.sessions.map((s) => `Sesión ${s.n}: ${s.when}`).join(" · "),
+  );
+  const list = v.sessions.map((s) => `Sesión ${s.n} (${s.title}): ${s.when}${s.instructor ? `, con ${s.instructor}` : ""}`).join(". ");
+  const text = `${title}. ${list}. ${ctx.address}. ${GUIADA} Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "courseSessionsScheduled", subject: one ? `Sesión ${v.sessions[0].n} del curso agendada · ${v.sessions[0].when}` : `Tus ${v.sessions.length} sesiones del curso están agendadas`, html, text };
+}
+
+/** Una sesión guiada cambió de hora. */
+export function courseSessionMoved(
+  v: { name: string | null; n: number; title: string; before: string; after: string },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Movimos tu sesión ${v.n} del curso</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión <strong style="color:${T.bone}">${esc(v.title)}</strong> cambió de horario.</p>
+     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
+     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">${GUIADA}</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Sesión ${v.n}: ahora ${v.after}`,
+  );
+  const text = `Movimos tu sesión ${v.n} del curso (${v.title}). Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. ${GUIADA} Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "courseSessionMoved", subject: `Sesión ${v.n} del curso: nuevo horario · ${v.after}`, html, text };
+}
+
+/** Una sesión guiada se canceló (se reagenda conversando). */
+export function courseSessionCancelled(
+  v: { name: string | null; n: number; title: string; when: string },
+  ctx: { whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Cancelamos tu sesión ${v.n} del curso</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión <strong style="color:${T.bone}">${esc(v.title)}</strong> del <strong style="color:${T.bone}">${esc(v.when)}</strong> quedó cancelada.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">No se pierde: la reagendamos contigo por WhatsApp en una fecha que te acomode.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Sesión ${v.n} cancelada · la reagendamos contigo`,
+  );
+  const text = `Cancelamos tu sesión ${v.n} del curso (${v.title}) del ${v.when}. No se pierde: la reagendamos contigo por WhatsApp. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "courseSessionCancelled", subject: `Sesión ${v.n} del curso cancelada · ${v.when}`, html, text };
+}
+
+/** Hora de práctica libre agendada: el alumno entra solo, con su PIN. */
+export function practiceBooked(
+  v: { name: string | null; when: string; hoursLeft: number },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Agendamos tu práctica libre</h1>
+     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "la")} sala es tuya el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">Entras solo: tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> (revisa spam).</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${quedan} de práctica incluidas en tu curso.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Práctica libre · ${v.when}`,
+  );
+  const text = `Agendamos tu práctica libre: ${v.when}. ${ctx.address}. Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes (revisa spam). ${quedan} de práctica incluidas en tu curso. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "practiceBooked", subject: `Práctica libre agendada · ${v.when}`, html, text };
+}
+
+/** Hora de práctica cancelada: vuelve al saldo. */
+export function practiceReleased(
+  v: { name: string | null; when: string; hoursLeft: number },
+  ctx: { whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Cancelamos tu práctica libre</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} práctica del <strong style="color:${T.bone}">${esc(v.when)}</strong> quedó cancelada y la hora volvió a tu saldo. ${quedan} de práctica.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
+    `Práctica cancelada · ${quedan.toLowerCase()}`,
+  );
+  const text = `Cancelamos tu práctica libre del ${v.when}; la hora volvió a tu saldo. ${quedan} de práctica. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  return { template: "practiceReleased", subject: `Práctica libre cancelada · ${v.when}`, html, text };
+}
 
 /** Confirmación de una prueba pagada. */
 export function trialConfirmation(

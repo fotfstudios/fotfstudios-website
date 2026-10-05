@@ -13,6 +13,7 @@ import { rangeFor } from "@/src/domain/scheduling/time";
 import {
   adminRepository,
   courseRepository,
+  customerDirectory,
   db,
   notificationService,
   paymentService,
@@ -52,6 +53,49 @@ function revalidateProgram(enrollmentId?: string) {
   if (enrollmentId) revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
 }
 
+// ── Avisos de agenda al alumno ─────────────────────────────────────────────
+// Best-effort y DESPUÉS del RPC: un correo que falla nunca voltea lo que ya quedó en la sala.
+
+/** Alumnos que reciben los avisos del programa: todos los cupos vivos (pagado o no, dúo = 2). */
+async function programStudents(generationId: string) {
+  const rows = await courseRepository().listEnrollments(generationId);
+  return rows
+    .filter((e) => e.status === "reservada" || e.status === "pagada")
+    .map((e) => ({ name: e.studentName, email: e.studentEmail }));
+}
+
+type SessionRow = Awaited<ReturnType<ReturnType<typeof courseRepository>["listSessions"]>>[number];
+
+const sessionPayload = (s: SessionRow & { startsAt: string }) => ({
+  n: s.n,
+  title: s.title,
+  instructor: s.instructor,
+  reservationId: s.reservationId,
+  startsAt: s.startsAt,
+  endsAt: s.endsAt,
+});
+
+async function notifySessions(
+  event: "scheduled" | "moved" | "cancelled",
+  generationId: string,
+  sessions: SessionRow[],
+  previous?: { startsAt: string; endsAt: string | null },
+): Promise<void> {
+  const dated = sessions.filter((s): s is SessionRow & { startsAt: string } => !!s.startsAt);
+  if (dated.length === 0) return;
+  await notificationService().notifyCourseSessions(event, {
+    students: await programStudents(generationId),
+    sessions: dated.map(sessionPayload),
+    previous,
+  });
+}
+
+/** Horas de práctica que le quedan a un cupo (las redimidas ya descontadas). */
+async function practiceLeft(enrollmentId: string) {
+  const e = await courseRepository().enrollmentById(enrollmentId);
+  return e ? { student: e, left: Math.max(0, e.practiceHoursTotal - e.practiceHoursRedeemed) } : null;
+}
+
 /** Resuelve el programa de una inscripción: la ficha habla de inscripciones, la DB de programas. */
 async function programOf(enrollmentId: string): Promise<string> {
   const e = await courseRepository().enrollmentById(enrollmentId);
@@ -77,6 +121,7 @@ export async function scheduleProgramAction(_prev: ActionResult | null, fd: Form
     const resource = await adminRepository().defaultResource();
     if (!resource) throw new Error("No hay sala configurada.");
 
+    let generationId = "";
     try {
       const plan = planProgramSessions({
         ...input.value,
@@ -86,11 +131,18 @@ export async function scheduleProgramAction(_prev: ActionResult | null, fd: Form
       // Se valida el auto-solape ANTES de la DB: el EXCLUDE compara filas distintas.
       const overlap = selfOverlap(plan);
       if (overlap) throw new Error(`La sesión ${overlap.n} se pisa con otra del mismo plan.`);
-      await courseRepository().scheduleSessions(await programOf(enrollmentId), plan);
+      generationId = await programOf(enrollmentId);
+      await courseRepository().scheduleSessions(generationId, plan);
     } catch (e) {
       const raw = e instanceof Error ? e.message : "";
       throw new Error(/se pisa con otra/.test(raw) ? raw : courseScheduleError(raw));
     }
+    // Un solo correo con las 6 sesiones (y un .ics por cada una).
+    const gen = generationId;
+    await courseRepository()
+      .listSessions(gen)
+      .then((all) => notifySessions("scheduled", gen, all.filter((s) => s.status === "agendada")))
+      .catch((e) => console.error("[curso:agenda:email]", e));
     revalidateProgram(enrollmentId);
   });
 }
@@ -128,8 +180,10 @@ export async function scheduleSessionAction(_prev: ActionResult | null, fd: Form
       COURSE_PROGRAM.sessionMinutes / 60,
       resource.timezone,
     );
+    const generationId = await programOf(enrollmentId);
+    let sessionId: string;
     try {
-      await courseRepository().scheduleSession(await programOf(enrollmentId), {
+      sessionId = await courseRepository().scheduleSession(generationId, {
         n: n.value,
         title: SESIONES[n.value - 1]?.title ?? `Sesión ${n.value}`,
         startsAt,
@@ -138,6 +192,10 @@ export async function scheduleSessionAction(_prev: ActionResult | null, fd: Form
     } catch (e) {
       throw new Error(courseScheduleError(e instanceof Error ? e.message : ""));
     }
+    await courseRepository()
+      .listSessions(generationId)
+      .then((all) => notifySessions("scheduled", generationId, all.filter((s) => s.id === sessionId)))
+      .catch((e) => console.error("[curso:agenda:email]", e));
     revalidateProgram(enrollmentId);
   });
 }
@@ -159,20 +217,51 @@ export async function moveSessionAction(_prev: ActionResult | null, fd: FormData
       COURSE_PROGRAM.sessionMinutes / 60,
       resource.timezone,
     );
+    const sessionId = str(fd, "sessionId");
+    const enrollmentId = str(fd, "enrollmentId");
+    // La hora vieja se lee ANTES: el RPC la pisa. Sin la inscripción no hay a quién avisar.
+    const generationId = enrollmentId ? await programOf(enrollmentId).catch(() => null) : null;
+    const before = generationId
+      ? (await courseRepository().listSessions(generationId).catch(() => [])).find((s) => s.id === sessionId)
+      : undefined;
     try {
-      await courseRepository().moveSession(str(fd, "sessionId"), startsAt, endsAt);
+      await courseRepository().moveSession(sessionId, startsAt, endsAt);
     } catch (e) {
       throw new Error(courseMoveError(e instanceof Error ? e.message : ""));
     }
-    revalidateProgram(str(fd, "enrollmentId"));
+    if (generationId) {
+      // Una agendada que se mueve avisa "movimos" (antes → ahora); una cancelada que se
+      // re-agenda es una sesión agendada de nuevo.
+      const wasScheduled = before?.status === "agendada" && before.startsAt;
+      await courseRepository()
+        .listSessions(generationId)
+        .then((all) => {
+          const now = all.filter((s) => s.id === sessionId);
+          return wasScheduled
+            ? notifySessions("moved", generationId, now, { startsAt: before.startsAt!, endsAt: before.endsAt })
+            : notifySessions("scheduled", generationId, now);
+        })
+        .catch((e) => console.error("[curso:mover:email]", e));
+    }
+    revalidateProgram(enrollmentId);
   });
 }
 
 export async function cancelSessionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("course.manage");
-    await courseRepository().cancelSession(str(fd, "sessionId"));
-    revalidateProgram(str(fd, "enrollmentId") || undefined);
+    const sessionId = str(fd, "sessionId");
+    const enrollmentId = str(fd, "enrollmentId");
+    const generationId = enrollmentId ? await programOf(enrollmentId).catch(() => null) : null;
+    const before = generationId
+      ? (await courseRepository().listSessions(generationId).catch(() => [])).find((s) => s.id === sessionId)
+      : undefined;
+    await courseRepository().cancelSession(sessionId);
+    // Solo si estaba agendada: cancelar una "por agendar" no es noticia para el alumno.
+    if (generationId && before?.status === "agendada") {
+      await notifySessions("cancelled", generationId, [before]).catch((e) => console.error("[curso:cancelar:email]", e));
+    }
+    revalidateProgram(enrollmentId || undefined);
   });
 }
 
@@ -447,14 +536,24 @@ export async function extendTrialCreditAction(_prev: ActionResult | null, fd: Fo
 }
 
 /** Busca el crédito de prueba vigente de un email, para mostrarlo antes de inscribir. */
-export async function lookupTrialCreditAction(
-  email: string,
-): Promise<ActionDataResult<{ id: string; amountClp: number; expiresAt: string } | null>> {
+export async function lookupTrialCreditAction(email: string): Promise<
+  ActionDataResult<{
+    credit: { id: string; amountClp: number; expiresAt: string } | null;
+    /** La ficha que ya tiene este email: la inscripción la usa (no la renombra). */
+    customer: { name: string | null; phone: string | null } | null;
+  }>
+> {
   return runData(async () => {
     await requirePermission("course.manage");
-    if (!email || !email.includes("@")) return null;
-    const credit = await courseRepository().applicableCredit(email);
-    return credit ? { id: credit.id, amountClp: credit.amountClp, expiresAt: credit.expiresAt } : null;
+    if (!email || !email.includes("@")) return { credit: null, customer: null };
+    const [credit, ficha] = await Promise.all([
+      courseRepository().applicableCredit(email),
+      customerDirectory().findByEmail(email),
+    ]);
+    return {
+      credit: credit ? { id: credit.id, amountClp: credit.amountClp, expiresAt: credit.expiresAt } : null,
+      customer: ficha ? { name: ficha.name, phone: ficha.phone } : null,
+    };
   });
 }
 
@@ -571,11 +670,26 @@ export async function redeemPracticeAction(_prev: ActionResult | null, fd: FormD
     if (!resource) throw new Error("No hay sala configurada.");
     const { startsAt, endsAt } = rangeFor(date, startMinute, hours, resource.timezone);
 
+    let reservationId: string;
     try {
-      await courseRepository().redeemPracticeHours(enrollmentId, { startsAt, endsAt, hours });
+      reservationId = await courseRepository().redeemPracticeHours(enrollmentId, { startsAt, endsAt, hours });
     } catch (e) {
       throw new Error(practiceErrorMessage(e instanceof Error ? e.message : ""));
     }
+    await practiceLeft(enrollmentId)
+      .then((p) =>
+        p
+          ? notificationService().notifyPractice("booked", {
+              name: p.student.studentName,
+              email: p.student.studentEmail,
+              reservationId,
+              startsAt,
+              endsAt,
+              hoursLeft: p.left,
+            })
+          : false,
+      )
+      .catch((e) => console.error("[curso:practica:email]", e));
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
     revalidatePath("/admin/agenda");
   });
@@ -595,7 +709,29 @@ export async function releasePracticeAction(_prev: ActionResult | null, fd: Form
   return run(async () => {
     await requirePermission("course.manage");
     const enrollmentId = str(fd, "enrollmentId");
-    await courseRepository().releasePracticeHours(str(fd, "reservationId"));
+    const reservationId = str(fd, "reservationId");
+    // La hora se lee ANTES de soltarla (después ya no está activa).
+    const hour = (await courseRepository().practiceRedemptions(enrollmentId).catch(() => [])).find(
+      (r) => r.reservationId === reservationId && !r.releasedAt,
+    );
+    await courseRepository().releasePracticeHours(reservationId);
+    if (hour?.startsAt && hour.endsAt) {
+      const { startsAt, endsAt } = hour;
+      await practiceLeft(enrollmentId)
+        .then((p) =>
+          p
+            ? notificationService().notifyPractice("released", {
+                name: p.student.studentName,
+                email: p.student.studentEmail,
+                reservationId,
+                startsAt,
+                endsAt,
+                hoursLeft: p.left,
+              })
+            : false,
+        )
+        .catch((e) => console.error("[curso:practica:email]", e));
+    }
     revalidatePath(`/admin/curso/inscripciones/${enrollmentId}`);
     revalidatePath("/admin/agenda");
   });
