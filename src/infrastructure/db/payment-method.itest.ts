@@ -1,7 +1,8 @@
 /**
- * Método de pago como columna propia + guardia de pago duplicado
- * (migración 20261007120000). Contra la DB real: `orders.payment_method` lo escribe
- * confirm_payment (3 argumentos) y su envoltorio de 2 (prefijo `offline:` viejo), un
+ * Método de pago como columna propia + guardia de pago duplicado (migraciones
+ * 20261007120000 y 20261007130000). Contra la DB real: `orders.payment_method` lo escribe
+ * confirm_payment (3 argumentos) y su envoltorio de 2 (traduce el prefijo `offline:`
+ * viejo); `mp_payment_id` queda SOLO con ids reales de MP (null en lo offline); un
  * segundo pago sobre una orden ya pagada devuelve 'already_paid' sin tocar nada, la
  * re-entrega del MISMO id de MP sigue idempotente, y log_duplicate_payment deja rastro.
  * Requiere Supabase local.
@@ -65,11 +66,11 @@ const count = async (sql: string, args: unknown[]) =>
   Number((await pg.query<{ n: string }>(sql, args)).rows[0].n);
 
 describe("confirm_payment escribe el método", () => {
-  it("offline (3 argumentos): método efectivo; mp_payment_id conserva el prefijo por compatibilidad", async () => {
+  it("offline (3 argumentos): el método va en payment_method; mp_payment_id queda null", async () => {
     const id = await pendingOrder();
     const r = await pg.query<{ c: string }>("select confirm_payment($1, null::text, 'transferencia') c", [id]);
     expect(r.rows[0].c).toBe("confirmed");
-    expect(await order(id)).toMatchObject({ status: "paid", method: "transferencia", pid: "offline:transferencia" });
+    expect(await order(id)).toMatchObject({ status: "paid", method: "transferencia", pid: null });
   });
 
   it("Mercado Pago: guarda el id real y el método", async () => {
@@ -78,12 +79,12 @@ describe("confirm_payment escribe el método", () => {
     expect(await order(id)).toMatchObject({ method: "mercadopago", pid: "mp_777" });
   });
 
-  it("el envoltorio de 2 argumentos traduce el prefijo viejo (código en producción durante el push)", async () => {
+  it("el envoltorio de 2 argumentos traduce el prefijo viejo (tests y scripts lo siguen usando)", async () => {
     const a = await pendingOrder(10);
     const b = await pendingOrder(12);
     await pg.query("select confirm_payment($1, 'offline:efectivo')", [a]);
     await pg.query("select confirm_payment($1, 'mp_1')", [b]);
-    expect(await order(a)).toMatchObject({ method: "efectivo", pid: "offline:efectivo" });
+    expect(await order(a)).toMatchObject({ method: "efectivo", pid: null });
     expect(await order(b)).toMatchObject({ method: "mercadopago", pid: "mp_1" });
   });
 
@@ -117,7 +118,7 @@ describe("guardia de pago duplicado", () => {
     await pg.query("select confirm_payment($1, null::text, 'efectivo')", [id]);
     const r = await pg.query<{ c: string }>("select confirm_payment($1, 'mp_999', 'mercadopago') c", [id]);
     expect(r.rows[0].c).toBe("already_paid");
-    expect(await order(id)).toMatchObject({ status: "paid", method: "efectivo", pid: "offline:efectivo" });
+    expect(await order(id)).toMatchObject({ status: "paid", method: "efectivo", pid: null });
     expect(await count("select count(*)::text n from tax_documents where order_id=$1 and kind='boleta'", [id])).toBe(1);
     expect(
       await count("select count(*)::text n from booking_events where order_id=$1 and type='payment_confirmed'", [id]),
@@ -153,7 +154,7 @@ describe("guardia de pago duplicado", () => {
       category: "Pagos",
       ref: "mp_999",
       amount: 9990,
-      detail: { stored_method: "efectivo", stored_payment_id: "offline:efectivo" },
+      detail: { stored_method: "efectivo", stored_payment_id: null },
     });
   });
 });

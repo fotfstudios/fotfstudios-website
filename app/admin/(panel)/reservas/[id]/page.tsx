@@ -223,8 +223,8 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
   // Pago por MP: el detalle del snapshot ("Visa crédito …"); si no, el método guardado.
   const isMpPayment = b.paymentMethod === "mercadopago";
-  // Id real de MP. Hasta la limpieza de la migración de la prueba del curso, un pago
-  // manual todavía guarda `offline:<método>` en mp_payment_id: no es una operación.
+  // Id real de MP: solo un pago de MP tiene operación que mostrar (un pago manual deja
+  // mp_payment_id en null desde 20261007130000).
   const mpOperationId = isMpPayment ? b.mpPaymentId : null;
   const snapshotMethod = isMpPayment && b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";
   const payMethod =

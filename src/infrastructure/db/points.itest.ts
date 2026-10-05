@@ -226,13 +226,14 @@ describe("canje en el checkout", () => {
     expect(b.value.paidWithPoints).toBe(true);
     expect(b.value.amount).toBe(0);
 
-    const o = await pg.query<{ status: string; mp_payment_id: string; amount_clp: number; points_redeemed_clp: number }>(
-      "select status, mp_payment_id, amount_clp, points_redeemed_clp from orders where id=$1",
+    const o = await pg.query<{ status: string; mp_payment_id: string | null; payment_method: string; amount_clp: number; points_redeemed_clp: number }>(
+      "select status, mp_payment_id, payment_method, amount_clp, points_redeemed_clp from orders where id=$1",
       [b.value.orderId],
     );
     expect(o.rows[0]).toMatchObject({
       status: "paid",
-      mp_payment_id: "offline:puntos",
+      mp_payment_id: null,
+      payment_method: "puntos",
       amount_clp: 0,
       points_redeemed_clp: HOUR_PRICE,
     });

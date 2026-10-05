@@ -164,13 +164,13 @@ isOneToOne: false
                   ]
                 },"course_credits": {
                   Row: {
-                    "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null
+                    "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"expiry_reminder_sent_at": string | null,"extended_count": number,"followup_sent_at": string | null,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null,"voided_at": string | null
                   }
                   Insert: {
-                    "amount_clp": number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email": string,"expires_at": string,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null
+                    "amount_clp": number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email": string,"expires_at": string,"expiry_reminder_sent_at"?: string | null,"extended_count"?: number,"followup_sent_at"?: string | null,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null,"voided_at"?: string | null
                   }
                   Update: {
-                    "amount_clp"?: number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email"?: string,"expires_at"?: string,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null
+                    "amount_clp"?: number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email"?: string,"expires_at"?: string,"expiry_reminder_sent_at"?: string | null,"extended_count"?: number,"followup_sent_at"?: string | null,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null,"voided_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -251,13 +251,13 @@ isOneToOne: false
                   ]
                 },"course_leads": {
                   Row: {
-                    "availability": string,"created_at": string,"email": string,"experience": string,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"status": string
+                    "availability": string,"created_at": string,"email": string,"experience": string,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"status": string,"trial_reservation_id": string | null
                   }
                   Insert: {
-                    "availability": string,"created_at"?: string,"email": string,"experience": string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"status"?: string
+                    "availability": string,"created_at"?: string,"email": string,"experience": string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"status"?: string,"trial_reservation_id"?: string | null
                   }
                   Update: {
-                    "availability"?: string,"created_at"?: string,"email"?: string,"experience"?: string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name"?: string,"phone"?: string,"plan"?: string,"status"?: string
+                    "availability"?: string,"created_at"?: string,"email"?: string,"experience"?: string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name"?: string,"phone"?: string,"plan"?: string,"status"?: string,"trial_reservation_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -265,6 +265,12 @@ isOneToOne: false
       columns: ["generation_id"]
 isOneToOne: false
       referencedRelation: "course_generations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "course_leads_trial_reservation_id_fkey"
+      columns: ["trial_reservation_id"]
+isOneToOne: false
+      referencedRelation: "reservations"
       referencedColumns: ["id"]
     }
                   ]
@@ -936,7 +942,7 @@ isOneToOne: false
 { Args: { "p_order": string,"p_settlement"?: string,"p_total": number }; Returns: string
                            },
 "create_checkout":
-{ Args: { "p_amount": number,"p_currency": string,"p_customer": Json,"p_customer_id"?: string,"p_ends": string,"p_lines": Json,"p_net": number,"p_points"?: number,"p_resource": string,"p_snapshot": Json,"p_starts": string,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string,"p_ttl"?: string }; Returns: string
+{ Args: { "p_amount": number,"p_currency": string,"p_customer": Json,"p_customer_id"?: string,"p_ends": string,"p_lines": Json,"p_net": number,"p_order_kind"?: string,"p_points"?: number,"p_resource": string,"p_snapshot": Json,"p_starts": string,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string,"p_ttl"?: string }; Returns: string
                            },
 "create_course_enrollment":
 { Args: { "p_amount": number,"p_credit"?: string,"p_generation": string,"p_lead"?: string,"p_net": number,"p_notes"?: string,"p_plan": string,"p_students": Json,"p_tax": number,"p_terms_source"?: string,"p_terms_version"?: string }; Returns: string
@@ -987,6 +993,9 @@ isOneToOne: false
                            },
 "expire_stale_holds":
 { Args: { "p_resource"?: string }; Returns: number
+                           },
+"extend_course_credit":
+{ Args: { "p_credit": string,"p_days"?: number }; Returns: string
                            },
 "first_booking_promo_used":
 { Args: { "p_email": string }; Returns: boolean
