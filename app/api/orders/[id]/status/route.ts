@@ -80,7 +80,7 @@ export async function GET(
         } else if (reconcileResult?.result === "paid_unreserved") {
           // Pagó pero el hold ya no existía: aviso al dueño, nunca confirmación al cliente.
           await notificationService(client)
-            .notifyPaymentNeedsReview(id, reconcileResult.orderId ?? id)
+            .notifyPaymentNeedsReview(id, reconcileResult.paymentId ?? "(sin id)")
             .catch((e) => console.error("[order-status:review]", e));
         }
       } catch (e) {

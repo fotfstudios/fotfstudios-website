@@ -13,6 +13,7 @@ import { TaxDocsCard } from "@/components/admin/tax-docs/TaxDocsCard";
 import { adminRepository, pricingService } from "@/src/composition";
 import type { AdminBookingDetail, BookingTimelineEvent, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
+import { paymentMethodLabel } from "@/src/domain/money/payment-method";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
 import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
@@ -220,13 +221,14 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const firstApplied = b.reschedules.find((m) => m.status === "applied" || m.status === "pending_refund");
   const originalStart = firstApplied ? firstApplied.oldStartsAt : b.startsAt;
   const origin = !b.orderId ? "cortesía (admin)" : b.mpPreferenceId ? "vía checkout web" : "manual (admin)";
-  const snapshotMethod = b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";
+  // Pago por MP: el detalle del snapshot ("Visa crédito …"); si no, el método guardado.
+  const isMpPayment = b.paymentMethod === "mercadopago";
+  // Id real de MP. Hasta la limpieza de la migración de la prueba del curso, un pago
+  // manual todavía guarda `offline:<método>` en mp_payment_id: no es una operación.
+  const mpOperationId = isMpPayment ? b.mpPaymentId : null;
+  const snapshotMethod = isMpPayment && b.paymentSnapshot ? mpMethodLabel(b.paymentSnapshot) : "—";
   const payMethod =
-    snapshotMethod !== "—"
-      ? snapshotMethod
-      : b.mpPaymentId?.startsWith("offline:")
-        ? `${b.mpPaymentId.slice("offline:".length)} (manual)`
-        : "Mercado Pago";
+    snapshotMethod !== "—" ? snapshotMethod : (paymentMethodLabel(b.paymentMethod) ?? "Mercado Pago");
 
   // Timeline: fuente ÚNICA y ya ordenada (booking_events, newest-first con `seq`).
   const events = await adminRepository().getBookingTimeline(b.id);
@@ -371,11 +373,11 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             </Card>
           )}
 
-          {b.orderId && (b.mpPaymentId || b.paymentSnapshot) && (() => {
+          {b.orderId && (b.paymentMethod || b.paymentSnapshot) && (() => {
             // Pago manual (offline): efectivo/transferencia/puntos, sin operación real en
             // MP — el link "Ver actividad" y la referencia interna del pedido no aplican.
-            const isOfflinePayment = b.mpPaymentId?.startsWith("offline:") ?? false;
-            const isPointsPayment = b.mpPaymentId === "offline:puntos";
+            const isOfflinePayment = !isMpPayment;
+            const isPointsPayment = b.paymentMethod === "puntos";
             // Una orden 100% puntos no tiene reembolso en pesos: refund_points_order marca
             // refunded_at pero nunca refunded_amount_clp (no hay boleta/NC de por medio), así
             // que la fila "Reembolsado" mostraría siempre $0. El timeline (points_restored) ya
@@ -385,6 +387,13 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               <Card title={isOfflinePayment ? "Pago manual" : "Mercado Pago"}>
                 {isPointsPayment ? (
                   <p className="text-sm text-bone">Pagado 100 % con Puntos FOTF</p>
+                ) : isOfflinePayment ? (
+                  <div className="flex flex-col gap-2.5">
+                    <MpRow label="Método" value={paymentMethodLabel(b.paymentMethod) ?? "—"} />
+                    {b.pointsRedeemedClp > 0 && (
+                      <MpRow label="Puntos FOTF" value={`−${formatCLP(b.pointsRedeemedClp)}`} />
+                    )}
+                  </div>
                 ) : (
                   b.paymentSnapshot && (
                     <div className="flex flex-col gap-2.5">
@@ -409,13 +418,13 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 )}
 
                 <div className="mt-4 flex flex-col gap-2 border-t hairline pt-4">
-                  {b.mpPaymentId && <MpIdRow label="Operación #" value={b.mpPaymentId} />}
+                  {mpOperationId && <MpIdRow label="Operación #" value={mpOperationId} />}
                   {b.mpRefundId && <MpIdRow label="Reembolso #" value={b.mpRefundId} />}
                   {b.mpPreferenceId && <MpIdRow label="Preferencia" value={b.mpPreferenceId} />}
                   {b.orderId && !isOfflinePayment && <MpIdRow label="Pedido (ref)" value={b.orderId} />}
                 </div>
 
-                {b.mpPaymentId && !isOfflinePayment && (
+                {mpOperationId && (
                   <a
                     href="https://www.mercadopago.cl/activities"
                     target="_blank"
@@ -490,7 +499,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                             hoursUntil: tier.hoursUntil,
                             suggested: suggestedRefund(tier, liveBoleta),
                           }}
-                          isOffline={!isPointsOrder && (!b.mpPaymentId || b.mpPaymentId.startsWith("offline:"))}
+                          isOffline={!isPointsOrder && !isMpPayment}
                         />
                       </div>
                     </>
@@ -586,7 +595,7 @@ async function rescheduleDialogProps(b: AdminBookingDetail, isCourtesy: boolean)
     addonKeys: b.addonKeys,
     concessionClp: b.concessionClp,
     concessionLabel: b.concessionLabel,
-    isOffline: !b.mpPaymentId || b.mpPaymentId.startsWith("offline:"),
+    isOffline: b.paymentMethod !== "mercadopago",
     isCourtesy,
     customerPhone: b.customerPhone,
     volumeDiscounts: catalog?.volumeDiscounts ?? [],

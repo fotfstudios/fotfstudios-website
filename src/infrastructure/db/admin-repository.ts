@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import type { OfflineMethod } from "@/src/domain/money/payment-method";
 import { DOOR_ACCESS_KINDS, isSellableSession, type ReservationKind } from "@/src/domain/scheduling/reservation-kind";
 import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -111,6 +112,8 @@ export interface AdminBookingDetail extends AdminBooking {
   mpPreferenceId: string | null;
   mpRefundId: string | null;
   paymentSnapshot: PaymentSnapshot | null;
+  /** `orders.payment_method`: cómo se pagó (null sin pagar o sin pedido). */
+  paymentMethod: string | null;
   /** El dueño confirmó que el PIN está en la cerradura. Condición para enviarlo. */
   accessLoadedAt: string | null;
   /** El dueño confirmó que lo borró de la cerradura. */
@@ -470,7 +473,7 @@ export class SupabaseAdminRepository {
     const { data } = await this.db
       .from("reservations")
       .select(
-        "kind, status, starts_at, ends_at, orders(id, status, amount_clp, refunded_amount_clp, created_at, mp_payment_id, customer_email, payment_snapshot)",
+        "kind, status, starts_at, ends_at, orders(id, status, amount_clp, refunded_amount_clp, created_at, mp_payment_id, payment_method, customer_email, payment_snapshot), course_practice_redemptions(enrollment_id)",
       )
       .gte("starts_at", startUtc)
       .lt("starts_at", endUtc)
@@ -487,9 +490,11 @@ export class SupabaseAdminRepository {
         refunded_amount_clp: number | null;
         created_at: string;
         mp_payment_id: string | null;
+        payment_method: string | null;
         customer_email: string | null;
         payment_snapshot: { fee_amount?: number | null } | null;
       } | null;
+      course_practice_redemptions: { enrollment_id: string }[] | { enrollment_id: string } | null;
     };
     return ((data as unknown as Row[]) ?? []).map((r) => ({
       kind: r.kind,
@@ -504,10 +509,14 @@ export class SupabaseAdminRepository {
             refundedAmountClp: r.orders.refunded_amount_clp ?? 0,
             createdAt: r.orders.created_at,
             mpPaymentId: r.orders.mp_payment_id,
+            paymentMethod: r.orders.payment_method,
             customerEmail: r.orders.customer_email,
             feeAmount: r.orders.payment_snapshot?.fee_amount ?? null,
           }
         : null,
+      practice: Array.isArray(r.course_practice_redemptions)
+        ? r.course_practice_redemptions.length > 0
+        : !!r.course_practice_redemptions,
     }));
   }
 
@@ -659,7 +668,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot), course_practice_redemptions(enrollment_id)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, payment_method, pricing_snapshot), course_practice_redemptions(enrollment_id)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
@@ -672,6 +681,7 @@ export class SupabaseAdminRepository {
             mp_preference_id: string | null;
             mp_refund_id: string | null;
             payment_snapshot: PaymentSnapshot | null;
+            payment_method: string | null;
             pricing_snapshot: Json | null;
           })
         | null;
@@ -764,6 +774,7 @@ export class SupabaseAdminRepository {
       mpPreferenceId: row.orders?.mp_preference_id ?? null,
       mpRefundId: row.orders?.mp_refund_id ?? null,
       paymentSnapshot: row.orders?.payment_snapshot ?? null,
+      paymentMethod: row.orders?.payment_method ?? null,
       accessLoadedAt: row.access_loaded_at ?? null,
       accessRemovedAt: row.access_removed_at ?? null,
     };
@@ -1058,11 +1069,16 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.message);
   }
 
-  /** Devuelve el estado del RPC: 'confirmed' (hold confirmado) o 'paid_no_hold'. */
-  async confirmOffline(orderId: string, method: string): Promise<string> {
+  /**
+   * Registra un pago offline. Devuelve el estado del RPC: 'confirmed' (hold confirmado),
+   * 'paid_no_hold', o 'already_paid' (la orden ya estaba pagada: no se tocó nada).
+   */
+  async confirmOffline(orderId: string, method: OfflineMethod): Promise<string> {
     const { data, error } = await this.db.rpc("confirm_payment", {
       p_order: orderId,
-      p_payment_id: `offline:${method}`,
+      // Sin id de MP: el tipo generado no admite null, pero la función sí.
+      p_payment_id: null as unknown as string,
+      p_method: method,
     });
     if (error) throw new Error(error.message);
     return data as string;

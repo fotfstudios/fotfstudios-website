@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -915,5 +915,31 @@ describe("recordatorio de una sesión guiada del curso", () => {
     expect(x.html).not.toContain("<i>T</i>");
     expect(x.html).not.toContain("<u>I</u>");
     expect(x.html).not.toContain("<b>M</b>");
+  });
+});
+
+describe("pago duplicado (aviso al dueño)", () => {
+  const m = ownerDuplicatePayment({
+    when: "jueves 8 de octubre, 16:00–17:00 h",
+    email: "<b>ana@e.cl</b>",
+    paymentId: "mp_999",
+    amount: "$9.990",
+    storedMethod: "Transferencia",
+  });
+
+  it("dice qué devolver, desde dónde, y cómo estaba pagada", () => {
+    expect(m.template).toBe("ownerDuplicatePayment");
+    expect(m.subject).toContain("Pago duplicado");
+    expect(m.html).toContain("ya estaba pagada por Transferencia");
+    expect(m.html).toContain("#mp_999");
+    expect(m.html).toMatch(/panel de Mercado Pago/);
+    expect(m.text).toContain("mp_999");
+  });
+
+  it("escapa el email (anti-XSS) y tolera método desconocido", () => {
+    expect(m.html).not.toContain("<b>ana@e.cl</b>");
+    const sin = ownerDuplicatePayment({ when: "x", email: null, paymentId: "1", amount: "$1", storedMethod: null });
+    expect(sin.html).toContain("ya estaba pagada</strong>");
+    expect(sin.html).toContain("sin email");
   });
 });

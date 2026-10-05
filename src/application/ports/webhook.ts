@@ -1,7 +1,11 @@
 import type { PaymentInfo } from "./payment";
 
-/** Resultado de `confirm_payment` (ver migración): reserva ok o pago sin hold. */
-export type ConfirmPaidStatus = "confirmed" | "paid_no_hold";
+/**
+ * Resultado de `confirm_payment` (ver migraciones): reserva ok, pago sin hold, o
+ * `already_paid` — la orden YA estaba pagada con otro pago (p. ej. marcada en efectivo
+ * y después el cliente pagó el link de MP). En ese caso no se tocó nada.
+ */
+export type ConfirmPaidStatus = "confirmed" | "paid_no_hold" | "already_paid";
 
 export interface PaymentNotificationRepository {
   /** Inbox: registra el evento; devuelve false si ya estaba (duplicado). */
@@ -20,4 +24,9 @@ export interface PaymentNotificationRepository {
    * `refundId` se registra en `orders.mp_refund_id`. Idempotente por reembolso.
    */
   markRefunded(orderId: string, refundId?: string, amount?: number): Promise<void>;
+  /**
+   * Deja el rastro de un pago que la guardia rechazó (evento `duplicate_payment` en la
+   * línea de tiempo de la reserva). No mueve plata ni estados: el dueño lo devuelve.
+   */
+  recordDuplicatePayment(orderId: string, paymentId: string, amount: number): Promise<void>;
 }

@@ -592,17 +592,19 @@ export class SupabaseCourseRepository
 
   async confirmCoursePayment(
     orderId: string,
-    paymentRef: string,
+    paymentId: string | null,
     method: string,
-  ): Promise<"confirmed" | "noop"> {
+  ): Promise<"confirmed" | "noop" | "already_paid"> {
     const { data, error } = await this.db.rpc("confirm_course_payment", {
       p_order: orderId,
-      p_payment_id: paymentRef,
+      // El tipo generado no admite null, pero la función sí (pago offline: sin id de MP).
+      p_payment_id: paymentId as string,
       p_method: method,
     });
     if (error) throw new Error(error.message);
     // Cualquier valor inesperado se trata como 'noop': falla cerrado, nunca
     // reporta un cobro que no ocurrió.
+    if (data === "already_paid") return "already_paid";
     return data === "confirmed" ? "confirmed" : "noop";
   }
 
@@ -696,8 +698,9 @@ export class SupabaseCourseRepository
     return { orderId: data.id };
   }
 
-  async applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop"> {
+  async applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop" | "already_paid"> {
     const status = await this.confirmCoursePayment(orderId, paymentId, "mercadopago");
+    if (status === "already_paid") return "already_paid";
     return status === "confirmed" ? "applied" : "noop";
   }
 

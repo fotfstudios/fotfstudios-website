@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { WebhookService } from "./webhook-service";
 import type { PaymentGateway, PaymentInfo } from "@/src/application/ports/payment";
-import type { PaymentNotificationRepository } from "@/src/application/ports/webhook";
+import type { ConfirmPaidStatus, PaymentNotificationRepository } from "@/src/application/ports/webhook";
 
 function makeGateway(info: Partial<PaymentInfo>): PaymentGateway {
   return {
@@ -16,8 +16,9 @@ function makeRepo(over: Partial<PaymentNotificationRepository> = {}): PaymentNot
   return {
     recordEvent: vi.fn(async () => true),
     getOrderAmount: vi.fn(async () => 9990),
-    confirmPaid: vi.fn(async () => "confirmed" as const),
+    confirmPaid: vi.fn(async (): Promise<ConfirmPaidStatus> => "confirmed"),
     markRefunded: vi.fn(async () => {}),
+    recordDuplicatePayment: vi.fn(async () => {}),
     ...over,
   };
 }
@@ -41,8 +42,19 @@ describe("WebhookService.handlePaymentNotification", () => {
       repo,
     );
     const res = await svc.handlePaymentNotification("pay1");
-    expect(res).toEqual({ result: "paid", orderId: "o1" });
+    expect(res).toEqual({ result: "paid", orderId: "o1", paymentId: "pay1" });
     expect(repo.confirmPaid).toHaveBeenCalled();
+  });
+
+  it("approved sobre una orden YA pagada con otro pago → duplicate_payment: rastro y sin snapshot", async () => {
+    const repo = makeRepo({ confirmPaid: vi.fn(async (): Promise<ConfirmPaidStatus> => "already_paid") });
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o1", amount: 9990 }),
+      repo,
+    );
+    const res = await svc.handlePaymentNotification("pay1");
+    expect(res).toEqual({ result: "duplicate_payment", orderId: "o1", paymentId: "pay1", duplicateAmount: 9990 });
+    expect(repo.recordDuplicatePayment).toHaveBeenCalledWith("o1", "pay1", 9990);
   });
 
   it("approved con monto distinto al pedido → ignored (no confirma)", async () => {
@@ -197,7 +209,7 @@ describe("WebhookService — cobro de reagendamiento diferido", () => {
  * Por eso se desvía, igual que el cobro de reagendamiento.
  */
 describe("WebhookService — finalizador de curso", () => {
-  const courseFinalizer = (pending: boolean, outcome: "applied" | "noop" = "applied") => ({
+  const courseFinalizer = (pending: boolean, outcome: "applied" | "noop" | "already_paid" = "applied") => ({
     pendingCourseOrder: vi.fn(async () => (pending ? { orderId: "o-curso" } : null)),
     applyCoursePayment: vi.fn(async () => outcome),
   });
@@ -279,6 +291,29 @@ describe("WebhookService — finalizador de curso", () => {
     );
 
     expect((await svc.handlePaymentNotification("pay1")).result).toBe("duplicate");
+    expect(repo.confirmPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe("WebhookService — curso ya pagado", () => {
+  it("un pago de MP sobre una inscripción ya pagada con otro pago → duplicate_payment", async () => {
+    const repo = makeRepo();
+    const curso = {
+      pendingCourseOrder: vi.fn(async () => ({ orderId: "o-curso" })),
+      applyCoursePayment: vi.fn(async () => "already_paid" as const),
+    };
+    const svc = new WebhookService(
+      makeGateway({ status: "approved", externalReference: "o-curso", amount: 230000 }),
+      repo,
+      undefined,
+      curso,
+    );
+    expect(await svc.handlePaymentNotification("pay1")).toEqual({
+      result: "duplicate_payment",
+      orderId: "o-curso",
+      paymentId: "pay1",
+      duplicateAmount: 230000,
+    });
     expect(repo.confirmPaid).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,8 @@ export interface OrderEmailData {
   startsAt: string | null;
   endsAt: string | null;
   notifiedAt: string | null;
+  /** `orders.payment_method` (null hasta pagar). */
+  paymentMethod: string | null;
   lines: { description: string; subtotal: number }[];
 }
 

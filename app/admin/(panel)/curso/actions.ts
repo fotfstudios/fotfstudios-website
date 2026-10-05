@@ -276,7 +276,8 @@ export async function markCoursePaidAction(_prev: ActionResult | null, fd: FormD
     if (!inscripcion?.orderId) throw new Error("Esta inscripción no tiene pedido.");
     if (inscripcion.status === "pagada") throw new Error("Esta inscripción ya está pagada.");
 
-    const status = await repo.confirmCoursePayment(inscripcion.orderId, `offline:${method}`, method);
+    const status = await repo.confirmCoursePayment(inscripcion.orderId, null, method);
+    if (status === "already_paid") throw new Error("Esta inscripción ya está pagada.");
     if (status !== "confirmed") throw new Error("No se pudo registrar el pago (la inscripción pudo anularse).");
 
     // Best-effort: el email nunca voltea un pago ya registrado.

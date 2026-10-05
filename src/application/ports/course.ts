@@ -210,7 +210,12 @@ export interface CourseEnrollmentRepository {
   enrollmentById(id: string): Promise<CourseEnrollmentRow | null>;
   enrollmentsByOrder(orderId: string): Promise<CourseEnrollmentRow[]>;
   /** Pago offline o webhook: los dos convergen en el mismo RPC. */
-  confirmCoursePayment(orderId: string, paymentRef: string, method: string): Promise<"confirmed" | "noop">;
+  /** `paymentId`: id de MP, o null en un pago offline (el método va aparte). */
+  confirmCoursePayment(
+    orderId: string,
+    paymentId: string | null,
+    method: string,
+  ): Promise<"confirmed" | "noop" | "already_paid">;
   cancelCourseOrder(orderId: string): Promise<void>;
   /**
    * Anula los cupos de un pedido YA PAGADO sin devolver plata (el dueño decidió
@@ -251,8 +256,11 @@ export interface CourseEnrollmentRepository {
 export interface CourseFinalizer {
   /** ¿Este pedido es una inscripción de curso pendiente? Desvía del confirm normal. */
   pendingCourseOrder(orderId: string): Promise<{ orderId: string } | null>;
-  /** Confirma cupos + boleta. 'noop' si la inscripción ya se anuló o ya estaba pagada. */
-  applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop">;
+  /**
+   * Confirma cupos + boleta. 'noop' si la inscripción ya se anuló o es una re-entrega
+   * del mismo pago; 'already_paid' si el pedido ya estaba pagado con OTRO pago.
+   */
+  applyCoursePayment(orderId: string, paymentId: string): Promise<"applied" | "noop" | "already_paid">;
 }
 
 export interface CourseCreditRepository {

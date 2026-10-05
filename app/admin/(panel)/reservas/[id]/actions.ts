@@ -10,6 +10,7 @@ import { RESCHEDULE_CHARGE_TTL_MINUTES, type RescheduleOutcome } from "@/src/app
 import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
+import { PAYMENT_METHOD_LABEL } from "@/src/domain/money/payment-method";
 import { hostFromHeaders } from "@/lib/urls";
 import { getRescheduleDay } from "./reschedule-data";
 import type { DayConsoleData } from "../nueva/types";
@@ -344,13 +345,14 @@ export async function markPaidOfflineAction(_prev: ActionResult | null, fd: Form
     const order = await adminRepository().orderForReservation(reservationId);
     if (!order || order.status !== "pending_payment") throw new Error("La reserva no está pendiente de pago.");
     const status = await adminRepository().confirmOffline(order.orderId, method);
+    if (status === "already_paid") throw new Error("Esta reserva ya estaba pagada.");
     if (status === "paid_no_hold") {
       // Carrera rara: el cupo expiró entre el render de la página (que ya filtra la
       // card por `held`) y el clic. confirm_payment YA dejó la orden en 'paid' — no
       // hay boleta ni reserva confirmada que mostrar, así que se avisa al dueño para
       // revisión manual, igual que hace el webhook de MP ante el mismo desenlace.
       await notificationService()
-        .notifyPaymentNeedsReview(order.orderId, `offline:${method}`)
+        .notifyPaymentNeedsReview(order.orderId, `${PAYMENT_METHOD_LABEL[method]} (registro manual)`)
         .catch((e) => console.error("[markPaidOffline:review]", e));
       revalidatePath(`/admin/reservas/${reservationId}`);
       throw new Error("El cupo ya no estaba reservado (expiró). El pago quedó registrado y se avisó para revisión.");

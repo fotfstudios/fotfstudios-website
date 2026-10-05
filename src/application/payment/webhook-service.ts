@@ -16,13 +16,18 @@ export type WebhookOutcome =
   | "reschedule_charge_failed"
   | "reschedule_refund_settled"
   | "reschedule_charge_refunded"
-  | "course_paid";
+  | "course_paid"
+  | "duplicate_payment";
 
 export interface WebhookResult {
   result: WebhookOutcome;
   orderId: string | null;
   /** Suma de los reembolsos FRESCOS procesados (solo cuando result === "refunded", "reschedule_refund_settled" o "reschedule_charge_refunded"). */
   refundedAmount?: number;
+  /** Id del pago de MP de esta notificación (para los avisos al dueño). */
+  paymentId?: string;
+  /** Monto del pago rechazado por la guardia (solo cuando result === "duplicate_payment"). */
+  duplicateAmount?: number;
   /** Detalle del cobro de reagendamiento no aplicado (solo cuando result === "reschedule_charge_failed"). */
   chargeFailure?: {
     reason: "slot_taken" | "reservation_gone" | "charge_void";
@@ -169,6 +174,9 @@ export class WebhookService {
         const curso = await this.courseFinalizer.pendingCourseOrder(orderId);
         if (curso) {
           const outcome = await this.courseFinalizer.applyCoursePayment(orderId, paymentId);
+          if (outcome === "already_paid") {
+            return { result: "duplicate_payment", orderId, paymentId, duplicateAmount: payment.amount ?? 0 };
+          }
           return { result: outcome === "applied" ? "course_paid" : "duplicate", orderId };
         }
       }
@@ -182,8 +190,15 @@ export class WebhookService {
         return { result: "ignored", orderId };
       }
       const status = await this.repo.confirmPaid(orderId, payment);
+      // `already_paid`: la orden ya estaba pagada con OTRO pago → no se tocó nada; queda
+      // el rastro y el dueño recibe el aviso para devolver este pago desde MP.
+      if (status === "already_paid") {
+        const amount = payment.amount ?? 0;
+        await this.repo.recordDuplicatePayment(orderId, paymentId, amount);
+        return { result: "duplicate_payment", orderId, paymentId, duplicateAmount: amount };
+      }
       // `paid_no_hold`: pagó pero la reserva ya no estaba en hold → revisión del dueño.
-      return { result: status === "paid_no_hold" ? "paid_unreserved" : "paid", orderId };
+      return { result: status === "paid_no_hold" ? "paid_unreserved" : "paid", orderId, paymentId };
     }
     if (payment.status === "rejected" || payment.status === "cancelled") {
       // NO cancelar el pedido: Checkout Pro ofrece reintentar con otro medio

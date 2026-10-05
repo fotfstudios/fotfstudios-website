@@ -24,6 +24,8 @@ export interface AnalyticsOrderRow {
   refundedAmountClp: number;
   createdAt: string;
   mpPaymentId: string | null;
+  /** `orders.payment_method` (null en pedidos sin pagar). */
+  paymentMethod: string | null;
   customerEmail: string | null;
   /** payment_snapshot.fee_amount (solo pagos online con snapshot). */
   feeAmount: number | null;
@@ -35,6 +37,8 @@ export interface AnalyticsReservationRow {
   startsAt: string;
   endsAt: string;
   order: AnalyticsOrderRow | null;
+  /** Hora de práctica del curso (kind booking sin pedido, pero NO es una cortesía). */
+  practice: boolean;
 }
 
 export interface AnalyticsLineRow {
@@ -97,8 +101,11 @@ export interface AnalyticsSummary {
     avgTicket: number | null;
   };
   funnel: {
-    online: number;
-    offline: number;
+    /** Vendidas vigentes, por método de pago. */
+    mercadopago: number;
+    transferencia: number;
+    efectivo: number;
+    puntos: number;
     courtesy: number;
     cancelled: number;
     refunded: number;
@@ -115,7 +122,15 @@ export interface AnalyticsSummary {
 
 const WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-const isOffline = (id: string | null) => !!id && id.startsWith("offline:");
+/**
+ * Método de un pedido. Lee `payment_method`; el fallback cubre filas previas a la
+ * columna (el prefijo `offline:<método>` de mp_payment_id, o un id real de MP).
+ */
+function methodOf(o: AnalyticsOrderRow): string | null {
+  if (o.paymentMethod) return o.paymentMethod;
+  if (!o.mpPaymentId) return null;
+  return o.mpPaymentId.startsWith("offline:") ? o.mpPaymentId.slice("offline:".length) : "mercadopago";
+}
 const netOf = (o: AnalyticsOrderRow) => o.amountClp - o.refundedAmountClp;
 /** Sesión vendida: booking con orden pagada (o pagada y luego reembolsada). */
 const isSold = (r: AnalyticsReservationRow) =>
@@ -248,10 +263,14 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSummary {
   // reembolsada gana sobre cancelada (toda reserva reembolsada quedó cancelada).
   const bookings = rows.filter((r) => r.kind === "booking");
   const vigente = (r: AnalyticsReservationRow) => r.status === "confirmed" && r.order?.status === "paid";
+  const paidBy = (m: string) => bookings.filter((r) => vigente(r) && methodOf(r.order!) === m).length;
   const funnel = {
-    online: bookings.filter((r) => vigente(r) && !!r.order!.mpPaymentId && !isOffline(r.order!.mpPaymentId)).length,
-    offline: bookings.filter((r) => vigente(r) && isOffline(r.order!.mpPaymentId)).length,
-    courtesy: bookings.filter((r) => !r.order && r.status === "confirmed").length,
+    mercadopago: paidBy("mercadopago"),
+    transferencia: paidBy("transferencia"),
+    efectivo: paidBy("efectivo"),
+    puntos: paidBy("puntos"),
+    // Sin pedido y confirmada = cortesía, salvo la hora de práctica del curso (va aparte).
+    courtesy: bookings.filter((r) => !r.order && r.status === "confirmed" && !r.practice).length,
     cancelled: bookings.filter((r) => r.status === "cancelled" && r.order?.status !== "refunded").length,
     refunded: bookings.filter((r) => r.order?.status === "refunded").length,
     expiredHolds: bookings.filter((r) => r.status === "expired").length,
