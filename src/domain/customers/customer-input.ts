@@ -140,7 +140,7 @@ const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
   customer_not_found: "El cliente ya no existe. Vuelve a seleccionarlo.",
   customer_email_invalid: "Email no válido.",
   customer_has_account: "Este cliente tiene cuenta: su email es su acceso y no se puede cambiar desde el panel.",
-  customer_email_in_use: "Este cliente tiene puntos o reservas con ese email: no puede quedarse sin email.",
+  customer_email_in_use: "Este cliente tiene Beatcoins o reservas con ese email: no puede quedarse sin email.",
   // OJO: el literal exagera la causa — también salta con una ficha de invitado
   // sin reclamar y en la carrera por PK. La frase habla de "otro cliente"
   // (una ficha del directorio), nunca de "otra cuenta".
@@ -149,7 +149,7 @@ const CUSTOMER_DB_MESSAGES: Readonly<Record<string, string>> = {
   customer_user_required: "Falta la cuenta que vincular.",
   customer_assign_not_booking: "Solo se puede cambiar el cliente de una reserva de sala.",
   customer_assign_inactive: "Solo se puede cambiar el cliente de una reserva vigente.",
-  customer_assign_points_order: "Esta reserva usó Puntos FOTF y no se puede reasignar; cancélala y vuelve a crearla.",
+  customer_assign_points_order: "Esta reserva usó Beatcoins y no se puede reasignar; cancélala y vuelve a crearla.",
   customer_assign_needs_email: "Ese cliente no tiene email; agrégalo antes de reasignar una reserva pagada.",
   // Espejo del anterior, del lado del checkout: una ficha solo-teléfono no puede quedar
   // vinculada a un pedido que cobra (los puntos resuelven al cliente por el email del

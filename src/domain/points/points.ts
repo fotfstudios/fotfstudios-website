@@ -66,3 +66,17 @@ export function clampPoints(balance: number, total: number, requested: number): 
 export function formatPoints(n: number): string {
   return Math.round(n).toLocaleString("es-CL");
 }
+
+/**
+ * Nombre del programa de puntos para clientes y staff: los Puntos FOTF se llaman
+ * Beatcoins (decisión del dueño, 2026-10-05). Solo cambia el NOMBRE: 1 Beatcoin = $1 y
+ * se gana el 5 % de lo pagado en dinero. Los identificadores internos (points,
+ * points_ledger, points_balance) siguen igual: el cliente nunca los ve.
+ */
+export const POINTS_NAME = "Beatcoins";
+export const POINTS_NAME_ONE = "Beatcoin";
+
+/** "3.398 Beatcoins" · "1 Beatcoin" · "0 Beatcoins". */
+export function fmtBeatcoins(n: number): string {
+  return `${formatPoints(n)} ${Math.round(n) === 1 ? POINTS_NAME_ONE : POINTS_NAME}`;
+}

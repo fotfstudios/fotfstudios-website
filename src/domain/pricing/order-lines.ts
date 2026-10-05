@@ -12,7 +12,9 @@ export interface OrderLine {
 }
 
 /** Glosa exacta de la línea de canje (la escribe el checkout). */
-const POINTS_LINE = "Canje de puntos";
+/** Línea del canje en el pedido. Los pedidos viejos dicen "Canje de puntos": también cuentan. */
+export const POINTS_LINE = "Canje de Beatcoins";
+const POINTS_LINES = new Set([POINTS_LINE, "Canje de puntos"]);
 
 /** Concesión rescatada de un pedido: pesos positivos + la glosa que la explicaba. */
 export interface CarriedConcession {
@@ -73,7 +75,7 @@ export function concessionFromLines(
   const kept: typeof lines = [];
   for (const l of lines) {
     if (l.line_type !== "discount") continue;
-    if (l.description === POINTS_LINE) continue;
+    if (POINTS_LINES.has(l.description)) continue;
     // Una sola línea del motor por pedido, y se reconoce por su monto exacto.
     if (!engineSeen && l.subtotal_clp === engineAdjust) {
       engineSeen = true;

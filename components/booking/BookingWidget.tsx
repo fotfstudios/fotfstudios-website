@@ -527,7 +527,7 @@ export default function BookingWidget({
               )}
               {pointsApplied > 0 && (
                 <li className="flex justify-between gap-3 text-gold">
-                  <span>Puntos</span>
+                  <span>Beatcoins</span>
                   <span className="font-mono">−{formatCLP(pointsApplied)}</span>
                 </li>
               )}
@@ -587,9 +587,9 @@ export default function BookingWidget({
           {/* Tus puntos (solo con sesión y saldo) */}
           {customer && customer.points > 0 && quote && selectedStart !== null && (
             <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-quiet">Tus puntos</span>
+              <span className="label-sm text-bone-quiet">Tus Beatcoins</span>
               <p className="mt-1 text-sm text-bone-dim">
-                Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en puntos.
+                Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en Beatcoins.
               </p>
               <div className="mt-3 space-y-1.5">
                 <RecOption
@@ -600,14 +600,14 @@ export default function BookingWidget({
                       return !v;
                     });
                   }}
-                  label="Usar mis puntos"
+                  label="Usar mis Beatcoins"
                   delta={usePoints ? `−${formatCLP(pointsApplied)}` : undefined}
                 />
               </div>
               {usePoints && (
                 <div className="mt-2 flex items-center gap-2">
                   <label htmlFor="bk-points" className="sr-only">
-                    Puntos a usar
+                    Beatcoins a usar
                   </label>
                   <input
                     id="bk-points"
@@ -693,7 +693,7 @@ export default function BookingWidget({
               </label>
               {customer ? (
                 <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
-                  Sesión iniciada como {customer.email}. Ya puedes usar tus puntos.
+                  Sesión iniciada como {customer.email}. Ya puedes usar tus Beatcoins.
                 </p>
               ) : (
                 accountEnabled() &&
@@ -808,7 +808,7 @@ export default function BookingWidget({
                     >
                       Inicia sesión
                     </button>{" "}
-                    para usar tus puntos.
+                    para usar tus Beatcoins.
                   </p>
                 ))
               )}
@@ -854,7 +854,7 @@ export default function BookingWidget({
               disabled={!canPay}
               className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
             >
-              {submitting ? "Confirmando…" : "Pagar con puntos"}
+              {submitting ? "Confirmando…" : "Pagar con Beatcoins"}
               <span>→</span>
             </button>
           ) : payReady && walletEnabled && isDesktop === true ? (
@@ -904,7 +904,7 @@ export default function BookingWidget({
               disabled={!canPay}
               className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
             >
-              {submitting ? "…" : "Pagar con puntos"}
+              {submitting ? "…" : "Pagar con Beatcoins"}
               <span>→</span>
             </button>
           ) : payReady && walletEnabled && isDesktop === false ? (

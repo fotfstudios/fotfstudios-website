@@ -19,7 +19,7 @@ export const metadata = { title: "Clientes — Admin", robots: { index: false } 
 const ORDEN_LABEL: Record<ClienteOrden, string> = {
   recientes: "Recientes",
   nombre: "Nombre",
-  puntos: "Más puntos",
+  puntos: "Más Beatcoins",
 };
 
 export default async function ClientesPage({
@@ -100,7 +100,7 @@ export default async function ClientesPage({
                     <>
                       <Th>Cliente</Th>
                       <Th>Contacto</Th>
-                      <Th right>Puntos</Th>
+                      <Th right>Beatcoins</Th>
                       <Th>Cuenta</Th>
                       <Th>Desde</Th>
                     </>

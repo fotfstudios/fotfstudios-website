@@ -272,7 +272,7 @@ describe("validateManualBooking — cliente", () => {
 });
 
 /**
- * Canje de puntos desde la consola. El saldo cuelga de la ficha, así que sin
+ * Canje de Beatcoins desde la consola. El saldo cuelga de la ficha, así que sin
  * ficha no hay de quién descontar; y una cortesía no cobra nada, así que no hay
  * contra qué canjear. El monto DEFINITIVO lo decide la DB bajo lock de fila —
  * acá solo se valida la intención, igual que con el descuento manual.
@@ -296,20 +296,20 @@ describe("validateManualBooking — canje de puntos", () => {
   });
 
   it.each([-1, 1.5, "5000", Number.NaN, 10_000_001])("rechaza pointsToRedeem inválido: %s", (pointsToRedeem) => {
-    expect(validateManualBooking({ ...conFicha, pointsToRedeem })).toEqual({ ok: false, error: "Puntos inválidos." });
+    expect(validateManualBooking({ ...conFicha, pointsToRedeem })).toEqual({ ok: false, error: "Beatcoins inválidos." });
   });
 
   it("canjear SIN ficha se rechaza: el saldo cuelga de la ficha", () => {
     expect(validateManualBooking({ ...base, walkInName: "Walk-in", pointsToRedeem: 1000 })).toEqual({
       ok: false,
-      error: "Para canjear puntos, elige un cliente con ficha.",
+      error: "Para canjear Beatcoins, elige un cliente con ficha.",
     });
   });
 
   it("una cortesía no admite canje: ya es sin cobro", () => {
     expect(validateManualBooking({ ...conFicha, ...cortesia, pointsToRedeem: 1000 })).toEqual({
       ok: false,
-      error: "Una cortesía ya es sin cobro: no admite canje de puntos.",
+      error: "Una cortesía ya es sin cobro: no admite canje de Beatcoins.",
     });
   });
 
@@ -335,10 +335,10 @@ describe("validateManualBooking — prueba del curso", () => {
   it.each([
     [{ durationHours: 2 }, "La prueba dura 1 hora."],
     [{ addonKeys: ["audio"] }, "La prueba no lleva extras."],
-    [{ pointsToRedeem: 1000 }, "La prueba tiene precio fijo: sin descuento ni puntos."],
+    [{ pointsToRedeem: 1000 }, "La prueba tiene precio fijo: sin descuento ni Beatcoins."],
     [
       { discount: { target: { kind: "room" }, mode: "pct", value: 10, reason: "" } },
-      "La prueba tiene precio fijo: sin descuento ni puntos.",
+      "La prueba tiene precio fijo: sin descuento ni Beatcoins.",
     ],
     [{ customerId: null, walkInName: "Walk-in" }, "Para una prueba elige un cliente con ficha (el crédito va a su email)."],
   ])("rechaza %j", (over, error) => {

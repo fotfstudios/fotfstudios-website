@@ -61,7 +61,7 @@ export async function sendPointsBalanceAction(_prev: ActionResult | null, fd: Fo
     const c = await customerDirectory().get(str(fd, "id"));
     if (!c) throw new Error("No encontramos la ficha.");
     if (!c.email) throw new Error("Este cliente no tiene email.");
-    if (c.pointsBalance <= 0) throw new Error("Este cliente no tiene puntos que avisar.");
+    if (c.pointsBalance <= 0) throw new Error("Este cliente no tiene Beatcoins que avisar.");
     await notificationService().notifyPointsBalance({ name: c.name, email: c.email, points: c.pointsBalance });
   });
 }

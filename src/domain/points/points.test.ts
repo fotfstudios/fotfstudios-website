@@ -119,3 +119,12 @@ describe("formatPoints", () => {
     expect(formatPoints(-400)).toBe("-400");
   });
 });
+
+describe("fmtBeatcoins", () => {
+  it("plural, singular y miles en es-CL", async () => {
+    const { fmtBeatcoins } = await import("./points");
+    expect(fmtBeatcoins(0)).toBe("0 Beatcoins");
+    expect(fmtBeatcoins(1)).toBe("1 Beatcoin");
+    expect(fmtBeatcoins(3398)).toBe("3.398 Beatcoins");
+  });
+});

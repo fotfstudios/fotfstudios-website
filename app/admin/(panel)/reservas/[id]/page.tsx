@@ -49,6 +49,8 @@ const TAG_TONE: Record<ActivityTag, { dot: string; text: string }> = {
   Reservas: { dot: "bg-bone", text: "text-bone" },
   Notificaciones: { dot: "bg-bone-dim", text: "text-bone-dim" },
 };
+/** La categoría "Puntos" viene de la DB (booking_event_category); al staff se le dice Beatcoins. */
+const TAG_LABEL: Partial<Record<ActivityTag, string>> = { Puntos: "Beatcoins" };
 const TAG_ORDER: ActivityTag[] = ["Reservas", "Pagos", "Puntos", "Documentos tributarios", "Notificaciones"];
 
 /** Renderiza un evento del log al par (label es-CL, detalle) del timeline. */
@@ -97,7 +99,7 @@ function timelineEntry(
     case "reschedule_cancelled":
       return { label: "Reagendamiento anulado", detail: `${move()} · ${clp(e.amountClp)}` };
     case "points_restored":
-      return { label: "Puntos repuestos", detail: `+${e.amountClp} pts` };
+      return { label: "Beatcoins repuestos", detail: `+${e.amountClp} Beatcoins` };
     case "boleta_issued":
       return { label: "Boleta generada", detail: clp(e.amountClp) };
     case "boleta_emitted":
@@ -111,14 +113,14 @@ function timelineEntry(
         ? { label: "Folio de nota de crédito corregido", detail: `${e.detail.previous_folio} → ${e.detail.folio}` }
         : { label: "Nota de crédito emitida", detail: `${e.detail?.folio ? `Folio ${e.detail.folio} · ` : ""}${clp(e.amountClp)}` };
     case "points_earned":
-      return { label: "Puntos otorgados", detail: e.amountClp != null ? `+${e.amountClp} pts` : undefined };
+      return { label: "Beatcoins otorgados", detail: e.amountClp != null ? `+${e.amountClp} Beatcoins` : undefined };
     case "points_revoked":
-      return { label: "Puntos revocados", detail: e.amountClp != null ? `−${e.amountClp} pts` : undefined };
+      return { label: "Beatcoins revocados", detail: e.amountClp != null ? `−${e.amountClp} Beatcoins` : undefined };
     case "customer_changed": {
       const from = e.detail?.from_name ?? e.detail?.from_email ?? "sin cliente";
       const to = e.detail?.to_name ?? e.detail?.to_email ?? "—";
       const pts = e.detail?.points_moved ?? 0;
-      return { label: "Cliente reasignado", detail: `${from} → ${to}${pts > 0 ? ` · ${pts} pts movidos` : ""}` };
+      return { label: "Cliente reasignado", detail: `${from} → ${to}${pts > 0 ? ` · ${pts} Beatcoins movidos` : ""}` };
     }
     case "cancelled":
       return { label: "Cancelada" };
@@ -396,12 +398,12 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
             return (
               <Card title={isOfflinePayment ? "Pago manual" : "Mercado Pago"}>
                 {isPointsPayment ? (
-                  <p className="text-sm text-bone">Pagado 100 % con Puntos FOTF</p>
+                  <p className="text-sm text-bone">Pagado 100 % con Beatcoins</p>
                 ) : isOfflinePayment ? (
                   <div className="flex flex-col gap-2.5">
                     <MpRow label="Método" value={paymentMethodLabel(b.paymentMethod) ?? "—"} />
                     {b.pointsRedeemedClp > 0 && (
-                      <MpRow label="Puntos FOTF" value={`−${formatCLP(b.pointsRedeemedClp)}`} />
+                      <MpRow label="Beatcoins" value={`−${formatCLP(b.pointsRedeemedClp)}`} />
                     )}
                   </div>
                 ) : (
@@ -546,7 +548,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                 {TAG_ORDER.filter((t) => timeline.some((e) => e.tag === t)).map((t) => (
                   <span key={t} className={`inline-flex items-center gap-1.5 whitespace-nowrap label-sm ${TAG_TONE[t].text}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${TAG_TONE[t].dot}`} />
-                    {t}
+                    {TAG_LABEL[t] ?? t}
                   </span>
                 ))}
               </div>

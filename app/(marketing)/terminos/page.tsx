@@ -7,7 +7,7 @@ import WhatsAppCta from "@/components/WhatsAppCta";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "4 de octubre de 2026";
+const UPDATED = "5 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -161,32 +161,37 @@ export default function TerminosPage() {
           </p>
         </ProseSection>
 
-        <ProseSection title="Puntos FOTF">
+        <ProseSection title="Beatcoins">
           <p>
-            Por cada pago hecho en dinero acumulas puntos FOTF:{" "}
-            <strong className="text-bone">1 punto equivale a $1 CLP</strong>, y acumulas el{" "}
+            Beatcoins es el programa de puntos de FOTF Studios (antes, «Puntos FOTF»; los saldos
+            se mantienen iguales). Por cada pago hecho en dinero acumulas Beatcoins:{" "}
+            <strong className="text-bone">1 Beatcoin equivale a $1 CLP</strong>, y acumulas el{" "}
             <strong className="text-bone">5% de lo pagado en dinero</strong>. Los pagos hechos con
-            puntos no generan nuevos puntos.
+            Beatcoins no generan nuevos Beatcoins.
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              Puedes usar tus puntos para pagar reservas y servicios adicionales a precio de
-              lista, hasta el 100% del valor de la reserva. Los puntos no sirven para comprar
-              packs de horas, bloques de Perfeccionamiento 1:1 ni el curso de iniciación DJ.
+              Puedes usar tus Beatcoins para pagar reservas y servicios adicionales a precio de
+              lista, hasta el 100% del valor de la reserva. Los Beatcoins no sirven para comprar
+              packs de horas, bloques de Perfeccionamiento 1:1 ni el Curso de DJ.
             </li>
             <li>
-              Las reservas pagadas con puntos (total o parcialmente) no se pueden reagendar: si
+              El Curso de DJ no genera Beatcoins: ni el pago del curso, ni sus sesiones guiadas,
+              ni sus horas de práctica, ni la sesión de prueba.
+            </li>
+            <li>
+              Las reservas pagadas con Beatcoins (total o parcialmente) no se pueden reagendar: si
               necesitas cambiarla, cancélala —aplican los tramos de reembolso, devuelto en
-              puntos— y crea una nueva.
+              Beatcoins— y crea una nueva.
             </li>
             <li>
-              Si te reembolsamos una reserva, se descuentan los puntos que esa reserva había
-              generado, y los puntos que usaste para pagarla se te devuelven a prorrata del monto
-              reembolsado.
+              Si te reembolsamos una reserva, se descuentan los Beatcoins que esa reserva había
+              generado, y los Beatcoins que usaste para pagarla se te devuelven a prorrata del
+              monto reembolsado.
             </li>
             <li>
-              Hoy los puntos no tienen fecha de vencimiento. Podemos modificar el programa de
-              puntos hacia adelante; estos cambios nunca afectan puntos que ya hayas ganado.
+              Hoy los Beatcoins no tienen fecha de vencimiento. Podemos modificar el programa
+              hacia adelante; estos cambios nunca afectan Beatcoins que ya hayas ganado.
             </li>
           </ul>
         </ProseSection>

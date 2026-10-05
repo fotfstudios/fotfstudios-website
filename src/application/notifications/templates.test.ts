@@ -310,8 +310,8 @@ describe("cancelación de una orden 100% puntos", () => {
       { name: "Ana", when: view.when, refunded: null, restoredPoints: 14990 },
       { whatsappUrl: "https://wa.me/56962803298" },
     );
-    expect(m.html).toContain("14.990 puntos");
-    expect(m.text).toContain("14.990 puntos");
+    expect(m.html).toContain("14.990 Beatcoins");
+    expect(m.text).toContain("14.990 Beatcoins");
     expect(m.html).not.toMatch(/medio de pago original|tarjeta|reembolsamos/);
     expect(m.text).not.toMatch(/medio de pago original|reembolsamos/);
   });
@@ -747,9 +747,9 @@ describe("customerPointsBalance (saldo de puntos a pedido del admin)", () => {
 
   it("el saldo va en el asunto y en el cuerpo", () => {
     const m = send();
-    expect(m.subject).toBe("Tienes 3.398 puntos FOTF");
-    expect(m.html).toContain("Tienes 3.398 puntos");
-    expect(m.text).toContain("3.398 puntos");
+    expect(m.subject).toBe("Tienes 3.398 Beatcoins");
+    expect(m.html).toContain("Tienes 3.398 Beatcoins");
+    expect(m.text).toContain("3.398 Beatcoins");
   });
 
   it("dice a cuánto equivalen en pesos (1 punto = $1)", () => {
@@ -768,8 +768,8 @@ describe("customerPointsBalance (saldo de puntos a pedido del admin)", () => {
   });
 
   it("saluda por el nombre, y sin nombre arranca en mayúscula", () => {
-    expect(send().html).toContain("Hola Ana, tus Puntos FOTF");
-    expect(send(null).html).toContain("Tus Puntos FOTF");
+    expect(send().html).toContain("Hola Ana, tus Beatcoins");
+    expect(send(null).html).toContain("Tus Beatcoins");
     expect(send(null).html).not.toContain("Hola");
   });
 

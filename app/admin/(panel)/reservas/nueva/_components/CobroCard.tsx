@@ -204,7 +204,7 @@ export function CobroCard({
           )}
           {points && points.applied > 0 && (
             <li className="flex justify-between gap-3 text-gold">
-              <span>Canje de puntos</span>
+              <span>Canje de Beatcoins</span>
               <span className="font-mono">−{formatCLP(points.applied)}</span>
             </li>
           )}
@@ -232,14 +232,14 @@ export function CobroCard({
       {points && (
         <div className="mt-6 border-t hairline pt-5">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="label-sm text-bone-quiet">Puntos FOTF</span>
+            <span className="label-sm text-bone-quiet">Beatcoins</span>
             <span className="label-sm text-bone-dim">Saldo: {fmtPts(points.balance)}</span>
           </div>
           <div className="mt-2.5 flex items-center gap-2">
             <input
               type="text"
               inputMode="numeric"
-              aria-label="Puntos a canjear"
+              aria-label="Beatcoins a canjear"
               placeholder="0"
               className={inputCls + " font-mono"}
               value={points.value}
@@ -250,7 +250,7 @@ export function CobroCard({
             </button>
           </div>
           <p className="mt-2 label-sm text-bone-quiet">
-            1 punto = $1. Máximo para esta reserva: {fmtPts(points.max)}.
+            1 Beatcoin = $1. Máximo para esta reserva: {fmtPts(points.max)}.
           </p>
         </div>
       )}
@@ -259,7 +259,7 @@ export function CobroCard({
         <div className="mt-6 flex flex-col gap-4 border-t hairline pt-5">
           {coversAll ? (
             <p className="text-sm text-bone">
-              Se paga con <strong>Puntos FOTF</strong>: queda pagada al crearla.
+              Se paga con <strong>Beatcoins</strong>: queda pagada al crearla.
             </p>
           ) : (
             <>

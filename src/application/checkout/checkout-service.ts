@@ -2,7 +2,7 @@ import type { CheckoutLine, CheckoutRepository, Customer } from "@/src/applicati
 import type { BookingQuoteInput, PricingService } from "@/src/application/pricing/pricing-service";
 import { applyRedemption } from "@/src/domain/points/points";
 import { applyManualDiscount, type ManualDiscount, type ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
-import { orderLinesFromQuote } from "@/src/domain/pricing/order-lines";
+import { orderLinesFromQuote, POINTS_LINE } from "@/src/domain/pricing/order-lines";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { netFromGrossInclusive, taxFromGrossInclusive } from "@/src/domain/money/money";
@@ -132,7 +132,7 @@ export class CheckoutService {
     if (redemption.pointsApplied > 0) {
       lines.push({
         line_type: "discount",
-        description: "Canje de puntos",
+        description: POINTS_LINE,
         quantity: 1,
         unit_price_clp: -redemption.pointsApplied,
         subtotal_clp: -redemption.pointsApplied,

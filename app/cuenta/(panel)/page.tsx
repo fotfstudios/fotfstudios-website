@@ -44,8 +44,8 @@ export default async function CuentaResumen() {
       {movements.length === 0 ? (
         <EmptyState
           icon="points"
-          title="Aún no tienes puntos"
-          hint="Reserva tu primera sesión y empieza a sumar: cada peso pagado te devuelve el 5% en puntos."
+          title="Aún no tienes Beatcoins"
+          hint="Reserva tu primera sesión y empieza a sumar: cada peso pagado te devuelve el 5% en Beatcoins."
           action={<Button href="/reservar">Reservar una hora</Button>}
         />
       ) : (
@@ -56,11 +56,11 @@ export default async function CuentaResumen() {
               <p className="text-sm leading-relaxed text-bone-dim">
                 {balance > 0 ? (
                   <>
-                    Tienes <strong className="font-mono text-gold">{fmtPts(balance)} pts</strong> — valen{" "}
+                    Tienes <strong className="font-mono text-gold">{fmtPts(balance)} Beatcoins</strong> — valen{" "}
                     {formatCLP(balance)} en tu próxima hora.
                   </>
                 ) : (
-                  <>Sin puntos por ahora — cada hora pagada te devuelve el 5% en tu próxima hora.</>
+                  <>Sin Beatcoins por ahora — cada hora pagada te devuelve el 5% en tu próxima hora.</>
                 )}
               </p>
               {balance > 0 && (
@@ -73,10 +73,10 @@ export default async function CuentaResumen() {
             // Sin sesión agendada, el saldo es el protagonista y la CTA es reservar.
             <section aria-labelledby="tus-puntos" className="border hairline bg-ink/40 p-5 sm:p-6">
               <h2 id="tus-puntos" className="label text-bone-quiet">
-                Tus puntos
+                Tus Beatcoins
               </h2>
               <p className={`font-display mt-3 text-4xl sm:text-5xl ${balance > 0 ? "text-gold" : "text-bone"}`}>
-                {fmtPts(balance)} pts
+                {fmtPts(balance)} Beatcoins
               </p>
               <p className="mt-1 text-sm leading-relaxed text-bone-dim">
                 {balance > 0
@@ -98,7 +98,7 @@ export default async function CuentaResumen() {
                 Ganados {fmtPts(earned)} · Canjeados {fmtPts(redeemed)}
               </p>
             </div>
-            <MovementList label="Historial de puntos" rows={movements.slice(0, SHOWN)} />
+            <MovementList label="Historial de Beatcoins" rows={movements.slice(0, SHOWN)} />
             {movements.length > SHOWN && (
               <p className="label-sm text-bone-quiet">Se muestran los últimos {SHOWN} movimientos.</p>
             )}

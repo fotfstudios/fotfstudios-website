@@ -42,7 +42,7 @@ export default function BookingList({
               <span>{fmtTimeRange(b.startsAt, b.endsAt)}</span>
               <span>
                 {b.orderId ? formatCLP(total) : "—"}
-                {b.pointsRedeemedClp > 0 && <span className="label-sm ml-2 text-bone-quiet">con puntos</span>}
+                {b.pointsRedeemedClp > 0 && <span className="label-sm ml-2 text-bone-quiet">con Beatcoins</span>}
               </span>
             </div>
             {linked && (
