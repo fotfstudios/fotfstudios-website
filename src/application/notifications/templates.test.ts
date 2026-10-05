@@ -896,9 +896,11 @@ describe("recordatorio de una sesión guiada del curso", () => {
     expect(m.text).toContain("Sesión 3 · Frases y mezcla larga");
   });
 
-  it("no dice que entra solo (es una clase guiada) y promete el PIN y el aviso de 24 h", () => {
+  it("es guiada: no promete PIN, dice que lo reciben en la puerta, y el aviso de 24 h", () => {
     expect(m.html + m.text).not.toMatch(/entras solo|sin esperar a nadie/i);
-    expect(m.html).toContain("código de acceso te llega por email 10 minutos antes");
+    expect(m.html + m.text).not.toMatch(/código de acceso|PIN/);
+    expect(m.html).toContain("te recibimos en la puerta");
+    expect(m.text).toContain("te recibimos en la puerta");
     expect(m.html).toMatch(/24 horas/);
     expect(m.html).toContain("https://fotfstudios.cl/cuenta/curso");
   });

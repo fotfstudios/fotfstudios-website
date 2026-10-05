@@ -1200,9 +1200,9 @@ export class SupabaseAdminRepository {
     const { data, error } = await this.db
       .from("reservations")
       .select("id")
-      // Cliente: siempre. Sesión de curso: solo con alumno pagado (con email); sin él
-      // sería un código que el dueño cargaría en la Yale para nadie.
-      .or("kind.eq.booking,and(kind.eq.curso,customer_email.not.is.null)")
+      // Solo quien entra solo (la práctica del curso incluida). La sesión guiada no lleva
+      // PIN: el dueño o el instructor recibe al alumno en la puerta.
+      .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .is("access_code", null)
       .gte("ends_at", new Date().toISOString());
@@ -1294,10 +1294,11 @@ export class SupabaseAdminRepository {
   }
 
   async accessToRemove(): Promise<AccessWorkRow[]> {
+    // Sin filtro de kind a propósito: todo código que quedó en la cerradura se quita,
+    // también el de una sesión guiada de antes de que dejaran de llevar PIN.
     const { data, error } = await this.db
       .from("reservations")
       .select(ACCESS_WORK_SELECT)
-      .in("kind", [...DOOR_ACCESS_KINDS])
       .not("access_code", "is", null)
       .is("access_removed_at", null)
       .lt("ends_at", new Date().toISOString())
@@ -1325,7 +1326,6 @@ export class SupabaseAdminRepository {
     const { count } = await this.db
       .from("reservations")
       .select("id", { count: "exact", head: true })
-      .in("kind", [...DOOR_ACCESS_KINDS])
       .not("access_code", "is", null)
       .is("access_removed_at", null)
       .lt("ends_at", new Date().toISOString());

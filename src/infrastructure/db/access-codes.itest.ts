@@ -92,26 +92,27 @@ describe("generación", () => {
     expect((await row(id)).access_code).toBeNull();
   });
 
-  // El alumno de una sesión guiada entra a la sala igual que un cliente: necesita el PIN.
-  it("asigna PIN a una sesión de curso con alumno", async () => {
+  // La sesión guiada no lleva PIN: el dueño o el instructor recibe al alumno en la
+  // puerta. Aunque el alumno esté pagado (con email), no se genera código.
+  it("no asigna PIN a una sesión guiada del curso, aunque tenga alumno", async () => {
     const id = await booking({ startsInMin: 60, kind: "curso" });
-    await new AccessCodeService(repo, notifier()).sweep();
-    expect((await row(id)).access_code).toMatch(/^\d+$/);
-  });
-
-  // Sin email = programa sin pagar (el contacto solo se copia de una inscripción pagada):
-  // no se genera un código que el dueño tendría que cargar en la Yale para nadie.
-  it("no asigna PIN a una sesión de curso sin alumno pagado", async () => {
-    const id = await booking({ startsInMin: 60, kind: "curso", email: null });
     await new AccessCodeService(repo, notifier()).sweep();
     expect((await row(id)).access_code).toBeNull();
   });
 
-  it("manda el PIN de una sesión de curso cargada, 10 min antes", async () => {
+  // Un PIN viejo de una sesión guiada (de antes de este cambio) tampoco se manda.
+  it("no manda PIN de una sesión guiada aunque tenga uno cargado", async () => {
     await booking({ startsInMin: 8, kind: "curso", code: "4321", loaded: true });
     const n = notifier();
     await new AccessCodeService(repo, n).sweep();
-    expect(n.notifyAccessCode).toHaveBeenCalledTimes(1);
+    expect(n.notifyAccessCode).not.toHaveBeenCalled();
+  });
+
+  // La práctica libre del curso es kind=booking: el alumno entra solo y sí lleva PIN.
+  it("la práctica libre (kind booking) sí recibe PIN", async () => {
+    const id = await booking({ startsInMin: 60, kind: "booking" });
+    await new AccessCodeService(repo, notifier()).sweep();
+    expect((await row(id)).access_code).toMatch(/^\d+$/);
   });
 
   it("no pisa un PIN que ya existe", async () => {
@@ -219,22 +220,22 @@ describe("el ciclo del dueño", () => {
 
   it("las listas de /admin/cerradura usan los MISMOS predicados que los conteos, y ordenan por inicio", async () => {
     // por cargar: dos futuras sin cargar (la de 60 min antes que la de 300), una cargada,
-    // una terminada, una held y una sesión de curso con PIN: las dos primeras y la de
-    // curso (el alumno también entra con PIN), por inicio.
+    // una terminada, una held y una sesión guiada con un PIN viejo: solo las dos primeras,
+    // por inicio (la guiada no se carga: el instructor recibe al alumno).
     // (slots de 60 min separados ≥ 60 min: reservations_no_overlap es una exclusion constraint)
     const soon = await booking({ startsInMin: 60, code: "482917" });
     const later = await booking({ startsInMin: 300, code: "555666" });
     await booking({ startsInMin: 180, code: "111222", loaded: true });
     await booking({ startsInMin: -120, code: "333444" });
     await booking({ startsInMin: 420, code: "777888", status: "held" });
-    const curso = await booking({ startsInMin: 540, code: "999000", kind: "curso" });
+    await booking({ startsInMin: 540, code: "999000", kind: "curso" });
     // por quitar: dos terminadas con código sin quitar (la más vieja primero), una ya quitada
     const oldest = await booking({ startsInMin: -600, code: "121212" });
     const recent = await booking({ startsInMin: -240, code: "343434", loaded: true, sent: true });
     await booking({ startsInMin: -360, code: "565656", removed: true });
 
     const toLoad = await repo.accessToLoad();
-    expect(toLoad.map((r) => r.id)).toEqual([soon, later, curso]);
+    expect(toLoad.map((r) => r.id)).toEqual([soon, later]);
     expect(toLoad).toHaveLength(await repo.accessToLoadCount());
     expect(toLoad[0]).toMatchObject({ accessCode: "482917", customerName: "Ana", customerEmail: "ana@e.cl" });
 
@@ -243,6 +244,14 @@ describe("el ciclo del dueño", () => {
     expect(toRemove.map((r) => r.id)).toEqual([oldest, recent, expect.any(String)]);
     expect(toRemove).toHaveLength(await repo.accessToRemoveCount());
     expect(toRemove.every((r) => /^\d+$/.test(r.accessCode))).toBe(true);
+  });
+
+  // Lo que quedó en la Yale se quita, sea de quien sea: un PIN viejo de una sesión
+  // guiada terminada sigue apareciendo en "por quitar".
+  it("un PIN viejo de una sesión guiada terminada aparece en 'por quitar'", async () => {
+    const curso = await booking({ startsInMin: -120, code: "909090", kind: "curso", loaded: true });
+    expect((await repo.accessToRemove()).map((r) => r.id)).toEqual([curso]);
+    expect(await repo.accessToRemoveCount()).toBe(1);
   });
 
   it("marcar cargado deja access_loaded_at", async () => {
