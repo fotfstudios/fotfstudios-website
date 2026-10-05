@@ -113,14 +113,14 @@ describe("customerDbErrorCode / customerDbErrorMessage", () => {
     ],
     [
       "customer_email_in_use",
-      "Este cliente tiene puntos o reservas con ese email: no puede quedarse sin email.",
+      "Este cliente tiene Beatcoins o reservas con ese email: no puede quedarse sin email.",
     ],
     ["customer_email_owned_by_other_user", "Ese email ya pertenece a otro cliente."],
     ["customer_assign_not_booking", "Solo se puede cambiar el cliente de una reserva de sala."],
     ["customer_assign_inactive", "Solo se puede cambiar el cliente de una reserva vigente."],
     [
       "customer_assign_points_order",
-      "Esta reserva usó Puntos FOTF y no se puede reasignar; cancélala y vuelve a crearla.",
+      "Esta reserva usó Beatcoins y no se puede reasignar; cancélala y vuelve a crearla.",
     ],
     [
       "customer_assign_needs_email",

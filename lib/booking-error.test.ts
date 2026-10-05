@@ -19,7 +19,7 @@ describe("bookingErrorMessage", () => {
 
   it("insufficient_points → saldo insuficiente", () => {
     expect(bookingErrorMessage("insufficient_points")).toBe(
-      "No tienes puntos suficientes para ese canje. Actualiza la página e intenta de nuevo.",
+      "No tienes Beatcoins suficientes para ese canje. Actualiza la página e intenta de nuevo.",
     );
   });
 
@@ -30,7 +30,7 @@ describe("bookingErrorMessage", () => {
   });
 
   it("points_session → sesión expirada", () => {
-    expect(bookingErrorMessage("points_session")).toBe("Tu sesión expiró. Vuelve a entrar para usar tus puntos.");
+    expect(bookingErrorMessage("points_session")).toBe("Tu sesión expiró. Vuelve a entrar para usar tus Beatcoins.");
   });
 
   it("amount_changed → el total cambió: revisa el resumen (no 'no se pudo crear')", () => {

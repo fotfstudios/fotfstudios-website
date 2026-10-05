@@ -17,7 +17,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   mercadopago: "Mercado Pago",
   transferencia: "Transferencia",
   efectivo: "Efectivo",
-  puntos: "Puntos FOTF",
+  puntos: "Beatcoins",
 };
 
 export function isPaymentMethod(v: unknown): v is PaymentMethod {

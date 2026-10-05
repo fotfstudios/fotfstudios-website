@@ -202,7 +202,7 @@ function rescheduleErrorMessage(code: string): string {
     case "not_paid":
       return "La reserva no está pagada.";
     case "points_order":
-      return "Esta reserva usó Puntos FOTF; para cambiarla, cancélala y vuelve a crearla.";
+      return "Esta reserva usó Beatcoins; para cambiarla, cancélala y vuelve a crearla.";
     case "too_late":
       return "Ya no se puede reagendar (menos de 12 h para la sesión).";
     case "target_past":

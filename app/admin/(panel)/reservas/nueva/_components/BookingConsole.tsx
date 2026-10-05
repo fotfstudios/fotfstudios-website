@@ -690,7 +690,7 @@ export default function BookingConsole({
                 {/* Walk-in solo-nombre: sigue siendo legal (decisión del dueño).
                     No crea ficha, así que no acumula puntos ni historial. */}
                 {walkInOpen ? (
-                  <Field label="Solo nombre" hint="Sin ficha: no acumula puntos ni historial.">
+                  <Field label="Solo nombre" hint="Sin ficha: no acumula Beatcoins ni historial.">
                     <Input
                       type="text"
                       value={walkInName}

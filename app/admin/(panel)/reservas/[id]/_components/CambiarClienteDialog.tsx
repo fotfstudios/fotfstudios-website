@@ -71,12 +71,12 @@ export function CambiarClienteDialog(p: CambiarClienteDialogProps) {
         className={btn("secondary", "sm")}
         onClick={() => setOpen(true)}
         disabled={p.usedPoints}
-        title={p.usedPoints ? "Esta reserva usó Puntos FOTF y no se puede reasignar; cancélala y vuelve a crearla." : undefined}
+        title={p.usedPoints ? "Esta reserva usó Beatcoins y no se puede reasignar; cancélala y vuelve a crearla." : undefined}
       >
         Cambiar cliente
       </button>
       {p.usedPoints && (
-        <p className="mt-1 label-sm text-bone-quiet">Usó puntos: no se puede reasignar.</p>
+        <p className="mt-1 label-sm text-bone-quiet">Usó Beatcoins: no se puede reasignar.</p>
       )}
 
       {open && (
@@ -134,7 +134,7 @@ export function CambiarClienteDialog(p: CambiarClienteDialogProps) {
                 <div className="label-sm space-y-1 text-bone-dim">
                   <p>Se actualizarán el nombre, el email y el teléfono de la reserva y de su pedido.</p>
                   <p>No se envía ningún correo al cliente.</p>
-                  {p.isPaid && <p className="text-gold">Los puntos ganados por este pago pasan al nuevo cliente.</p>}
+                  {p.isPaid && <p className="text-gold">Los Beatcoins ganados por este pago pasan al nuevo cliente.</p>}
                   {p.isPaid && !chosen.email && (
                     <p className="text-sirena">Ese cliente no tiene email: agrégalo antes de reasignar una reserva pagada.</p>
                   )}

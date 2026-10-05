@@ -116,7 +116,7 @@ describe("RefundService.cancelBooking", () => {
 
     await expect(
       new RefundService(makeGateway(), repo, makeInbox()).cancelBooking("r1", { refundAmount: 20000 }),
-    ).rejects.toThrow(/puntos/);
+    ).rejects.toThrow(/Beatcoins/);
     expect(repo.refundPointsOrder).not.toHaveBeenCalled();
   });
 

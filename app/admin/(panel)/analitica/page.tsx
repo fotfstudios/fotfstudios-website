@@ -193,7 +193,7 @@ export default async function AnaliticaPage({
                     ["Pagadas · Mercado Pago", s.funnel.mercadopago, "text-bone"],
                     ["Pagadas · Transferencia", s.funnel.transferencia, "text-bone"],
                     ["Pagadas · Efectivo", s.funnel.efectivo, "text-bone"],
-                    ["Pagadas · Puntos FOTF", s.funnel.puntos, "text-bone"],
+                    ["Pagadas · Beatcoins", s.funnel.puntos, "text-bone"],
                     ["Cortesías", s.funnel.courtesy, "text-bone-dim"],
                     ["Canceladas (sin reembolso)", s.funnel.cancelled, "text-bone-dim"],
                     ["Reembolsadas", s.funnel.refunded, "text-bone-dim"],

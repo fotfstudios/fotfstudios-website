@@ -22,8 +22,8 @@ const checkoutErrorMessage = (code: string): string => {
   // customer_checkout_needs_email: ficha solo-teléfono en un pedido que cobra (fix round 2).
   if (code === "customer_not_found" || code === "customer_checkout_needs_email")
     return customerDbErrorMessage(null, null, code) ?? "No se pudo crear la reserva.";
-  if (code === "insufficient_points") return "El cliente no tiene tantos puntos. Revisa su saldo y vuelve a intentar.";
-  if (code === "points_session") return "Para canjear puntos, elige un cliente con ficha.";
+  if (code === "insufficient_points") return "El cliente no tiene tantos Beatcoins. Revisa su saldo y vuelve a intentar.";
+  if (code === "points_session") return "Para canjear Beatcoins, elige un cliente con ficha.";
   if (code === "slot_taken") return "Ese horario ya está tomado.";
   if (code === "too_soon") return "Ese horario ya pasó. Elige otro.";
   if (code.startsWith("sin tarifa")) return "Ese horario está fuera de la tarifa vigente.";
@@ -238,7 +238,7 @@ export async function createManualBookingAction(
     // Pagó sin elegir método: solo vale si los puntos cubrieron el total.
     if (!booking.value.paidWithPoints && !method) {
       await repo.cancelUnpaidOrder(booking.value.orderId).catch(() => {});
-      throw new Error("Los puntos no cubren el total: elige el método de pago.");
+      throw new Error("Los Beatcoins no cubren el total: elige el método de pago.");
     }
     try {
       if (!booking.value.paidWithPoints && method) {

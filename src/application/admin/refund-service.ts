@@ -128,7 +128,7 @@ export class RefundService {
     // que anular — el "reembolso" es reponer puntos (monto en puntos, 0..P).
     if (target.amountClp === 0 && target.pointsRedeemedClp > 0) {
       if (opts.refundAmount < 0 || opts.refundAmount > target.pointsRedeemedClp) {
-        throw new Error(`El monto excede los puntos reponibles (${target.pointsRedeemedClp} puntos).`);
+        throw new Error(`El monto excede los Beatcoins reponibles (${target.pointsRedeemedClp} Beatcoins).`);
       }
       await this.repo.refundPointsOrder(target.orderId, opts.refundAmount);
       return { alreadyProcessed: false };

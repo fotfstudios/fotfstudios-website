@@ -20,7 +20,7 @@ describe("paymentBadge — la columna Pago de /admin/reservas", () => {
     ["transferencia", "Pagada · Transferencia"],
     ["efectivo", "Pagada · Efectivo"],
     ["mercadopago", "Pagada · Mercado Pago"],
-    ["puntos", "Pagada · Puntos FOTF"],
+    ["puntos", "Pagada · Beatcoins"],
     [null, "Pagada"],
   ])("pagada por %s → %s", (paymentMethod, label) => {
     expect(paymentBadge({ ...base, paymentMethod }, NOW)).toEqual({ label, tone: "ok" });

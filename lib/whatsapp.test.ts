@@ -53,7 +53,7 @@ describe("manualBookingWhatsAppMessage", () => {
 
   it("pagada 100 % con puntos lo dice", () => {
     const msg = manualBookingWhatsAppMessage({ ...base, paymentMethod: "puntos" });
-    expect(msg).toContain("pagado con Puntos FOTF");
+    expect(msg).toContain("pagado con Beatcoins");
   });
 
   it("variante transferencia", () => {

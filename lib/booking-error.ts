@@ -16,11 +16,11 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
     case "network":
       return "Error de conexión. Intenta de nuevo.";
     case "insufficient_points":
-      return "No tienes puntos suficientes para ese canje. Actualiza la página e intenta de nuevo.";
+      return "No tienes Beatcoins suficientes para ese canje. Actualiza la página e intenta de nuevo.";
     case "points_session":
-      return "Tu sesión expiró. Vuelve a entrar para usar tus puntos.";
+      return "Tu sesión expiró. Vuelve a entrar para usar tus Beatcoins.";
     case "points_email_conflict":
-      return "Tu correo ya está en otro cliente nuestro: no podemos usar tus puntos así. Escríbenos por WhatsApp y lo unificamos, o continúa sin canjear puntos.";
+      return "Tu correo ya está en otro cliente nuestro: no podemos usar tus Beatcoins así. Escríbenos por WhatsApp y lo unificamos, o continúa sin canjear Beatcoins.";
     case "terms_required":
       return "Debes aceptar los términos y condiciones para reservar.";
     case "amount_changed":

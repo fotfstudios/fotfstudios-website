@@ -3,7 +3,7 @@ import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applicat
 import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import { COURSE_PROGRAM } from "@/src/domain/course/program";
-import { formatPoints } from "@/src/domain/points/points";
+import { formatPoints, fmtBeatcoins } from "@/src/domain/points/points";
 import { EMAIL as T } from "./email-tokens";
 
 export interface BookingView {
@@ -94,10 +94,10 @@ export function customerConfirmation(
      <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
      <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a></p>
      <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus puntos y tus próximas sesiones, en <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold}">tu cuenta</a>.</p>`,
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus Beatcoins y tus próximas sesiones, en <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold}">tu cuenta</a>.</p>`,
     `${v.when} · ${ctx.address}`,
   );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (puntos y próximas sesiones): ${ctx.links.accountUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (Beatcoins y próximas sesiones): ${ctx.links.accountUrl}`;
   return { template: "customerConfirmation", subject: `Reserva confirmada · ${v.when}`, html, text };
 }
 
@@ -482,7 +482,7 @@ export function customerCancellation(
   ctx: { whatsappUrl: string },
 ): EmailContent {
   // Orden pagada 100% con puntos: no hubo cobro, se reponen puntos (nada de "tarjeta").
-  const pts = v.restoredPoints && v.restoredPoints > 0 ? `${formatPoints(v.restoredPoints)} puntos` : null;
+  const pts = v.restoredPoints && v.restoredPoints > 0 ? fmtBeatcoins(v.restoredPoints) : null;
   const refundLine = pts
     ? `<p style="color:${T.boneDim};margin:0 0 16px">Te repusimos <strong style="color:${T.bone}">${pts}</strong> en tu cuenta.</p>`
     : v.refunded
@@ -615,15 +615,15 @@ export function customerPointsBalance(
   ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
 ): EmailContent {
   const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.points)} puntos</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Puntos FOTF equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tu próxima sesión.</p>
+    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.points)} Beatcoins</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Beatcoins equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tu próxima sesión.</p>
      <p style="color:${T.boneDim};margin:0 0 20px">Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar.</p>
      <a href="${esc(ctx.bookUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
      <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tu saldo y tus movimientos, en <a href="${esc(ctx.accountUrl)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
     `Equivalen a ${v.value} de descuento en tu próxima sesión.`,
   );
-  const text = `Tienes ${v.points} puntos FOTF: equivalen a ${v.value} de descuento en tu próxima sesión. Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar. Reservar: ${ctx.bookUrl}. Tu saldo y tus movimientos: ${ctx.accountUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerPointsBalance", subject: `Tienes ${v.points} puntos FOTF`, html, text };
+  const text = `Tienes ${v.points} Beatcoins: equivalen a ${v.value} de descuento en tu próxima sesión. Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar. Reservar: ${ctx.bookUrl}. Tu saldo y tus movimientos: ${ctx.accountUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerPointsBalance", subject: `Tienes ${v.points} Beatcoins`, html, text };
 }
 
 /**

@@ -191,7 +191,7 @@ describe("CustomerDirectoryService — /admin/clientes", () => {
    */
   it.each([
     ["customer_has_account", "Este cliente tiene cuenta: su email es su acceso y no se puede cambiar desde el panel."],
-    ["customer_email_in_use", "Este cliente tiene puntos o reservas con ese email: no puede quedarse sin email."],
+    ["customer_email_in_use", "Este cliente tiene Beatcoins o reservas con ese email: no puede quedarse sin email."],
     ["email_taken", "Ese email ya pertenece a otro cliente."],
     ["deadlock detected", "No pudimos completar la operación. Intenta de nuevo."],
   ])("update traduce el sentinela %s", async (sentinel, phrase) => {

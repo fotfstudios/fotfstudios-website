@@ -126,7 +126,7 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
     expect(params.customerId).toBe("cust-1");
     expect(params.pointsRedeemed).toBe(5000);
     expect(params.lines).toContainEqual(
-      expect.objectContaining({ line_type: "discount", description: "Canje de puntos", subtotal_clp: -5000 }),
+      expect.objectContaining({ line_type: "discount", description: "Canje de Beatcoins", subtotal_clp: -5000 }),
     );
     // Las líneas siguen sumando exactamente el efectivo cobrado.
     expect(params.lines.reduce((s, l) => s + l.subtotal_clp, 0)).toBe(15000);
@@ -238,7 +238,7 @@ describe("CheckoutService.createBooking — canje de puntos", () => {
       expect(r.value.amount).toBe(20000);
     }
     const params = vi.mocked(repo.createCheckout).mock.calls[0][0];
-    expect(params.lines.some((l) => l.description === "Canje de puntos")).toBe(false);
+    expect(params.lines.some((l) => l.description === "Canje de Beatcoins")).toBe(false);
   });
 });
 

@@ -185,16 +185,16 @@ export function validateManualBooking(raw: {
   let pointsToRedeem = 0;
   if (rawPoints != null && rawPoints !== "") {
     if (typeof rawPoints !== "number" || !Number.isInteger(rawPoints) || rawPoints < 0) {
-      return err("Puntos inválidos.");
+      return err("Beatcoins inválidos.");
     }
-    if (rawPoints > MAX_POINTS) return err("Puntos inválidos.");
+    if (rawPoints > MAX_POINTS) return err("Beatcoins inválidos.");
     pointsToRedeem = rawPoints;
   }
   if (pointsToRedeem > 0 && customerId === null) {
-    return err("Para canjear puntos, elige un cliente con ficha.");
+    return err("Para canjear Beatcoins, elige un cliente con ficha.");
   }
   if (pointsToRedeem > 0 && type === "cortesia") {
-    return err("Una cortesía ya es sin cobro: no admite canje de puntos.");
+    return err("Una cortesía ya es sin cobro: no admite canje de Beatcoins.");
   }
 
   // Una cortesía no crea pedido ni líneas: no hay nada sobre lo cual descontar.
@@ -211,7 +211,7 @@ export function validateManualBooking(raw: {
   if (type === "prueba") {
     if (durationHours !== 1) return err("La prueba dura 1 hora.");
     if (addonKeys.length > 0) return err("La prueba no lleva extras.");
-    if (pointsToRedeem > 0 || discount) return err("La prueba tiene precio fijo: sin descuento ni puntos.");
+    if (pointsToRedeem > 0 || discount) return err("La prueba tiene precio fijo: sin descuento ni Beatcoins.");
     if (customerId === null) return err("Para una prueba elige un cliente con ficha (el crédito va a su email).");
   }
 

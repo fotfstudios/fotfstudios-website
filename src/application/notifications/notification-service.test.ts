@@ -495,7 +495,7 @@ describe("notifyCancellation — orden 100% puntos", () => {
     const sent = await service.notifyCancellation("o1", { refundAmount: null, restoredPoints: 14990 });
     expect(sent).toBe(true);
     const msg = mailer.send.mock.calls[0][0];
-    expect(msg.html).toContain("14.990 puntos");
+    expect(msg.html).toContain("14.990 Beatcoins");
     expect(msg.html).not.toMatch(/tarjeta|reembolsamos/);
   });
 });
@@ -1014,9 +1014,9 @@ describe("notifyPointsBalance", () => {
     const msg = mailer.send.mock.calls[0][0];
     expect(msg.to).toBe("ana@e.cl");
     expect(msg.template).toBe("customerPointsBalance");
-    expect(msg.subject).toBe("Tienes 3.398 puntos FOTF");
+    expect(msg.subject).toBe("Tienes 3.398 Beatcoins");
     // 1 punto = $1: el mismo número, una vez como puntos y otra como plata.
-    expect(msg.html).toContain("3.398 puntos");
+    expect(msg.html).toContain("3.398 Beatcoins");
     expect(msg.html).toContain("$3.398");
   });
 

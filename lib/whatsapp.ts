@@ -65,7 +65,7 @@ export function manualBookingWhatsAppMessage(p: ManualBookingMessageInput): stri
       p.paymentMethod === "transferencia"
         ? "por transferencia"
         : p.paymentMethod === "puntos"
-          ? "con Puntos FOTF"
+          ? "con Beatcoins"
           : p.paymentMethod === "mercadopago"
             ? "por Mercado Pago"
             : "en efectivo";

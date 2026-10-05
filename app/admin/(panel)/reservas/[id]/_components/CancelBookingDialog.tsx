@@ -53,7 +53,7 @@ export function CancelBookingDialog({
     { value: "full", label: `${unit === "points" ? "Reponer todos" : "Reembolso total"} — ${fmt(liveBoleta)}` },
     {
       value: "none",
-      label: unit === "points" ? "Sin reponer puntos" : "Sin reembolso (el pago queda retenido)",
+      label: unit === "points" ? "Sin reponer Beatcoins" : "Sin reembolso (el pago queda retenido)",
     },
     { value: "custom", label: "Otro monto" },
   ];
@@ -112,10 +112,10 @@ export function CancelBookingDialog({
                 required
                 placeholder={
                   unit === "points"
-                    ? `Puntos a reponer (máx. ${liveBoleta.toLocaleString("es-CL")})`
+                    ? `Beatcoins a reponer (máx. ${liveBoleta.toLocaleString("es-CL")})`
                     : `Monto en pesos (máx. ${liveBoleta})`
                 }
-                aria-label={unit === "points" ? "Puntos a reponer" : "Monto a reembolsar en pesos"}
+                aria-label={unit === "points" ? "Beatcoins a reponer" : "Monto a reembolsar en pesos"}
               />
             )}
 
@@ -128,7 +128,7 @@ export function CancelBookingDialog({
 
             <p className="text-xs leading-relaxed text-bone-quiet">
               {unit === "points"
-                ? "Los puntos se reponen al cliente al confirmar."
+                ? "Los Beatcoins se reponen al cliente al confirmar."
                 : "El monto según política se recalcula al confirmar."}{" "}
               Se liberará el horario y se avisará al cliente por email. Esta acción no se puede
               deshacer.

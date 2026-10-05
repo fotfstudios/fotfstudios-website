@@ -38,9 +38,9 @@ export default function CuentaShell({ balance, children }: { balance: number; ch
               <Link
                 href="/cuenta"
                 className="label-sm inline-flex min-h-10 shrink-0 items-center border hairline px-2.5 font-mono text-gold outline-none focus-visible:ring-1 focus-visible:ring-gold"
-                title="Tus puntos disponibles"
+                title="Tus Beatcoins disponibles"
               >
-                {fmtPts(balance)} pts
+                {fmtPts(balance)} Beatcoins
               </Link>
               <Link
                 href="/reservar"

@@ -89,7 +89,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
                 hint={
                   hasAccount
                     ? "Su email es su acceso a la cuenta y no se puede cambiar desde acá."
-                    : "Opcional si hay teléfono. Los puntos se acumulan por email."
+                    : "Opcional si hay teléfono. Los Beatcoins se acumulan por email."
                 }
               >
                 <Input
@@ -209,10 +209,10 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
-          <Card title="Puntos FOTF">
+          <Card title="Beatcoins">
             <Stat label="Disponibles" value={`${fmtPts(c.pointsBalance)} pts`} accent={c.pointsBalance > 0} />
             {!c.email && (
-              <p className="mt-3 label-sm text-bone-quiet">Los puntos se acumulan por email. Agrega uno para que sume.</p>
+              <p className="mt-3 label-sm text-bone-quiet">Los Beatcoins se acumulan por email. Agrega uno para que sume.</p>
             )}
             {/* El botón solo aparece cuando hay algo que mandar; la guarda de verdad
                 es la de la action (un saldo negativo jamás sale por correo). */}
@@ -224,7 +224,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
                   trigger={{ label: "Enviar saldo por correo", variant: "secondary" }}
                   confirm="primary"
                   title="Enviar saldo por correo"
-                  message={`Le llega a ${c.email} un correo con sus ${fmtPts(c.pointsBalance)} puntos, a cuánto equivalen y un enlace para reservar.`}
+                  message={`Le llega a ${c.email} un correo con sus ${fmtPts(c.pointsBalance)} Beatcoins, a cuánto equivalen y un enlace para reservar.`}
                   cta="Enviar"
                   success="Correo enviado."
                 />
