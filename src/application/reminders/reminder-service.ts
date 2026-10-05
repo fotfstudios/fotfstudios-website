@@ -19,6 +19,9 @@ export interface ReminderRepository {
       course: { n: number; title: string; instructor: string | null } | null;
       /** La prueba del curso lleva su propio recordatorio (guiada: sin PIN). */
       trial?: boolean;
+      /** Para el WhatsApp (celular de la ficha y su consentimiento). */
+      phone?: string | null;
+      whatsappOptIn?: boolean;
     }[]
   >;
   /** Reclama `reminder_sent_at` solo si estaba en null. true = esta corrida lo marcó. */
@@ -57,6 +60,7 @@ export class ReminderService {
       if (!claimed) continue;
       try {
         if (r.trial) {
+          // Sin plantilla de WhatsApp para la prueba: solo correo (como la sesión guiada).
           await this.notifications.notifyTrialReminder({
             email: r.customerEmail,
             name: r.customerName,
@@ -64,6 +68,7 @@ export class ReminderService {
             endsAt: r.endsAt,
           });
         } else if (r.course) {
+          // Sin plantilla de WhatsApp para la sesión guiada: solo correo.
           await this.notifications.notifyCourseSessionReminder({
             email: r.customerEmail,
             name: r.customerName,
@@ -78,6 +83,9 @@ export class ReminderService {
             orderId: r.orderId,
             startsAt: r.startsAt,
             endsAt: r.endsAt,
+            reservationId: r.id,
+            phone: r.phone ?? null,
+            whatsappOptIn: r.whatsappOptIn ?? false,
           });
         }
         sent++;

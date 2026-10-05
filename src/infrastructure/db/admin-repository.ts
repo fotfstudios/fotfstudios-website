@@ -1287,13 +1287,21 @@ export class SupabaseAdminRepository {
    * porque el cliente recibiría un código que no abre.
    */
   async accessCodesDue(windowMinutes: number): Promise<
-    { id: string; code: string; startsAt: string; customerName: string | null; customerEmail: string | null }[]
+    {
+      id: string;
+      code: string;
+      startsAt: string;
+      customerName: string | null;
+      customerEmail: string | null;
+      phone: string | null;
+      whatsappOptIn: boolean;
+    }[]
   > {
     const now = new Date();
     const until = new Date(now.getTime() + windowMinutes * 60_000);
     const { data, error } = await this.db
       .from("reservations")
-      .select("id, access_code, starts_at, customer_name, customer_email")
+      .select("id, access_code, starts_at, customer_name, customer_email, customer_phone, customers(phone, whatsapp_opt_in)")
       .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .not("access_code", "is", null)
@@ -1308,6 +1316,8 @@ export class SupabaseAdminRepository {
       startsAt: r.starts_at,
       customerName: r.customer_name,
       customerEmail: r.customer_email,
+      phone: r.customers?.phone ?? r.customer_phone,
+      whatsappOptIn: r.customers?.whatsapp_opt_in ?? false,
     }));
   }
 

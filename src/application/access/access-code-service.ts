@@ -13,7 +13,18 @@ export interface AccessCodeRepository {
   assignMissingAccessCodes(): Promise<number>;
   accessCodesDue(
     windowMinutes: number,
-  ): Promise<{ id: string; code: string; startsAt: string; customerName: string | null; customerEmail: string | null }[]>;
+  ): Promise<
+    {
+      id: string;
+      code: string;
+      startsAt: string;
+      customerName: string | null;
+      customerEmail: string | null;
+      /** Para el WhatsApp (celular de la ficha y su consentimiento). */
+      phone?: string | null;
+      whatsappOptIn?: boolean;
+    }[]
+  >;
   markAccessSent(reservationId: string): Promise<boolean>;
   releaseAccessSent(reservationId: string): Promise<void>;
 }
@@ -62,6 +73,9 @@ export class AccessCodeService {
           name: r.customerName,
           startsAt: r.startsAt,
           code: r.code,
+          reservationId: r.id,
+          phone: r.phone ?? null,
+          whatsappOptIn: r.whatsappOptIn ?? false,
         });
         sent++;
       } catch (e) {

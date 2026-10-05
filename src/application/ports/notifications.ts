@@ -16,6 +16,12 @@ export interface OrderEmailData {
   /** `orders.payment_method` (null hasta pagar). */
   paymentMethod: string | null;
   lines: { description: string; subtotal: number }[];
+  /** Reserva del pedido (link del panel en las alertas al dueño); null si no tiene. */
+  reservationId?: string | null;
+  /** Celular para WhatsApp: el de la ficha, o el del pedido si la ficha no tiene. */
+  phone?: string | null;
+  /** Consentimiento de WhatsApp de la ficha del pedido (false o ausente sin ficha). */
+  whatsappOptIn?: boolean;
 }
 
 export interface NotificationRepository {

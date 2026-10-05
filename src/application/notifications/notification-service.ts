@@ -3,6 +3,10 @@ import { formatSessionWhen } from "./format-when";
 import { manualHoldDeadline } from "@/src/domain/scheduling/manual-hold-deadline";
 import { buildIcs, googleCalendarUrl } from "@/src/domain/calendar/ics";
 import type { Mailer } from "@/src/application/ports/mailer";
+import type { WhatsAppOutbox } from "@/src/application/ports/whatsapp";
+import { waTemplate, type WaEvent, type WaParams } from "@/src/application/whatsapp/templates";
+import { waRecipient } from "@/src/domain/contact/whatsapp-recipient";
+import { randomUUID } from "node:crypto";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
@@ -71,7 +75,24 @@ export interface NotificationConfig {
   reviewUrl?: string;
   /** Datos de transferencia (lib/site.ts TRANSFER) de los correos de reserva pendiente. */
   transfer: TransferDetails;
+  /** Celular del dueño (`OWNER_WHATSAPP`, dígitos) para las alertas por WhatsApp. Sin él, no hay alertas. */
+  ownerWhatsapp?: string | null;
 }
+
+/** Opciones de un aviso por WhatsApp encolado desde un `notify*`. */
+interface WaEnqueue {
+  /** Idempotencia: el mismo aviso para la misma entidad entra una sola vez a la cola. */
+  dedupeKey: string;
+  /** Nunca se manda después de esto (inicio de la sesión, plazo de pago…). */
+  expiresAt: Date | string;
+  buttonSuffix?: string;
+  entity?: { kind: "order" | "reservation"; id: string };
+}
+
+/** Las alertas al dueño viven 24 h en la cola: más tarde ya no sirven de alerta. */
+const OWNER_ALERT_TTL_MS = 24 * 3600_000;
+/** El PIN sigue sirviendo un rato después de la hora de inicio (el cliente llega tarde). */
+const ACCESS_PIN_GRACE_MS = 30 * 60_000;
 
 /** Envía emails de confirmación (cliente + dueño) al pagarse una reserva. */
 export class NotificationService {
@@ -79,6 +100,11 @@ export class NotificationService {
     private readonly mailer: Mailer,
     private readonly repo: NotificationRepository,
     private readonly config: NotificationConfig,
+    /**
+     * Cola de WhatsApp. null = canal apagado (sin credenciales de Kapso): los `notify*` mandan
+     * solo el correo y no se encola nada que después salga todo junto al configurar.
+     */
+    private readonly outbox: WhatsAppOutbox | null = null,
   ) {}
 
   async notifyOrder(orderId: string): Promise<boolean> {
@@ -156,6 +182,28 @@ export class NotificationService {
         .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod), trial: o.kind === "trial" }) })
         .catch((e) => console.error("[notify:owner]", orderId, e));
     }
+    // WhatsApp (después del correo y bajo el MISMO reclamo de notified_at): cliente si aceptó,
+    // dueño siempre. Vencen al inicio de la sesión: una confirmación tardía no sirve.
+    if (o.startsAt) {
+      // La plantilla fotf_reserva_confirmada promete el código de acceso: una prueba del curso
+      // es guiada (sin PIN), así que al alumno le basta el correo. El dueño sí recibe su alerta.
+      if (o.kind !== "trial") {
+        await this.waCustomer(o, "booking_confirmed", { nombre: o.name ?? "", fecha: when, total: view.total }, {
+          dedupeKey: `booking_confirmed:${orderId}`,
+          expiresAt: o.startsAt,
+          buttonSuffix: orderId,
+          entity: { kind: "order", id: orderId },
+        });
+      }
+      if (o.reservationId) {
+        await this.waOwner("owner_new_booking", { cliente: o.name ?? o.email ?? "", fecha: when, total: view.total }, {
+          dedupeKey: `owner_new_booking:${orderId}`,
+          expiresAt: o.startsAt,
+          buttonSuffix: o.reservationId,
+          entity: { kind: "order", id: orderId },
+        });
+      }
+    }
     return true;
   }
 
@@ -206,6 +254,10 @@ export class NotificationService {
     startsAt: string;
     endsAt?: string | null;
     code: string;
+    /** Para el WhatsApp: sin la reserva no hay clave de idempotencia y no se encola. */
+    reservationId?: string;
+    phone?: string | null;
+    whatsappOptIn?: boolean | null;
   }): Promise<boolean> {
     if (!input.email) return false;
     const when = this.when(input.startsAt, input.endsAt ?? null);
@@ -216,6 +268,19 @@ export class NotificationService {
         { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
+    if (input.reservationId) {
+      // La clave lleva el código: un PIN corregido viaja de nuevo; el mismo PIN, una vez.
+      await this.waCustomer(
+        input,
+        "access_pin",
+        { nombre: input.name ?? "", hora: DateTime.fromISO(input.startsAt).setZone(this.config.tz).toFormat("HH:mm"), pin: input.code },
+        {
+          dedupeKey: `access_pin:${input.reservationId}:${input.code}`,
+          expiresAt: new Date(new Date(input.startsAt).getTime() + ACCESS_PIN_GRACE_MS),
+          entity: { kind: "reservation", id: input.reservationId },
+        },
+      );
+    }
     return true;
   }
 
@@ -229,18 +294,30 @@ export class NotificationService {
     orderId: string | null;
     startsAt: string;
     endsAt: string | null;
+    /** Para el WhatsApp: sin la reserva no hay clave de idempotencia y no se encola. */
+    reservationId?: string;
+    phone?: string | null;
+    whatsappOptIn?: boolean | null;
   }): Promise<boolean> {
     if (!input.email) return false;
     const statusUrl = input.orderId
       ? `${this.config.siteUrl}/reserva/estado?b=${input.orderId}`
       : `${this.config.siteUrl}/cuenta`;
+    const when = this.when(input.startsAt, input.endsAt);
     await this.mailer.send({
       to: input.email,
       ...customerReminder(
-        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
+        { name: input.name, when },
         { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, statusUrl },
       ),
     });
+    if (input.reservationId) {
+      await this.waCustomer(input, "session_reminder", { nombre: input.name ?? "", fecha: when, direccion: this.config.address }, {
+        dedupeKey: `session_reminder:${input.reservationId}`,
+        expiresAt: input.startsAt,
+        entity: { kind: "reservation", id: input.reservationId },
+      });
+    }
     return true;
   }
 
@@ -309,10 +386,30 @@ export class NotificationService {
    */
   async notifyCancellation(
     orderId: string,
-    /** `restoredPoints`: orden 100% puntos — se repusieron puntos, no hubo plata. */
-    opts: { refundAmount: number | null; restoredPoints?: number | null },
+    /**
+     * `restoredPoints`: orden 100% puntos — se repusieron puntos, no hubo plata.
+     * `notifyOwner`: alerta por WhatsApp al dueño. Solo el reembolso hecho FUERA del panel (webhook
+     * de MP): una cancelación desde el admin la hizo el propio dueño.
+     */
+    opts: { refundAmount: number | null; restoredPoints?: number | null; notifyOwner?: boolean },
   ): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
+    if (opts.notifyOwner && o?.reservationId) {
+      await this.waOwner(
+        "owner_cancellation",
+        {
+          cliente: o.name ?? o.email ?? "",
+          fecha: this.when(o.startsAt, o.endsAt),
+          reembolso: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : "sin monto",
+        },
+        {
+          dedupeKey: `owner_cancellation:${orderId}`,
+          expiresAt: new Date(Date.now() + OWNER_ALERT_TTL_MS),
+          buttonSuffix: o.reservationId,
+          entity: { kind: "order", id: orderId },
+        },
+      );
+    }
     if (!o?.email) return false;
     const when = this.when(o.startsAt, o.endsAt);
     await this.mailer.send({
@@ -486,6 +583,11 @@ export class NotificationService {
     if (this.config.ownerEmail) {
       await this.mailer.send({ to: this.config.ownerEmail, ...ownerNewCourseLead(lead) });
     }
+    await this.waOwner(
+      "owner_new_lead",
+      { origen: "el Curso DJ", nombre: lead.name, contacto: [lead.email, lead.phone].filter(Boolean).join(" · ") },
+      { dedupeKey: `owner_new_lead:curso:${randomUUID()}`, expiresAt: new Date(Date.now() + OWNER_ALERT_TTL_MS) },
+    );
     await this.mailer.send({
       to: lead.email,
       ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
@@ -523,6 +625,13 @@ export class NotificationService {
       to: v.email,
       ...guideDelivery({ downloadUrl, copy: v.copy }, { whatsappUrl: this.config.whatsappUrl }),
     });
+    // Después del correo: si el correo (el producto) falla, no hay lead que avisar. La clave es
+    // el token del lead: un reintento del mismo pedido no duplica la alerta.
+    await this.waOwner(
+      "owner_new_lead",
+      { origen: `la guía ${v.copy.name}`, nombre: "un lead sin nombre", contacto: v.email },
+      { dedupeKey: `owner_new_lead:guia:${v.token}`, expiresAt: new Date(Date.now() + OWNER_ALERT_TTL_MS) },
+    );
   }
 
   /**
@@ -660,7 +769,7 @@ export class NotificationService {
    * manualHoldDeadline: lo primero entre el barrido y el inicio de la sesión.
    */
   async notifyBookingHeld(orderId: string, v: PendingPaymentClock): Promise<boolean> {
-    return this.sendPendingPayment(orderId, v, bookingHeldPending);
+    return this.sendPendingPayment(orderId, v, bookingHeldPending, "payment_pending");
   }
 
   /**
@@ -669,29 +778,39 @@ export class NotificationService {
    * (payment_reminder_sent_at) lo lleva el barrido, no este método.
    */
   async notifyPaymentReminder(orderId: string, v: PendingPaymentClock): Promise<boolean> {
-    return this.sendPendingPayment(orderId, v, bookingPaymentReminder);
+    return this.sendPendingPayment(orderId, v, bookingPaymentReminder, "payment_reminder");
   }
 
   private async sendPendingPayment(
     orderId: string,
     v: PendingPaymentClock,
     template: typeof bookingHeldPending | typeof bookingPaymentReminder,
+    event: "payment_pending" | "payment_reminder",
   ): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
     const payBy = manualHoldDeadline(v.clockStart, o.startsAt, v.now);
+    const view = {
+      name: o.name,
+      when: this.when(o.startsAt, o.endsAt),
+      total: formatCLP(o.amount),
+      payBy: formatSessionWhen(payBy.toISOString(), this.config.tz),
+    };
     await this.mailer.send({
       to: o.email,
-      ...template(
-        {
-          name: o.name,
-          when: this.when(o.startsAt, o.endsAt),
-          total: formatCLP(o.amount),
-          payBy: formatSessionWhen(payBy.toISOString(), this.config.tz),
-        },
-        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl, transfer: this.config.transfer },
-      ),
+      ...template(view, { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl, transfer: this.config.transfer }),
     });
+    // WhatsApp vence con el plazo de pago: pasado el plazo el horario ya se liberó.
+    const wa = { nombre: o.name ?? "", fecha: view.when, total: view.total, plazo: view.payBy };
+    const entity = { kind: "order" as const, id: orderId };
+    await this.waCustomer(o, event, wa, { dedupeKey: `${event}:${orderId}`, expiresAt: payBy, buttonSuffix: orderId, entity });
+    if (event === "payment_pending" && o.reservationId) {
+      await this.waOwner(
+        "owner_payment_pending",
+        { cliente: o.name ?? o.email, fecha: view.when, total: view.total, plazo: view.payBy },
+        { dedupeKey: `owner_payment_pending:${orderId}`, expiresAt: payBy, buttonSuffix: o.reservationId, entity },
+      );
+    }
     return true;
   }
 
@@ -824,6 +943,44 @@ export class NotificationService {
       uid: `fotf-${key}@fotfstudios.cl`,
       ...(orderId ? { url: `${this.config.siteUrl}/reserva/estado?b=${orderId}` } : {}),
     };
+  }
+
+  /**
+   * Encola un aviso por WhatsApp al CLIENTE si aceptó y tiene celular chileno (waRecipient es la
+   * única puerta). Nunca lanza: el WhatsApp es un canal adicional y no puede voltear el correo ni
+   * el reclamo que ya se hizo.
+   */
+  private async waCustomer<E extends WaEvent>(
+    c: { phone?: string | null; whatsappOptIn?: boolean | null },
+    event: E,
+    params: WaParams<E>,
+    opts: WaEnqueue,
+  ): Promise<void> {
+    const to = waRecipient({ phone: c.phone, whatsappOptIn: c.whatsappOptIn });
+    if (to) await this.enqueueWa(to, event, params, opts);
+  }
+
+  /** Alerta por WhatsApp al dueño (`OWNER_WHATSAPP`), sin consentimiento de por medio. Nunca lanza. */
+  private async waOwner<E extends WaEvent>(event: E, params: WaParams<E>, opts: WaEnqueue): Promise<void> {
+    if (this.config.ownerWhatsapp) await this.enqueueWa(this.config.ownerWhatsapp, event, params, opts);
+  }
+
+  private async enqueueWa<E extends WaEvent>(to: string, event: E, params: WaParams<E>, opts: WaEnqueue): Promise<void> {
+    if (!this.outbox) return;
+    const expiresAt = new Date(opts.expiresAt);
+    if (!(expiresAt.getTime() > Date.now())) return;
+    try {
+      await this.outbox.enqueue({
+        event,
+        to,
+        template: waTemplate(event, params, opts.buttonSuffix),
+        dedupeKey: opts.dedupeKey,
+        expiresAt: expiresAt.toISOString(),
+        ...(opts.entity ? { entity: opts.entity } : {}),
+      });
+    } catch (e) {
+      console.error("[whatsapp:enqueue]", event, opts.dedupeKey, e);
+    }
   }
 
   /** Horario en el formato único de los correos; "—" si la orden no tiene reserva. */
