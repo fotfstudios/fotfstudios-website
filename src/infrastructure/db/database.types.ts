@@ -996,6 +996,9 @@ isOneToOne: false
 "customer_sync_snapshots":
 { Args: { "p_customer": string,"p_old_email": string }; Returns: undefined
                            },
+"ensure_customer":
+{ Args: { "p_email": string,"p_name": string,"p_phone": string }; Returns: string
+                           },
 "ensure_customer_for_user":
 { Args: { "p_email": string,"p_user": string }; Returns: string
                            },

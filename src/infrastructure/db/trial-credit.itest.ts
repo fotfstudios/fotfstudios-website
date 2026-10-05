@@ -232,3 +232,30 @@ describe("SupabaseTrialCreditRepository (barrido de seguimiento)", () => {
     expect(await (await repoFor()).liveCandidates()).toEqual([]);
   });
 });
+
+describe("el curso no acumula puntos — tampoco su prueba", () => {
+  const earned = async (o: string) =>
+    Number((await pg.query("select coalesce(sum(amount),0)::int n from points_ledger where order_id = $1", [o])).rows[0].n);
+
+  it("una prueba pagada no gana puntos", async () => {
+    await pg.query("insert into customers (email, name) values ('martin@e.cl', 'Martín')");
+    const t = await trial("martin@e.cl");
+    await pg.query("select confirm_payment($1, null::text, 'transferencia')", [t]);
+    expect(await earned(t)).toBe(0);
+  });
+
+  it("un ensayo con el mismo monto sí gana (5 %)", async () => {
+    await pg.query("insert into customers (email, name) values ('x@e.cl', 'X')");
+    const b = await trial("x@e.cl", "booking");
+    await pg.query("select confirm_payment($1, null::text, 'transferencia')", [b]);
+    expect(await earned(b)).toBe(999);
+  });
+
+  it("award_retro_points ignora los pedidos de prueba", async () => {
+    const c = (await pg.query<{ id: string }>("insert into customers (email, name) values ('martin@e.cl', 'M') returning id")).rows[0].id;
+    const t = await trial("martin@e.cl");
+    await pg.query("select confirm_payment($1, null::text, 'transferencia')", [t]);
+    const r = await pg.query<{ n: number }>("select award_retro_points($1) n", [c]);
+    expect(r.rows[0].n).toBe(0);
+  });
+});

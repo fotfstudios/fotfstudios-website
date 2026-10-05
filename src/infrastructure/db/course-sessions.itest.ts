@@ -225,6 +225,18 @@ describe("mover y cancelar sesiones", () => {
     expect(r.value.booked).not.toContainEqual({ start: 1200, end: 1320 }); // 20:00 libre
   });
 
+  it("mover una sesión ya recordada suelta su recordatorio (la hora nueva tiene el suyo)", async () => {
+    const gen = await generation();
+    await schedule(gen);
+    const { rows } = await pg.query<{ id: string; reservation_id: string }>(
+      "select id, reservation_id from course_sessions where generation_id = $1 and n = 1", [gen]);
+    await pg.query("update reservations set reminder_sent_at = now() where id = $1", [rows[0].reservation_id]);
+    const nueva = planSessions({ firstDate: MON, startMinute: 10 * 60, durationHours: 2, titles: ["x"], tz: TZ })[0];
+    await course.moveSession(rows[0].id, nueva.startsAt, nueva.endsAt);
+    const r = await pg.query("select reminder_sent_at from reservations where id = $1", [rows[0].reservation_id]);
+    expect(r.rows[0].reminder_sent_at).toBeNull();
+  });
+
   it("mover a una hora ocupada falla y no mueve nada", async () => {
     const gen = await generation();
     await schedule(gen);
