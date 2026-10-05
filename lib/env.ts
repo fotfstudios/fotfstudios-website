@@ -21,6 +21,11 @@
  *              cola espera): GOOGLE_SERVICE_ACCOUNT_JSON (secreta: la llave JSON de la cuenta de
  *              servicio, tal cual o en base64) y GOOGLE_CALENDAR_ID (el calendario compartido con
  *              esa cuenta). Ver DEPLOY.md → "Google Calendar (espejo)".
+ *   Opcional (avisos por WhatsApp vía Kapso; sin las dos primeras la función queda apagada y no
+ *              se encola nada): KAPSO_API_KEY (secreta), KAPSO_PHONE_NUMBER_ID, KAPSO_WEBHOOK_SECRET
+ *              (secreta: firma de los webhooks de estado) y OWNER_WHATSAPP (celular del dueño para
+ *              las alertas; distinto de la línea del estudio). Fuera de producción solo se le
+ *              escribe a OWNER_WHATSAPP. Ver DEPLOY.md → "WhatsApp (Kapso)".
  *
  * **Requeridas vs condicionales.** `BASE_REQUIRED` son las que la app necesita en
  * todo entorno; se validan de una sola vez al arrancar (`assertBaseEnv`, llamada
