@@ -13,7 +13,7 @@ export class SupabaseReminderRepository implements ReminderRepository {
     const h = 3600_000;
     const { data, error } = await this.db
       .from("reservations")
-      .select("id, order_id, starts_at, ends_at, customer_name, customer_email")
+      .select("id, order_id, starts_at, ends_at, customer_name, customer_email, course_sessions(n, title, instructor)")
       .in("kind", [...DOOR_ACCESS_KINDS])
       .eq("status", "confirmed")
       .is("reminder_sent_at", null)
@@ -29,6 +29,7 @@ export class SupabaseReminderRepository implements ReminderRepository {
       endsAt: r.ends_at,
       customerName: r.customer_name,
       customerEmail: r.customer_email,
+      course: sessionOf(r.course_sessions),
     }));
   }
 
@@ -48,4 +49,12 @@ export class SupabaseReminderRepository implements ReminderRepository {
     const { error } = await this.db.from("reservations").update({ reminder_sent_at: null }).eq("id", reservationId);
     if (error) throw new Error(error.message);
   }
+}
+
+/** Uno-a-uno (course_sessions.reservation_id es único); PostgREST puede devolver arreglo. */
+function sessionOf(
+  s: { n: number; title: string; instructor: string | null } | { n: number; title: string; instructor: string | null }[] | null,
+): { n: number; title: string; instructor: string | null } | null {
+  const one = Array.isArray(s) ? s[0] : s;
+  return one ? { n: one.n, title: one.title, instructor: one.instructor } : null;
 }

@@ -19,10 +19,23 @@ const num = (fd: FormData, k: string) => Number(fd.get(k));
 
 const REFUND_MODES: readonly RefundMode[] = ["policy", "full", "none", "custom"];
 
+/**
+ * Una hora de práctica del curso es una reserva sin pedido, pero NO una cortesía:
+ * cancelarla o moverla desde acá dejaría el saldo de horas del alumno sin enterarse.
+ * Se gestiona solo desde la ficha del alumno (cancelar ahí devuelve la hora).
+ */
+async function refusePractice(reservationId: string): Promise<void> {
+  const b = await adminRepository().getBooking(reservationId).catch(() => null);
+  if (b?.practiceEnrollmentId) {
+    throw new Error("Es una hora de práctica del curso: gestiónala desde la ficha del alumno.");
+  }
+}
+
 export async function cancelBookingAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("reservations.cancel");
     const id = str(fd, "reservationId");
+    await refusePractice(id);
     const mode = str(fd, "mode") as RefundMode;
     if (!REFUND_MODES.includes(mode)) throw new Error("Modo de cancelación inválido.");
 
@@ -216,6 +229,7 @@ export async function rescheduleAction(input: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Fecha inválida.");
     if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1440) throw new Error("Hora inválida.");
     if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 16) throw new Error("Duración inválida.");
+    await refusePractice(reservationId);
 
     const createdBy = (await currentClaims())?.sub ?? null;
     const res = await rescheduleService().reschedule({ reservationId, date, startMinute, durationHours, createdBy });
@@ -305,6 +319,7 @@ export async function assignCustomerAction(input: {
 }): Promise<ActionDataResult<{ ok: true }>> {
   return runData(async () => {
     await requirePermission("reservations.create");
+    await refusePractice(input.reservationId);
     const actor = (await currentClaims())?.sub ?? null;
     try {
       await adminRepository().assignCustomer(input.reservationId, input.customerId, actor);

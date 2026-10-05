@@ -17,7 +17,7 @@ const db = createServiceClient(URL, KEY);
 const repo = new SupabaseReminderRepository(db);
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
-const cleanup = "truncate reservations, orders, order_lines, booking_events cascade";
+const cleanup = "truncate course_sessions, course_generations, reservations, orders, order_lines, booking_events cascade";
 
 /** Reserva insertada directo; inicio y antigüedad relativos a AHORA (en horas). */
 async function booking(o: {
@@ -85,6 +85,24 @@ describe("sesiones del curso", () => {
     expect((await repo.remindersDue()).map((r) => r.id)).toEqual([id]);
   });
 
+  it("trae qué sesión es (número, título, instructor); una reserva de sala no trae curso", async () => {
+    const res = await booking({ startsInH: 16, kind: "curso" });
+    const sala = await booking({ startsInH: 20 });
+    const gen = await pg.query<{ id: string }>(
+      `insert into course_generations (resource_id, code, name, status, price_duo_clp, price_individual_clp, price_prueba_clp)
+       values ($1, 'RX1', 'Recordatorio', 'abierta', 1, 1, 1) returning id`,
+      [resourceId],
+    );
+    await pg.query(
+      `insert into course_sessions (generation_id, n, title, reservation_id, instructor)
+       values ($1, 3, 'Frases y mezcla larga', $2, 'Benja')`,
+      [gen.rows[0].id, res],
+    );
+    const due = await repo.remindersDue();
+    expect(due.find((r) => r.id === res)?.course).toEqual({ n: 3, title: "Frases y mezcla larga", instructor: "Benja" });
+    expect(due.find((r) => r.id === sala)?.course).toBeNull();
+  });
+
   it("sin alumno pagado (sin email) no hay a quién recordarle", async () => {
     await booking({ startsInH: 16, kind: "curso", email: null });
     const due = await repo.remindersDue();
@@ -106,7 +124,7 @@ describe("el reclamo", () => {
 describe("ReminderService.sweep contra la DB", () => {
   it("manda una vez y la segunda corrida no encuentra nada", async () => {
     await booking({ startsInH: 20 });
-    const notifications = { notifyReminder: vi.fn(async () => true) };
+    const notifications = { notifyReminder: vi.fn(async () => true), notifyCourseSessionReminder: vi.fn(async () => true) };
     const svc = new ReminderService(repo, notifications);
     expect(await svc.sweep()).toEqual({ sent: 1, skippedNoEmail: 0 });
     expect(await svc.sweep()).toEqual({ sent: 0, skippedNoEmail: 0 });
@@ -115,7 +133,10 @@ describe("ReminderService.sweep contra la DB", () => {
 
   it("si el correo falla, la próxima corrida reintenta", async () => {
     await booking({ startsInH: 20 });
-    const notifications = { notifyReminder: vi.fn<() => Promise<boolean>>(async () => { throw new Error("resend down"); }) };
+    const notifications = {
+      notifyReminder: vi.fn<() => Promise<boolean>>(async () => { throw new Error("resend down"); }),
+      notifyCourseSessionReminder: vi.fn(async () => true),
+    };
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const svc = new ReminderService(repo, notifications);
     expect(await svc.sweep()).toEqual({ sent: 0, skippedNoEmail: 0 });

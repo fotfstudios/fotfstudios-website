@@ -14,11 +14,15 @@ import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { planSessions } from "@/src/domain/course/sessions";
 import { futureDate } from "@/tests/dates";
+import { SupabaseAdminRepository } from "./admin-repository";
 import { SupabaseCourseRepository } from "./course-repository";
 import { createServiceClient } from "./supabase-client";
 
 const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
 const repo = new SupabaseCourseRepository(
+  createServiceClient(process.env.SUPABASE_URL ?? "http://127.0.0.1:54421", process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""),
+);
+const admin = new SupabaseAdminRepository(
   createServiceClient(process.env.SUPABASE_URL ?? "http://127.0.0.1:54421", process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""),
 );
 const pg = new Client({ connectionString: DB_URL });
@@ -605,5 +609,54 @@ describe("contacto del alumno en las sesiones (PIN y recordatorio)", () => {
     await repo.cancelSession(s1.id);
     await repo.moveSession(s1.id, `${futureDate(5, 3)}T18:00:00-03:00`, `${futureDate(5, 3)}T19:30:00-03:00`);
     expect((await contact(r.generationId))[0].customer_email).toBe("p1@correo.cl");
+  });
+});
+
+/**
+ * Una hora de práctica ES una reserva de sala (kind=booking, sin pedido), así que
+ * aparece en /admin/reservas. Tiene que reconocerse como práctica: si se moviera o
+ * cancelara desde ahí, el saldo de horas del alumno no se enteraría.
+ */
+describe("práctica: se reconoce fuera del curso y el alumno la ve", () => {
+  async function paidWithPractice() {
+    const r = await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    await pay(r.orderId);
+    const day = futureDate(5, 3);
+    const res = await repo.redeemPracticeHours(r.enrollmentIds[0], {
+      startsAt: `${day}T16:30:00-03:00`, endsAt: `${day}T18:30:00-03:00`, hours: 2,
+    });
+    return { ...r, res };
+  }
+
+  it("el detalle de la reserva sabe que es práctica y de qué inscripción", async () => {
+    const { res, enrollmentIds } = await paidWithPractice();
+    expect((await admin.getBooking(res))?.practiceEnrollmentId).toBe(enrollmentIds[0]);
+  });
+
+  it("la lista de reservas también lo sabe; una cortesía cualquiera no", async () => {
+    const { res, enrollmentIds } = await paidWithPractice();
+    await raw(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at, customer_name)
+       values ($1, 'booking', 'confirmed', $2, $3, 'Cortesía')`,
+      [await resourceId(), `${futureDate(6, 3)}T10:00:00-03:00`, `${futureDate(6, 3)}T11:00:00-03:00`],
+    );
+    const { rows } = await admin.listBookings({ estado: "confirmadas", tiempo: "proximas", orden: "fecha", page: 1, perPage: 50, q: "" });
+    const byId = new Map(rows.map((b) => [b.id, b.practiceEnrollmentId]));
+    expect(byId.get(res)).toBe(enrollmentIds[0]);
+    expect([...byId.entries()].filter(([id]) => id !== res).every(([, p]) => p === null)).toBe(true);
+  });
+
+  it("el alumno ve sus horas de práctica agendadas en su curso (no las canceladas)", async () => {
+    const { res } = await paidWithPractice();
+    const day2 = futureDate(1, 4);
+    const res2 = await repo.redeemPracticeHours((await repo.coursesForEmail(alumno(1).email))[0].enrollmentId, {
+      startsAt: `${day2}T10:00:00-03:00`, endsAt: `${day2}T11:00:00-03:00`, hours: 1,
+    });
+    await repo.releasePracticeHours(res2);
+    const [c] = await repo.coursesForEmail(alumno(1).email);
+    expect(c.practice).toEqual([expect.objectContaining({ hours: 2 })]);
+    expect(c.practice[0].startsAt).toBeTruthy();
+    expect(c.practice[0].endsAt).toBeTruthy();
+    expect(res).toBeTruthy();
   });
 });

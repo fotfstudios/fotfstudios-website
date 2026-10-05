@@ -49,6 +49,11 @@ export interface AdminBooking {
   customerId: string | null;
   /** Hold del cupo de un reagendamiento pendiente (sin orden): apunta a la fila `reschedules`. */
   rescheduleId: string | null;
+  /**
+   * Hora de práctica libre del curso: la inscripción dueña del saldo. Se agenda, mueve
+   * y cancela SOLO desde la ficha del alumno (si no, el saldo de horas no se entera).
+   */
+  practiceEnrollmentId: string | null;
 }
 
 /** Snapshot del pago de MP (subconjunto guardado en orders.payment_snapshot). */
@@ -245,6 +250,8 @@ type ResRow = {
   order_id: string | null;
   customer_id: string | null;
   reschedule_id?: string | null;
+  /** Uno-a-uno (reservation_id es único), pero PostgREST puede devolver arreglo: se aceptan ambos. */
+  course_practice_redemptions?: { enrollment_id: string } | { enrollment_id: string }[] | null;
   orders: {
     amount_clp: number;
     status: string;
@@ -255,7 +262,7 @@ type ResRow = {
 };
 
 const SELECT =
-  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp)";
+  "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp), course_practice_redemptions(enrollment_id)";
 
 /** Subconjunto estructural del query builder de PostgREST que usan los filtros de la lista. */
 interface ReservasFilterable {
@@ -306,7 +313,13 @@ const map = (r: ResRow): AdminBooking => ({
   refundedAmount: r.orders?.refunded_amount_clp ?? null,
   rescheduleId: r.reschedule_id ?? null,
   customerId: r.customer_id ?? null,
+  practiceEnrollmentId: practiceOf(r.course_practice_redemptions),
 });
+
+function practiceOf(p: ResRow["course_practice_redemptions"]): string | null {
+  const one = Array.isArray(p) ? p[0] : p;
+  return one?.enrollment_id ?? null;
+}
 
 export class SupabaseAdminRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
@@ -646,7 +659,7 @@ export class SupabaseAdminRepository {
   async getBooking(id: string): Promise<AdminBookingDetail | null> {
     // Select propio (más rico que el compartido) para no cargar campos MP en los listados.
     const DETAIL_SELECT =
-      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot)";
+      "id, starts_at, ends_at, status, kind, customer_name, customer_email, customer_phone, access_code, access_sent_at, created_at, cancelled_at, notes, order_id, customer_id, reschedule_id, access_loaded_at, access_removed_at, orders(amount_clp, status, paid_at, refunded_at, refunded_amount_clp, points_redeemed_clp, mp_payment_id, mp_preference_id, mp_refund_id, payment_snapshot, pricing_snapshot), course_practice_redemptions(enrollment_id)";
     const { data } = await this.db.from("reservations").select(DETAIL_SELECT).eq("id", id).single();
     if (!data) return null;
     const row = data as unknown as ResRow & {
