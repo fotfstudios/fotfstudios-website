@@ -8,11 +8,12 @@ import {
 } from "./reservas-list";
 
 describe("parseReservasSearchParams", () => {
-  it("sin params → defaults (todas / '' / proximas / fecha / página 1)", () => {
+  it("sin params → defaults (todas / '' / proximas / todo cobro / fecha / página 1)", () => {
     expect(parseReservasSearchParams({})).toEqual({
       estado: "todas",
       q: "",
       tiempo: "proximas",
+      pago: "todos",
       orden: "fecha",
       page: 1,
       perPage: RESERVAS_PER_PAGE,
@@ -86,6 +87,22 @@ describe("escapeIlike", () => {
 
   it("conserva acentos, @, . y +", () => {
     expect(escapeIlike("maría+j@correo.cl")).toBe("maría+j@correo.cl");
+  });
+});
+
+describe("filtro de cobro (?pago=)", () => {
+  it.each(["pendiente", "pagada", "sin_cobro"] as const)("acepta %s", (pago) => {
+    expect(parseReservasSearchParams({ pago }).pago).toBe(pago);
+  });
+
+  it("un valor desconocido cae a todos", () => {
+    expect(parseReservasSearchParams({ pago: "efectivo" }).pago).toBe("todos");
+  });
+
+  it("el href lo lleva, omite el default y cambiarlo vuelve a la página 1", () => {
+    const base = { ...parseReservasSearchParams({}), page: 3 };
+    expect(reservasHref(base, { pago: "pendiente" })).toBe("/admin/reservas?pago=pendiente");
+    expect(reservasHref({ ...base, pago: "pendiente" }, { pago: "todos" })).toBe("/admin/reservas");
   });
 });
 

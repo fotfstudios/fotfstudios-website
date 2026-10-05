@@ -640,7 +640,7 @@ describe("práctica: se reconoce fuera del curso y el alumno la ve", () => {
        values ($1, 'booking', 'confirmed', $2, $3, 'Cortesía')`,
       [await resourceId(), `${futureDate(6, 3)}T10:00:00-03:00`, `${futureDate(6, 3)}T11:00:00-03:00`],
     );
-    const { rows } = await admin.listBookings({ estado: "confirmadas", tiempo: "proximas", orden: "fecha", page: 1, perPage: 50, q: "" });
+    const { rows } = await admin.listBookings({ estado: "confirmadas", tiempo: "proximas", pago: "todos", orden: "fecha", page: 1, perPage: 50, q: "" });
     const byId = new Map(rows.map((b) => [b.id, b.practiceEnrollmentId]));
     expect(byId.get(res)).toBe(enrollmentIds[0]);
     expect([...byId.entries()].filter(([id]) => id !== res).every(([, p]) => p === null)).toBe(true);

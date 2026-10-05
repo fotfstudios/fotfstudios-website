@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   reservasHref,
+  type ReservaPago,
   type ReservaTab,
   type ReservaTiempo,
   type ReservasListQuery,
@@ -21,6 +22,13 @@ const TIEMPOS: { key: ReservaTiempo; label: string }[] = [
   { key: "proximas", label: "Próximas" },
   { key: "pasadas", label: "Pasadas" },
   { key: "todas", label: "Todas" },
+];
+
+const PAGOS: { key: ReservaPago; label: string }[] = [
+  { key: "todos", label: "Todo cobro" },
+  { key: "pendiente", label: "Por cobrar" },
+  { key: "pagada", label: "Pagadas" },
+  { key: "sin_cobro", label: "Sin cobro" },
 ];
 
 /** Tabs por estado (con conteos vivos), rango temporal, búsqueda y orden — todo estado en la URL. */
@@ -65,6 +73,23 @@ export function FilterBar({
                 }`}
               >
                 {t.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <nav aria-label="Filtrar por cobro" className="flex divide-x divide-ink-line border hairline">
+          {PAGOS.map((p) => {
+            const active = query.pago === p.key;
+            return (
+              <Link
+                key={p.key}
+                href={reservasHref(query, { pago: p.key })}
+                aria-current={active ? "page" : undefined}
+                className={`label-sm px-3 py-2.5 transition-colors ${
+                  active ? "bg-gold text-ink" : "text-bone-dim hover:text-gold"
+                }`}
+              >
+                {p.label}
               </Link>
             );
           })}

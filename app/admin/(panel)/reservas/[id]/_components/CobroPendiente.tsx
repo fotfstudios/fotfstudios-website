@@ -3,19 +3,19 @@
 import { useState, useTransition } from "react";
 import { markPaidOfflineAction, sharePaymentLinkAction } from "../actions";
 import { ActionForm } from "@/components/admin/ui/ActionForm";
+import { Choice, type ChoiceOption } from "@/components/admin/ui/Choice";
 import { CopyButton } from "@/components/admin/ui/CopyButton";
 import { Icon } from "@/components/admin/ui/icons";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { btn } from "@/components/admin/ui/styles";
 import { useToast } from "@/components/admin/ui/Toaster";
 import { formatCLP } from "@/src/domain/money/money";
+import { PAYMENT_METHOD_LABEL, type OfflineMethod } from "@/src/domain/money/payment-method";
 import { waLink } from "@/lib/whatsapp";
 
-type OfflineMethod = "efectivo" | "transferencia";
-
-const METHODS: { key: OfflineMethod; label: string }[] = [
-  { key: "efectivo", label: "Efectivo" },
-  { key: "transferencia", label: "Transferencia" },
+const METHODS: ChoiceOption<OfflineMethod>[] = [
+  { value: "transferencia", label: PAYMENT_METHOD_LABEL.transferencia },
+  { value: "efectivo", label: PAYMENT_METHOD_LABEL.efectivo },
 ];
 
 /**
@@ -35,7 +35,7 @@ export function CobroPendiente({
   customerPhone: string | null;
 }) {
   const toast = useToast();
-  const [method, setMethod] = useState<OfflineMethod>("efectivo");
+  const [method, setMethod] = useState<OfflineMethod>("transferencia");
   const [link, setLink] = useState<{ initPoint: string; amount: number; firmed: boolean } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -63,24 +63,8 @@ export function CobroPendiente({
     <div className="flex flex-col gap-6">
       <ActionForm action={markPaidOfflineAction} success="Pago registrado.">
         <input type="hidden" name="reservationId" value={reservationId} />
-        <input type="hidden" name="method" value={method} />
-        <span className="label-sm text-bone-quiet">Marcar pagado</span>
-        <div role="radiogroup" aria-label="Método de pago" className="mt-2 grid grid-cols-2 border hairline">
-          {METHODS.map((m, i) => (
-            <button
-              key={m.key}
-              type="button"
-              role="radio"
-              aria-checked={method === m.key}
-              onClick={() => setMethod(m.key)}
-              className={`px-3 py-2.5 text-center font-mono text-xs font-medium uppercase tracking-[0.06em] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-gold ${
-                i > 0 ? "border-l hairline" : ""
-              } ${method === m.key ? "bg-gold text-ink" : "text-bone-dim hover:text-gold"}`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {/* Los radios nativos de Choice viajan en el form como `method`. */}
+        <Choice name="method" legend="Marcar pagado · método" options={METHODS} value={method} onChange={setMethod} />
         <div className="mt-3">
           <SubmitButton size="sm">Marcar pagado</SubmitButton>
         </div>

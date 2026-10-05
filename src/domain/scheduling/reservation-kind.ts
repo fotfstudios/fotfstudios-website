@@ -43,6 +43,20 @@ export function isRoomBlock(kind: string): boolean {
 }
 
 /**
+ * ¿Es un bloqueo de mantención (sala cerrada, nadie entra)? Más angosto que
+ * `isRoomBlock`: la sesión guiada del curso SÍ tiene alumno, así que la UI la rotula
+ * "Curso · Sesión n" en vez de "Bloqueo".
+ */
+export function isMaintenanceBlock(kind: string): boolean {
+  return kind === "block";
+}
+
+/** ¿Es una sesión guiada del Curso de DJ? */
+export function isCourseSession(kind: string): boolean {
+  return kind === "curso";
+}
+
+/**
  * ¿Alguien va a entrar SOLO a la sala y necesita el PIN de la puerta? Solo el
  * cliente que reservó (`booking`, incluida la práctica libre del curso). La sesión
  * guiada (`curso`) no: el dueño o el instructor recibe al alumno en la puerta.

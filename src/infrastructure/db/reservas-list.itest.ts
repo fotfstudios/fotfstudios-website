@@ -66,6 +66,49 @@ beforeEach(async () => {
   await pg.query(cleanup);
 });
 
+describe("listBookings — cobro (?pago=) y datos de la columna Pago", () => {
+  // pagada (transferencia) · pendiente manual (hold firme) · pendiente web (hold de minutos) · cortesía
+  async function seed() {
+    const paid = await book(600);
+    const manual = await checkout.createBooking(
+      { resourceId, date: MON, startMinute: 720, durationHours: 1, customer: { email: "m@e.cl" } },
+      { firmHold: true },
+    );
+    const web = await book(840);
+    if (!paid.ok || !manual.ok || !web.ok) throw new Error("seed");
+    await repo.confirmOffline(paid.value.orderId, "transferencia");
+    await courtesy("2099-06-01", { name: "Amiga" });
+    return { paid: paid.value.orderId, manual: manual.value.orderId, web: web.value.orderId };
+  }
+
+  it("pendiente / pagada / sin_cobro filtran por el pedido (!inner) y los conteos calzan", async () => {
+    const o = await seed();
+    const pend = await repo.listBookings(q({ pago: "pendiente" }));
+    expect(pend.rows.map((r) => r.orderId).sort()).toEqual([o.manual, o.web].sort());
+    expect(pend.total).toBe(2);
+
+    const pagadas = await repo.listBookings(q({ pago: "pagada" }));
+    expect(pagadas.rows.map((r) => r.orderId)).toEqual([o.paid]);
+    expect(pagadas.tabCounts.todas).toBe(1);
+
+    const sinCobro = await repo.listBookings(q({ pago: "sin_cobro" }));
+    expect(sinCobro.rows).toHaveLength(1);
+    expect(sinCobro.rows[0]).toMatchObject({ orderId: null, customerName: "Amiga" });
+
+    expect((await repo.listBookings(q())).rows).toHaveLength(4);
+  });
+
+  it("cada fila trae método, vencimiento del hold y el reloj de 72 h", async () => {
+    const o = await seed();
+    const rows = (await repo.listBookings(q())).rows;
+    const by = (id: string) => rows.find((r) => r.orderId === id)!;
+    expect(by(o.paid)).toMatchObject({ paymentMethod: "transferencia", expiresAt: null });
+    expect(by(o.manual)).toMatchObject({ paymentMethod: null, expiresAt: null });
+    expect(by(o.manual).paymentClockStart).not.toBeNull();
+    expect(by(o.web).expiresAt).not.toBeNull(); // checkout web: hold de minutos
+  });
+});
+
 describe("listBookings", () => {
   // Primero el supuesto más riesgoso: PostgREST ordenando por columna embebida (orders.amount_clp).
   it("orden monto: mayor monto primero, cortesía (sin pedido) al final", async () => {

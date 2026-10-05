@@ -16,7 +16,7 @@ import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
 import { refundPolicy, reschedulePolicy, suggestedRefund } from "@/src/domain/scheduling/cancellation-policy";
 import { todayInTz } from "@/src/domain/scheduling/time";
-import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { isCourseSession, isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
 import { describeTaxDocs } from "@/src/domain/tax/tax-doc-steps";
 import { hasPermission } from "@/src/domain/auth/permissions";
 import { currentClaims } from "@/src/infrastructure/auth/require-admin";
@@ -254,7 +254,13 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           </h1>
           <p className="mt-2 flex items-center gap-2">
             <StatusPill status={b.status} />
-            {isBlock && <span className="inline-flex items-center gap-1.5 label-sm text-bone-quiet"><Icon name="block" size={13} /> Bloqueo</span>}
+            {isBlock && !isCourseSession(b.kind) && <span className="inline-flex items-center gap-1.5 label-sm text-bone-quiet"><Icon name="block" size={13} /> Bloqueo</span>}
+            {isCourseSession(b.kind) && (
+              <span className="label-sm text-gold">
+                Curso · {b.courseSession ? `Sesión ${b.courseSession.n} · ${b.courseSession.title}` : "sesión guiada"}
+                {b.customerName ? ` · ${b.customerName}` : ""}
+              </span>
+            )}
             {isCourtesy && <span className="label-sm text-gold">Cortesía</span>}
             {isPractice && <span className="label-sm text-gold">Práctica · curso DJ</span>}
           </p>

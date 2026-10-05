@@ -13,7 +13,9 @@ import { btn } from "@/components/admin/ui/styles";
 import { useToast } from "@/components/admin/ui/Toaster";
 import { hhmm } from "@/components/booking/format";
 import { fmtHours } from "@/components/admin/format";
-import { durationStepFor, type ManualPaymentMethod } from "@/lib/manual-booking";
+import { durationStepFor, type ManualBookingType } from "@/lib/manual-booking";
+import { Choice } from "@/components/admin/ui/Choice";
+import { PAYMENT_METHOD_LABEL, type OfflineMethod, type PaymentMethod } from "@/src/domain/money/payment-method";
 import { manualBookingWhatsAppMessage, waLink } from "@/lib/whatsapp";
 import { formatCLP } from "@/src/domain/money/money";
 import {
@@ -32,7 +34,7 @@ import { AdminCalendar } from "./AdminCalendar";
 import { CobroCard, type DiscountState, type QuoteView } from "./CobroCard";
 import type { DiscountOption } from "./DiscountPicker";
 import { DayStrip } from "./DayStrip";
-import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { occupancyTag } from "@/components/admin/occupancy-tag";
 import { DurationStepper } from "./DurationStepper";
 import { SlotGrid, type SlotView } from "./SlotGrid";
 import { SuccessPanel } from "./SuccessPanel";
@@ -41,12 +43,8 @@ import { SuccessPanel } from "./SuccessPanel";
 const OOH_START = 8 * 60;
 const OOH_END = 24 * 60;
 
-const METHOD_LABEL: Record<ManualPaymentMethod, string> = {
-  pendiente: "Pendiente",
-  efectivo: "Efectivo",
-  transferencia: "Transferencia",
-  cortesia: "Cortesía",
-};
+const TYPE_LABEL: Record<ManualBookingType, string> = { ensayo: "Ensayo", cortesia: "Cortesía" };
+const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as ManualBookingType[]).map((value) => ({ value, label: TYPE_LABEL[value] }));
 
 interface SuccessState {
   result: ManualBookingResult;
@@ -55,7 +53,7 @@ interface SuccessState {
     date: string;
     startMinute: number;
     durationHours: number;
-    method: ManualPaymentMethod;
+    type: ManualBookingType;
     name?: string;
     phone?: string;
     addonNames: string[];
@@ -109,7 +107,12 @@ export default function BookingConsole({
   const [duration, setDuration] = useState(1);
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
-  const [method, setMethod] = useState<ManualPaymentMethod>("pendiente");
+  /** Tipo de reserva (qué se cobra). Cortesía = sin cobro: oculta todo lo de pago. */
+  const [type, setType] = useState<ManualBookingType>("ensayo");
+  /** ¿Ya pagó? No = nace pendiente y se liquida después desde la ficha. */
+  const [paid, setPaid] = useState(false);
+  /** Cómo pagó (solo con `paid`). Sin valor por defecto: el registro nunca se adivina. */
+  const [payMethod, setPayMethod] = useState<OfflineMethod | null>(null);
   /** Ficha elegida en el picker. null = todavía sin cliente. */
   const [customer, setCustomer] = useState<CustomerProfile | null>(initialCustomer);
   /** Prefill del alta rápida; null = no se está creando. */
@@ -194,7 +197,7 @@ export default function BookingConsole({
   const nowMin = nowMinuteInTz(tz);
   const avail = dayData?.avail ?? null;
   const occupancy = dayData?.occupancy ?? [];
-  const isCortesia = method === "cortesia";
+  const isCortesia = type === "cortesia";
   const open = avail && !avail.closed ? avail.openMinute : 0;
   const close = avail && !avail.closed ? avail.closeMinute : 0;
 
@@ -203,8 +206,7 @@ export default function BookingConsole({
     const full = { start: m, end: m + duration * 60 };
     const hourHits = occupancy.filter((o) => overlaps(hour, o));
     if (hourHits.length > 0) {
-      const isBlock = hourHits.some((o) => isRoomBlock(o.kind));
-      return { minute: m, tag: isBlock ? "bloqueo" : "ocupado", disabled: true, warn: false };
+      return { minute: m, tag: occupancyTag(hourHits), disabled: true, warn: false };
     }
     if (full.end > windowEnd || occupancy.some((o) => overlaps(full, o))) {
       return { minute: m, tag: "no alcanza", disabled: true, warn: false };
@@ -346,12 +348,19 @@ export default function BookingConsole({
   const pointsMax = canRedeem ? Math.max(0, Math.min(customer.pointsBalance, displayTotal ?? 0)) : 0;
   const pointsApplied = Math.min(Math.max(0, Number.parseInt(pointsValue || "0", 10) || 0), pointsMax);
 
+  // Los puntos cubren todo: create_checkout la deja pagada sola (método "puntos"),
+  // así que no hay "¿ya pagó?" ni método que elegir.
+  const coversAll = canRedeem && displayTotal !== null && displayTotal > 0 && pointsApplied >= displayTotal;
+  const effectivePaid = !isCortesia && (paid || coversAll);
+  const needsMethod = !isCortesia && paid && !coversAll;
+
   const canSubmit =
     selectedStart !== null &&
     !pending &&
     !loadingDay &&
     !discountBroken &&
-    (isCortesia ? true : quote !== null);
+    (isCortesia ? true : quote !== null) &&
+    (!needsMethod || payMethod !== null);
 
   const submit = () => {
     if (selectedStart === null) return;
@@ -362,7 +371,9 @@ export default function BookingConsole({
       startMinute: selectedStart,
       durationHours: duration,
       addonKeys,
-      method,
+      type,
+      paid: effectivePaid,
+      method: needsMethod ? payMethod : null,
       customerId: customer?.id ?? null,
       // Con ficha el nombre suelto no se manda: el servidor lo ignoraría, pero
       // un payload que se contradice a sí mismo es una trampa para el que lea esto.
@@ -382,7 +393,7 @@ export default function BookingConsole({
             date,
             startMinute: selectedStart,
             durationHours: duration,
-            method,
+            type,
             name: res.data.customer.name ?? undefined,
             phone: res.data.customer.phone ?? undefined,
             addonNames: addons.filter((a) => addonKeys.includes(a.key)).map((a) => a.name),
@@ -406,6 +417,8 @@ export default function BookingConsole({
     setWalkInOpen(false);
     setWalkInName("");
     setPointsValue("");
+    setPaid(false);
+    setPayMethod(null);
     setNotes("");
     setTermsAttested(false);
     setDiscountOn(false);
@@ -431,11 +444,12 @@ export default function BookingConsole({
       startMinute: snapshot.startMinute,
       durationHours: snapshot.durationHours,
       total: result.amount,
-      method: snapshot.method,
+      type: snapshot.type,
+      paymentMethod: result.paymentMethod,
       addonNames: snapshot.addonNames,
     });
     const waHref = snapshot.phone ? waLink(snapshot.phone, message) : null;
-    const isPendiente = snapshot.method === "pendiente";
+    const isPendiente = snapshot.type !== "cortesia" && result.paymentMethod === null;
     return (
       <SuccessPanel
         heading={isPendiente ? "Reserva creada, pendiente de pago" : "Reserva creada"}
@@ -446,7 +460,16 @@ export default function BookingConsole({
           },
           { label: "Duración", value: fmtHours(snapshot.durationHours) },
           { label: "Cliente", value: snapshot.name ?? "Sin nombre" },
-          { label: "Método", value: METHOD_LABEL[snapshot.method] },
+          { label: "Tipo", value: TYPE_LABEL[snapshot.type] },
+          {
+            label: "Pago",
+            value:
+              snapshot.type === "cortesia"
+                ? "Sin cobro"
+                : result.paymentMethod
+                  ? `Pagada · ${PAYMENT_METHOD_LABEL[result.paymentMethod as PaymentMethod]}`
+                  : "Pendiente",
+          },
           { label: result.amount !== null ? "Total" : "Valor", value: result.amount !== null ? formatCLP(result.amount) : "Sin cobro" },
         ]}
         waHref={waHref}
@@ -468,8 +491,28 @@ export default function BookingConsole({
 
   return (
     <div className="mt-8 grid gap-6 pb-24 lg:grid-cols-[1fr_22rem] lg:items-start lg:pb-0">
-      {/* IZQUIERDA: día y hora → cinta del día → extras → cliente */}
+      {/* IZQUIERDA: tipo → día y hora → cinta del día → extras → cliente */}
       <div className="flex flex-col gap-6">
+        <Card title="Tipo de reserva">
+          <Choice
+            name="booking-type"
+            legend="Tipo de reserva"
+            hideLegend
+            options={TYPE_OPTIONS}
+            value={type}
+            onChange={(t) => {
+              setType(t);
+              // Lo que cobra va en horas enteras: al salir de cortesía, 1,5 h vuelve a 1 h.
+              if (durationStepFor(t) === 1 && !Number.isInteger(duration)) setDuration(Math.floor(duration));
+            }}
+          />
+          <p className="mt-2.5 label-sm text-bone-quiet">
+            {isCortesia
+              ? "Sin cobro ni boleta. Admite medias horas y horarios fuera de apertura."
+              : "Se cobra la tarifa de la sala. El pago se registra en la caja."}
+          </p>
+        </Card>
+
         <Card title="Día y hora">
           <div className="grid gap-6 md:grid-cols-2 md:items-start">
             <AdminCalendar
@@ -491,7 +534,7 @@ export default function BookingConsole({
                     maxDuration={maxDuration}
                     volumeDiscounts={volumeDiscounts}
                     onChange={setDuration}
-                    step={durationStepFor(method)}
+                    step={durationStepFor(type)}
                   />
                 </div>
               </div>
@@ -677,12 +720,14 @@ export default function BookingConsole({
         selectionLabel={selectionLabel}
         duration={duration}
         hourlyKeys={hourlyKeys}
-        method={method}
-        onMethod={(m) => {
-          setMethod(m);
-          // Lo que cobra va en horas enteras: al salir de cortesía, 1,5 h vuelve a 1 h.
-          if (durationStepFor(m) === 1 && !Number.isInteger(duration)) setDuration(Math.floor(duration));
+        paid={paid}
+        onPaid={(p) => {
+          setPaid(p);
+          if (!p) setPayMethod(null);
         }}
+        method={payMethod}
+        onMethod={setPayMethod}
+        coversAll={coversAll}
         warning={warning}
         error={submitError}
         pending={pending}
@@ -700,7 +745,7 @@ export default function BookingConsole({
             </div>
           </div>
           <button type="button" onClick={submit} disabled={!canSubmit} className={btn("primary")}>
-            {pending ? "…" : isCortesia ? "Registrar cortesía" : method === "pendiente" ? "Crear pendiente" : "Crear reserva"}
+            {pending ? "…" : isCortesia ? "Registrar cortesía" : effectivePaid ? "Crear reserva" : "Crear pendiente"}
           </button>
         </div>
       )}

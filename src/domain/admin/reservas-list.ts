@@ -14,6 +14,14 @@ export type ReservaTab = (typeof RESERVA_TABS)[number];
 export const RESERVA_TIEMPOS = ["proximas", "pasadas", "todas"] as const;
 export type ReservaTiempo = (typeof RESERVA_TIEMPOS)[number];
 
+/**
+ * Filtro por COBRO, independiente del estado de la reserva: "pendiente" separa las
+ * reservas que hay que cobrar de las que solo esperan (un checkout web también está
+ * "en espera"); "sin_cobro" = cortesías y horas de práctica del curso.
+ */
+export const RESERVA_PAGOS = ["todos", "pendiente", "pagada", "sin_cobro"] as const;
+export type ReservaPago = (typeof RESERVA_PAGOS)[number];
+
 export const RESERVA_ORDENES = ["fecha", "monto", "creacion"] as const;
 export type ReservaOrden = (typeof RESERVA_ORDENES)[number];
 
@@ -21,6 +29,7 @@ export interface ReservasListQuery {
   estado: ReservaTab;
   q: string;
   tiempo: ReservaTiempo;
+  pago: ReservaPago;
   orden: ReservaOrden;
   page: number;
   perPage: number;
@@ -44,6 +53,7 @@ export function parseReservasSearchParams(
     estado: oneOf(RESERVA_TABS, first(sp.estado), "todas"),
     q: (first(sp.q) ?? "").trim().slice(0, MAX_Q),
     tiempo: oneOf(RESERVA_TIEMPOS, first(sp.t), "proximas"),
+    pago: oneOf(RESERVA_PAGOS, first(sp.pago), "todos"),
     orden: oneOf(RESERVA_ORDENES, first(sp.orden), "fecha"),
     page: Number.isFinite(page) && page >= 1 ? Math.min(page, MAX_PAGE) : 1,
     perPage: RESERVAS_PER_PAGE,
@@ -84,13 +94,14 @@ export function escapeIlike(raw: string): string {
  */
 export function reservasHref(base: ReservasListQuery, patch: Partial<ReservasListQuery> = {}): string {
   const merged = { ...base, ...patch };
-  const changesFilter = (["estado", "q", "tiempo", "orden"] as const).some((k) => k in patch);
+  const changesFilter = (["estado", "q", "tiempo", "pago", "orden"] as const).some((k) => k in patch);
   if (changesFilter && !("page" in patch)) merged.page = 1;
 
   const sp = new URLSearchParams();
   if (merged.estado !== "todas") sp.set("estado", merged.estado);
   if (merged.q) sp.set("q", merged.q);
   if (merged.tiempo !== "proximas") sp.set("t", merged.tiempo);
+  if (merged.pago !== "todos") sp.set("pago", merged.pago);
   if (merged.orden !== "fecha") sp.set("orden", merged.orden);
   if (merged.page > 1) sp.set("p", String(merged.page));
   const qs = sp.toString();

@@ -9,7 +9,7 @@ import type { OccupancyEntry } from "../types";
  * bloqueos atenuados y la selección en curso en oro. Es visualización (aria-hidden);
  * la lista accesible con nombres va debajo y es la misma data.
  */
-import { isRoomBlock } from "@/src/domain/scheduling/reservation-kind";
+import { isMaintenanceBlock } from "@/src/domain/scheduling/reservation-kind";
 export function DayStrip({
   open,
   close,
@@ -32,7 +32,8 @@ export function DayStrip({
     if (selection && overlaps(hour, selection)) return "bg-gold/15 border-l-2 border-gold";
     if (current && overlaps(hour, current)) return "bg-gold/5 border-l-2 border-dashed border-gold/60";
     const hit = occupancy.find((o) => overlaps(hour, o));
-    if (hit && isRoomBlock(hit.kind)) return "bg-ink-soft border-l-2 border-bone-mute/40 opacity-70";
+    // Solo la mantención va apagada: una sesión del curso es sala trabajando, como una reserva.
+    if (hit && isMaintenanceBlock(hit.kind)) return "bg-ink-soft border-l-2 border-bone-mute/40 opacity-70";
     if (hit) return "bg-bone-dim/15 border-l-2 border-bone-dim";
     return "";
   };

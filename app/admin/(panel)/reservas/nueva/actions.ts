@@ -36,7 +36,7 @@ export async function createManualBookingAction(
     await requirePermission("reservations.create");
     const v = validateManualBooking(input);
     if (!v.ok) throw new Error(v.error);
-    const { date, startMinute, durationHours, method, addonKeys, notes, customerId, walkInName, pointsToRedeem, discount } =
+    const { date, startMinute, durationHours, type, paid, method, addonKeys, notes, customerId, walkInName, pointsToRedeem, discount } =
       v.value;
 
     const repo = adminRepository();
@@ -68,7 +68,7 @@ export async function createManualBookingAction(
     // Cortesía: reserva sin cobro ni boleta (no pasa por checkout/pago). Sin orden
     // no hay líneas: los add-ons elegidos quedan como dato operativo en las notas.
     // A propósito NO valida pasado/horario de apertura (el cliente avisa, no bloquea).
-    if (method === "cortesia") {
+    if (type === "cortesia") {
       const { startsAt, endsAt } = rangeFor(date, startMinute, durationHours, resource.timezone);
       let addonNames: string[] = [];
       if (addonKeys.length > 0) {
@@ -109,12 +109,12 @@ export async function createManualBookingAction(
         .notifyCourtesy({ email: record?.email ?? null, name: savedCustomer.name, reservationId, startsAt, endsAt, addonNames })
         .catch((e) => console.error("[cortesia:notify]", e));
       revalidatePath("/admin/reservas");
-      return { reservationId, orderId: null, amount: null, customer: savedCustomer, pointsApplied: 0 };
+      return { reservationId, orderId: null, amount: null, customer: savedCustomer, pointsApplied: 0, paymentMethod: null };
     }
 
     // Pendiente de pago: crea la reserva con hold firme y orden pending_payment; se
     // liquida después desde la ficha (marcar pagado / link MP). Sin confirmar, sin boleta.
-    if (method === "pendiente") {
+    if (!paid) {
       const attested = input.termsAccepted === true;
       const booking = await checkoutService().createBooking(
         {
@@ -143,6 +143,8 @@ export async function createManualBookingAction(
         amount: booking.value.amount,
         customer: savedCustomer,
         pointsApplied: booking.value.pointsApplied,
+        // Un canje del 100 % lo confirma create_checkout aunque se haya pedido pendiente.
+        paymentMethod: booking.value.paidWithPoints ? "puntos" : null,
       };
     }
 
@@ -172,8 +174,13 @@ export async function createManualBookingAction(
     // Un pedido 100% puntos ya lo confirmó `create_checkout` con método `puntos`
     // (efectivo 0 → sin MP y sin boleta). Volver a confirmarlo acá registraría un
     // cobro que nunca ocurrió (la guardia lo rechazaría como 'already_paid').
+    // Pagó sin elegir método: solo vale si los puntos cubrieron el total.
+    if (!booking.value.paidWithPoints && !method) {
+      await repo.cancelUnpaidOrder(booking.value.orderId).catch(() => {});
+      throw new Error("Los puntos no cubren el total: elige el método de pago.");
+    }
     try {
-      if (!booking.value.paidWithPoints) {
+      if (!booking.value.paidWithPoints && method) {
         const status = await repo.confirmOffline(booking.value.orderId, method);
         if (status !== "confirmed") throw new Error(`confirm_payment: ${status}`);
       }
@@ -197,6 +204,7 @@ export async function createManualBookingAction(
       amount: booking.value.amount,
       customer: savedCustomer,
       pointsApplied: booking.value.pointsApplied,
+      paymentMethod: booking.value.paidWithPoints ? "puntos" : method,
     };
   });
 }

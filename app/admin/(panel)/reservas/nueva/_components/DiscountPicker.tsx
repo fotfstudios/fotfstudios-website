@@ -1,6 +1,7 @@
 import { Input, Select } from "@/components/admin/ui/Field";
 import { formatCLP } from "@/src/domain/money/money";
 import type { DiscountMode } from "@/src/domain/pricing/manual-discount";
+import { Choice } from "@/components/admin/ui/Choice";
 
 /** Una base descontable del quote actual: sala, un add-on, o el total. */
 export interface DiscountOption {
@@ -73,21 +74,16 @@ export function DiscountPicker({
           </Select>
 
           <div className="flex gap-2.5">
-            <div role="radiogroup" aria-label="Tipo de descuento" className="grid shrink-0 grid-cols-2 border hairline">
-              {MODES.map((m, i) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === m.key}
-                  onClick={() => onMode(m.key)}
-                  className={`w-10 py-2.5 text-center font-mono text-xs font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-gold ${
-                    i > 0 ? "border-l hairline" : ""
-                  } ${mode === m.key ? "bg-gold text-ink" : "text-bone-dim hover:text-gold"}`}
-                >
-                  {m.label}
-                </button>
-              ))}
+            <div className="shrink-0">
+              <Choice
+                name="discount-mode"
+                legend="Tipo de descuento"
+                hideLegend
+                options={MODES.map((m) => ({ value: m.key, label: m.label }))}
+                value={mode}
+                onChange={onMode}
+                optionClassName="w-10"
+              />
             </div>
             <Input
               type="text"
