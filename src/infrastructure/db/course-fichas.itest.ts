@@ -79,6 +79,31 @@ describe("inscribirse crea la ficha del alumno", () => {
   });
 });
 
+describe("una ficha existente no se pisa (ensure_customer)", () => {
+  it("inscribir con otro nombre/teléfono tipeado no renombra la ficha; el pedido usa el nombre de la ficha", async () => {
+    const prev = (
+      await raw("insert into customers (email, name, phone) values ('f1@correo.cl', 'Martin Elicer Raab', '+56979464694') returning id")
+    ).rows[0].id;
+    const r = await repo.createProgram({
+      plan: "individual",
+      students: [{ name: "Martín Elicer", email: "F1@correo.cl", phone: "+56911111111" }],
+      prices: PRECIOS,
+    });
+    expect(await ficha("f1@correo.cl")).toMatchObject({ id: prev, name: "Martin Elicer Raab", phone: "+56979464694" });
+    const o = await raw("select customer_name from orders where id = $1", [r.orderId]);
+    expect(o.rows[0].customer_name).toBe("Martin Elicer Raab");
+    // Y la inscripción (lo que muestran la lista de programas y su ficha del curso) también.
+    const e = await raw("select student_name, student_phone from course_enrollments where id = $1", [r.enrollmentIds[0]]);
+    expect(e.rows[0]).toEqual({ student_name: "Martin Elicer Raab", student_phone: "+56979464694" });
+  });
+
+  it("si a la ficha le falta un dato, lo rellena", async () => {
+    await raw("insert into customers (email, name) values ('f1@correo.cl', 'Ya Cliente')");
+    await repo.createProgram({ plan: "individual", students: [alumno(1)], prices: PRECIOS });
+    expect(await ficha("f1@correo.cl")).toMatchObject({ name: "Ya Cliente", phone: "+56912345678" });
+  });
+});
+
 describe("las demás puertas de entrada también", () => {
   it("emitir el crédito de una sesión de prueba crea la ficha (vino a la sala)", async () => {
     await repo.issueTrialCredit({ email: "Prueba@Correo.cl", amountClp: 19990, sessionStartsAt: new Date().toISOString() });
