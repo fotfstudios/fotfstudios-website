@@ -25,7 +25,7 @@ export interface WhatsAppOutboxFailure {
   expiresAt: string;
 }
 
-/** Cola de WhatsApp (migración 20261003120000). Solo service_role. */
+/** Cola de WhatsApp (migración 20261008120000). Solo service_role. */
 export class SupabaseWhatsAppOutboxRepository implements WhatsAppOutbox, WhatsAppOutboxWorkerRepository {
   constructor(private readonly db: SupabaseClient<Database>) {}
 

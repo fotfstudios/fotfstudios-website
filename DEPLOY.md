@@ -166,6 +166,9 @@ ajustes viven en el **dashboard de Supabase** y hay que mantenerlos a mano:
    (convención `<slug>/<archivo>.pdf`; las ya subidas quedan donde están). Hoy:
    `guia_pendrive_dj_fotf_studios.pdf`, en la raíz (la de `/guia-pendrive-dj`). Mismo tratamiento:
    fuera de git, a mano en prod, staging y local.
+9. **WhatsApp (Kapso / Meta)** — el número conectado en coexistencia, las 10 plantillas aprobadas
+   en Meta (copia de referencia en `docs/whatsapp-templates.md`; un cambio de texto = plantilla nueva y
+   re-aprobación) y el webhook de estado de Kapso con su secreto. Ver **WhatsApp (Kapso)** abajo.
 
 > El detalle de esta checklist nació en
 > [docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md](docs/superpowers/specs/2026-07-04-cuenta-puntos-design.md).
@@ -266,6 +269,58 @@ backoff hasta 1 h; "Sincronizar ahora" los adelanta.
 - Renombrar un curso o una generación no toca `reservations`: usar "Resincronizar todo".
 - En local, usar un calendario de **prueba**; nunca el del estudio.
 
+## WhatsApp (Kapso)
+
+Avisos transaccionales por WhatsApp a los clientes que lo aceptaron, y alertas al celular del dueño.
+Salen desde la línea del estudio (+56 9 6280 3298) vía **Kapso** en modo **coexistencia**: la app
+WhatsApp Business sigue funcionando y las respuestas de los clientes llegan ahí. El correo sale
+siempre. Spec: `docs/superpowers/specs/2026-10-02-whatsapp-kapso-design.md`; plantillas:
+`docs/whatsapp-templates.md`.
+
+**Configuración (una vez, por el dueño), en este orden:**
+1. **Meta Business**: el portafolio con razón social, dirección, teléfono y el sitio HTTPS completos.
+   La verificación del negocio puede pedir documentos y tardar días; empezar primero.
+2. **Kapso** (app.kapso.ai) → proyecto nuevo → *Connect WhatsApp* → **coexistencia** → número del
+   estudio → escanear el QR desde la app WhatsApp Business (versión ≥ 2.24.17, con el teléfono a
+   mano). Compartir o no el historial de chats es **irreversible**. Si Meta pide SMS o llamada en
+   vez del QR, parar y escribir al soporte de Kapso.
+3. **Plantillas**: crear las 10 de `docs/whatsapp-templates.md` tal cual (Utility, Spanish, Named,
+   con sus ejemplos y botones) y esperar *APPROVED* (hasta ~24 h). El sandbox de Kapso no manda
+   plantillas: no hay forma de probarlas antes.
+4. **Webhook de estado**: Kapso → Webhooks → URL `https://www.fotfstudios.cl/api/webhooks/kapso`,
+   eventos `whatsapp.message.sent`, `.delivered`, `.read` y `.failed`, y como secreto un valor
+   nuevo (`openssl rand -hex 32`). **No** activar el *buffering*: cambia el cuerpo a formato lote.
+5. **Vercel** → Environment Variables (**Production**; Preview no tiene base), marcadas Sensitive:
+   - `KAPSO_API_KEY` (API key del proyecto de Kapso) y `KAPSO_PHONE_NUMBER_ID` (el id del número).
+   - `KAPSO_WEBHOOK_SECRET` = el secreto del paso 4.
+   - `OWNER_WHATSAPP` = el celular **personal** del dueño (`569XXXXXXXX`). No puede ser la línea del
+     estudio: un número no puede escribirse a sí mismo y la app lo rechaza.
+   **Redeploy** para que tomen efecto.
+6. `/admin/whatsapp` → debe decir *Configurado* → **Enviar prueba al dueño**. Si Kapso o Meta
+   rechazan, el motivo aparece en el toast (p. ej. `132001` = plantilla no aprobada todavía).
+7. Una reserva real del dueño con su propio celular y la casilla marcada → el WhatsApp de
+   confirmación llega y en `/admin/whatsapp` sube *Entregados*; en los logs de Vercel aparece
+   `[kapso-webhook] firma ok delivered …`.
+
+**Operación:** el job de pg_cron `whatsapp-outbox` (cada minuto, mismos secretos de Vault que
+`access-codes`) drena la cola. Los errores pasajeros se reintentan con backoff hasta ~4 h; los de Meta
+que no se arreglan reintentando (número sin WhatsApp `131026`, plantilla `132xxx`) quedan *fallidos*
+en `/admin/whatsapp`. Tras aprobar una plantilla que faltaba: **Reintentar fallidos**. Cada aviso vence
+(inicio de la sesión, plazo de pago, 24 h para las alertas): nunca sale un PIN tarde.
+
+**Ojo:**
+- Sin `KAPSO_API_KEY` + `KAPSO_PHONE_NUMBER_ID` no se encola nada (no queda una cola que salga
+  toda junta el día que se configure).
+- **Fuera de producción** (`VERCEL_ENV` ≠ `production`: local, preview) el sender solo le escribe a
+  `OWNER_WHATSAPP`, aunque se use la llave real. Lo demás queda *fallido* con "bloqueado fuera de producción".
+- Probar el webhook en local: `KAPSO_WEBHOOK_SECRET=x npm run dev` y
+  `KAPSO_WEBHOOK_SECRET=x node scripts/kapso-replay-status.mjs --provider-id <wamid> --status delivered`.
+- Costo: Kapso traspasa la tarifa de Meta sin recargo (≈ USD 0,023 por aviso utility en Chile; desde
+  2026-10-01 también dentro de la ventana de 24 h). El plan gratis de Kapso incluye 2.000 mensajes/mes.
+- La casilla de /reservar viene marcada: la baja está en `/cuenta/perfil` y en la ficha del cliente.
+  Muchos bloqueos o reportes bajan la calidad del número y Meta puede pausar los envíos: nada de marketing
+  por este canal.
+
 ## Referencias
 
 - [CLAUDE.md](CLAUDE.md) — guía del repo, comandos, guardrails de marca.
@@ -281,7 +336,9 @@ backoff hasta 1 h; "Sincronizar ahora" los adelanta.
   y `access-codes` (`*/5`, necesita secretos en Vault; además del PIN manda el recordatorio de sesión y el
   recordatorio de pago de reservas manuales pendientes, migración `20261002120000`), y `calendar-sync` (`* * * * *`,
   `select public.run_calendar_sync_cron()`, migración `20261001120000`, mismos secretos de Vault que
-  `access-codes`: empuja la agenda a Google Calendar; sin la ruta del PR del código recibe 404 y no pasa nada).
+  `access-codes`: empuja la agenda a Google Calendar; sin la ruta del PR del código recibe 404 y no pasa nada), y
+  `whatsapp-outbox` (`* * * * *`, `select public.run_whatsapp_outbox_cron()`, migración `20261008120000`, mismos
+  secretos: manda los avisos por WhatsApp; sin variables de Kapso la ruta responde `configured: false`).
   Verificar tras un deploy:
   `select jobname, status, start_time from cron.job_run_details d join cron.job j using (jobid) order by start_time desc limit 5;`
   — y el primer domingo, que `purge-cron-history` aparezca con `succeeded`.
