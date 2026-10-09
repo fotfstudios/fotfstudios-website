@@ -12,6 +12,9 @@ import { customerDbErrorMessage } from "@/src/domain/customers/customer-input";
 import { formatCLP } from "@/src/domain/money/money";
 import { PAYMENT_METHOD_LABEL } from "@/src/domain/money/payment-method";
 import { hostFromHeaders } from "@/lib/urls";
+import { trialMoveError } from "@/lib/trial-admin";
+import { TRIAL_HOURS } from "@/src/application/checkout/checkout-service";
+import { rangeFor } from "@/src/domain/scheduling/time";
 import { getRescheduleDay } from "./reschedule-data";
 import type { DayConsoleData } from "../nueva/types";
 
@@ -302,6 +305,41 @@ export async function rescheduleAction(input: {
     revalidatePath(`/admin/reservas/${reservationId}`);
     revalidatePath("/admin/reservas");
     return res.value;
+  });
+}
+
+/**
+ * Mueve la prueba del curso a otra hora (sin plata: la prueba dura siempre 1 h y su precio
+ * no cambia). La duración no viaja desde el form. Después del RPC avisa al dueño y al
+ * cliente, best-effort: un aviso que falla nunca deshace el cambio de hora.
+ */
+export async function moveTrialAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("reservations.reschedule");
+    const reservationId = str(fd, "reservationId");
+    const date = str(fd, "date");
+    const startMinute = str(fd, "startMinute") === "" ? NaN : num(fd, "startMinute");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Elige un día.");
+    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1440) throw new Error("Elige una hora.");
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    const { startsAt, endsAt } = rangeFor(date, startMinute, TRIAL_HOURS, resource.timezone);
+
+    const createdBy = (await currentClaims())?.sub ?? null;
+    let moved: Awaited<ReturnType<ReturnType<typeof adminRepository>["moveTrial"]>>;
+    try {
+      moved = await adminRepository().moveTrial(reservationId, startsAt, endsAt, createdBy);
+    } catch (e) {
+      throw new Error(trialMoveError(e instanceof Error ? e.message : ""));
+    }
+
+    if (moved.orderId) {
+      await notificationService()
+        .notifyTrialRescheduled({ orderId: moved.orderId, reservationId, oldStartsAt: moved.oldStartsAt, oldEndsAt: moved.oldEndsAt })
+        .catch((e) => console.error("[prueba:mover:aviso]", reservationId, e));
+    }
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    revalidatePath("/admin/reservas");
   });
 }
 

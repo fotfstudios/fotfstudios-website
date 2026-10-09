@@ -26,6 +26,7 @@ import { CancelBookingDialog } from "./_components/CancelBookingDialog";
 import { CobroPendiente } from "./_components/CobroPendiente";
 import { PendingRescheduleCard } from "./_components/PendingRescheduleCard";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
+import { MoverPruebaDialog } from "./_components/MoverPruebaDialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
@@ -212,6 +213,15 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
     ((isPaid && b.pointsRedeemedClp === 0 && reschedulePolicy(b.startsAt).allowed) ||
       (isCourtesy && b.status === "confirmed"));
   const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
+  // Prueba del curso: no pasa por los RPC de reagendar (son de `booking`); se mueve solo de
+  // hora con move_trial_reservation. Vigente = pendiente o confirmada.
+  const trialMove =
+    isTrialSession(b.kind) && (b.status === "held" || b.status === "confirmed") && hasPermission(claims, "reservations.reschedule")
+      ? (() => {
+          const s = DateTime.fromISO(b.startsAt).setZone(TZ);
+          return { date: s.toFormat("yyyy-MM-dd"), startMinute: s.hour * 60 + s.minute };
+        })()
+      : null;
   // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a la
   // vez: bloqueado acá y en RefundService.cancelBooking (H1) hasta que "Reintentar" lo
   // resuelva; un cobro pendiente sí se puede cancelar — "Anular cobro" ya lo cierra primero.
@@ -476,6 +486,18 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
               </p>
               <div className="mt-4">
                 <RescheduleDialog {...reschedProps} />
+              </div>
+            </Card>
+          )}
+
+          {trialMove && (
+            <Card title="Mover prueba">
+              <p className="text-sm leading-relaxed text-bone-dim">
+                Cambia el día u hora de la prueba del curso. Sin cobro ni reembolso: dura 1 hora y el precio no cambia.
+                Al cliente y a ti les llega el aviso.
+              </p>
+              <div className="mt-4">
+                <MoverPruebaDialog reservationId={b.id} tz={TZ} date={trialMove.date} startMinute={trialMove.startMinute} />
               </div>
             </Card>
           )}

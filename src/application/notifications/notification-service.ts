@@ -42,6 +42,8 @@ import {
   trialReminder,
   trialFollowUp,
   trialCreditExpiring,
+  trialRescheduled,
+  ownerTrialRescheduled,
   ownerNewApplication,
   ownerNotification,
   courseLeadConfirmation,
@@ -850,6 +852,85 @@ export class NotificationService {
       attachments: [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }],
     });
     return true;
+  }
+
+  /**
+   * Prueba del curso movida desde el admin (move_trial_reservation): al DUEÑO y al CLIENTE,
+   * por correo y por WhatsApp. Best-effort y después del RPC: la reserva ya cambió de hora y
+   * los datos actuales (nombre, contacto, horario NUEVO) salen del pedido. Primero el dueño y
+   * cada envío por separado: un correo que falla no se lleva al otro.
+   */
+  async notifyTrialRescheduled(input: {
+    orderId: string;
+    reservationId: string;
+    oldStartsAt: string;
+    oldEndsAt: string | null;
+  }): Promise<{ owner: boolean; customer: boolean }> {
+    const sent = { owner: false, customer: false };
+    const o = await this.repo.getOrderForEmail(input.orderId);
+    if (!o?.startsAt || !o.endsAt) return sent;
+    const before = this.when(input.oldStartsAt, input.oldEndsAt);
+    const after = this.when(o.startsAt, o.endsAt);
+
+    if (this.config.ownerEmail) {
+      try {
+        await this.mailer.send({
+          to: this.config.ownerEmail,
+          ...ownerTrialRescheduled({
+            name: o.name,
+            email: o.email,
+            phone: o.phone ?? null,
+            before,
+            after,
+            adminUrl: `${this.config.siteUrl}/admin/reservas/${input.reservationId}`,
+          }),
+        });
+        sent.owner = true;
+      } catch (e) {
+        console.error("[notify:trial-moved:owner]", input.orderId, e);
+      }
+    }
+    if (o.email) {
+      // Mismo uid que la confirmación (notifyOrder → calendarEvent(orderId)): el calendario
+      // ACTUALIZA el evento. Con el texto de la prueba: guiada, sin código de acceso.
+      const ev = {
+        ...this.calendarEvent(input.orderId, o.startsAt, o.endsAt),
+        summary: "FOTF Studios — Prueba del Curso de DJ",
+        description: GUIADA,
+      };
+      try {
+        await this.mailer.send({
+          to: o.email,
+          ...trialRescheduled(
+            { name: o.name, before, after },
+            {
+              address: this.config.address,
+              mapsUrl: this.config.mapsUrl,
+              whatsappUrl: this.config.whatsappUrl,
+              calendarUrl: googleCalendarUrl(ev),
+            },
+          ),
+          attachments: [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }],
+        });
+        sent.customer = true;
+      } catch (e) {
+        console.error("[notify:trial-moved:customer]", input.orderId, e);
+      }
+    }
+    // Una prueba puede moverse varias veces: la clave lleva el horario nuevo.
+    await this.waOwner("owner_trial_rescheduled", { cliente: o.name ?? o.email ?? "", antes: before, ahora: after }, {
+      dedupeKey: `owner_trial_rescheduled:${input.reservationId}:${o.startsAt}`,
+      expiresAt: new Date(Date.now() + OWNER_ALERT_TTL_MS),
+      buttonSuffix: input.reservationId,
+      entity: { kind: "reservation", id: input.reservationId },
+    });
+    await this.waCustomer(o, "trial_rescheduled", { nombre: o.name ?? "", antes: before, ahora: after }, {
+      dedupeKey: `trial_rescheduled:${input.reservationId}:${o.startsAt}`,
+      expiresAt: o.startsAt,
+      buttonSuffix: input.orderId,
+      entity: { kind: "order", id: input.orderId },
+    });
+    return sent;
   }
 
   /**

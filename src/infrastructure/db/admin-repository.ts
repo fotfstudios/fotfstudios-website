@@ -1222,6 +1222,28 @@ export class SupabaseAdminRepository {
     if (error) throw new Error(error.message);
   }
 
+  /**
+   * Mueve la prueba del curso a otra hora (RPC `move_trial_reservation`): solo la hora, sin
+   * plata. Devuelve la hora vieja y el pedido para los avisos; el error crudo del RPC
+   * (`trial_slot_taken`…) sube tal cual y la acción lo traduce.
+   */
+  async moveTrial(
+    reservationId: string,
+    startsAt: string,
+    endsAt: string,
+    createdBy: string | null,
+  ): Promise<{ oldStartsAt: string; oldEndsAt: string; orderId: string | null }> {
+    const { data, error } = await this.db.rpc("move_trial_reservation", {
+      p_reservation: reservationId,
+      p_starts: startsAt,
+      p_ends: endsAt,
+      ...(createdBy ? { p_created_by: createdBy } : {}),
+    });
+    if (error) throw new Error(error.message);
+    const m = data as { old_starts_at: string; old_ends_at: string; order_id: string | null };
+    return { oldStartsAt: m.old_starts_at, oldEndsAt: m.old_ends_at, orderId: m.order_id };
+  }
+
   /** Genera un PIN nuevo (RPC `generate_access_code`) y reinicia el ciclo. */
   async regenerateAccessCode(reservationId: string): Promise<string> {
     const { data: code, error: genError } = await this.db.rpc("generate_access_code");

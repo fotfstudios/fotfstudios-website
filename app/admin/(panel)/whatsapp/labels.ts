@@ -6,10 +6,12 @@ export const WA_EVENT_LABEL: Record<WaEvent, string> & Record<string, string | u
   access_pin: "Código de acceso",
   payment_pending: "Pago pendiente",
   payment_reminder: "Recordatorio de pago",
+  trial_rescheduled: "Prueba del curso movida",
   owner_new_booking: "Dueño · nueva reserva",
   owner_payment_pending: "Dueño · pago pendiente",
   owner_cancellation: "Dueño · cancelación",
   owner_new_lead: "Dueño · nuevo lead",
+  owner_trial_rescheduled: "Dueño · prueba movida",
   test_ping: "Prueba",
 };
 

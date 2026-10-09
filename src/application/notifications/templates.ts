@@ -375,6 +375,26 @@ export function trialCreditExpiring(
   return { template: "trialCreditExpiring", subject: `Tu descuento del Curso de DJ vence el ${v.expiresOn}`, html, text };
 }
 
+/** La prueba del curso cambió de hora (la movió el estudio). Guiada: sin PIN. */
+export function trialRescheduled(
+  v: { name: string | null; before: string; after: string },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; calendarUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ tiene nuevo horario</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "movimos")} tu sesión de prueba de 1 hora.</p>
+     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
+     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.calendarUrl)}" style="color:${T.gold};font-weight:bold">Actualizar en mi calendario</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+    `Nuevo horario: ${v.after}`,
+  );
+  const text = `Movimos tu prueba del Curso de DJ. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "trialRescheduled", subject: `Prueba del Curso de DJ: nuevo horario · ${v.after}`, html, text };
+}
+
 /**
  * Pago duplicado: la orden YA estaba pagada (p. ej. marcada en efectivo) y el cliente
  * igual pagó el link de MP. La guardia no tocó nada; el dueño tiene que devolver ESTE
@@ -1173,4 +1193,27 @@ export function ownerNotification(
   );
   const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}`;
   return { template: "ownerNotification", subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} — ${v.when}`, html, text };
+}
+
+/** Email al dueño: una prueba del curso cambió de hora. Registro, no urgencia (sin Sirena). */
+export function ownerTrialRescheduled(v: {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  before: string;
+  after: string;
+  adminUrl: string;
+}): EmailContent {
+  const contact = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Prueba del curso movida</h1>
+     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
+     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(contact)}</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">Es guiada: sin PIN.</p>
+     <p style="margin:0"><a href="${esc(v.adminUrl)}" style="color:${T.gold};font-weight:bold">Ver la reserva</a></p>`,
+    `${v.name ?? "Cliente"}: ${v.before} → ${v.after}`,
+  );
+  const text = `Prueba del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Cliente"} · ${contact}. Ver la reserva: ${v.adminUrl}`;
+  return { template: "ownerTrialRescheduled", subject: `Prueba del curso movida — ${v.after}`, html, text };
 }
