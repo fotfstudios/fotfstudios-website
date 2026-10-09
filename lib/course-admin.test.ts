@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   courseMoveError,
+  practiceMoveError,
   courseScheduleError,
   halfHourStarts,
   parseInstructor,
@@ -103,5 +104,20 @@ describe("parseSessionNumber", () => {
   });
   it.each(["0", "7", "2.5", "", "x"])("rechaza %j", (raw) => {
     expect(parseSessionNumber(raw)).toEqual({ ok: false, error: "Sesión inválida." });
+  });
+});
+
+describe("practiceMoveError", () => {
+  it.each([
+    ["practica_slot_taken", "Ese horario choca con otra reserva o bloqueo."],
+    ["practica_en_pasado", "Ese horario ya pasó."],
+    ["practica_mismo_horario", "La práctica ya está en ese horario."],
+    ["practica_vencida", "Ese día queda fuera del plazo de las horas de práctica."],
+    ["practica_no_elegible", "La inscripción ya no está pagada: no se puede mover la práctica."],
+    ["practica_no_movible", "Esta práctica ya no se puede mover (está cancelada)."],
+    ['duplicate key value violates unique constraint "x"', "No se pudo mover la práctica."],
+    ["", "No se pudo mover la práctica."],
+  ])("%s → %s", (raw, msg) => {
+    expect(practiceMoveError(raw)).toBe(msg);
   });
 });

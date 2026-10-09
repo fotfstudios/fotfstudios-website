@@ -145,6 +145,26 @@ Te recibimos en la puerta, no necesitas código. Si no puedes venir, respóndeno
 
 Botón URL (dinámico): igual que `fotf_reserva_confirmada`.
 
+### `fotf_practica_movida`
+
+Evento `practice_moved`. Sale cuando el estudio mueve una hora de práctica libre del Curso de DJ a otro
+horario (ficha del alumno o `/admin/reservas/[id]` → Mover práctica). El alumno entra solo: el código
+le llega de nuevo antes del horario nuevo.
+
+```body
+Hola {{nombre}}, movimos tu práctica libre en FOTF Studios. Antes: {{antes}}. Ahora: {{ahora}}.
+
+Tu código de acceso te llega 10 minutos antes del nuevo horario. Tus horas de práctica no cambian.
+```
+
+| Parámetro | Ejemplo |
+|---|---|
+| nombre | Camila |
+| antes | jueves 8 de octubre, 18:00–20:00 |
+| ahora | viernes 9 de octubre, 16:00–18:00 |
+
+Sin botón (la práctica no tiene recibo público).
+
 ## Dueño (`OWNER_WHATSAPP`)
 
 ### `fotf_admin_nueva_reserva`
@@ -213,6 +233,24 @@ Nuevo contacto en FOTF Studios desde {{origen}}: {{nombre}}, {{contacto}}. Resp�
 | contacto | camila@example.com · +56 9 1234 5678 |
 
 Sin botón.
+
+### `fotf_admin_practica_movida`
+
+Evento `owner_practice_moved`. Sale cuando se mueve una hora de práctica del curso desde el panel.
+`pin` dice si hay que hacer algo en la cerradura.
+
+```body
+Práctica del curso movida: {{cliente}}. Antes: {{antes}}. Ahora: {{ahora}}. PIN: {{pin}}.
+```
+
+| Parámetro | Ejemplo |
+|---|---|
+| cliente | Camila Rojas |
+| antes | jueves 8 de octubre, 18:00–20:00 |
+| ahora | viernes 9 de octubre, 16:00–18:00 |
+| pin | sigue cargado, no hay que tocar la cerradura |
+
+Botón URL (dinámico): igual que `fotf_admin_nueva_reserva`.
 
 ### `fotf_admin_prueba_curso_movida`
 

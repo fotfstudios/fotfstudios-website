@@ -24,8 +24,22 @@ export interface OrderEmailData {
   whatsappOptIn?: boolean;
 }
 
+/** Contacto vigente de una reserva SIN pedido (práctica, cortesía): horario + ficha. */
+export interface ReservationContact {
+  reservationId: string;
+  name: string | null;
+  email: string | null;
+  /** Celular para WhatsApp: el de la ficha, o el de la reserva si la ficha no tiene. */
+  phone: string | null;
+  /** Consentimiento de WhatsApp de la ficha (false sin ficha). */
+  whatsappOptIn: boolean;
+  startsAt: string;
+  endsAt: string;
+}
+
 export interface NotificationRepository {
   getOrderForEmail(orderId: string): Promise<OrderEmailData | null>;
+  getReservationContact(reservationId: string): Promise<ReservationContact | null>;
   pendingPaidOrderIds(limit?: number): Promise<string[]>;
   /**
    * Reclama la notificación: pone `notified_at` SOLO si estaba en null. `true` = esta

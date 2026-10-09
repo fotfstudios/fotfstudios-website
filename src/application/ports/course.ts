@@ -244,6 +244,15 @@ export interface CourseEnrollmentRepository {
   ): Promise<string>;
   /** Cancela una práctica y devuelve la hora al saldo. Idempotente. */
   releasePracticeHours(reservationId: string): Promise<void>;
+  /**
+   * Mueve una práctica a otro horario, misma duración y mismo saldo (RPC
+   * `move_practice_reservation`). El error crudo del RPC sube tal cual.
+   */
+  movePractice(
+    reservationId: string,
+    startsAt: string,
+    createdBy: string | null,
+  ): Promise<{ oldStartsAt: string; oldEndsAt: string; endsAt: string; enrollmentId: string; accessLoaded: boolean }>;
   practiceRedemptions(enrollmentId: string): Promise<
     {
       id: string;
@@ -252,6 +261,8 @@ export interface CourseEnrollmentRepository {
       startsAt: string | null;
       endsAt: string | null;
       releasedAt: string | null;
+      /** PIN en la cerradura (cargado y no quitado): el resumen de "Mover" dice si se toca. */
+      accessLoaded: boolean;
     }[]
   >;
   setEnrollmentNotes(id: string, notes: string | null): Promise<void>;

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NotificationRepository, OrderEmailData } from "@/src/application/ports/notifications";
+import type { NotificationRepository, OrderEmailData, ReservationContact } from "@/src/application/ports/notifications";
 import type { Database } from "./database.types";
 
 export class SupabaseNotificationRepository implements NotificationRepository {
@@ -43,6 +43,25 @@ export class SupabaseNotificationRepository implements NotificationRepository {
       reservationId: r?.id ?? null,
       phone: o.customers?.phone ?? o.customer_phone ?? null,
       whatsappOptIn: o.customers?.whatsapp_opt_in ?? false,
+    };
+  }
+
+  async getReservationContact(reservationId: string): Promise<ReservationContact | null> {
+    const { data: r } = await this.db
+      .from("reservations")
+      .select("id, starts_at, ends_at, customer_name, customer_email, customer_phone, customers(phone, whatsapp_opt_in)")
+      .eq("id", reservationId)
+      .maybeSingle();
+    if (!r) return null;
+    return {
+      reservationId: r.id,
+      name: r.customer_name,
+      email: r.customer_email,
+      // Mismo criterio que getOrderForEmail: el celular de la ficha, o el de la reserva.
+      phone: r.customers?.phone ?? r.customer_phone ?? null,
+      whatsappOptIn: r.customers?.whatsapp_opt_in ?? false,
+      startsAt: r.starts_at,
+      endsAt: r.ends_at,
     };
   }
 

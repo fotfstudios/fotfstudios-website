@@ -25,11 +25,13 @@ export const WA_TEMPLATES = {
   payment_pending: { name: "fotf_pago_pendiente", params: ["nombre", "fecha", "total", "plazo"], button: "estado" },
   payment_reminder: { name: "fotf_recordatorio_pago", params: ["nombre", "fecha", "total", "plazo"], button: "estado" },
   trial_rescheduled: { name: "fotf_prueba_curso_movida", params: ["nombre", "antes", "ahora"], button: "estado" },
+  practice_moved: { name: "fotf_practica_movida", params: ["nombre", "antes", "ahora"], button: null },
   owner_new_booking: { name: "fotf_admin_nueva_reserva", params: ["cliente", "fecha", "total"], button: "admin" },
   owner_payment_pending: { name: "fotf_admin_pago_pendiente", params: ["cliente", "fecha", "total", "plazo"], button: "admin" },
   owner_cancellation: { name: "fotf_admin_cancelacion", params: ["cliente", "fecha", "reembolso"], button: "admin" },
   owner_new_lead: { name: "fotf_admin_nuevo_lead", params: ["origen", "nombre", "contacto"], button: null },
   owner_trial_rescheduled: { name: "fotf_admin_prueba_curso_movida", params: ["cliente", "antes", "ahora"], button: "admin" },
+  owner_practice_moved: { name: "fotf_admin_practica_movida", params: ["cliente", "antes", "ahora", "pin"], button: "admin" },
   test_ping: { name: "fotf_prueba", params: ["fecha"], button: null },
 } as const satisfies Record<string, WaTemplateDef>;
 

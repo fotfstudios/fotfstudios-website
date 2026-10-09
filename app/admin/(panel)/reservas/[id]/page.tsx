@@ -27,6 +27,8 @@ import { CobroPendiente } from "./_components/CobroPendiente";
 import { PendingRescheduleCard } from "./_components/PendingRescheduleCard";
 import { RescheduleDialog } from "./_components/RescheduleDialog";
 import { MoverPruebaDialog } from "./_components/MoverPruebaDialog";
+import { MoverPracticaDialog } from "@/components/admin/MoverPracticaDialog";
+import { courseDayAction, movePracticeAction } from "../../curso/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reserva — Admin", robots: { index: false } };
@@ -215,6 +217,8 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
   // Prueba del curso: no pasa por los RPC de reagendar (son de `booking`); se mueve solo de
   // hora con move_trial_reservation. Vigente = pendiente o confirmada.
+  // Hora de práctica: se mueve acá (mismo saldo); cancelarla sigue siendo desde la ficha del alumno.
+  const canMovePractice = isPractice && b.status === "confirmed" && hasPermission(claims, "course.manage");
   const canMoveTrial =
     isTrialSession(b.kind) && (b.status === "held" || b.status === "confirmed") && hasPermission(claims, "reservations.reschedule");
   // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a la
@@ -458,15 +462,30 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           {isPractice && (
             <Card title="Práctica del curso">
               <p className="text-sm leading-relaxed text-bone-dim">
-                Es una hora de práctica libre de un alumno del curso. Se cancela o se cambia desde su
-                ficha: así la hora vuelve a su saldo.
+                Es una hora de práctica libre de un alumno del curso. Muévela a otro horario acá (misma duración, el
+                saldo no cambia); para cancelarla y devolver la hora a su saldo, ve a su ficha.
               </p>
-              <Link
-                href={`/admin/curso/inscripciones/${b.practiceEnrollmentId}`}
-                className="label-sm mt-4 inline-block py-2 text-gold transition-colors hover:text-bone"
-              >
-                Ir a la ficha del alumno →
-              </Link>
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                {canMovePractice && (
+                  <MoverPracticaDialog
+                    action={movePracticeAction}
+                    loadDay={courseDayAction}
+                    reservationId={b.id}
+                    tz={TZ}
+                    startsAt={b.startsAt}
+                    endsAt={b.endsAt}
+                    studentName={b.customerName}
+                    studentEmail={b.customerEmail}
+                    accessLoaded={!!b.accessCode && !!b.accessLoadedAt && !b.accessRemovedAt}
+                  />
+                )}
+                <Link
+                  href={`/admin/curso/inscripciones/${b.practiceEnrollmentId}`}
+                  className="label-sm inline-block py-2 text-gold transition-colors hover:text-bone"
+                >
+                  Ir a la ficha del alumno →
+                </Link>
+              </div>
             </Card>
           )}
 

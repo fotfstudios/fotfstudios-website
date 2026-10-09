@@ -691,10 +691,29 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
+  async movePractice(reservationId: string, startsAt: string, createdBy: string | null) {
+    const { data, error } = await this.db.rpc("move_practice_reservation", {
+      p_reservation: reservationId,
+      p_starts: startsAt,
+      ...(createdBy ? { p_created_by: createdBy } : {}),
+    });
+    if (error) throw new Error(error.message);
+    const m = data as { old_starts_at: string; old_ends_at: string; ends_at: string; enrollment_id: string; access_loaded: boolean };
+    return {
+      oldStartsAt: m.old_starts_at,
+      oldEndsAt: m.old_ends_at,
+      endsAt: m.ends_at,
+      enrollmentId: m.enrollment_id,
+      accessLoaded: m.access_loaded,
+    };
+  }
+
   async practiceRedemptions(enrollmentId: string) {
     const { data, error } = await this.db
       .from("course_practice_redemptions")
-      .select("id, reservation_id, hours, released_at, reservations(starts_at, ends_at)")
+      .select(
+        "id, reservation_id, hours, released_at, reservations(starts_at, ends_at, access_code, access_loaded_at, access_removed_at)",
+      )
       .eq("enrollment_id", enrollmentId)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
@@ -705,6 +724,7 @@ export class SupabaseCourseRepository
       startsAt: r.reservations?.starts_at ?? null,
       endsAt: r.reservations?.ends_at ?? null,
       releasedAt: r.released_at,
+      accessLoaded: !!r.reservations?.access_code && !!r.reservations.access_loaded_at && !r.reservations.access_removed_at,
     }));
   }
 

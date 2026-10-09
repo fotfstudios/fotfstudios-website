@@ -21,7 +21,7 @@ import {
 } from "@/src/composition";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
-import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { currentClaims, requirePermission } from "@/src/infrastructure/auth/require-admin";
 import { PRECIOS, SESIONES } from "@/lib/curso-content";
 import {
   courseMoveError,
@@ -30,6 +30,7 @@ import {
   parseProgramSchedule,
   parseSessionMove,
   parseSessionNumber,
+  practiceMoveError,
 } from "@/lib/course-admin";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -702,6 +703,46 @@ function practiceErrorMessage(raw: string): string {
   if (/practica_no_elegible/.test(raw)) return "Solo una inscripción pagada tiene horas de práctica.";
   if (/practica_vencida/.test(raw)) return "Ese día queda fuera del plazo de las horas de práctica.";
   return "No se pudo agendar la práctica.";
+}
+
+/**
+ * Mueve una práctica a otro día u hora: misma duración (el RPC calcula el fin) y mismo
+ * saldo. La llaman la ficha del alumno y la de la reserva. Después del RPC avisa al dueño y
+ * al alumno, best-effort: un aviso que falla no deshace el cambio.
+ */
+export async function movePracticeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("course.manage");
+    const reservationId = str(fd, "reservationId");
+    const date = str(fd, "date");
+    const startMinute = str(fd, "startMinute") === "" ? NaN : num(fd, "startMinute");
+    if (!DATE_RE.test(date)) throw new Error("Elige un día.");
+    if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Elige una hora.");
+
+    const resource = await adminRepository().defaultResource();
+    if (!resource) throw new Error("No hay sala configurada.");
+    // Solo el inicio: la duración la pone el RPC con la de la reserva.
+    const { startsAt } = rangeFor(date, startMinute, 1, resource.timezone);
+    const createdBy = (await currentClaims())?.sub ?? null;
+
+    let moved: Awaited<ReturnType<ReturnType<typeof courseRepository>["movePractice"]>>;
+    try {
+      moved = await courseRepository().movePractice(reservationId, startsAt, createdBy);
+    } catch (e) {
+      throw new Error(practiceMoveError(e instanceof Error ? e.message : ""));
+    }
+    await notificationService()
+      .notifyPracticeMoved({
+        reservationId,
+        oldStartsAt: moved.oldStartsAt,
+        oldEndsAt: moved.oldEndsAt,
+        accessLoaded: moved.accessLoaded,
+      })
+      .catch((e) => console.error("[curso:practica:mover:aviso]", reservationId, e));
+    revalidatePath(`/admin/curso/inscripciones/${moved.enrollmentId}`);
+    revalidatePath(`/admin/reservas/${reservationId}`);
+    revalidatePath("/admin/agenda");
+  });
 }
 
 /** Cancela una práctica agendada y devuelve la hora al saldo. */
