@@ -1060,6 +1060,9 @@ isOneToOne: false
 "move_course_session":
 { Args: { "p_created_by"?: string,"p_ends": string,"p_session": string,"p_starts": string }; Returns: undefined
                            },
+"move_trial_reservation":
+{ Args: { "p_created_by"?: string,"p_ends": string,"p_reservation": string,"p_starts": string }; Returns: Json
+                           },
 "newsletter_subscribe":
 { Args: { "p_email": string,"p_referrer_host"?: string,"p_source": string,"p_utm_campaign"?: string,"p_utm_content"?: string,"p_utm_medium"?: string,"p_utm_source"?: string,"p_utm_term"?: string }; Returns: {
               "id": string,"unsubscribe_token": string,"welcome": boolean
