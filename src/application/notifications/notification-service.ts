@@ -160,16 +160,20 @@ export class NotificationService {
 
     if (o.email) {
       // La reserva al bolsillo: recibo público (sin login), Google Calendar y el .ics
-      // adjunto (Apple Mail / Gmail lo ofrecen como evento), más la cuenta.
+      // adjunto (Apple Mail / Gmail lo ofrecen como evento), más la cuenta. Una prueba del
+      // curso es guiada: su evento no promete código de acceso.
+      const ev =
+        o.startsAt && o.endsAt
+          ? o.kind === "trial"
+            ? this.trialCalendarEvent(orderId, o.startsAt, o.endsAt)
+            : this.calendarEvent(orderId, o.startsAt, o.endsAt)
+          : null;
       const links = {
         statusUrl: `${this.config.siteUrl}/reserva/estado?b=${orderId}`,
-        calendarUrl: o.startsAt && o.endsAt ? googleCalendarUrl(this.calendarEvent(orderId, o.startsAt, o.endsAt)) : this.config.siteUrl,
+        calendarUrl: ev ? googleCalendarUrl(ev) : this.config.siteUrl,
         accountUrl: `${this.config.siteUrl}/cuenta`,
       };
-      const attachments =
-        o.startsAt && o.endsAt
-          ? [{ filename: "reserva-fotf.ics", content: buildIcs(this.calendarEvent(orderId, o.startsAt, o.endsAt)) }]
-          : undefined;
+      const attachments = ev ? [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }] : undefined;
       const ctx = { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links };
       try {
         await this.mailer.send({
@@ -891,13 +895,8 @@ export class NotificationService {
       }
     }
     if (o.email) {
-      // Mismo uid que la confirmación (notifyOrder → calendarEvent(orderId)): el calendario
-      // ACTUALIZA el evento. Con el texto de la prueba: guiada, sin código de acceso.
-      const ev = {
-        ...this.calendarEvent(input.orderId, o.startsAt, o.endsAt),
-        summary: "FOTF Studios — Prueba del Curso de DJ",
-        description: GUIADA,
-      };
+      // Mismo evento (y uid) que la confirmación: el calendario lo ACTUALIZA.
+      const ev = this.trialCalendarEvent(input.orderId, o.startsAt, o.endsAt);
       try {
         await this.mailer.send({
           to: o.email,
@@ -1121,6 +1120,15 @@ export class NotificationService {
       await this.mailer.send({ to: input.email, ...practiceReleased({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx) });
     }
     return true;
+  }
+
+  /**
+   * Evento de la prueba del curso: mismo uid que el de la sala (`fotf-${orderId}`), pero con
+   * su título y guiada — sin la promesa del código de acceso. Lo usan la confirmación y el
+   * aviso de prueba movida, así el calendario actualiza siempre el mismo evento.
+   */
+  private trialCalendarEvent(orderId: string, startsAt: string, endsAt: string) {
+    return { ...this.calendarEvent(orderId, startsAt, endsAt), summary: "FOTF Studios — Prueba del Curso de DJ", description: GUIADA };
   }
 
   private calendarEvent(key: string, startsAt: string, endsAt: string, orderId: string | null = key) {

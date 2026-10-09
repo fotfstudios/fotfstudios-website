@@ -163,3 +163,25 @@ describe("notifyTrialRescheduled — WhatsApp", () => {
     expect(await b.service.notifyTrialRescheduled(input)).toEqual({ owner: true, customer: true });
   });
 });
+
+describe("el evento de calendario de la prueba (confirmación)", () => {
+  const icsTo = async (o: OrderEmailData) => {
+    const { service, mailer } = make({ order: o, ownerEmail: "" });
+    expect(await service.notifyOrder("o1")).toBe(true);
+    return mailTo(mailer, o.email!)!;
+  };
+
+  it("la confirmación de una prueba no promete código de acceso y usa el mismo evento que el aviso de movida", async () => {
+    const m = await icsTo(order({ notifiedAt: null }));
+    const ics = m.attachments![0].content;
+    expect(ics).toContain("UID:fotf-o1@fotfstudios.cl");
+    expect(ics).toContain("SUMMARY:FOTF Studios — Prueba del Curso de DJ");
+    expect(ics).not.toContain("código de acceso");
+  });
+
+  it("una reserva de sala sigue avisando el código de acceso", async () => {
+    const m = await icsTo(order({ kind: "booking", notifiedAt: null }));
+    expect(m.attachments![0].content).toContain("SUMMARY:FOTF Studios — Sala");
+    expect(m.attachments![0].content).toContain("código de acceso");
+  });
+});
