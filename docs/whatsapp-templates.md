@@ -126,6 +126,25 @@ Botón URL (dinámico): texto **Ver mi reserva**, misma URL que `fotf_reserva_co
 
 ---
 
+### `fotf_prueba_curso_movida`
+
+Evento `trial_rescheduled`. Sale cuando el estudio mueve la sesión de prueba del Curso de DJ a otra
+hora (`/admin/reservas/[id]` → Mover prueba). La prueba es guiada: no promete código de acceso.
+
+```body
+Hola {{nombre}}, movimos tu prueba del Curso de DJ en FOTF Studios. Antes: {{antes}}. Ahora: {{ahora}}.
+
+Te recibimos en la puerta, no necesitas código. Si no puedes venir, respóndenos por acá.
+```
+
+| Parámetro | Ejemplo |
+|---|---|
+| nombre | Camila |
+| antes | jueves 8 de octubre, 18:00–19:00 |
+| ahora | viernes 9 de octubre, 16:00–17:00 |
+
+Botón URL (dinámico): igual que `fotf_reserva_confirmada`.
+
 ## Dueño (`OWNER_WHATSAPP`)
 
 ### `fotf_admin_nueva_reserva`
@@ -194,6 +213,22 @@ Nuevo contacto en FOTF Studios desde {{origen}}: {{nombre}}, {{contacto}}. Resp�
 | contacto | camila@example.com · +56 9 1234 5678 |
 
 Sin botón.
+
+### `fotf_admin_prueba_curso_movida`
+
+Evento `owner_trial_rescheduled`. Sale cuando se mueve una prueba del Curso de DJ desde el panel.
+
+```body
+Prueba del curso movida: {{cliente}}. Antes: {{antes}}. Ahora: {{ahora}}. Es guiada, sin PIN.
+```
+
+| Parámetro | Ejemplo |
+|---|---|
+| cliente | Camila Rojas |
+| antes | jueves 8 de octubre, 18:00–19:00 |
+| ahora | viernes 9 de octubre, 16:00–17:00 |
+
+Botón URL (dinámico): igual que `fotf_admin_nueva_reserva`.
 
 ### `fotf_prueba`
 

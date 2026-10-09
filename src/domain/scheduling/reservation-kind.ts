@@ -48,7 +48,8 @@ export function isTrialSession(kind: string): boolean {
 
 /**
  * ¿Se puede reagendar por los RPC de reagendamiento? Solo la reserva de sala: esos RPC
- * son de `booking` (una prueba se cancela y se vuelve a crear).
+ * son de `booking` (precio, deltas, boletas). Una prueba se mueve solo de hora con
+ * `move_trial_reservation` (/admin/reservas/[id] → Mover prueba), sin plata de por medio.
  */
 export function canReschedule(kind: string): boolean {
   return kind === "booking";

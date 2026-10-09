@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification, ownerTrialRescheduled, trialRescheduled } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -615,6 +615,7 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["customerPaymentNoSlot", () => customerPaymentNoSlot({ name: null, when, total: "$1" }, { whatsappUrl: wa }).subject],
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
     ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
+    ["trialRescheduled", () => trialRescheduled({ name: null, before: "jueves 10 de septiembre, 09:00–10:00 h", after: when }, { ...place, whatsappUrl: wa, calendarUrl: "c" }).subject],
     ["bookingPaymentReminder", () => bookingPaymentReminder({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
   ];
 
@@ -970,5 +971,31 @@ describe("agenda del curso — escapan lo que viene del admin", () => {
       practiceReleased({ name: evil, when: "x", hoursLeft: 2 }, ctx),
     ];
     for (const o of outs) expect(o.html).not.toContain(evil);
+  });
+});
+
+describe("prueba del curso movida", () => {
+  const ctx = { address: "Los Chercanes 78a", mapsUrl: "https://maps", whatsappUrl: "https://wa.me/1", calendarUrl: "https://cal" };
+  const evil = "<b>x</b>";
+  const owner = (over = {}) =>
+    ownerTrialRescheduled({ name: "Ana", email: "ana@e.cl", phone: null, before: "a", after: "b", adminUrl: "https://x/admin/reservas/r1", ...over });
+
+  it("cliente: antes tachado, ahora, guiada y sin promesa de PIN; sin nombre no queda 'Hola ,'", () => {
+    const m = trialRescheduled({ name: null, before: "a", after: "b" }, ctx);
+    expect(m.html).toContain("Movimos tu sesión de prueba");
+    expect(m.html).not.toContain("Hola ,");
+    expect(m.text).toContain("Antes: a. Ahora: b.");
+    expect(m.html).not.toMatch(/código de acceso te llega/);
+  });
+
+  it("dueño: contacto sin teléfono no deja un separador colgando", () => {
+    expect(owner().html).toContain("ana@e.cl</p>");
+    expect(owner({ phone: "+56912345678" }).html).toContain("ana@e.cl · +56912345678");
+    expect(owner({ email: null }).html).toContain("sin email");
+  });
+
+  it("escapan nombre y contacto", () => {
+    expect(trialRescheduled({ name: evil, before: evil, after: evil }, ctx).html).not.toContain(evil);
+    expect(owner({ name: evil, email: evil, phone: evil, before: evil, after: evil }).html).not.toContain(evil);
   });
 });
