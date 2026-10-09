@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification, ownerTrialRescheduled, trialRescheduled } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification, ownerTrialRescheduled, trialRescheduled, practiceMoved, ownerPracticeMoved } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -616,6 +616,7 @@ describe("asuntos de cliente con la fecha de la sesión", () => {
     ["bookingPaymentPending", () => bookingPaymentPending({ name: null, when, total: "$1", initPoint: "i", expiresInHours: 72 }, { termsUrl: "t", whatsappUrl: wa }).subject],
     ["bookingHeldPending", () => bookingHeldPending({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
     ["trialRescheduled", () => trialRescheduled({ name: null, before: "jueves 10 de septiembre, 09:00–10:00 h", after: when }, { ...place, whatsappUrl: wa, calendarUrl: "c" }).subject],
+    ["practiceMoved", () => practiceMoved({ name: null, before: "jueves 10 de septiembre, 09:00–10:00 h", after: when }, { ...place, whatsappUrl: wa, courseUrl: "c" }).subject],
     ["bookingPaymentReminder", () => bookingPaymentReminder({ name: null, when, total: "$1", payBy: "f" }, { termsUrl: "t", whatsappUrl: wa, transfer: TRANSFER }).subject],
   ];
 
@@ -996,6 +997,36 @@ describe("prueba del curso movida", () => {
 
   it("escapan nombre y contacto", () => {
     expect(trialRescheduled({ name: evil, before: evil, after: evil }, ctx).html).not.toContain(evil);
+    expect(owner({ name: evil, email: evil, phone: evil, before: evil, after: evil }).html).not.toContain(evil);
+  });
+});
+
+describe("práctica movida", () => {
+  const ctx = { address: "Los Chercanes 78a", mapsUrl: "https://maps", whatsappUrl: "https://wa.me/1", courseUrl: "https://x/cuenta/curso" };
+  const evil = "<b>x</b>";
+  const owner = (over = {}) =>
+    ownerPracticeMoved({
+      name: "Ana", email: "ana@e.cl", phone: null, before: "a", after: "b", accessLoaded: true,
+      adminUrl: "https://x/admin/reservas/r1", ...over,
+    });
+
+  it("alumno: antes → ahora, saldo intacto y el PIN llega antes del nuevo horario; sin nombre no queda 'Hola ,'", () => {
+    const m = practiceMoved({ name: null, before: "a", after: "b" }, ctx);
+    expect(m.html).toContain("Movimos tu práctica libre");
+    expect(m.html).not.toContain("Hola ,");
+    expect(m.text).toContain("Antes: a. Ahora: b.");
+    expect(m.text).toContain("Las horas de tu saldo no cambian");
+    expect(m.text).toContain("10 minutos antes del nuevo horario");
+  });
+
+  it("dueño: dice si hay que tocar la cerradura", () => {
+    expect(owner().text).toContain("El PIN sigue cargado en la cerradura: no hay que tocarla");
+    expect(owner({ accessLoaded: false }).text).toContain("El PIN todavía no está cargado");
+    expect(owner({ phone: "+56912345678" }).html).toContain("ana@e.cl · +56912345678");
+  });
+
+  it("escapan nombre y contacto", () => {
+    expect(practiceMoved({ name: evil, before: evil, after: evil }, ctx).html).not.toContain(evil);
     expect(owner({ name: evil, email: evil, phone: evil, before: evil, after: evil }).html).not.toContain(evil);
   });
 });

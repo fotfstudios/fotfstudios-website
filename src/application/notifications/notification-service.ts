@@ -38,6 +38,8 @@ import {
   courseSessionCancelled,
   practiceBooked,
   practiceReleased,
+  practiceMoved,
+  ownerPracticeMoved,
   GUIADA,
   trialReminder,
   trialFollowUp,
@@ -1120,6 +1122,81 @@ export class NotificationService {
       await this.mailer.send({ to: input.email, ...practiceReleased({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx) });
     }
     return true;
+  }
+
+  /**
+   * Hora de práctica movida desde el admin (move_practice_reservation): al DUEÑO y al ALUMNO,
+   * por correo y por WhatsApp. Best-effort y después del RPC: el contacto y el horario NUEVO
+   * salen de la reserva. Primero el dueño y cada envío por separado. `accessLoaded` le dice al
+   * dueño si la cerradura se toca (la Yale no tiene ventana horaria: un PIN cargado sigue abriendo).
+   */
+  async notifyPracticeMoved(input: {
+    reservationId: string;
+    oldStartsAt: string;
+    oldEndsAt: string | null;
+    accessLoaded: boolean;
+  }): Promise<{ owner: boolean; customer: boolean }> {
+    const sent = { owner: false, customer: false };
+    const c = await this.repo.getReservationContact(input.reservationId);
+    if (!c) return sent;
+    const before = this.when(input.oldStartsAt, input.oldEndsAt);
+    const after = this.when(c.startsAt, c.endsAt);
+
+    if (this.config.ownerEmail) {
+      try {
+        await this.mailer.send({
+          to: this.config.ownerEmail,
+          ...ownerPracticeMoved({
+            name: c.name,
+            email: c.email,
+            phone: c.phone,
+            before,
+            after,
+            accessLoaded: input.accessLoaded,
+            adminUrl: `${this.config.siteUrl}/admin/reservas/${input.reservationId}`,
+          }),
+        });
+        sent.owner = true;
+      } catch (e) {
+        console.error("[notify:practice-moved:owner]", input.reservationId, e);
+      }
+    }
+    if (c.email) {
+      // Mismo evento (y uid) que practiceBooked: el calendario lo ACTUALIZA.
+      const ev = this.calendarEvent(`r-${input.reservationId}`, c.startsAt, c.endsAt, null);
+      try {
+        await this.mailer.send({
+          to: c.email,
+          ...practiceMoved({ name: c.name, before, after }, this.courseCtx()),
+          attachments: [{ filename: "practica-fotf.ics", content: buildIcs(ev) }],
+        });
+        sent.customer = true;
+      } catch (e) {
+        console.error("[notify:practice-moved:customer]", input.reservationId, e);
+      }
+    }
+    // Una práctica puede moverse varias veces: la clave lleva el horario nuevo.
+    await this.waOwner(
+      "owner_practice_moved",
+      {
+        cliente: c.name ?? c.email ?? "",
+        antes: before,
+        ahora: after,
+        pin: input.accessLoaded ? "sigue cargado, no hay que tocar la cerradura" : "falta cargarlo en la cerradura",
+      },
+      {
+        dedupeKey: `owner_practice_moved:${input.reservationId}:${c.startsAt}`,
+        expiresAt: new Date(Date.now() + OWNER_ALERT_TTL_MS),
+        buttonSuffix: input.reservationId,
+        entity: { kind: "reservation", id: input.reservationId },
+      },
+    );
+    await this.waCustomer(c, "practice_moved", { nombre: c.name ?? "", antes: before, ahora: after }, {
+      dedupeKey: `practice_moved:${input.reservationId}:${c.startsAt}`,
+      expiresAt: c.startsAt,
+      entity: { kind: "reservation", id: input.reservationId },
+    });
+    return sent;
   }
 
   /**

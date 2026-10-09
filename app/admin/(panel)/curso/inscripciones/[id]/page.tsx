@@ -174,6 +174,8 @@ export default async function InscripcionPage({ params }: { params: Promise<{ id
               redeemed={inscripcion.practiceHoursRedeemed}
               redemptions={practicas}
               tz={resource?.timezone ?? "America/Santiago"}
+              studentName={inscripcion.studentName}
+              studentEmail={inscripcion.studentEmail}
             />
           )}
 

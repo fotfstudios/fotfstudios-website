@@ -280,6 +280,26 @@ export function practiceBooked(
   return { template: "practiceBooked", subject: `Práctica libre agendada · ${v.when}`, html, text };
 }
 
+/** Hora de práctica movida a otro horario (la movió el estudio). Entra solo: PIN 10 min antes. */
+export function practiceMoved(
+  v: { name: string | null; before: string; after: string },
+  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Movimos tu práctica libre</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} práctica cambió de horario. Las horas de tu saldo no cambian.</p>
+     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
+     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
+     <p style="color:${T.boneDim};margin:16px 0">Entras solo: tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario</strong> (revisa spam).</p>
+     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
+     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
+    `Nuevo horario: ${v.after}`,
+  );
+  const text = `Movimos tu práctica libre. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. Las horas de tu saldo no cambian. Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario (revisa spam). Ver mi curso: ${ctx.courseUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "practiceMoved", subject: `Práctica libre: nuevo horario · ${v.after}`, html, text };
+}
+
 /** Hora de práctica cancelada: vuelve al saldo. */
 export function practiceReleased(
   v: { name: string | null; when: string; hoursLeft: number },
@@ -1193,6 +1213,37 @@ export function ownerNotification(
   );
   const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}`;
   return { template: "ownerNotification", subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} — ${v.when}`, html, text };
+}
+
+/**
+ * Email al dueño: una hora de práctica cambió de horario. Lo accionable es el PIN: si ya
+ * estaba cargado, la cerradura no se toca (la Yale no tiene ventana horaria); si no, queda
+ * por cargar como siempre. Registro, no urgencia (sin Sirena).
+ */
+export function ownerPracticeMoved(v: {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  before: string;
+  after: string;
+  accessLoaded: boolean;
+  adminUrl: string;
+}): EmailContent {
+  const contact = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
+  const pin = v.accessLoaded
+    ? "El PIN sigue cargado en la cerradura: no hay que tocarla. Se le vuelve a mandar 10 minutos antes del nuevo horario."
+    : "El PIN todavía no está cargado: cárgalo antes del nuevo horario (Cerradura → Por cargar).";
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Práctica del curso movida</h1>
+     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
+     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
+     <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Alumno")} · ${esc(contact)}</p>
+     <p style="color:${T.gold};margin:0 0 16px">${pin}</p>
+     <p style="margin:0"><a href="${esc(v.adminUrl)}" style="color:${T.gold};font-weight:bold">Ver la reserva</a></p>`,
+    `${v.name ?? "Alumno"}: ${v.before} → ${v.after}`,
+  );
+  const text = `Práctica del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Alumno"} · ${contact}. ${pin} Ver la reserva: ${v.adminUrl}`;
+  return { template: "ownerPracticeMoved", subject: `Práctica del curso movida — ${v.after}`, html, text };
 }
 
 /** Email al dueño: una prueba del curso cambió de hora. Registro, no urgencia (sin Sirena). */

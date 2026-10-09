@@ -81,6 +81,20 @@ export function courseScheduleError(raw: string): string {
   return "No se pudieron agendar las sesiones.";
 }
 
+/**
+ * Errores de mover una hora de práctica (RPC `move_practice_reservation`). Cualquier otro
+ * texto (red, Postgres) cae en el genérico: nunca se muestra crudo.
+ */
+export function practiceMoveError(raw: string): string {
+  if (/practica_slot_taken/.test(raw)) return "Ese horario choca con otra reserva o bloqueo.";
+  if (/practica_en_pasado/.test(raw)) return "Ese horario ya pasó.";
+  if (/practica_mismo_horario/.test(raw)) return "La práctica ya está en ese horario.";
+  if (/practica_vencida/.test(raw)) return "Ese día queda fuera del plazo de las horas de práctica.";
+  if (/practica_no_elegible/.test(raw)) return "La inscripción ya no está pagada: no se puede mover la práctica.";
+  if (/practica_no_movible/.test(raw)) return "Esta práctica ya no se puede mover (está cancelada).";
+  return "No se pudo mover la práctica.";
+}
+
 /** Errores de mover / re-agendar una sesión. */
 export function courseMoveError(raw: string): string {
   if (/curso_slot_taken/.test(raw)) return "Ese horario choca con otra reserva o bloqueo.";
