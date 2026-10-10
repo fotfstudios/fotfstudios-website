@@ -27,6 +27,7 @@ export type Database = {
                   Row: {
                     "active": boolean,"amount_clp": number,"id": string,"key": string,"kind": string,"name": string,"rate_plan_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "active"?: boolean,"amount_clp": number,"id"?: string,"key": string,"kind"?: string,"name": string,"rate_plan_id": string
                   }
@@ -46,6 +47,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"email": string,"id": string,"invited_by": string | null,"role_id": string,"status": string,"user_id": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"email": string,"id"?: string,"invited_by"?: string | null,"role_id": string,"status"?: string,"user_id"?: string | null
                   }
@@ -65,6 +67,7 @@ isOneToOne: false
                   Row: {
                     "key": string,"label": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "key": string,"label": string
                   }
@@ -78,6 +81,7 @@ isOneToOne: false
                   Row: {
                     "permission": string,"role_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "permission": string,"role_id": string
                   }
@@ -103,6 +107,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"id": string,"is_system": boolean,"key": string,"name": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"id"?: string,"is_system"?: boolean,"key": string,"name": string
                   }
@@ -116,6 +121,7 @@ isOneToOne: false
                   Row: {
                     "expiry_from": string,"expiry_months": number,"id": boolean
                   }
+                  ComputedFields: never
                   Insert: {
                     "expiry_from": string,"expiry_months"?: number,"id"?: boolean
                   }
@@ -129,6 +135,7 @@ isOneToOne: false
                   Row: {
                     "amount_clp": number | null,"category": string,"created_at": string,"created_by": string | null,"detail": Json | null,"id": string,"occurred_at": string,"order_id": string | null,"payment_ref": string | null,"reschedule_id": string | null,"reservation_id": string,"seq": number,"tax_document_id": string | null,"type": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount_clp"?: number | null,"category": string,"created_at"?: string,"created_by"?: string | null,"detail"?: Json | null,"id"?: string,"occurred_at"?: string,"order_id"?: string | null,"payment_ref"?: string | null,"reschedule_id"?: string | null,"reservation_id": string,"seq"?: never,"tax_document_id"?: string | null,"type": string
                   }
@@ -166,6 +173,7 @@ isOneToOne: false
                   Row: {
                     "attempts": number,"created_at": string,"google_event_id": string | null,"last_error": string | null,"last_fingerprint": string | null,"last_synced_at": string | null,"locked_at": string | null,"next_attempt_at": string,"op": string,"pending": boolean,"reservation_id": string,"updated_at": string,"version": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "attempts"?: number,"created_at"?: string,"google_event_id"?: string | null,"last_error"?: string | null,"last_fingerprint"?: string | null,"last_synced_at"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"op"?: string,"pending"?: boolean,"reservation_id": string,"updated_at"?: string,"version"?: number
                   }
@@ -179,6 +187,7 @@ isOneToOne: false
                   Row: {
                     "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"expiry_reminder_sent_at": string | null,"extended_count": number,"followup_sent_at": string | null,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null,"voided_at": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount_clp": number,"consumed_at"?: string | null,"consumed_order_id"?: string | null,"email": string,"expires_at": string,"expiry_reminder_sent_at"?: string | null,"extended_count"?: number,"followup_sent_at"?: string | null,"id"?: string,"issued_at"?: string,"note"?: string | null,"source_reservation_id"?: string | null,"voided_at"?: string | null
                   }
@@ -204,6 +213,7 @@ isOneToOne: false
                   Row: {
                     "cancelled_at": string | null,"created_at": string,"customer_id": string | null,"expires_at": string | null,"generation_id": string,"id": string,"lead_id": string | null,"notes": string | null,"order_id": string | null,"paid_at": string | null,"paid_method": string | null,"plan": string,"practice_hours_redeemed": number,"practice_hours_total": number,"price_clp": number,"seat_no": number,"status": string,"student_email": string,"student_name": string,"student_phone": string | null,"transferred_to": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "cancelled_at"?: string | null,"created_at"?: string,"customer_id"?: string | null,"expires_at"?: string | null,"generation_id": string,"id"?: string,"lead_id"?: string | null,"notes"?: string | null,"order_id"?: string | null,"paid_at"?: string | null,"paid_method"?: string | null,"plan": string,"practice_hours_redeemed"?: number,"practice_hours_total"?: number,"price_clp": number,"seat_no": number,"status"?: string,"student_email": string,"student_name": string,"student_phone"?: string | null,"transferred_to"?: string | null
                   }
@@ -247,6 +257,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"created_at": string,"currency": string,"enroll_deadline": string | null,"id": string,"instructor": string | null,"kind": string,"name": string,"notes": string | null,"practice_hours_per_seat": number,"practice_valid_until": string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label": string | null,"resource_id": string,"seats": number,"starts_on": string | null,"status": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"created_at"?: string,"currency"?: string,"enroll_deadline"?: string | null,"id"?: string,"instructor"?: string | null,"kind"?: string,"name": string,"notes"?: string | null,"practice_hours_per_seat"?: number,"practice_valid_until"?: string | null,"price_duo_clp": number,"price_individual_clp": number,"price_prueba_clp": number,"pricing_label"?: string | null,"resource_id": string,"seats"?: number,"starts_on"?: string | null,"status"?: string
                   }
@@ -266,6 +277,7 @@ isOneToOne: false
                   Row: {
                     "availability": string,"created_at": string,"email": string,"experience": string,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"status": string,"trial_reservation_id": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "availability": string,"created_at"?: string,"email": string,"experience": string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"status"?: string,"trial_reservation_id"?: string | null
                   }
@@ -291,6 +303,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"enrollment_id": string,"hours": number,"id": string,"released_at": string | null,"reservation_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"enrollment_id": string,"hours": number,"id"?: string,"released_at"?: string | null,"reservation_id": string
                   }
@@ -316,6 +329,7 @@ isOneToOne: true
                   Row: {
                     "created_at": string,"generation_id": string,"id": string,"instructor": string | null,"n": number,"reservation_id": string | null,"status": string,"title": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"generation_id": string,"id"?: string,"instructor"?: string | null,"n": number,"reservation_id"?: string | null,"status"?: string,"title": string
                   }
@@ -341,6 +355,7 @@ isOneToOne: true
                   Row: {
                     "auth_user_id": string | null,"created_at": string,"email": string | null,"email_digest_opt_out_at": string | null,"email_unsubscribe_token": string,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_activity_at": string | null,"points_balance": number,"points_digest_sent_at": string | null,"points_expired_notice_at": string | null,"points_expiry_notice_30_at": string | null,"points_expiry_notice_7_at": string | null,"points_last_expired_amount": number | null,"points_last_expired_at": string | null,"points_launch_queued_at": string | null,"points_launch_sent_at": string | null,"points_protected": number,"updated_at": string,"whatsapp_opt_in": boolean,"whatsapp_opt_in_at": string | null,"whatsapp_opt_in_source": string | null,"whatsapp_opt_out_at": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"email_digest_opt_out_at"?: string | null,"email_unsubscribe_token"?: string,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_activity_at"?: string | null,"points_balance"?: number,"points_digest_sent_at"?: string | null,"points_expired_notice_at"?: string | null,"points_expiry_notice_30_at"?: string | null,"points_expiry_notice_7_at"?: string | null,"points_last_expired_amount"?: number | null,"points_last_expired_at"?: string | null,"points_launch_queued_at"?: string | null,"points_launch_sent_at"?: string | null,"points_protected"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
                   }
@@ -354,6 +369,7 @@ isOneToOne: true
                   Row: {
                     "availability": string,"created_at": string,"email": string,"genres": string | null,"id": string,"instagram": string | null,"mix_url": string,"name": string,"phone": string,"pitch": string,"session_format": string,"status": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "availability": string,"created_at"?: string,"email": string,"genres"?: string | null,"id"?: string,"instagram"?: string | null,"mix_url": string,"name": string,"phone": string,"pitch": string,"session_format": string,"status"?: string
                   }
@@ -367,6 +383,7 @@ isOneToOne: true
                   Row: {
                     "brand": string,"category": string,"created_at": string,"created_by": string | null,"id": string,"location_id": string,"model": string,"nickname": string | null,"notes": string | null,"purchase_price_clp": number | null,"purchased_at": string | null,"quantity": number,"resource_id": string | null,"serial_number": string | null,"spot": string | null,"status": string,"updated_at": string,"vendor": string | null,"warranty_until": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "brand": string,"category": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location_id": string,"model": string,"nickname"?: string | null,"notes"?: string | null,"purchase_price_clp"?: number | null,"purchased_at"?: string | null,"quantity"?: number,"resource_id"?: string | null,"serial_number"?: string | null,"spot"?: string | null,"status"?: string,"updated_at"?: string,"vendor"?: string | null,"warranty_until"?: string | null
                   }
@@ -392,6 +409,7 @@ isOneToOne: false
                   Row: {
                     "from_location_id": string | null,"from_resource_id": string | null,"from_spot": string | null,"from_status": string | null,"id": string,"item_id": string,"moved_at": string,"moved_by": string | null,"note": string | null,"quantity": number,"split_from_item_id": string | null,"to_location_id": string,"to_resource_id": string | null,"to_spot": string | null,"to_status": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "from_location_id"?: string | null,"from_resource_id"?: string | null,"from_spot"?: string | null,"from_status"?: string | null,"id"?: string,"item_id": string,"moved_at"?: string,"moved_by"?: string | null,"note"?: string | null,"quantity": number,"split_from_item_id"?: string | null,"to_location_id": string,"to_resource_id"?: string | null,"to_spot"?: string | null,"to_status": string
                   }
@@ -441,6 +459,7 @@ isOneToOne: false
                   Row: {
                     "consent_at": string,"created_at": string,"download_token": string,"email": string,"guide_slug": string,"id": string,"last_downloaded_at": string | null,"last_requested_at": string,"referrer_host": string | null,"request_count": number,"source": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "consent_at"?: string,"created_at"?: string,"download_token"?: string,"email": string,"guide_slug"?: string,"id"?: string,"last_downloaded_at"?: string | null,"last_requested_at"?: string,"referrer_host"?: string | null,"request_count"?: number,"source": string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
                   }
@@ -454,6 +473,7 @@ isOneToOne: false
                   Row: {
                     "active": boolean,"address": string | null,"created_at": string,"id": string,"name": string,"slug": string,"timezone": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "active"?: boolean,"address"?: string | null,"created_at"?: string,"id"?: string,"name": string,"slug": string,"timezone"?: string
                   }
@@ -467,6 +487,7 @@ isOneToOne: false
                   Row: {
                     "consent_at": string,"created_at": string,"email": string,"id": string,"referrer_host": string | null,"request_count": number,"source": string,"unsubscribe_token": string,"unsubscribed_at": string | null,"updated_at": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "consent_at"?: string,"created_at"?: string,"email": string,"id"?: string,"referrer_host"?: string | null,"request_count"?: number,"source": string,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
                   }
@@ -480,6 +501,7 @@ isOneToOne: false
                   Row: {
                     "channel": string,"created_at": string,"error": string | null,"id": string,"ok": boolean,"recipient": string,"subject": string,"template": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "channel"?: string,"created_at"?: string,"error"?: string | null,"id"?: string,"ok": boolean,"recipient": string,"subject": string,"template": string
                   }
@@ -493,6 +515,7 @@ isOneToOne: false
                   Row: {
                     "close_minute": number,"id": string,"open_minute": number,"resource_id": string,"weekday": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "close_minute": number,"id"?: string,"open_minute": number,"resource_id": string,"weekday": number
                   }
@@ -512,6 +535,7 @@ isOneToOne: false
                   Row: {
                     "addon_key": string | null,"description": string,"id": string,"line_type": string,"order_id": string,"quantity": number,"reservation_id": string | null,"subtotal_clp": number,"unit_price_clp": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "addon_key"?: string | null,"description": string,"id"?: string,"line_type": string,"order_id": string,"quantity"?: number,"reservation_id"?: string | null,"subtotal_clp": number,"unit_price_clp": number
                   }
@@ -537,6 +561,7 @@ isOneToOne: false
                   Row: {
                     "amount_clp": number,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"id": string,"kind": string,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_method": string | null,"payment_reminder_sent_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount_clp": number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null
                   }
@@ -556,6 +581,7 @@ isOneToOne: false
                   Row: {
                     "amount_clp": number,"created_at": string,"currency": string,"id": string,"idempotency_key": string | null,"init_point": string | null,"order_id": string,"payment_id": string | null,"preference_id": string | null,"provider": string,"status": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount_clp": number,"created_at"?: string,"currency"?: string,"id"?: string,"idempotency_key"?: string | null,"init_point"?: string | null,"order_id": string,"payment_id"?: string | null,"preference_id"?: string | null,"provider"?: string,"status"?: string
                   }
@@ -575,6 +601,7 @@ isOneToOne: false
                   Row: {
                     "amount": number,"created_at": string,"customer_id": string,"id": string,"kind": Database["public"]['Enums']["points_entry_kind"],"order_id": string | null,"ref": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount": number,"created_at"?: string,"customer_id": string,"id"?: string,"kind": Database["public"]['Enums']["points_entry_kind"],"order_id"?: string | null,"ref"?: string
                   }
@@ -600,6 +627,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"id": string,"name": string,"status": Database["public"]['Enums']["price_book_status"],"valid_from": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"id"?: string,"name": string,"status"?: Database["public"]['Enums']["price_book_status"],"valid_from"?: string
                   }
@@ -613,6 +641,7 @@ isOneToOne: false
                   Row: {
                     "bucket_key": string,"count": number,"expires_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "bucket_key": string,"count"?: number,"expires_at": string
                   }
@@ -626,6 +655,7 @@ isOneToOne: false
                   Row: {
                     "currency": string,"id": string,"min_hours": number,"price_book_id": string,"resource_id": string,"rounding_increment": number,"step_hours": number,"tax_mode": Database["public"]['Enums']["tax_mode"]
                   }
+                  ComputedFields: never
                   Insert: {
                     "currency"?: string,"id"?: string,"min_hours"?: number,"price_book_id": string,"resource_id": string,"rounding_increment"?: number,"step_hours"?: number,"tax_mode"?: Database["public"]['Enums']["tax_mode"]
                   }
@@ -651,6 +681,7 @@ isOneToOne: false
                   Row: {
                     "amount_clp": number,"end_minute": number,"id": string,"key": string,"priority": number,"rate_plan_id": string,"start_minute": number,"weekdays": (number)[]
                   }
+                  ComputedFields: never
                   Insert: {
                     "amount_clp": number,"end_minute": number,"id"?: string,"key": string,"priority"?: number,"rate_plan_id": string,"start_minute": number,"weekdays": (number)[]
                   }
@@ -670,6 +701,7 @@ isOneToOne: false
                   Row: {
                     "applied_at": string | null,"created_at": string,"created_by": string | null,"delta_clp": number,"delta_order_id": string | null,"id": string,"kind": string,"mp_refund_id": string | null,"mp_refund_payment_id": string | null,"new_ends_at": string,"new_lines": Json | null,"new_snapshot": Json | null,"new_starts_at": string,"new_total_clp": number,"offline_settled_clp": number,"old_ends_at": string,"old_live_clp": number,"old_starts_at": string,"original_order_id": string | null,"refund_attempt_at": string | null,"reservation_id": string,"settled_clp": number,"status": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "applied_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"delta_clp"?: number,"delta_order_id"?: string | null,"id"?: string,"kind": string,"mp_refund_id"?: string | null,"mp_refund_payment_id"?: string | null,"new_ends_at": string,"new_lines"?: Json | null,"new_snapshot"?: Json | null,"new_starts_at": string,"new_total_clp": number,"offline_settled_clp"?: number,"old_ends_at": string,"old_live_clp": number,"old_starts_at": string,"original_order_id"?: string | null,"refund_attempt_at"?: string | null,"reservation_id": string,"settled_clp"?: number,"status"?: string
                   }
@@ -701,6 +733,7 @@ isOneToOne: false
                   Row: {
                     "access_code": string | null,"access_loaded_at": string | null,"access_removed_at": string | null,"access_sent_at": string | null,"cancelled_at": string | null,"created_at": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"ends_at": string,"expires_at": string | null,"id": string,"kind": string,"notes": string | null,"order_id": string | null,"reminder_sent_at": string | null,"reschedule_id": string | null,"resource_id": string,"starts_at": string,"status": Database["public"]['Enums']["reservation_status"]
                   }
+                  ComputedFields: never
                   Insert: {
                     "access_code"?: string | null,"access_loaded_at"?: string | null,"access_removed_at"?: string | null,"access_sent_at"?: string | null,"cancelled_at"?: string | null,"created_at"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"ends_at": string,"expires_at"?: string | null,"id"?: string,"kind"?: string,"notes"?: string | null,"order_id"?: string | null,"reminder_sent_at"?: string | null,"reschedule_id"?: string | null,"resource_id": string,"starts_at": string,"status"?: Database["public"]['Enums']["reservation_status"]
                   }
@@ -738,6 +771,7 @@ isOneToOne: false
                   Row: {
                     "active": boolean,"created_at": string,"id": string,"kind": string,"location_id": string,"name": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "active"?: boolean,"created_at"?: string,"id"?: string,"kind"?: string,"location_id": string,"name": string
                   }
@@ -757,6 +791,7 @@ isOneToOne: false
                   Row: {
                     "close_minute": number | null,"closed": boolean,"created_at": string,"date": string,"id": string,"open_minute": number | null,"reason": string | null,"resource_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "close_minute"?: number | null,"closed"?: boolean,"created_at"?: string,"date": string,"id"?: string,"open_minute"?: number | null,"reason"?: string | null,"resource_id": string
                   }
@@ -776,6 +811,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"emitted_at": string | null,"folio": string | null,"id": string,"is_live": boolean | null,"iva": number,"kind": Database["public"]['Enums']["tax_doc_kind"],"neto": number,"order_id": string,"pdf_url": string | null,"receptor_rut": string | null,"reversed_clp": number,"reverses_document_id": string | null,"settlement_order_id": string | null,"status": Database["public"]['Enums']["tax_doc_status"],"total": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"emitted_at"?: string | null,"folio"?: string | null,"id"?: string,"is_live"?: never,"iva": number,"kind": Database["public"]['Enums']["tax_doc_kind"],"neto": number,"order_id": string,"pdf_url"?: string | null,"receptor_rut"?: string | null,"reversed_clp"?: number,"reverses_document_id"?: string | null,"settlement_order_id"?: string | null,"status"?: Database["public"]['Enums']["tax_doc_status"],"total": number
                   }
@@ -807,6 +843,7 @@ isOneToOne: false
                   Row: {
                     "code": string,"id": string,"pct": number
                   }
+                  ComputedFields: never
                   Insert: {
                     "code": string,"id"?: string,"pct": number
                   }
@@ -820,6 +857,7 @@ isOneToOne: false
                   Row: {
                     "id": string,"min_hours": number,"pct": number,"rate_plan_id": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "id"?: string,"min_hours": number,"pct": number,"rate_plan_id": string
                   }
@@ -839,6 +877,7 @@ isOneToOne: false
                   Row: {
                     "created_at": string,"event_id": string,"id": string,"payload": Json | null,"provider": string,"topic": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"event_id": string,"id"?: string,"payload"?: Json | null,"provider"?: string,"topic"?: string | null
                   }
@@ -852,6 +891,7 @@ isOneToOne: false
                   Row: {
                     "attempts": number,"button_suffix": string | null,"created_at": string,"dedupe_key": string,"entity_id": string | null,"entity_kind": string | null,"event": string,"expires_at": string,"failed_code": number | null,"id": string,"last_error": string | null,"locked_at": string | null,"next_attempt_at": string,"provider_id": string | null,"recipient": string,"sent_at": string | null,"status": string,"template_name": string,"template_params": NonNullable<Json>,"updated_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "attempts"?: number,"button_suffix"?: string | null,"created_at"?: string,"dedupe_key": string,"entity_id"?: string | null,"entity_kind"?: string | null,"event": string,"expires_at": string,"failed_code"?: number | null,"id"?: string,"last_error"?: string | null,"locked_at"?: string | null,"next_attempt_at"?: string,"provider_id"?: string | null,"recipient": string,"sent_at"?: string | null,"status"?: string,"template_name": string,"template_params"?: NonNullable<Json>,"updated_at"?: string
                   }
@@ -865,6 +905,7 @@ isOneToOne: false
                   Row: {
                     "event": string,"idempotency_key": string,"received_at": string
                   }
+                  ComputedFields: never
                   Insert: {
                     "event": string,"idempotency_key": string,"received_at"?: string
                   }
@@ -1370,4 +1411,3 @@ export const Constants = {
           }
         }
 } as const
-
