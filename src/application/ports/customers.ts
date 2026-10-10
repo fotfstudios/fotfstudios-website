@@ -1,5 +1,5 @@
 import type { ClientesListQuery } from "@/src/domain/admin/clientes-list";
-export type PointsEntryKind = "earn" | "earn_revoke" | "redeem" | "redeem_release" | "redeem_restore" | "adjust";
+export type PointsEntryKind = "earn" | "earn_revoke" | "redeem" | "redeem_release" | "redeem_restore" | "adjust" | "expire";
 
 export interface CustomerProfile {
   id: string; // customers.id — ya NO es auth.users.id (una ficha adoptada tiene id propio)
