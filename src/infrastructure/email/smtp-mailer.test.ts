@@ -49,6 +49,12 @@ describe("SmtpMailer", () => {
     });
   });
 
+  it("cabeceras (List-Unsubscribe): pasan tal cual", async () => {
+    const headers = { "List-Unsubscribe": "<https://x.cl/api/baja-resumen/t>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    await new SmtpMailer("smtp://127.0.0.1:54325", "f").send({ ...msg, headers });
+    expect(sendMail.mock.calls[0][0]).toMatchObject({ headers });
+  });
+
   it("un solo transporte por instancia, aunque mande varias veces", async () => {
     const mailer = new SmtpMailer("smtp://127.0.0.1:54325", "FOTF <reservas@fotfstudios.cl>");
     await mailer.send(msg);

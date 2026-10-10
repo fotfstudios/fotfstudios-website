@@ -7,7 +7,7 @@ import { ProseSection } from "@/components/article/ProseSection";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
-const UPDATED = "2 de octubre de 2026";
+const UPDATED = "10 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Privacidad y cookies",
@@ -180,6 +180,11 @@ export default function PrivacidadPage() {
               Avisarte de guías y posts nuevos, solo si te suscribiste. Cada correo trae un link para
               darte de baja cuando quieras.
             </li>
+            <li>
+              Avisarte por correo de tus Beatcoins: cuando van a vencer o vencieron, y un resumen
+              mensual de tu saldo si tienes Beatcoins. El resumen lo puedes dejar de recibir con el link
+              de cada correo o en tu cuenta (Perfil); los avisos de vencimiento son parte de tu cuenta.
+            </li>
             <li>Prevenir el abuso y el spam en nuestros formularios (seguridad del sitio).</li>
             <li>Medir el tráfico del sitio y mejorar la experiencia.</li>
           </ul>
@@ -193,7 +198,8 @@ export default function PrivacidadPage() {
             <strong className="text-bone">ejecución de la reserva</strong> que solicitas, el{" "}
             <strong className="text-bone">cumplimiento de obligaciones legales</strong> tributarias
             (boleta), y nuestro <strong className="text-bone">interés legítimo</strong> en revisar las
-            postulaciones que nos envías y en mantener el sitio seguro frente al abuso.
+            postulaciones que nos envías, en contarte el saldo de tus Beatcoins (puedes oponerte cuando
+            quieras) y en mantener el sitio seguro frente al abuso.
           </p>
         </ProseSection>
 

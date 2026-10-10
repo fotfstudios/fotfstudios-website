@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Perfil: nombre/teléfono editables (prefill de futuras reservas) y el interruptor de avisos por
- * WhatsApp; el email es la identidad.
+ * WhatsApp y del resumen mensual de Beatcoins; el email es la identidad.
  */
 export default async function CuentaPerfil() {
   const session = await requireCustomer();
@@ -47,6 +47,19 @@ export default async function CuentaPerfil() {
             </span>
           </label>
           <input type="hidden" name="whatsapp_field" value="1" />
+          <label className="flex items-start gap-2.5 text-sm text-bone-dim">
+            <input
+              type="checkbox"
+              name="digest"
+              defaultChecked={profile?.beatcoinsDigest ?? true}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+            />
+            <span className="leading-relaxed">
+              Resumen mensual de tus Beatcoins por correo: saldo y lo que vence. Los avisos de vencimiento
+              te llegan siempre.
+            </span>
+          </label>
+          <input type="hidden" name="digest_field" value="1" />
           <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
         </ActionForm>
       </Card>

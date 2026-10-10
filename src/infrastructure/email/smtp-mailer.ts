@@ -28,6 +28,7 @@ export class SmtpMailer implements Mailer {
       html: msg.html,
       text: msg.text,
       ...(msg.attachments ? { attachments: msg.attachments } : {}),
+      ...(msg.headers ? { headers: msg.headers } : {}),
     });
   }
 }

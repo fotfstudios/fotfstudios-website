@@ -1201,3 +1201,37 @@ describe("avisos de vencimiento de Beatcoins", () => {
     await expect(service.notifyBeatcoinsExpired({ email: "a@e.cl", name: null, expired: 1, remaining: 0 })).rejects.toThrow("resend down");
   });
 });
+
+describe("campaña de Beatcoins", () => {
+  const token = "b".repeat(48);
+
+  it("notifyBeatcoinsLaunch: saldo, valor y la fecha de corte", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsLaunch({ email: "a@e.cl", name: "Ana", balance: 3398 });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.template).toBe("beatcoinsLaunch");
+    expect(msg.html).toContain("$3.398");
+    expect(msg.html).toContain("10 de noviembre de 2026");
+    expect(msg.headers).toBeUndefined(); // aviso de términos: sin baja
+  });
+
+  it("notifyBeatcoinsDigest: List-Unsubscribe de un clic y el link de baja en el cuerpo", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsDigest({ email: "a@e.cl", name: null, balance: 1500, protected: 1000, activityAt: "2099-01-10T15:00:00Z", unsubscribeToken: token });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.template).toBe("beatcoinsDigest");
+    expect(msg.headers).toEqual({
+      "List-Unsubscribe": `<https://www.fotfstudios.cl/api/baja-resumen/${token}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+    expect(msg.html).toContain(`https://www.fotfstudios.cl/baja-resumen/${token}`);
+    expect(msg.html).toContain("500 vencen el");
+    expect(msg.html).toContain("1.000 no vencen");
+  });
+
+  it("notifyBeatcoinsDigest sin nada que venza: 'Tus Beatcoins no vencen.'", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsDigest({ email: "a@e.cl", name: null, balance: 800, protected: 800, activityAt: null, unsubscribeToken: token });
+    expect(mailer.send.mock.calls[0][0].html).toContain("Tus Beatcoins no vencen.");
+  });
+});
