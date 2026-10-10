@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { fmtPts } from "@/components/cuenta/format";
 import MovementList from "@/components/cuenta/MovementList";
+import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import { formatCLP } from "@/lib/pricing";
 import { customerService } from "@/src/composition";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
@@ -33,6 +34,9 @@ export default async function CuentaResumen() {
   const redeemed = movements
     .filter((m) => m.kind === "redeem")
     .reduce((s, m) => s + Math.abs(m.amount), 0);
+  const expiry = profile
+    ? beatcoinsExpiryLine({ balance, protected: profile.pointsProtected, activityAt: profile.pointsActivityAt })
+    : null;
   const firstName = profile?.name?.trim().split(/\s+/)[0];
 
   return (
@@ -58,6 +62,7 @@ export default async function CuentaResumen() {
                   <>
                     Tienes <strong className="font-mono text-gold">{fmtPts(balance)} Beatcoins</strong> — valen{" "}
                     {formatCLP(balance)} en tu próxima hora.
+                    {expiry && <span className="block text-bone-quiet">{expiry}</span>}
                   </>
                 ) : (
                   <>Sin Beatcoins por ahora — cada hora pagada te devuelve el 5% en tu próxima hora.</>
@@ -83,6 +88,9 @@ export default async function CuentaResumen() {
                   ? `Valen ${formatCLP(balance)} en tu próxima hora.`
                   : "Cada hora pagada te devuelve el 5% en tu próxima hora."}
               </p>
+              {expiry && (
+                <p className="mt-1 text-sm leading-relaxed text-bone-quiet">{expiry}</p>
+              )}
               <div className="mt-5">
                 <Button href="/reservar" icon="points">
                   {balance > 0 ? "Usar en una reserva" : "Reservar una hora"}

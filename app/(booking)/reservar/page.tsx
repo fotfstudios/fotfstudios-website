@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BookingWidget from "@/components/booking/BookingWidget";
+import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import { accountEnabled } from "@/lib/flags";
+import type { CustomerProfile } from "@/src/application/ports/customers";
 import { bookingEnabled, customerService, db, pricingService } from "@/src/composition";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
+import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +17,12 @@ export const metadata: Metadata = {
   title: "Reservar",
   robots: { index: false }, // no indexar hasta el lanzamiento
 };
+
+/** Aviso en el widget solo si parte del saldo vence en ≤ 30 días: ahí sí conviene usarlos ya. */
+function expiryNote(p: CustomerProfile): string | null {
+  const v = { balance: p.pointsBalance, protected: p.pointsProtected, activityAt: p.pointsActivityAt };
+  return expiresSoon(beatcoinsExpiry(v), new Date()) ? beatcoinsExpiryLine(v) : null;
+}
 
 export default async function ReservarPage() {
   if (!bookingEnabled()) notFound();
@@ -25,7 +35,7 @@ export default async function ReservarPage() {
   // Sesión de cliente (opcional): prefill de datos + puntos canjeables en el
   // widget. ensureCustomer otorga aquí también los retroactivos, para que un
   // primer login a mitad de reserva ya llegue con su saldo.
-  let customer: { email: string; name: string; phone: string; points: number; whatsappOptIn: boolean } | null = null;
+  let customer: ComponentProps<typeof BookingWidget>["customer"] = null;
   if (accountEnabled()) {
     const session = await currentCustomer();
     if (session) {
@@ -39,6 +49,7 @@ export default async function ReservarPage() {
           name: ensured.profile.name ?? "",
           phone: ensured.profile.phone ?? "",
           points: ensured.profile.pointsBalance,
+          pointsExpiryNote: expiryNote(ensured.profile),
           // La casilla parte marcada salvo que el titular se haya dado de BAJA antes: una baja
           // explícita se respeta; "nunca eligió" no es una baja.
           whatsappOptIn: ensured.profile.whatsapp.optIn || ensured.profile.whatsapp.optOutAt === null,

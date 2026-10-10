@@ -667,6 +667,64 @@ export function customerPointsBalance(
 }
 
 /**
+ * Link de campaña con UTMs: sin ellos, una reserva que llega desde un correo de
+ * Beatcoins se ve en GA4 como tráfico directo. `campaign` = nombre de la plantilla.
+ */
+export const campaignUrl = (url: string, campaign: string): string => {
+  const u = new URL(url);
+  u.searchParams.set("utm_source", "email");
+  u.searchParams.set("utm_medium", "beatcoins");
+  u.searchParams.set("utm_campaign", campaign);
+  return u.toString();
+};
+
+/**
+ * Aviso de cuenta (transaccional, sin baja): parte del saldo vence en ≤ 30 o ≤ 7 días.
+ * Dice cuánto vence, cuándo, cuánto queda sin vencer y que cualquier reserva reinicia
+ * el reloj —el motivo del correo—. Sin Sirena: es un recordatorio, no una alarma.
+ */
+export function beatcoinsExpiring(
+  v: { name: string | null; expiring: string; value: string; expiresOn: string; permanent: string | null },
+  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+): EmailContent {
+  const book = campaignUrl(ctx.bookUrl, "beatcoinsExpiring");
+  const account = campaignUrl(ctx.accountUrl, "beatcoinsExpiring");
+  const keep = v.permanent ? ` Tus otros ${esc(v.permanent)} Beatcoins no vencen.` : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tus ${esc(v.expiring)} Beatcoins vencen el ${esc(v.expiresOn)}</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} quedan <strong style="color:${T.bone}">${esc(v.expiring)} Beatcoins</strong> (equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento) que vencen el <strong style="color:${T.bone}">${esc(v.expiresOn)}</strong>.${keep}</p>
+     <p style="color:${T.boneDim};margin:0 0 20px"><strong style="color:${T.bone}">Cualquier reserva pagada reinicia el plazo</strong>: tus Beatcoins vuelven a valer 12 meses. Y puedes usarlos para pagar esa misma hora.</p>
+     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tu saldo y tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `${v.value} de descuento que vence el ${v.expiresOn}. Una reserva reinicia el plazo.`,
+  );
+  const text = `Tus ${v.expiring} Beatcoins (${v.value} de descuento) vencen el ${v.expiresOn}.${v.permanent ? ` Tus otros ${v.permanent} Beatcoins no vencen.` : ""} Cualquier reserva pagada reinicia el plazo: tus Beatcoins vuelven a valer 12 meses, y puedes usarlos para pagar esa misma hora. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "beatcoinsExpiring", subject: `Tus ${v.expiring} Beatcoins vencen el ${v.expiresOn}`, html, text };
+}
+
+/** Aviso de cuenta: venció parte del saldo. Qué venció, qué queda y cómo volver a ganar. */
+export function beatcoinsExpired(
+  v: { name: string | null; expired: string; remaining: string | null },
+  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+): EmailContent {
+  const book = campaignUrl(ctx.bookUrl, "beatcoinsExpired");
+  const account = campaignUrl(ctx.accountUrl, "beatcoinsExpired");
+  const left = v.remaining
+    ? `Te quedan <strong style="color:${T.bone}">${esc(v.remaining)} Beatcoins</strong> que no vencen.`
+    : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Vencieron ${esc(v.expired)} Beatcoins</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "pasaron")} 12 meses desde tu última reserva y vencieron ${esc(v.expired)} Beatcoins. ${left}</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Vuelves a ganar el 5% de lo que pagas en cada sesión. Te esperamos en la sala.</p>
+     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `Vuelves a ganar el 5% en cada sesión.`,
+  );
+  const text = `Vencieron ${v.expired} Beatcoins: pasaron 12 meses desde tu última reserva.${v.remaining ? ` Te quedan ${v.remaining} Beatcoins que no vencen.` : ""} Vuelves a ganar el 5% de lo que pagas en cada sesión. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "beatcoinsExpired", subject: `Vencieron ${v.expired} Beatcoins`, html, text };
+}
+
+/**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.
  * Sirena (${T.sirena}) es legítima aquí: es urgencia real, no decoración.

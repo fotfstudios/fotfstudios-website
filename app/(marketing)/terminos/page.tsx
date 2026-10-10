@@ -7,7 +7,7 @@ import WhatsAppCta from "@/components/WhatsAppCta";
 import { CLOSURE, GEAR, ROOM_INCLUYE, ROOM_TRAES, SITE } from "@/lib/site";
 
 const CONTACT_EMAIL = "reservas@fotfstudios.cl";
-const UPDATED = "5 de octubre de 2026";
+const UPDATED = "10 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -190,8 +190,17 @@ export default function TerminosPage() {
               monto reembolsado.
             </li>
             <li>
-              Hoy los Beatcoins no tienen fecha de vencimiento. Podemos modificar el programa
-              hacia adelante; estos cambios nunca afectan Beatcoins que ya hayas ganado.
+              Los Beatcoins que ganes desde el{" "}
+              <strong className="text-bone">10 de noviembre de 2026</strong> vencen{" "}
+              <strong className="text-bone">12 meses después de tu última reserva pagada</strong>{" "}
+              (con dinero o con Beatcoins): cada reserva nueva reinicia el plazo. Al pagar con
+              Beatcoins se usan primero los que vencen, y te avisamos por correo 30 y 7 días
+              antes de que venzan.
+            </li>
+            <li>
+              Los Beatcoins que ganaste antes del 10 de noviembre de 2026 no vencen nunca.
+              Podemos modificar el programa hacia adelante; estos cambios nunca afectan Beatcoins
+              que ya hayas ganado.
             </li>
           </ul>
         </ProseSection>

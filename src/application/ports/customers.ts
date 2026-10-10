@@ -8,6 +8,10 @@ export interface CustomerProfile {
   name: string | null;
   phone: string | null;
   pointsBalance: number;
+  /** Parte del saldo que nunca vence (lo ganado antes del corte). */
+  pointsProtected: number;
+  /** Última reserva pagada: desde acá corren los 12 meses de lo que vence. */
+  pointsActivityAt: string | null;
   createdAt: string;
   /** Consentimiento de avisos por WhatsApp (migración 20261008120000). */
   whatsapp: WhatsAppConsent;
