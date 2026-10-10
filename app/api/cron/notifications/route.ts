@@ -1,11 +1,14 @@
-import { notificationService } from "@/src/composition";
+import { beatcoinsCampaignService, beatcoinsExpiryService, notificationService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Respaldo diario: reenvía emails de reservas pagadas sin notificar (por si el
- * webhook falló al enviar). Protegido por CRON_SECRET (Vercel lo manda como
- * Authorization: Bearer). Corre 1 vez al día → compatible con Vercel Hobby.
+ * Cron diario (13:00, Vercel Hobby → precisión de la hora):
+ *   · respaldo: reenvía emails de reservas pagadas sin notificar (por si el webhook falló);
+ *   · vencimiento de Beatcoins y sus avisos;
+ *   · campaña de Beatcoins: anuncio encolado desde el admin y resumen mensual.
+ * Protegido por CRON_SECRET (Vercel lo manda como Authorization: Bearer). Cada tarea con
+ * su propio catch: una caída de una no frena las otras.
  */
 export async function GET(req: Request): Promise<Response> {
   // Fail-closed: sin CRON_SECRET configurado, el endpoint queda cerrado.
@@ -13,13 +16,17 @@ export async function GET(req: Request): Promise<Response> {
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("unauthorized", { status: 401 });
   }
-  try {
-    const result = await notificationService().notifyPending();
-    // Con fallos el cron responde 503: Vercel lo marca como fallido y queda a la vista.
-    // Antes devolvía `{ notified: 0 }` como si nada cuando el proveedor estaba caído.
-    return Response.json(result, { status: result.failed > 0 ? 503 : 200 });
-  } catch (e) {
-    console.error("[cron-notifications]", e);
-    return Response.json({ error: "server" }, { status: 503 });
-  }
+  const guard = <T,>(tag: string, p: Promise<T>): Promise<T | null> =>
+    p.catch((e) => {
+      console.error(tag, e);
+      return null;
+    });
+  const pending = await guard("[cron-notifications]", notificationService().notifyPending());
+  // En serie: el vencimiento antes de la campaña (el resumen cuenta el saldo ya vencido).
+  const beatcoins = await guard("[cron-notifications:beatcoins]", beatcoinsExpiryService().sweep());
+  const campaign = await guard("[cron-notifications:campaign]", beatcoinsCampaignService().sweep());
+  // Con fallos el cron responde 503: Vercel lo marca como fallido y queda a la vista.
+  const failed =
+    !pending || !beatcoins || !campaign || pending.failed > 0 || beatcoins.failed > 0 || campaign.failed > 0;
+  return Response.json({ ...(pending ?? { error: "server" }), beatcoins, campaign }, { status: failed ? 503 : 200 });
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
+import { beatcoinsDigest, beatcoinsExpired, beatcoinsExpiring, beatcoinsLaunch, campaignUrl } from "./templates";
 import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification, ownerTrialRescheduled, trialRescheduled, practiceMoved, ownerPracticeMoved } from "./templates";
 
 const links = {
@@ -1028,5 +1029,91 @@ describe("práctica movida", () => {
   it("escapan nombre y contacto", () => {
     expect(practiceMoved({ name: evil, before: evil, after: evil }, ctx).html).not.toContain(evil);
     expect(owner({ name: evil, email: evil, phone: evil, before: evil, after: evil }).html).not.toContain(evil);
+  });
+});
+
+describe("correos de vencimiento de Beatcoins", () => {
+  const ctx = {
+    whatsappUrl: "https://wa.me/56962803298",
+    bookUrl: "https://www.fotfstudios.cl/reservar",
+    accountUrl: "https://www.fotfstudios.cl/cuenta",
+  };
+  const expiring = (name: string | null = "Ana") =>
+    beatcoinsExpiring({ name, expiring: "1.500", value: "$1.500", expiresOn: "martes 15 de septiembre", permanent: "3.398" }, ctx);
+
+  it("campaignUrl agrega las UTMs sin perder la query existente", () => {
+    expect(campaignUrl("https://x.cl/reservar?a=1", "beatcoinsExpiring")).toBe(
+      "https://x.cl/reservar?a=1&utm_source=email&utm_medium=beatcoins&utm_campaign=beatcoinsExpiring",
+    );
+  });
+
+  it("el aviso lleva la fecha en el asunto, el valor en pesos y que una reserva reinicia el plazo", () => {
+    const m = expiring();
+    expect(m.subject).toBe("Tus 1.500 Beatcoins vencen el martes 15 de septiembre");
+    expect(m.html).toContain("$1.500");
+    expect(m.html).toContain("reinicia el plazo");
+    expect(m.text).toContain("reinicia el plazo");
+    expect(m.html).toContain("utm_source=email&amp;utm_medium=beatcoins&amp;utm_campaign=beatcoinsExpiring");
+  });
+
+  it("saluda por el nombre y sin nombre arranca en mayúscula", () => {
+    expect(expiring().html).toContain("Hola Ana, te quedan");
+    expect(expiring(null).html).toContain("Te quedan");
+  });
+
+  it("escapa el nombre (anti-XSS)", () => {
+    for (const m of [
+      expiring("<script>x</script>"),
+      beatcoinsExpired({ name: "<script>x</script>", expired: "500", remaining: null }, ctx),
+    ]) {
+      expect(m.html).not.toContain("<script>");
+    }
+  });
+
+  it("el aviso de vencido dice qué venció y, si hay, qué queda", () => {
+    const con = beatcoinsExpired({ name: null, expired: "500", remaining: "1.000" }, ctx);
+    expect(con.subject).toBe("Vencieron 500 Beatcoins");
+    expect(con.html).toContain("1.000 Beatcoins</strong> que no vencen");
+    expect(beatcoinsExpired({ name: null, expired: "500", remaining: null }, ctx).html).not.toContain("no vencen");
+  });
+});
+
+describe("campaña de Beatcoins: anuncio y resumen mensual", () => {
+  const wa = "https://wa.me/56962803298";
+  const launch = (name: string | null = "Ana") =>
+    beatcoinsLaunch(
+      { name, balance: "3.398", value: "$3.398", from: "10 de noviembre de 2026" },
+      { whatsappUrl: wa, bookUrl: "https://x.cl/reservar", termsUrl: "https://x.cl/terminos" },
+    );
+  const digest = (expiry: string | null = "500 vencen el martes 15 de marzo de 2028.") =>
+    beatcoinsDigest(
+      { name: "Ana", month: "diciembre 2026", balance: "1.500", value: "$1.500", expiry },
+      { whatsappUrl: wa, bookUrl: "https://x.cl/reservar", accountUrl: "https://x.cl/cuenta", unsubscribeUrl: "https://x.cl/baja-resumen/tok" },
+    );
+
+  it("el anuncio dice que lo de hoy no vence, la regla nueva y la fecha", () => {
+    const m = launch();
+    expect(m.subject).toBe("Tus 3.398 Beatcoins no vencen: cambio en el programa");
+    for (const body of [m.html, m.text]) {
+      expect(body).toContain("no vence nunca");
+      expect(body).toContain("12 meses después de tu última reserva pagada");
+      expect(body).toContain("10 de noviembre de 2026");
+    }
+    expect(m.html).toContain('href="https://x.cl/terminos"');
+    expect(m.html).toContain("utm_campaign=beatcoinsLaunch");
+    expect(m.html).not.toContain("baja");
+  });
+
+  it("el resumen lleva el mes en el asunto, lo que vence y el link de baja", () => {
+    const m = digest();
+    expect(m.subject).toBe("Tu resumen de Beatcoins · diciembre 2026");
+    expect(m.html).toContain("500 vencen el martes 15 de marzo de 2028.");
+    expect(m.html).toContain('href="https://x.cl/baja-resumen/tok"');
+    expect(m.text).toContain("Dejar de recibir este resumen: https://x.cl/baja-resumen/tok");
+    expect(digest(null).html).not.toContain("vencen");
+  });
+
+  it("escapan el nombre (anti-XSS)", () => {
+    expect(launch("<script>x</script>").html).not.toContain("<script>");
   });
 });

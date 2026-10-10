@@ -9,6 +9,9 @@ const ADOPTED: CustomerProfile = {
   name: "Ana",
   phone: "+56912345678",
   pointsBalance: 1999,
+  pointsProtected: 1999,
+  pointsActivityAt: null,
+  beatcoinsDigest: true,
   createdAt: "2026-01-01T00:00:00.000Z",
   whatsapp: { optIn: true, optInAt: "2026-09-01T00:00:00.000Z", source: "customer", optOutAt: null },
 };

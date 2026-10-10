@@ -8,6 +8,8 @@ export interface EmailMessage {
   text: string;
   /** Adjuntos (p. ej. el .ics de la sesión); contenido en texto. */
   attachments?: { filename: string; content: string }[];
+  /** Cabeceras extra (p. ej. List-Unsubscribe del resumen mensual). */
+  headers?: Record<string, string>;
 }
 
 /** Contenido de un email sin destinatario (el servicio decide a quién). */

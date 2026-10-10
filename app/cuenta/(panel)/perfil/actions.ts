@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { type ActionResult, run } from "@/components/admin/ui/action";
 import { validateProfile } from "@/lib/profile";
-import { customerService } from "@/src/composition";
+import { beatcoinsCampaignRepository, customerService } from "@/src/composition";
 import { assertCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export async function updateProfileAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
@@ -17,6 +17,11 @@ export async function updateProfileAction(_prev: ActionResult | null, fd: FormDa
     // "formulario sin la casilla" (un POST viejo o ajeno nunca da de baja a nadie).
     const whatsappOptIn = fd.has("whatsapp_field") ? fd.get("whatsapp") === "on" : undefined;
     await customerService().updateProfileByUser(session.userId, data, whatsappOptIn);
+    // Misma regla que la casilla de WhatsApp: sin el campo oculto no se toca la preferencia.
+    if (fd.has("digest_field")) {
+      const profile = await customerService().profileByUser(session.userId);
+      if (profile) await beatcoinsCampaignRepository().setDigest(profile.id, fd.get("digest") === "on");
+    }
     revalidatePath("/cuenta", "layout");
   });
 }

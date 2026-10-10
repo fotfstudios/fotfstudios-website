@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { type ActionDataResult, runData } from "@/components/admin/ui/action";
+import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import type { CreateCustomerOutcome } from "@/src/application/customers/customer-directory-service";
 import type { CustomerProfile } from "@/src/application/ports/customers";
-import { customerDirectory } from "@/src/composition";
+import { beatcoinsCampaignRepository, customerDirectory } from "@/src/composition";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
 
 /**
@@ -32,5 +32,18 @@ export async function lookupCustomerPhoneAction(phone: string): Promise<ActionDa
   return runData(async () => {
     await requirePermission("customers.manage");
     return customerDirectory().lookupPhone(phone);
+  });
+}
+
+/**
+ * Encola el anuncio del vencimiento de Beatcoins para todos los clientes con correo y saldo
+ * que todavía no lo tienen. No manda nada acá: el cron diario lo envía en tandas (tope por
+ * corrida), así un clic no dispara cientos de correos de golpe ni choca con el proveedor.
+ */
+export async function queueBeatcoinsLaunchAction(): Promise<ActionResult> {
+  return run(async () => {
+    await requirePermission("customers.manage");
+    await beatcoinsCampaignRepository().queueLaunch();
+    revalidatePath("/admin/clientes");
   });
 }

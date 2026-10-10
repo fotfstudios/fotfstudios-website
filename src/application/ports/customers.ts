@@ -6,8 +6,14 @@ export interface CustomerProfile {
   authUserId: string | null; // cuenta de auth vinculada; null = ficha del directorio (invitado/backfill)
   email: string | null; // null = ficha solo-teléfono (nunca para titulares de cuenta)
   name: string | null;
+  /** Resumen mensual de Beatcoins por correo (opt-out: true salvo que se haya dado de baja). */
+  beatcoinsDigest: boolean;
   phone: string | null;
   pointsBalance: number;
+  /** Parte del saldo que nunca vence (lo ganado antes del corte). */
+  pointsProtected: number;
+  /** Última reserva pagada: desde acá corren los 12 meses de lo que vence. */
+  pointsActivityAt: string | null;
   createdAt: string;
   /** Consentimiento de avisos por WhatsApp (migración 20261008120000). */
   whatsapp: WhatsAppConsent;

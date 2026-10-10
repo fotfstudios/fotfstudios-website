@@ -19,7 +19,7 @@ type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
 
 /** Columnas del perfil completo (una sola fuente para todas las consultas). */
 const PROFILE_COLS =
-  "id, auth_user_id, email, name, phone, points_balance, created_at, whatsapp_opt_in, whatsapp_opt_in_at, whatsapp_opt_in_source, whatsapp_opt_out_at";
+  "id, auth_user_id, email, name, phone, points_balance, points_protected, points_activity_at, email_digest_opt_out_at, created_at, whatsapp_opt_in, whatsapp_opt_in_at, whatsapp_opt_in_source, whatsapp_opt_out_at";
 
 type ProfileRow = Pick<
   CustomerRow,
@@ -29,6 +29,9 @@ type ProfileRow = Pick<
   | "name"
   | "phone"
   | "points_balance"
+  | "points_protected"
+  | "points_activity_at"
+  | "email_digest_opt_out_at"
   | "created_at"
   | "whatsapp_opt_in"
   | "whatsapp_opt_in_at"
@@ -44,6 +47,9 @@ function toProfile(r: ProfileRow): CustomerProfile {
     name: r.name,
     phone: r.phone,
     pointsBalance: r.points_balance,
+    pointsProtected: r.points_protected,
+    pointsActivityAt: r.points_activity_at,
+    beatcoinsDigest: r.email_digest_opt_out_at === null,
     createdAt: r.created_at,
     whatsapp: {
       optIn: r.whatsapp_opt_in,

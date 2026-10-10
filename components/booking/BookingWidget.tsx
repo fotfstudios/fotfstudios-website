@@ -67,7 +67,15 @@ export default function BookingWidget({
   addons?: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts?: { minHours: number; pct: number }[];
   /** Sesión de cliente (server la resuelve): prefill + puntos canjeables. */
-  customer?: { email: string; name: string; phone: string; points: number; whatsappOptIn: boolean } | null;
+  customer?: {
+    email: string;
+    name: string;
+    phone: string;
+    points: number;
+    /** Solo cuando parte del saldo vence en ≤ 30 días: "500 vencen el …". */
+    pointsExpiryNote?: string | null;
+    whatsappOptIn: boolean;
+  } | null;
 }) {
   const router = useRouter();
   const today = todayInSantiago();
@@ -591,6 +599,7 @@ export default function BookingWidget({
               <p className="mt-1 text-sm text-bone-dim">
                 Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en Beatcoins.
               </p>
+              {customer.pointsExpiryNote && <p className="mt-1 text-sm text-bone-quiet">{customer.pointsExpiryNote}</p>}
               <div className="mt-3 space-y-1.5">
                 <RecOption
                   active={usePoints}

@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { Button } from "@/components/admin/ui/Button";
+import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Pagination } from "@/components/admin/ui/Pagination";
 import { SearchBox } from "@/components/admin/ui/SearchBox";
 import { fmtDate } from "@/components/admin/format";
 import { fmtPts } from "@/components/cuenta/format";
-import { customerDirectory } from "@/src/composition";
+import { beatcoinsCampaignRepository, customerDirectory } from "@/src/composition";
 import { CLIENTE_ORDENES, clientesHref, parseClientesSearchParams, type ClienteOrden } from "@/src/domain/admin/clientes-list";
 import { customerLabel } from "@/src/domain/customers/customer-input";
 import { requirePermission } from "@/src/infrastructure/auth/require-admin";
+import { queueBeatcoinsLaunchAction } from "./actions";
 import { NuevoClienteButton } from "./_components/NuevoClienteButton";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,12 @@ export default async function ClientesPage({
   // staff, hasta que él lo habilite en /admin/roles.
   await requirePermission("customers.manage");
   const query = parseClientesSearchParams(await searchParams);
-  const list = await customerDirectory().list(query);
+  const campaign = beatcoinsCampaignRepository();
+  const [list, launchAudience, launch] = await Promise.all([
+    customerDirectory().list(query),
+    campaign.launchAudience(),
+    campaign.launchStatus(),
+  ]);
   const hasFilters = query.q !== "" || query.orden !== "recientes" || query.page > 1;
 
   return (
@@ -42,6 +49,27 @@ export default async function ClientesPage({
         title="Clientes"
         action={<NuevoClienteButton />}
       />
+
+      {(launchAudience > 0 || launch.queued > 0 || launch.sent > 0) && (
+        <section aria-label="Anuncio de Beatcoins" className="mt-6 flex flex-wrap items-center justify-between gap-3 border hairline p-4">
+          <p className="text-sm text-bone-dim">
+            <span className="label text-bone-quiet">Anuncio Beatcoins</span>{" "}
+            {launch.sent} enviados · {launch.queued} en cola
+            {launchAudience > 0 && <> · {launchAudience} por anunciar</>}
+          </p>
+          {launchAudience > 0 && (
+            <ConfirmForm
+              action={queueBeatcoinsLaunchAction}
+              trigger={{ label: "Enviar anuncio", variant: "secondary", size: "sm" }}
+              confirm="primary"
+              title="Anunciar el vencimiento de Beatcoins"
+              message={`Se encola el anuncio para ${launchAudience} clientes con correo y saldo: les cuenta que sus Beatcoins de hoy no vencen y la regla nueva desde el corte. Sale con el cron diario (13:00), en tandas de hasta 100.`}
+              cta="Encolar anuncio"
+              success="Anuncio encolado."
+            />
+          )}
+        </section>
+      )}
 
       {list.grandTotal === 0 ? (
         <div className="mt-8">
