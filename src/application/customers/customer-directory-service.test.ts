@@ -9,6 +9,8 @@ const MATIAS: CustomerProfile = {
   name: "Matías Rojas",
   phone: "+56998887766",
   pointsBalance: 1999,
+  pointsProtected: 1999,
+  pointsActivityAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   whatsapp: { optIn: false, optInAt: null, source: null, optOutAt: null },
 };

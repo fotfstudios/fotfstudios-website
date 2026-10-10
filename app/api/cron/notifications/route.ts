@@ -1,11 +1,13 @@
-import { notificationService } from "@/src/composition";
+import { beatcoinsExpiryService, notificationService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Respaldo diario: reenvía emails de reservas pagadas sin notificar (por si el
- * webhook falló al enviar). Protegido por CRON_SECRET (Vercel lo manda como
- * Authorization: Bearer). Corre 1 vez al día → compatible con Vercel Hobby.
+ * Cron diario (13:00, Vercel Hobby → precisión de la hora):
+ *   · respaldo: reenvía emails de reservas pagadas sin notificar (por si el webhook falló);
+ *   · vencimiento de Beatcoins y sus avisos.
+ * Protegido por CRON_SECRET (Vercel lo manda como Authorization: Bearer). Cada tarea con
+ * su propio catch: una caída de una no frena la otra.
  */
 export async function GET(req: Request): Promise<Response> {
   // Fail-closed: sin CRON_SECRET configurado, el endpoint queda cerrado.
@@ -13,13 +15,21 @@ export async function GET(req: Request): Promise<Response> {
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("unauthorized", { status: 401 });
   }
-  try {
-    const result = await notificationService().notifyPending();
-    // Con fallos el cron responde 503: Vercel lo marca como fallido y queda a la vista.
-    // Antes devolvía `{ notified: 0 }` como si nada cuando el proveedor estaba caído.
-    return Response.json(result, { status: result.failed > 0 ? 503 : 200 });
-  } catch (e) {
-    console.error("[cron-notifications]", e);
-    return Response.json({ error: "server" }, { status: 503 });
-  }
+  const [pending, beatcoins] = await Promise.all([
+    notificationService()
+      .notifyPending()
+      .catch((e) => {
+        console.error("[cron-notifications]", e);
+        return null;
+      }),
+    beatcoinsExpiryService()
+      .sweep()
+      .catch((e) => {
+        console.error("[cron-notifications:beatcoins]", e);
+        return null;
+      }),
+  ]);
+  // Con fallos el cron responde 503: Vercel lo marca como fallido y queda a la vista.
+  const failed = !pending || !beatcoins || pending.failed > 0 || beatcoins.failed > 0;
+  return Response.json({ ...(pending ?? { error: "server" }), beatcoins }, { status: failed ? 503 : 200 });
 }

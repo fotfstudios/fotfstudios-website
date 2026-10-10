@@ -1160,3 +1160,44 @@ describe("agenda del curso → aviso inmediato al alumno", () => {
     expect(m.text).toContain("Te queda 1 hora");
   });
 });
+
+describe("avisos de vencimiento de Beatcoins", () => {
+  it("notifyBeatcoinsExpiring: cuánto, cuándo (con año si no es este), lo que no vence y UTMs", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsExpiring({
+      email: "ana@e.cl",
+      name: "Ana",
+      expiring: 1500,
+      permanent: 3398,
+      expiresAt: "2099-03-15T18:00:00Z",
+    });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.to).toBe("ana@e.cl");
+    expect(msg.template).toBe("beatcoinsExpiring");
+    expect(msg.subject).toBe("Tus 1.500 Beatcoins vencen el domingo 15 de marzo de 2099");
+    expect(msg.html).toContain("$1.500");
+    expect(msg.html).toContain("Tus otros 3.398 Beatcoins no vencen");
+    expect(msg.html).toContain("utm_campaign=beatcoinsExpiring");
+  });
+
+  it("notifyBeatcoinsExpiring sin parte permanente no la menciona", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsExpiring({ email: "a@e.cl", name: null, expiring: 10, permanent: 0, expiresAt: "2099-03-15T18:00:00Z" });
+    expect(mailer.send.mock.calls[0][0].html).not.toContain("no vencen");
+  });
+
+  it("notifyBeatcoinsExpired: lo vencido y lo que queda", async () => {
+    const { service, mailer } = makeService();
+    await service.notifyBeatcoinsExpired({ email: "a@e.cl", name: "Ana", expired: 500, remaining: 1000 });
+    const msg = mailer.send.mock.calls[0][0];
+    expect(msg.template).toBe("beatcoinsExpired");
+    expect(msg.subject).toBe("Vencieron 500 Beatcoins");
+    expect(msg.text).toContain("Te quedan 1.000 Beatcoins que no vencen");
+  });
+
+  it("los fallos se PROPAGAN (el barrido suelta el reclamo y reintenta)", async () => {
+    const { service, mailer } = makeService();
+    mailer.send.mockRejectedValueOnce(new Error("resend down"));
+    await expect(service.notifyBeatcoinsExpired({ email: "a@e.cl", name: null, expired: 1, remaining: 0 })).rejects.toThrow("resend down");
+  });
+});

@@ -13,6 +13,7 @@ import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
 import { fmtPts, fmtPtsSigned } from "@/components/cuenta/format";
+import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import type { WhatsAppConsent } from "@/src/application/ports/customers";
 import { courseRepository, customerDirectory } from "@/src/composition";
 import { CUSTOMER_CAPS, customerLabel } from "@/src/domain/customers/customer-input";
@@ -44,6 +45,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
   const dir = customerDirectory();
   const c = await dir.get(id);
   if (!c) notFound();
+  const expiryLine = beatcoinsExpiryLine({ balance: c.pointsBalance, protected: c.pointsProtected, activityAt: c.pointsActivityAt });
   const [movements, bookings, cursos] = await Promise.all([
     dir.movements(c.id, MOVEMENTS_SHOWN + 1),
     dir.bookings(c),
@@ -211,6 +213,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
         <aside className="flex min-w-0 flex-col gap-6">
           <Card title="Beatcoins">
             <Stat label="Disponibles" value={`${fmtPts(c.pointsBalance)} pts`} accent={c.pointsBalance > 0} />
+            {expiryLine && <p className="mt-2 label-sm text-bone-quiet">{expiryLine}</p>}
             {!c.email && (
               <p className="mt-3 label-sm text-bone-quiet">Los Beatcoins se acumulan por email. Agrega uno para que sume.</p>
             )}

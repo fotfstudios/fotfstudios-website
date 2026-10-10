@@ -7,6 +7,9 @@
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { futureDate } from "@/tests/dates";
+import { BeatcoinsExpiryService } from "@/src/application/points/beatcoins-expiry-service";
+import { SupabaseBeatcoinsExpiryRepository } from "./beatcoins-expiry-repository";
+import { createServiceClient } from "./supabase-client";
 
 const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54422/postgres";
 const pg = new Client({ connectionString: DB_URL });
@@ -231,5 +234,61 @@ describe("permisos", () => {
     await customer("b@e.cl");
     const { rows } = await pg.query<{ n: number }>("select count(distinct email_unsubscribe_token)::int n from customers");
     expect(rows[0].n).toBe(2);
+  });
+});
+
+describe("paridad con el dominio", () => {
+  it("el corte de la migración es BEATCOINS_EXPIRY_FROM", async () => {
+    const { BEATCOINS_EXPIRY_FROM, BEATCOINS_EXPIRY_MONTHS } = await import("@/src/domain/points/expiry");
+    const { rows } = await pg.query<{ months: number }>("select expiry_months months from beatcoins_settings");
+    expect(new Date(originalFrom).toISOString()).toBe(new Date(BEATCOINS_EXPIRY_FROM).toISOString());
+    expect(rows[0].months).toBe(BEATCOINS_EXPIRY_MONTHS);
+  });
+});
+
+describe("BeatcoinsExpiryService contra la DB", () => {
+  const db = createServiceClient(process.env.SUPABASE_URL ?? "http://127.0.0.1:54421", process.env.SUPABASE_SERVICE_ROLE_KEY ?? "");
+  const notifier = () => {
+    const sent: { kind: string; email: string }[] = [];
+    return {
+      sent,
+      notifyBeatcoinsExpiring: async (v: { email: string }) => void sent.push({ kind: "expiring", email: v.email }),
+      notifyBeatcoinsExpired: async (v: { email: string }) => void sent.push({ kind: "expired", email: v.email }),
+    };
+  };
+
+  it("vence, avisa una vez y la corrida siguiente no repite", async () => {
+    const vencido = await customer("vencido@e.cl");
+    const pronto = await customer("pronto@e.cl");
+    await setCutoff("now() - interval '2 years'");
+    await apply(vencido, "earn", 500, "a");
+    await apply(pronto, "earn", 300, "b");
+    await pg.query("update customers set points_activity_at = now() - interval '13 months' where id = $1", [vencido]);
+    await pg.query("update customers set points_activity_at = now() - interval '12 months' + interval '3 days' where id = $1", [pronto]);
+
+    const n = notifier();
+    const svc = new BeatcoinsExpiryService(new SupabaseBeatcoinsExpiryRepository(db), n);
+    expect(await svc.sweep()).toEqual({ expired: 1, expiredNotices: 1, notices7: 1, notices30: 0, failed: 0 });
+    expect(n.sent).toEqual([
+      { kind: "expired", email: "vencido@e.cl" },
+      { kind: "expiring", email: "pronto@e.cl" },
+    ]);
+    expect(await state(vencido)).toMatchObject({ balance: 0, n7: false });
+    expect((await state(pronto)).n7).toBe(true);
+    await expectConsistent(vencido);
+
+    expect(await svc.sweep()).toEqual({ expired: 0, expiredNotices: 0, notices7: 0, notices30: 0, failed: 0 });
+  });
+
+  it("una reserva después del aviso reinicia el reloj: sale del candidato y el aviso se puede repetir", async () => {
+    const c = await customer();
+    await setCutoff("now() - interval '2 years'");
+    await apply(c, "earn", 300, "a");
+    await pg.query("update customers set points_activity_at = now() - interval '12 months' + interval '3 days' where id = $1", [c]);
+    const svc = new BeatcoinsExpiryService(new SupabaseBeatcoinsExpiryRepository(db), notifier());
+    expect((await svc.sweep()).notices7).toBe(1);
+    await apply(c, "earn", 50, "nueva-reserva");
+    expect(await state(c)).toMatchObject({ n7: false, n30: false });
+    expect((await svc.sweep()).notices7).toBe(0);
   });
 });
