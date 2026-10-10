@@ -26,6 +26,7 @@ export class ResendMailer implements Mailer {
       // `guideDelivery:<slug>` queda intacta en notification_log, solo el tag se sanea.
       tags: [{ name: "template", value: msg.template.replace(/[^A-Za-z0-9_-]/g, "_") }],
       ...(msg.attachments ? { attachments: msg.attachments } : {}),
+      ...(msg.headers ? { headers: msg.headers } : {}),
     });
     if (error) throw new Error(error.message);
   }

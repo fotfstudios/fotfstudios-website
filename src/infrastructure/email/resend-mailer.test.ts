@@ -45,6 +45,14 @@ describe("ResendMailer", () => {
     expect(send.mock.calls[0][0]).toMatchObject({ attachments: [{ filename: "a.ics", content: "BEGIN:VCALENDAR" }] });
   });
 
+  it("cabeceras (List-Unsubscribe): pasan tal cual; sin ellas no viaja la clave", async () => {
+    const headers = { "List-Unsubscribe": "<https://x.cl/api/baja-resumen/t>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    await new ResendMailer("key", "f").send({ ...msg, headers });
+    expect(send.mock.calls[0][0]).toMatchObject({ headers });
+    await new ResendMailer("key", "f").send(msg);
+    expect(send.mock.calls[1][0]).not.toHaveProperty("headers");
+  });
+
   it("el tag solo lleva lo que Resend acepta ([A-Za-z0-9_-]): la clave por guía trae ':'", async () => {
     // Resend rechaza el envío entero con "Tags should only contain ASCII letters, numbers,
     // underscores, or dashes" — fue la caída de las guías en prod (2026-09-23).

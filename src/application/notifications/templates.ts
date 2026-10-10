@@ -702,6 +702,53 @@ export function beatcoinsExpiring(
   return { template: "beatcoinsExpiring", subject: `Tus ${v.expiring} Beatcoins vencen el ${v.expiresOn}`, html, text };
 }
 
+/**
+ * Anuncio del cambio de términos (vencimiento), una vez por cliente con saldo. Es aviso de
+ * cambio de condiciones → transaccional. Lo que más importa decir: SUS Beatcoins de hoy no
+ * vencen, y lo que gane antes del corte tampoco (el empujón a reservar ya).
+ */
+export function beatcoinsLaunch(
+  v: { name: string | null; balance: string; value: string; from: string },
+  ctx: { whatsappUrl: string; bookUrl: string; termsUrl: string },
+): EmailContent {
+  const book = campaignUrl(ctx.bookUrl, "beatcoinsLaunch");
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tus ${esc(v.balance)} Beatcoins no vencen</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tienes")} <strong style="color:${T.bone}">${esc(v.balance)} Beatcoins</strong>: equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tus próximas horas.</p>
+     <p style="color:${T.boneDim};margin:0 0 16px">Cambia una regla del programa: desde el <strong style="color:${T.bone}">${esc(v.from)}</strong>, los Beatcoins que ganes vencen <strong style="color:${T.bone}">12 meses después de tu última reserva pagada</strong>. Cada reserva reinicia el plazo, y te avisamos por correo 30 y 7 días antes.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px"><strong style="color:${T.bone}">Lo que ya tienes no vence nunca</strong>, y lo que ganes en reservas pagadas antes del ${esc(v.from)}, tampoco.</p>
+     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">El detalle, en los <a href="${esc(ctx.termsUrl)}" style="color:${T.gold}">términos y condiciones</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
+    `Lo que ya tienes no vence nunca. Cambia una regla desde el ${v.from}.`,
+  );
+  const text = `Tus ${v.balance} Beatcoins no vencen. Equivalen a ${v.value} de descuento en tus próximas horas. Cambia una regla del programa: desde el ${v.from}, los Beatcoins que ganes vencen 12 meses después de tu última reserva pagada; cada reserva reinicia el plazo y te avisamos 30 y 7 días antes. Lo que ya tienes no vence nunca, y lo que ganes en reservas pagadas antes del ${v.from}, tampoco. Reservar: ${book}. Términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "beatcoinsLaunch", subject: `Tus ${v.balance} Beatcoins no vencen: cambio en el programa`, html, text };
+}
+
+/**
+ * Resumen mensual (promocional, opt-out): saldo, a cuánto equivale, qué vence y cuándo, y
+ * la baja de un clic. El mes va en el asunto para que cada resumen sea su propio hilo.
+ */
+export function beatcoinsDigest(
+  v: { name: string | null; month: string; balance: string; value: string; expiry: string | null },
+  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string; unsubscribeUrl: string },
+): EmailContent {
+  const book = campaignUrl(ctx.bookUrl, "beatcoinsDigest");
+  const account = campaignUrl(ctx.accountUrl, "beatcoinsDigest");
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.balance)} Beatcoins</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Beatcoins equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento: puedes pagar con ellos hasta el 100% de tu hora.</p>
+     ${v.expiry ? `<p style="color:${T.boneDim};margin:0 0 16px">${esc(v.expiry)}</p>` : ""}
+     <p style="color:${T.boneDim};margin:0 0 20px">Cada sesión que pagas te devuelve el 5% en Beatcoins.</p>
+     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>
+     <p style="color:${T.boneQuiet};font-size:12px;margin:24px 0 0">Te llega una vez al mes porque tienes Beatcoins. <a href="${esc(ctx.unsubscribeUrl)}" style="color:${T.boneQuiet}">Dejar de recibir este resumen</a>.</p>`,
+    `Equivalen a ${v.value} de descuento.${v.expiry ? ` ${v.expiry}` : ""}`,
+  );
+  const text = `Tienes ${v.balance} Beatcoins: equivalen a ${v.value} de descuento.${v.expiry ? ` ${v.expiry}` : ""} Cada sesión que pagas te devuelve el 5%. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}. Dejar de recibir este resumen: ${ctx.unsubscribeUrl}`;
+  return { template: "beatcoinsDigest", subject: `Tu resumen de Beatcoins · ${v.month}`, html, text };
+}
+
 /** Aviso de cuenta: venció parte del saldo. Qué venció, qué queda y cómo volver a ganar. */
 export function beatcoinsExpired(
   v: { name: string | null; expired: string; remaining: string | null },

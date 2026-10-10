@@ -56,6 +56,8 @@ import { TrialFollowUpService } from "@/src/application/reminders/trial-followup
 import { SupabaseTrialCreditRepository } from "@/src/infrastructure/db/trial-credit-repository";
 import { BeatcoinsExpiryService } from "@/src/application/points/beatcoins-expiry-service";
 import { SupabaseBeatcoinsExpiryRepository } from "@/src/infrastructure/db/beatcoins-expiry-repository";
+import { BeatcoinsCampaignService } from "@/src/application/points/beatcoins-campaign-service";
+import { SupabaseBeatcoinsCampaignRepository } from "@/src/infrastructure/db/beatcoins-campaign-repository";
 import { PaymentReminderService } from "@/src/application/reminders/payment-reminder-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
 import { SupabasePaymentReminderRepository } from "@/src/infrastructure/db/payment-reminder-repository";
@@ -577,6 +579,16 @@ export function trialFollowUpService(client: SupabaseClient<Database> = db()): T
 /** Vencimiento de Beatcoins y sus avisos (30 y 7 días antes, y al vencer): cron diario de notificaciones. */
 export function beatcoinsExpiryService(client: SupabaseClient<Database> = db()): BeatcoinsExpiryService {
   return new BeatcoinsExpiryService(new SupabaseBeatcoinsExpiryRepository(client), notificationService(client));
+}
+
+/** Campaña de Beatcoins (bajas, casilla de /cuenta, anuncio desde el admin). */
+export function beatcoinsCampaignRepository(client: SupabaseClient<Database> = db()): SupabaseBeatcoinsCampaignRepository {
+  return new SupabaseBeatcoinsCampaignRepository(client);
+}
+
+/** Anuncio del cambio y resumen mensual de Beatcoins: cron diario de notificaciones. */
+export function beatcoinsCampaignService(client: SupabaseClient<Database> = db()): BeatcoinsCampaignService {
+  return new BeatcoinsCampaignService(beatcoinsCampaignRepository(client), notificationService(client));
 }
 
 /** Recordatorio de pago de reservas manuales pendientes (~24 h antes de liberarse): mismo cron de 5 min. */

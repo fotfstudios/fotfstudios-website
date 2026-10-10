@@ -12,6 +12,7 @@ import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
 import { TRIAL_CREDIT_DAYS } from "@/src/domain/course/credit";
 import { formatPoints } from "@/src/domain/points/points";
+import { BEATCOINS_EXPIRY_FROM, beatcoinsExpiry } from "@/src/domain/points/expiry";
 import type { ApplicationInput } from "@/src/domain/applications/application";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import {
@@ -32,6 +33,8 @@ import {
   customerPointsBalance,
   beatcoinsExpiring,
   beatcoinsExpired,
+  beatcoinsLaunch,
+  beatcoinsDigest,
   ownerNeedsReview,
   ownerDuplicatePayment,
   trialConfirmation,
@@ -722,6 +725,52 @@ export class NotificationService {
         { name: v.name, expired: formatPoints(v.expired), remaining: v.remaining > 0 ? formatPoints(v.remaining) : null },
         this.beatcoinsLinks(),
       ),
+    });
+  }
+
+  /** Anuncio del cambio de términos (vencimiento). Propaga: el barrido suelta el reclamo. */
+  async notifyBeatcoinsLaunch(v: { email: string; name: string | null; balance: number }): Promise<void> {
+    const from = DateTime.fromISO(BEATCOINS_EXPIRY_FROM).setZone(this.config.tz).setLocale("es").toFormat("d 'de' LLLL 'de' yyyy");
+    await this.mailer.send({
+      to: v.email,
+      ...beatcoinsLaunch(
+        { name: v.name, balance: formatPoints(v.balance), value: formatCLP(v.balance), from },
+        { whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar`, termsUrl: `${this.config.siteUrl}/terminos` },
+      ),
+    });
+  }
+
+  /**
+   * Resumen mensual (promocional, opt-out): con link de baja en el cuerpo y List-Unsubscribe
+   * de un clic (RFC 8058) para que Gmail/Outlook muestren su propio "Anular suscripción".
+   */
+  async notifyBeatcoinsDigest(v: {
+    email: string;
+    name: string | null;
+    balance: number;
+    protected: number;
+    activityAt: string | null;
+    unsubscribeToken: string;
+  }): Promise<void> {
+    const e = beatcoinsExpiry({ balance: v.balance, protected: v.protected, activityAt: v.activityAt });
+    const expiry =
+      e.expiring > 0
+        ? `${formatPoints(e.expiring)} vencen el ${this.longDate(e.expiresAt!.toISOString())}${e.permanent > 0 ? ` y ${formatPoints(e.permanent)} no vencen` : ""}. Cada reserva reinicia el plazo.`
+        : e.permanent > 0
+          ? "Tus Beatcoins no vencen."
+          : null;
+    const month = DateTime.now().setZone(this.config.tz).setLocale("es").toFormat("LLLL yyyy");
+    const unsubscribeUrl = `${this.config.siteUrl}/baja-resumen/${v.unsubscribeToken}`;
+    await this.mailer.send({
+      to: v.email,
+      ...beatcoinsDigest(
+        { name: v.name, month, balance: formatPoints(v.balance), value: formatCLP(v.balance), expiry },
+        { ...this.beatcoinsLinks(), unsubscribeUrl },
+      ),
+      headers: {
+        "List-Unsubscribe": `<${this.config.siteUrl}/api/baja-resumen/${v.unsubscribeToken}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
   }
 
