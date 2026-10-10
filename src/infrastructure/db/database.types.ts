@@ -112,6 +112,19 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"beatcoins_settings": {
+                  Row: {
+                    "expiry_from": string,"expiry_months": number,"id": boolean
+                  }
+                  Insert: {
+                    "expiry_from": string,"expiry_months"?: number,"id"?: boolean
+                  }
+                  Update: {
+                    "expiry_from"?: string,"expiry_months"?: number,"id"?: boolean
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"booking_events": {
                   Row: {
                     "amount_clp": number | null,"category": string,"created_at": string,"created_by": string | null,"detail": Json | null,"id": string,"occurred_at": string,"order_id": string | null,"payment_ref": string | null,"reschedule_id": string | null,"reservation_id": string,"seq": number,"tax_document_id": string | null,"type": string
@@ -326,13 +339,13 @@ isOneToOne: true
                   ]
                 },"customers": {
                   Row: {
-                    "auth_user_id": string | null,"created_at": string,"email": string | null,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_balance": number,"updated_at": string,"whatsapp_opt_in": boolean,"whatsapp_opt_in_at": string | null,"whatsapp_opt_in_source": string | null,"whatsapp_opt_out_at": string | null
+                    "auth_user_id": string | null,"created_at": string,"email": string | null,"email_digest_opt_out_at": string | null,"email_unsubscribe_token": string,"id": string,"name": string | null,"name_norm": string | null,"phone": string | null,"phone_digits": string | null,"points_activity_at": string | null,"points_balance": number,"points_digest_sent_at": string | null,"points_expired_notice_at": string | null,"points_expiry_notice_30_at": string | null,"points_expiry_notice_7_at": string | null,"points_last_expired_amount": number | null,"points_last_expired_at": string | null,"points_launch_queued_at": string | null,"points_launch_sent_at": string | null,"points_protected": number,"updated_at": string,"whatsapp_opt_in": boolean,"whatsapp_opt_in_at": string | null,"whatsapp_opt_in_source": string | null,"whatsapp_opt_out_at": string | null
                   }
                   Insert: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"email_digest_opt_out_at"?: string | null,"email_unsubscribe_token"?: string,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_activity_at"?: string | null,"points_balance"?: number,"points_digest_sent_at"?: string | null,"points_expired_notice_at"?: string | null,"points_expiry_notice_30_at"?: string | null,"points_expiry_notice_7_at"?: string | null,"points_last_expired_amount"?: number | null,"points_last_expired_at"?: string | null,"points_launch_queued_at"?: string | null,"points_launch_sent_at"?: string | null,"points_protected"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
                   }
                   Update: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_balance"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
+                    "auth_user_id"?: string | null,"created_at"?: string,"email"?: string | null,"email_digest_opt_out_at"?: string | null,"email_unsubscribe_token"?: string,"id"?: string,"name"?: string | null,"name_norm"?: never,"phone"?: string | null,"phone_digits"?: never,"points_activity_at"?: string | null,"points_balance"?: number,"points_digest_sent_at"?: string | null,"points_expired_notice_at"?: string | null,"points_expiry_notice_30_at"?: string | null,"points_expiry_notice_7_at"?: string | null,"points_last_expired_amount"?: number | null,"points_last_expired_at"?: string | null,"points_launch_queued_at"?: string | null,"points_launch_sent_at"?: string | null,"points_protected"?: number,"updated_at"?: string,"whatsapp_opt_in"?: boolean,"whatsapp_opt_in_at"?: string | null,"whatsapp_opt_in_source"?: string | null,"whatsapp_opt_out_at"?: string | null
                   }
                   Relationships: [
                     
@@ -885,6 +898,14 @@ isOneToOne: false
 "backfill_customers_from_bookings":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"beatcoins_expires_at":
+{ Args: { "p_activity_at": string }; Returns: string
+                           },
+"beatcoins_expiry_due":
+{ Args: { "p_days": number,"p_now"?: string }; Returns: {
+              "customer_id": string,"email": string,"expirable": number,"expires_at": string,"name": string,"protected": number
+            }[]
+                           },
 "booking_event_category":
 { Args: { "p_type": string }; Returns: string
                            },
@@ -1022,6 +1043,11 @@ isOneToOne: false
                            },
 "expire_abandoned_reschedules":
 { Args: { "p_older_than"?: string }; Returns: number
+                           },
+"expire_beatcoins":
+{ Args: { "p_now"?: string }; Returns: {
+              "customer_id": string,"expired": number
+            }[]
                            },
 "expire_stale_holds":
 { Args: { "p_resource"?: string }; Returns: number
@@ -1220,7 +1246,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "order_status": "cart"|"pending_payment"|"paid"|"fulfilled"|"cancelled"|"refunded","points_entry_kind": "earn"|"earn_revoke"|"redeem"|"redeem_release"|"redeem_restore"|"adjust","price_book_status": "draft"|"active"|"archived","reservation_status": "held"|"confirmed"|"cancelled"|"expired","tax_doc_kind": "boleta"|"nota_credito","tax_doc_status": "pendiente"|"emitida","tax_mode": "inclusive"|"exclusive"
+            "order_status": "cart"|"pending_payment"|"paid"|"fulfilled"|"cancelled"|"refunded","points_entry_kind": "earn"|"earn_revoke"|"redeem"|"redeem_release"|"redeem_restore"|"adjust"|"expire","price_book_status": "draft"|"active"|"archived","reservation_status": "held"|"confirmed"|"cancelled"|"expired","tax_doc_kind": "boleta"|"nota_credito","tax_doc_status": "pendiente"|"emitida","tax_mode": "inclusive"|"exclusive"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -1340,7 +1366,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "order_status": ["cart", "pending_payment", "paid", "fulfilled", "cancelled", "refunded"],"points_entry_kind": ["earn", "earn_revoke", "redeem", "redeem_release", "redeem_restore", "adjust"],"price_book_status": ["draft", "active", "archived"],"reservation_status": ["held", "confirmed", "cancelled", "expired"],"tax_doc_kind": ["boleta", "nota_credito"],"tax_doc_status": ["pendiente", "emitida"],"tax_mode": ["inclusive", "exclusive"]
+            "order_status": ["cart", "pending_payment", "paid", "fulfilled", "cancelled", "refunded"],"points_entry_kind": ["earn", "earn_revoke", "redeem", "redeem_release", "redeem_restore", "adjust", "expire"],"price_book_status": ["draft", "active", "archived"],"reservation_status": ["held", "confirmed", "cancelled", "expired"],"tax_doc_kind": ["boleta", "nota_credito"],"tax_doc_status": ["pendiente", "emitida"],"tax_mode": ["inclusive", "exclusive"]
           }
         }
 } as const
