@@ -336,29 +336,35 @@ describe("de-marketing (D6): booth-glow retirado", () => {
   });
 });
 
-describe("design system de Claude Design: acotado a /curso-dj", () => {
+describe("design system de Claude Design: acotado a /curso-dj y a la reserva", () => {
   // Excepción deliberada al Manual de Marca (CLAUDE.md → Brand guardrails): /curso-dj
-  // abierto usa Anton / Space Grotesk / Space Mono y acento naranja. Las fuentes se
-  // cargan en curso-dj/_ds/fonts.ts y se aplican en el wrapper .curso-ds de la página,
-  // nunca en <html>; ninguna otra ruta ni componente compartido las toma.
-  const DS_DIR = "app/(marketing)/curso-dj/";
+  // abierto y la superficie de reservas usan Anton / Space Grotesk / Space Mono y acento
+  // naranja. El sistema vive en components/ds/ (fuentes en fonts.ts) y se aplica en un
+  // wrapper .fotf-ds, nunca en <html>; ninguna otra ruta ni componente lo toma.
+  const DS_ALLOWED = ["components/ds/", "app/(marketing)/curso-dj/", "app/(booking)/", "components/booking/"];
   const codeUnder = (dir: string): string[] =>
     readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
       .filter((f) => /\.(tsx?|css)$/.test(f))
       .map((f) => join(dir, f));
-  const DS_FONT = /\b(Anton|Space_Grotesk|Space_Mono)\b|--font-ds-|curso-ds\.css|_ds\/fonts\//;
+  const DS_FONT = /\b(Anton|Space_Grotesk|Space_Mono)\b|--font-ds-|fotf-ds|\bds\.css|\bds\/fonts\/|components\/ds\//;
 
-  it("las fuentes y los tokens del sistema solo aparecen bajo curso-dj/", () => {
+  it("las fuentes y los tokens del sistema solo aparecen en las superficies permitidas", () => {
     const offenders = [...codeUnder("app"), ...codeUnder("components"), ...codeUnder("lib")]
-      .filter((f) => !f.startsWith(DS_DIR) && !f.endsWith("chrome-contract.test.ts"))
+      .filter((f) => !DS_ALLOWED.some((d) => f.startsWith(d)) && !f.endsWith("chrome-contract.test.ts"))
       .filter((f) => DS_FONT.test(read(f)));
     expect(offenders).toEqual([]);
+  });
+
+  it("las superficies de herramienta (admin, cuenta) nunca quedan permitidas", () => {
+    for (const tool of ["app/admin/", "app/cuenta/", "components/admin/", "components/cuenta/"]) {
+      expect(DS_ALLOWED.some((d) => tool.startsWith(d) || d.startsWith(tool))).toBe(false);
+    }
   });
 
   it("las fuentes van autoalojadas (next/font/local), no por Google en build", () => {
     // next/font/google revienta el build cuando Google sirve estas familias con URLs sin
     // extensión (CI de #223). Autoalojadas, el build no depende de la red.
-    const src = read("app/(marketing)/curso-dj/_ds/fonts.ts");
+    const src = read("components/ds/fonts.ts");
     expect(src).toContain('from "next/font/local"');
     expect(src).not.toContain("next/font/google");
   });

@@ -8,8 +8,8 @@ import { SITE, SITE_URL } from "@/lib/site";
 import { FAQ, INSTRUCTOR, PRECIOS, PROGRAMA, RATING_MIN, SESIONES, TESTIMONIOS } from "@/lib/curso-content";
 import { CURSO_ABIERTO } from "@/lib/flags";
 import CursoPausado from "./_components/CursoPausado";
-import { cursoDsFonts } from "./_ds/fonts";
-import "./_ds/curso-ds.css";
+import { dsFonts } from "@/components/ds/fonts";
+import "@/components/ds/ds.css";
 import DsHeader from "./_components/DsHeader";
 import DsHero from "./_components/DsHero";
 import DsStats from "./_components/DsStats";
@@ -178,12 +178,12 @@ export default function CursoDjPage() {
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
   );
 
-  // Abierto: el design system de Claude Design (_ds/), acotado a este wrapper.
+  // Abierto: el design system de Claude Design (components/ds/), acotado a este wrapper.
   // Sin transform/filter/backdrop-filter aquí: sería el containing block del cursor
   // y del banner de consentimiento (position: fixed).
   if (CURSO_ABIERTO) {
     return (
-      <div className={`curso-ds ${cursoDsFonts} min-h-screen`}>
+      <div className={`fotf-ds ${dsFonts} min-h-screen`}>
         {ld}
         <DsHeader />
         <main>

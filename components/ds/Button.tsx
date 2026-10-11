@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 /**
  * Button del design system (components/core/Button.jsx en Claude Design), portado a
- * clases: hover/press viven en curso-ds.css en vez de estado JS. Con `href` rinde un
+ * clases: hover/press viven en ds.css en vez de estado JS. Con `href` rinde un
  * <a> (anclas de la página); sin él, un <button>.
  */
 type Props = {
