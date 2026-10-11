@@ -1,9 +1,14 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import Checkbox from "@/components/ds/Checkbox";
 import Faders from "@/components/ds/Faders";
+import { formatCLP } from "@/src/domain/money/money";
 import SectionHead from "./SectionHead";
 
-/** 04 Pago: cómo se paga (Mercado Pago o Beatcoins al 100 %) y la aceptación de términos. */
+/**
+ * 04 Pago: Beatcoins del cliente con sesión (canje), cómo se paga el resto (Mercado Pago o
+ * nada si los Beatcoins cubren el total) y la aceptación de términos.
+ */
 export default function PaySection({
   n,
   title,
@@ -11,6 +16,8 @@ export default function PaySection({
   acceptedTerms,
   onAcceptedTerms,
   termsError,
+  beatcoins,
+  pointsApplied = 0,
 }: {
   n?: string;
   title: string;
@@ -18,14 +25,21 @@ export default function PaySection({
   acceptedTerms: boolean;
   onAcceptedTerms: (v: boolean) => void;
   termsError: boolean;
+  /** Bloque de Beatcoins (solo con sesión). */
+  beatcoins?: ReactNode;
+  /** Beatcoins aplicados (para decir que el resto va por Mercado Pago). */
+  pointsApplied?: number;
 }) {
   return (
     <section className="flex flex-col gap-3.5" aria-labelledby="bk-pay-title">
       <SectionHead id="bk-pay-title" n={n} title={title}>
         {fullPoints
           ? "Tus Beatcoins cubren el total: no hay paso de pago."
-          : "Pagas en Mercado Pago y vuelves aquí con la reserva confirmada."}
+          : pointsApplied > 0
+            ? `Usas ${formatCLP(pointsApplied)} en Beatcoins y pagas el resto en Mercado Pago.`
+            : "Pagas en Mercado Pago y vuelves aquí con la reserva confirmada."}
       </SectionHead>
+      {beatcoins}
       {fullPoints ? (
         <div className="ds-card flex max-w-[760px] items-center gap-4 p-5">
           <Faders size={36} color="var(--gold)" />

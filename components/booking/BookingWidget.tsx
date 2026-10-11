@@ -18,6 +18,7 @@ import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/sched
 import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
 import { hhmm } from "./format";
 import { useIsDesktop } from "./useIsDesktop";
+import BeatcoinsBlock from "./reservar/BeatcoinsBlock";
 import BottomBar from "./reservar/BottomBar";
 import CustomerSection, { type BookingCustomer } from "./reservar/CustomerSection";
 import DayStrip from "./reservar/DayStrip";
@@ -479,9 +480,6 @@ export default function BookingWidget({
             onLoginCode={setLoginCode}
             onSendCode={sendLoginCode}
             onVerifyCode={() => void verifyLoginCode()}
-            usePoints={usePoints}
-            onUsePoints={setUsePoints}
-            pointsApplied={pointsApplied}
             suggestLogin={suggestLogin}
             onSignOut={() => void signOut()}
             signingOut={signingOut}
@@ -510,6 +508,19 @@ export default function BookingWidget({
             acceptedTerms={acceptedTerms}
             onAcceptedTerms={setAcceptedTerms}
             termsError={tried && missing?.step === "pago"}
+            pointsApplied={pointsApplied}
+            beatcoins={
+              customer && (
+                <BeatcoinsBlock
+                  points={customer.points}
+                  expiryNote={customer.pointsExpiryNote}
+                  usePoints={usePoints}
+                  onUsePoints={setUsePoints}
+                  pointsApplied={pointsApplied}
+                  earn={earnPreview}
+                />
+              )
+            }
           />
         )}
       </div>

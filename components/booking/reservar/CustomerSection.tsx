@@ -4,7 +4,6 @@ import { Fragment } from "react";
 import Button from "@/components/ds/Button";
 import Checkbox from "@/components/ds/Checkbox";
 import Input from "@/components/ds/Input";
-import Switch from "@/components/ds/Switch";
 import { formatCLP } from "@/src/domain/money/money";
 import type { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import BeatcoinsInfo from "./BeatcoinsInfo";
@@ -23,8 +22,8 @@ export interface BookingCustomer {
 
 /**
  * 03 Tus datos: email, nombre y celular (una sola vez: confirmación, código de acceso y
- * comprobante), consentimiento de WhatsApp, acceso con código sin salir del flujo y, con
- * sesión, el canje de Beatcoins. Dueña de los ids `bk-*` que usa el CTA para hacer scroll.
+ * comprobante), consentimiento de WhatsApp y acceso con código sin salir del flujo (el canje
+ * de Beatcoins vive en el paso de pago, PaySection). Dueña de los ids `bk-*` que usa el CTA para hacer scroll.
  *
  * Como un checkout de e-commerce: con sesión, el correo deja de ser un campo y pasa a ser
  * la tarjeta "Sesión iniciada como … · Salir"; como invitado, si el correo tiene
@@ -56,9 +55,6 @@ export default function CustomerSection({
   onLoginCode,
   onSendCode,
   onVerifyCode,
-  usePoints,
-  onUsePoints,
-  pointsApplied,
   suggestLogin,
   onSignOut,
   signingOut,
@@ -89,9 +85,6 @@ export default function CustomerSection({
   onLoginCode: (v: string) => void;
   onSendCode: () => void;
   onVerifyCode: () => void;
-  usePoints: boolean;
-  onUsePoints: (v: boolean) => void;
-  pointsApplied: number;
   /** El correo del invitado tiene Beatcoins: ofrecer entrar con código. */
   suggestLogin: boolean;
   onSignOut: () => void;
@@ -145,6 +138,11 @@ export default function CustomerSection({
           <span className="flex min-w-40 flex-1 flex-col gap-0.5">
             <span className="text-[15px] font-medium">Sesión iniciada como</span>
             <span className="ds-mono text-xs break-all text-[var(--text-muted)]">{customer.email}</span>
+            {customer.points > 0 && (
+              <span className="text-xs text-[var(--text-muted)]">
+                <span className="ds-mono text-[var(--gold)]">{formatCLP(customer.points)}</span> en Beatcoins
+              </span>
+            )}
           </span>
           <button
             type="button"
@@ -303,31 +301,7 @@ export default function CustomerSection({
         </div>
       )}
 
-      {customer ? (
-        <div className="ds-card flex max-w-[760px] flex-col gap-3 px-5 py-4">
-          {customer.points > 0 ? (
-            <div className="flex items-center gap-4">
-              <span className="flex flex-1 flex-col gap-1">
-                <span id="bk-points-label" className="text-[15px] font-medium">
-                  Usar mis Beatcoins
-                </span>
-                <span className="text-[13px] text-[var(--text-muted)]">
-                  Tienes <span className="ds-mono text-[var(--gold)]">{formatCLP(customer.points)}</span> en Beatcoins.
-                  Se aplican después del descuento
-                  {usePoints && pointsApplied > 0 ? `: −${formatCLP(pointsApplied)}.` : "."}
-                </span>
-                {customer.pointsExpiryNote && (
-                  <span className="text-[13px] text-[var(--text-muted)]">{customer.pointsExpiryNote}</span>
-                )}
-              </span>
-              <Switch aria-labelledby="bk-points-label" checked={usePoints} onChange={(e) => onUsePoints(e.target.checked)} />
-            </div>
-          ) : (
-            <span className="text-[15px] font-medium">Tus Beatcoins</span>
-          )}
-          <BeatcoinsInfo earn={earnPreview} />
-        </div>
-      ) : (
+      {!customer && (
         <p className="text-xs text-[var(--text-muted)]">Reservar no requiere cuenta. No compartimos tus datos.</p>
       )}
     </section>
