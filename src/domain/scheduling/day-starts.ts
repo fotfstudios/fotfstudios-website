@@ -73,3 +73,28 @@ export function dateShortLabel(date: string): string {
   const d = DateTime.fromISO(date);
   return `${DOW[d.weekday % 7]} ${date.slice(8, 10)} ${MON[d.month - 1]}`;
 }
+
+export interface HourCell {
+  minute: number;
+  /** Reservada, o ya pasó (hoy, antes del corte): no se puede usar. */
+  occupied: boolean;
+  /** Un bloque de la duración elegida cabe completo empezando aquí. */
+  startable: boolean;
+}
+
+/**
+ * Estado de cada hora de apertura para la grilla de /reservar. Distingue "ocupada" (se
+ * tacha) de "libre, pero el bloque no cabe desde aquí" (solo deshabilitada): mezclarlas
+ * hacía ver como no disponibles horas libres que una selección válida sí cubre.
+ */
+export function hourCells(day: StartDay, durationHours: number): HourCell[] {
+  if (day.closed) return [];
+  const starts = new Set(validStarts(day, durationHours));
+  const cells: HourCell[] = [];
+  for (let m = day.openMinute; m < day.closeMinute; m += 60) {
+    const slot = { start: m, end: m + 60 };
+    const occupied = m < day.minStart || day.booked.some((b) => slot.start < b.end && b.start < slot.end);
+    cells.push({ minute: m, occupied, startable: starts.has(m) });
+  }
+  return cells;
+}

@@ -278,6 +278,9 @@ export default function BookingWidget({
     if (d && start !== null && !validStarts(d, duration).includes(start)) setStart(null);
   };
 
+  // Con la preferencia de WhatsApp ya elegida en la cuenta, el pedido no la envía.
+  const whatsappDecided = !!customer?.whatsappDecided;
+
   // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError con el
   // código mapeable; deja `error` seteado y `submitting` reseteado al fallar.
   const createBookingAndGetPreference = useCallback(async (): Promise<{
@@ -306,7 +309,7 @@ export default function BookingWidget({
             pointsToRedeem: pointsApplied,
             termsAccepted: acceptedTerms,
             // Solo si se preguntó: con la preferencia ya elegida en la cuenta no se toca.
-            ...(phoneValid && !customer?.whatsappDecided ? { whatsappOptIn } : {}),
+            ...(phoneValid && !whatsappDecided ? { whatsappOptIn } : {}),
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
           }),
@@ -349,6 +352,7 @@ export default function BookingWidget({
     requote,
     range,
     wizard,
+    whatsappDecided,
   ]);
 
   // Redirect clásico a init_point. `submitting` queda en true a propósito ("Redirigiendo…").
@@ -465,7 +469,6 @@ export default function BookingWidget({
                 <TimeGrid
                   day={day}
                   tiers={tiers}
-                  starts={starts}
                   duration={duration}
                   selectedStart={selectedStart}
                   onSelect={(m) => {
