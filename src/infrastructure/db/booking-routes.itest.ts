@@ -91,7 +91,7 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
           date: MON,
           startMinute: 600,
           durationHours: 1,
-          customer: { email: "x@e.cl" },
+          customer: { email: "x@e.cl", name: "DJ Prueba", phone: "9 1234 5678" },
           termsAccepted: true,
         }),
       }),
@@ -125,7 +125,7 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
             date: MON,
             startMinute: 660,
             durationHours: 1,
-            customer: { email: "y@e.cl" },
+            customer: { email: "y@e.cl", name: "DJ Prueba", phone: "9 1234 5678" },
             termsAccepted: true,
           }),
         }),
@@ -222,7 +222,7 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
     date: MON,
     startMinute,
     durationHours: 1,
-    customer: { email: AUTH_EMAIL },
+    customer: { email: AUTH_EMAIL, name: "DJ Prueba", phone: "9 1234 5678" },
     pointsToRedeem: 50_000, // se capa al total del quote → efectivo 0
     termsAccepted: true,
     ...over,
@@ -329,6 +329,30 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
   it("un whatsappOptIn que no es booleano es 400", async () => {
     const res = await post(fullPointsBody(960, { whatsappOptIn: "sí" }));
     expect(res.status).toBe(400);
+  });
+
+  it.each([
+    [{ phone: "9 1234 5678" }, "name_required"],
+    [{ name: "   ", phone: "9 1234 5678" }, "name_required"],
+    [{ name: "DJ Prueba" }, "phone_invalid"],
+    [{ name: "DJ Prueba", phone: "123" }, "phone_invalid"],
+    [{ name: "DJ Prueba", phone: "2 2345 6789" }, "phone_invalid"], // fijo
+  ])("customer %o → 400 %s", async (extra, code) => {
+    const res = await post({ ...fullPointsBody(1020), customer: { email: AUTH_EMAIL, ...extra } });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(code);
+  });
+
+  it("guarda el celular pegado con +56 como +569XXXXXXXX (sin pasar por MP)", async () => {
+    await adoptedCustomer(50_000);
+    auth.session = { userId: AUTH_USER, email: AUTH_EMAIL };
+    const res = await post(
+      fullPointsBody(1080, { customer: { email: AUTH_EMAIL, name: "DJ Prueba", phone: "+56 9 6280 3298" } }),
+    );
+    expect(res.status).toBe(200);
+    const { orderId } = await res.json();
+    const row = await pg.query<{ customer_phone: string }>("select customer_phone from orders where id = $1", [orderId]);
+    expect(row.rows[0].customer_phone).toBe("+56962803298");
   });
 
   // Fix round 2: `name`/`phone` no-string reventaban dentro del try (la ruta
