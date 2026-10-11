@@ -7,7 +7,7 @@ import { SupabaseCourseRepository } from "@/src/infrastructure/db/course-reposit
 import { SupabaseRescheduleRepository } from "@/src/infrastructure/db/reschedule-repository";
 import { SupabaseWebhookRepository } from "@/src/infrastructure/db/webhook-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
-import { verifyMpSignature } from "@/src/infrastructure/payments/mercadopago/verify-signature";
+import { mpSignatureFailure } from "@/src/infrastructure/payments/mercadopago/verify-signature";
 
 export const dynamic = "force-dynamic";
 
@@ -52,22 +52,23 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // Firma best-effort (defensa en profundidad; ver doc del módulo).
-  const secret = process.env.MP_WEBHOOK_SECRET;
-  const signatureValid =
-    !!secret &&
-    verifyMpSignature({
-      xSignature: req.headers.get("x-signature"),
-      xRequestId: req.headers.get("x-request-id"),
-      dataId: queryDataId,
-      secret,
-    });
+  // Ventana anti-replay de 5 min incluida; el motivo + rid se cruzan con el panel de MP.
+  const xRequestId = req.headers.get("x-request-id");
+  const signatureFailure = mpSignatureFailure({
+    xSignature: req.headers.get("x-signature"),
+    xRequestId,
+    dataId: queryDataId,
+    secret: process.env.MP_WEBHOOK_SECRET ?? "",
+  });
   // Forma de entrega: Webhooks del panel (`?data.id=&type=`, firma validable)
   // vs IPN legacy (`?id=&topic=`, firma no validable por diseño).
   const forma = params.has("data.id") ? "webhooks" : params.has("topic") ? "ipn" : "desconocida";
-  if (signatureValid) {
+  if (signatureFailure === null) {
     console.info(`[mp-webhook] firma ok (forma=${forma})`);
   } else {
-    console.warn(`[mp-webhook] firma no validada (forma=${forma}); se procesa vía API de MP (fuente de verdad)`);
+    console.warn(
+      `[mp-webhook] firma no validada (forma=${forma}, motivo=${signatureFailure}, rid=${xRequestId ?? "-"}); se procesa vía API de MP (fuente de verdad)`,
+    );
   }
 
   // Solo notificaciones de pago.
