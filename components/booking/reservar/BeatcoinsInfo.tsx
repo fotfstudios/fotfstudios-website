@@ -5,8 +5,10 @@ import { EARN_RATE } from "@/src/domain/points/points";
 export const BEATCOINS_TERMS_HREF = "/terminos#beatcoins";
 
 /**
- * Qué son los Beatcoins en una línea + lo que suma esta reserva, con enlace a sus
- * condiciones (en otra pestaña: no se pierde el checkout).
+ * Qué son los Beatcoins (el programa de recompensas de FOTF Studios: un cashback en
+ * Beatcoins) + lo que suma esta reserva, con enlace a sus condiciones (en otra pestaña: no
+ * se pierde el checkout). Lo usan las dos tarjetas: "Este correo tiene Beatcoins" y "Usar
+ * mis Beatcoins".
  */
 export default function BeatcoinsInfo({ earn }: { earn: number | null }) {
   return (
@@ -16,8 +18,9 @@ export default function BeatcoinsInfo({ earn }: { earn: number | null }) {
           Con esta reserva sumas <span className="ds-mono text-[var(--gold)]">{formatCLP(earn)}</span> en Beatcoins.{" "}
         </>
       )}
-      1 Beatcoin = $1: ganas el {Math.round(EARN_RATE * 100)}% de lo que pagas en dinero y los usas para pagar tus
-      próximas reservas y extras.{" "}
+      <strong className="font-medium text-[var(--text-secondary)]">Beatcoins</strong> es el programa de recompensas de
+      FOTF Studios: te devolvemos el {Math.round(EARN_RATE * 100)}% de lo que pagas en dinero (1 Beatcoin = $1) para usar
+      en tus próximas reservas y extras.{" "}
       <a
         href={BEATCOINS_TERMS_HREF}
         target="_blank"

@@ -23,8 +23,8 @@ describe("summaryLines", () => {
       pointsApplied: 3000,
     });
     expect(lines).toEqual([
-      { label: "Valle · 1h × $9.990", value: "$9.990", gold: false },
-      { label: "Punta semana · 1h × $14.990", value: "$14.990", gold: false },
+      { label: "Tarifa diurna · 1h × $9.990", value: "$9.990", gold: false },
+      { label: "Tarifa nocturna · 1h × $14.990", value: "$14.990", gold: false },
       { label: "Grabación de audio", value: "$9.990", gold: false },
       { label: "Sesión 1:1 guiada · 2h", value: "$29.980", gold: false },
       { label: "Descuento por volumen (10%)", value: "−$2.500", gold: true },

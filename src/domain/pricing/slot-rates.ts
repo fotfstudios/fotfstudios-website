@@ -3,7 +3,7 @@
  * `rateForSlot` del motor: la grilla muestra exactamente lo que se cobraría.
  */
 import { rateForSlot } from "./engine";
-import { tierLabel } from "./tier-labels";
+import { checkoutTierLabel } from "./tier-labels";
 import type { RateTier } from "./types";
 
 export interface HourRate {
@@ -29,11 +29,11 @@ export function hourlyRates(tiers: RateTier[], weekday: number, openMinute: numb
 
 const hhmm = (minute: number) => `${String(Math.floor(minute / HOUR)).padStart(2, "0")}:${String(minute % HOUR).padStart(2, "0")}`;
 
-/** Leyenda de la grilla: "Punta semana desde 17:00", "Punta finde · todo el día" o null. */
+/** Leyenda de la grilla: "Tarifa nocturna desde 17:00", "Tarifa fin de semana · todo el día" o null. */
 export function peakLegend(tiers: RateTier[], weekday: number, openMinute: number, closeMinute: number): string | null {
   const rates = hourlyRates(tiers, weekday, openMinute, closeMinute);
   const firstPeak = rates.find((r) => r.peak);
   if (!firstPeak) return null;
-  const name = tierLabel(firstPeak.tierKey!);
+  const name = checkoutTierLabel(firstPeak.tierKey!);
   return rates.every((r) => r.peak) ? `${name} · todo el día` : `${name} desde ${hhmm(firstPeak.minute)}`;
 }
