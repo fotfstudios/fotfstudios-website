@@ -11,7 +11,7 @@ import { accountEnabled } from "@/lib/flags";
 import { clMobileDigits, formatClMobile, isValidClMobile } from "@/lib/phone-input";
 import { normalizeEmail } from "@/src/domain/contact/contact";
 import { formatCLP } from "@/src/domain/money/money";
-import { clampPoints } from "@/src/domain/points/points";
+import { clampPoints, computeEarn } from "@/src/domain/points/points";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import type { RateTier } from "@/src/domain/pricing/types";
 import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/scheduling/day-starts";
@@ -170,6 +170,8 @@ export default function BookingWidget({
   const pointsApplied = usePoints ? maxApplicable : 0;
   const payable = total !== null ? total - pointsApplied : null;
   const fullPoints = pointsApplied > 0 && payable === 0;
+  // Lo que suma esta reserva: 5 % de lo que se paga en dinero (lo pagado con Beatcoins no suma).
+  const earnPreview = payable !== null && selectedStart !== null ? computeEarn(payable) : null;
 
   const phoneValid = isValidClMobile(phone);
   const stepState = { hasSlot: selectedStart !== null, name, email, phone, termsAccepted: acceptedTerms };
@@ -483,6 +485,7 @@ export default function BookingWidget({
             suggestLogin={suggestLogin}
             onSignOut={() => void signOut()}
             signingOut={signingOut}
+            earnPreview={earnPreview}
           />
         )}
 

@@ -7,6 +7,7 @@ import Input from "@/components/ds/Input";
 import Switch from "@/components/ds/Switch";
 import { formatCLP } from "@/src/domain/money/money";
 import type { useOtpLogin } from "@/components/cuenta/useOtpLogin";
+import BeatcoinsInfo from "./BeatcoinsInfo";
 import PhoneInput from "./PhoneInput";
 import SectionHead from "./SectionHead";
 
@@ -61,6 +62,7 @@ export default function CustomerSection({
   suggestLogin,
   onSignOut,
   signingOut,
+  earnPreview,
 }: {
   n?: string;
   customer: BookingCustomer | null;
@@ -94,6 +96,8 @@ export default function CustomerSection({
   suggestLogin: boolean;
   onSignOut: () => void;
   signingOut: boolean;
+  /** Beatcoins que suma esta reserva (5 % de lo pagado en dinero); null sin horario. */
+  earnPreview: number | null;
 }) {
   const canLogin = accountOn && !customer;
   const initials = (customer?.name || customer?.email || "DJ").slice(0, 2).toUpperCase();
@@ -181,6 +185,12 @@ export default function CustomerSection({
         <PhoneInput digits={phoneDigits} onDigits={onPhoneDigits} onBlur={onPhoneBlur} error={phoneError} />
       </div>
 
+      <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
+        {phoneValid
+          ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
+          : "Agrega tu celular para recibir también los avisos por WhatsApp."}
+      </Checkbox>
+
       {canLogin && suggestLogin && !loginOpen && (
         <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
           <span className="flex min-w-48 flex-1 flex-col gap-0.5">
@@ -190,14 +200,30 @@ export default function CustomerSection({
           <Button variant="gold" size="sm" onClick={openLogin}>
             Entrar con código
           </Button>
+          <div className="basis-full">
+            <BeatcoinsInfo earn={earnPreview} />
+          </div>
         </div>
       )}
 
-      <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
-        {phoneValid
-          ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
-          : "Agrega tu celular para recibir también los avisos por WhatsApp."}
-      </Checkbox>
+      {/* Invitado sin Beatcoins conocidos: invitar a entrar para sumarlos y usarlos. Las
+          reservas como invitado igual se suman al entrar después con el mismo correo. */}
+      {canLogin && !suggestLogin && !loginOpen && (
+        <div className="ds-card flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Acumula y usa Beatcoins</span>
+            <span className="text-[13px] text-[var(--text-muted)]">
+              Entra con un código a tu correo, sin contraseña, para sumarlos y pagar con ellos.
+            </span>
+          </span>
+          <Button variant="secondary" size="sm" onClick={openLogin}>
+            Entrar con código
+          </Button>
+          <div className="basis-full">
+            <BeatcoinsInfo earn={earnPreview} />
+          </div>
+        </div>
+      )}
 
       {canLogin && loginOpen && (
         <div className="ds-card flex max-w-[480px] flex-col gap-3.5 p-5">
@@ -278,9 +304,9 @@ export default function CustomerSection({
       )}
 
       {customer ? (
-        <div className="flex max-w-[760px] flex-col gap-3">
-          {customer.points > 0 && (
-            <div className="ds-card flex items-center gap-4 px-5 py-4">
+        <div className="ds-card flex max-w-[760px] flex-col gap-3 px-5 py-4">
+          {customer.points > 0 ? (
+            <div className="flex items-center gap-4">
               <span className="flex flex-1 flex-col gap-1">
                 <span id="bk-points-label" className="text-[15px] font-medium">
                   Usar mis Beatcoins
@@ -296,10 +322,13 @@ export default function CustomerSection({
               </span>
               <Switch aria-labelledby="bk-points-label" checked={usePoints} onChange={(e) => onUsePoints(e.target.checked)} />
             </div>
+          ) : (
+            <span className="text-[15px] font-medium">Tus Beatcoins</span>
           )}
+          <BeatcoinsInfo earn={earnPreview} />
         </div>
       ) : (
-        <p className="text-xs text-[var(--text-muted)]">Sin cuenta ni contraseña. No compartimos tus datos.</p>
+        <p className="text-xs text-[var(--text-muted)]">Reservar no requiere cuenta. No compartimos tus datos.</p>
       )}
     </section>
   );

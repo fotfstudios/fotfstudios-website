@@ -161,7 +161,7 @@ export default function TerminosPage() {
           </p>
         </ProseSection>
 
-        <ProseSection title="Beatcoins">
+        <ProseSection id="beatcoins" title="Beatcoins">
           <p>
             Beatcoins es el programa de puntos de FOTF Studios (antes, «Puntos FOTF»; los saldos
             se mantienen iguales). Por cada pago hecho en dinero acumulas Beatcoins:{" "}
