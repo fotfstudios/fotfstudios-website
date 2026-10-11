@@ -387,6 +387,9 @@
   background: var(--surface-card);
 }
 
+/* Tarjeta de aviso con valor (Beatcoins): borde oro. */
+.fotf-ds .ds-card--gold { border-color: var(--gold); background: rgba(232, 201, 74, 0.06); }
+
 /* ---------- Impresión ("Guardar comprobante") ---------- */
 
 @media print {

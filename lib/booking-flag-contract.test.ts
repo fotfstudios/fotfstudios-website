@@ -19,6 +19,7 @@ const GATED = [
   "app/(booking)/reservar/page.tsx",
   "app/api/bookings/route.ts",
   "app/api/promos/first-booking/route.ts",
+  "app/api/checkout/login-hint/route.ts",
 ];
 
 const UNGATED = ["app/(booking)/reserva/estado/page.tsx"];

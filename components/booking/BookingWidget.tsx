@@ -15,6 +15,7 @@ import { clampPoints } from "@/src/domain/points/points";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import type { RateTier } from "@/src/domain/pricing/types";
 import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/scheduling/day-starts";
+import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
 import { hhmm } from "./format";
 import { useIsDesktop } from "./useIsDesktop";
 import BottomBar from "./reservar/BottomBar";
@@ -31,6 +32,7 @@ import StepBar from "./reservar/StepBar";
 import SummaryCard from "./reservar/SummaryCard";
 import TimeGrid from "./reservar/TimeGrid";
 import { useAvailabilityRange } from "./reservar/useAvailabilityRange";
+import { useLoginHint } from "./reservar/useLoginHint";
 import { useBookingQuote } from "./reservar/useBookingQuote";
 import Skeleton from "./Skeleton";
 
@@ -100,6 +102,10 @@ export default function BookingWidget({
   const [loginCode, setLoginCode] = useState("");
   const login = useOtpLogin();
   const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  // Correo de la sesión que se acaba de cerrar: no se le vuelve a ofrecer entrar.
+  const [signedOutEmail, setSignedOutEmail] = useState<string | null>(null);
+  const accountOn = accountEnabled();
 
   // Al llegar la sesión (verificar el código → router.refresh() re-resuelve `customer` sin
   // desmontar el widget): prefill + cerrar el panel. Ajuste en render, no en efecto: la
@@ -111,6 +117,27 @@ export default function BookingWidget({
     setPhone((p) => p || clMobileDigits(customer.phone));
     setLoginOpen(false);
   }
+  // Al salir (refresh sin sesión): vuelve a invitado. El correo y los datos escritos se
+  // quedan (puede seguir como invitado); los Beatcoins ya no aplican.
+  if (!customer && syncedCustomer !== null) {
+    setSignedOutEmail(normalizeEmail(syncedCustomer));
+    setSyncedCustomer(null);
+    setUsePoints(false);
+    setSigningOut(false);
+  }
+
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      await createAuthBrowserClient().auth.signOut();
+    } finally {
+      router.refresh();
+    }
+  };
+
+  // Invitado que escribe un correo con Beatcoins → se le ofrece entrar con código.
+  const suggestLogin =
+    useLoginHint(email, accountOn && !customer) && normalizeEmail(email) !== signedOutEmail;
 
   const sendLoginCode = useCallback(() => void login.send(email), [login, email]);
   // En éxito el hook deja busy en true a propósito: la carga puentea hasta que llega `customer`.
@@ -424,7 +451,7 @@ export default function BookingWidget({
           <CustomerSection
             n={n("03")}
             customer={customer}
-            accountOn={accountEnabled()}
+            accountOn={accountOn}
             email={email}
             onEmail={(v) => {
               setEmail(v);
@@ -453,6 +480,9 @@ export default function BookingWidget({
             usePoints={usePoints}
             onUsePoints={setUsePoints}
             pointsApplied={pointsApplied}
+            suggestLogin={suggestLogin}
+            onSignOut={() => void signOut()}
+            signingOut={signingOut}
           />
         )}
 

@@ -24,6 +24,10 @@ export interface BookingCustomer {
  * 03 Tus datos: email, nombre y celular (una sola vez: confirmación, código de acceso y
  * comprobante), consentimiento de WhatsApp, acceso con código sin salir del flujo y, con
  * sesión, el canje de Beatcoins. Dueña de los ids `bk-*` que usa el CTA para hacer scroll.
+ *
+ * Como un checkout de e-commerce: con sesión, el correo deja de ser un campo y pasa a ser
+ * la tarjeta "Sesión iniciada como … · Salir"; como invitado, si el correo tiene
+ * Beatcoins, se le ofrece entrar con código para usarlos.
  */
 export default function CustomerSection({
   n,
@@ -54,6 +58,9 @@ export default function CustomerSection({
   usePoints,
   onUsePoints,
   pointsApplied,
+  suggestLogin,
+  onSignOut,
+  signingOut,
 }: {
   n?: string;
   customer: BookingCustomer | null;
@@ -83,9 +90,18 @@ export default function CustomerSection({
   usePoints: boolean;
   onUsePoints: (v: boolean) => void;
   pointsApplied: number;
+  /** El correo del invitado tiene Beatcoins: ofrecer entrar con código. */
+  suggestLogin: boolean;
+  onSignOut: () => void;
+  signingOut: boolean;
 }) {
   const canLogin = accountOn && !customer;
   const initials = (customer?.name || customer?.email || "DJ").slice(0, 2).toUpperCase();
+  const openLogin = () => {
+    onLoginCode("");
+    login.changeEmail();
+    onLoginOpen(true);
+  };
 
   return (
     <section className="flex flex-col gap-3.5" aria-labelledby="bk-data-title">
@@ -114,7 +130,31 @@ export default function CustomerSection({
         Tres datos, una sola vez: sirven para la confirmación, el código de acceso y el comprobante.
       </SectionHead>
 
+      {customer && (
+        <div className="ds-card flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span
+            aria-hidden="true"
+            className="flex size-11 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)] font-[family-name:var(--font-ds-display)] text-lg text-[var(--accent)]"
+          >
+            {initials}
+          </span>
+          <span className="flex min-w-40 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Sesión iniciada como</span>
+            <span className="ds-mono text-xs break-all text-[var(--text-muted)]">{customer.email}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onSignOut}
+            disabled={signingOut}
+            className="min-h-11 px-1 text-[13px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+          >
+            {signingOut ? "Saliendo…" : "Salir"}
+          </button>
+        </div>
+      )}
+
       <div className="grid max-w-[760px] gap-4 sm:grid-cols-2">
+        {!customer && (
         <Input
           id="bk-email"
           autoComplete="email"
@@ -125,10 +165,10 @@ export default function CustomerSection({
           help={emailHint}
           error={emailError}
           value={email}
-          disabled={!!customer}
           onChange={(e) => onEmail(e.target.value)}
           onBlur={onEmailBlur}
         />
+        )}
         <Input
           id="bk-name"
           autoComplete="name"
@@ -140,6 +180,18 @@ export default function CustomerSection({
         />
         <PhoneInput digits={phoneDigits} onDigits={onPhoneDigits} onBlur={onPhoneBlur} error={phoneError} />
       </div>
+
+      {canLogin && suggestLogin && !loginOpen && (
+        <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Este correo tiene Beatcoins</span>
+            <span className="text-[13px] text-[var(--text-muted)]">Entra con un código al correo y úsalos en esta reserva.</span>
+          </span>
+          <Button variant="gold" size="sm" onClick={openLogin}>
+            Entrar con código
+          </Button>
+        </div>
+      )}
 
       <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
         {phoneValid
@@ -227,18 +279,6 @@ export default function CustomerSection({
 
       {customer ? (
         <div className="flex max-w-[760px] flex-col gap-3">
-          <div className="ds-card flex flex-wrap items-center gap-4 px-5 py-4">
-            <span
-              aria-hidden="true"
-              className="flex size-11 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)] font-[family-name:var(--font-ds-display)] text-lg text-[var(--accent)]"
-            >
-              {initials}
-            </span>
-            <span className="flex min-w-40 flex-1 flex-col gap-0.5">
-              <span className="text-[15px] font-medium">Sesión iniciada como</span>
-              <span className="ds-mono text-xs text-[var(--text-muted)]">{customer.email}</span>
-            </span>
-          </div>
           {customer.points > 0 && (
             <div className="ds-card flex items-center gap-4 px-5 py-4">
               <span className="flex flex-1 flex-col gap-1">
