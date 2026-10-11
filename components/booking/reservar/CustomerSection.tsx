@@ -32,6 +32,8 @@ export interface BookingCustomer {
   /** Solo cuando parte del saldo vence en ≤ 30 días: "500 vencen el …". */
   pointsExpiryNote?: string | null;
   whatsappOptIn: boolean;
+  /** Ya eligió sus avisos por WhatsApp (alta o baja): no se pregunta de nuevo. */
+  whatsappDecided?: boolean;
 }
 
 /**
@@ -339,11 +341,23 @@ export default function CustomerSection({
         </p>
       )}
 
-      <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
-        {phoneValid
-          ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
-          : "Agrega tu celular para recibir también los avisos por WhatsApp."}
-      </Checkbox>
+      {customer?.whatsappDecided ? (
+        // Preferencia del cliente, no de la reserva: con sesión y ya elegida, solo se informa.
+        <p className="text-[13px] text-[var(--text-muted)]">
+          Avisos por WhatsApp:{" "}
+          <span className="text-[var(--text-secondary)]">{customer.whatsappOptIn ? "activados" : "desactivados"}</span>
+          {" · "}
+          <a href="/cuenta/perfil" className="text-[var(--accent)] underline-offset-4 hover:underline">
+            Cambiar en tu cuenta
+          </a>
+        </p>
+      ) : (
+        <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
+          {phoneValid
+            ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
+            : "Agrega tu celular para recibir también los avisos por WhatsApp."}
+        </Checkbox>
+      )}
 
       {canLogin && suggestLogin && !loginOpen && (
         <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">

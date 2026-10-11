@@ -12,6 +12,7 @@ import { bookingEnabled, customerService, db, pricingService } from "@/src/compo
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
 import { todayInTz } from "@/src/domain/scheduling/time";
+import { whatsappDecided } from "@/src/domain/contact/whatsapp-checkout-consent";
 import { updateBookingContactAction } from "./actions";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
@@ -57,6 +58,8 @@ export default async function ReservarPage() {
           // La casilla parte marcada salvo que el titular se haya dado de BAJA antes: una baja
           // explícita se respeta; "nunca eligió" no es una baja.
           whatsappOptIn: ensured.profile.whatsapp.optIn || ensured.profile.whatsapp.optOutAt === null,
+          // Ya eligió (alta o baja): el checkout no vuelve a preguntar; se cambia en /cuenta.
+          whatsappDecided: whatsappDecided(ensured.profile.whatsapp),
         };
       }
       // Con email_conflict el widget sigue como invitado: un conflicto de

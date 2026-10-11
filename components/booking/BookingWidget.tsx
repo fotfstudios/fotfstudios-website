@@ -306,7 +306,8 @@ export default function BookingWidget({
             customer: { name, email, phone },
             pointsToRedeem: pointsApplied,
             termsAccepted: acceptedTerms,
-            ...(phoneValid ? { whatsappOptIn } : {}),
+            // Solo si se preguntó: con la preferencia ya elegida en la cuenta no se toca.
+            ...(phoneValid && !customer?.whatsappDecided ? { whatsappOptIn } : {}),
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
           }),
