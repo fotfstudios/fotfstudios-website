@@ -10,6 +10,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET as availabilityRangeGET } from "@/app/api/availability/range/route";
 import { GET as availabilityGET } from "@/app/api/availability/route";
 import { POST as bookingsPOST } from "@/app/api/bookings/route";
 import { GET as statusGET } from "@/app/api/orders/[id]/status/route";
@@ -347,4 +348,36 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
       expect((await res.json()).error).toBe("datos incompletos");
     },
   );
+});
+
+describe("GET /api/availability/range", () => {
+  it("devuelve cada día con horario, ocupación y corte, desde la DB real", async () => {
+    // Reserva confirmada el lunes futuro 10:00–12:00 hora de Santiago.
+    await pg.query(
+      `insert into reservations (resource_id, kind, status, starts_at, ends_at)
+       values ($1, booking, confirmed,
+               ($2::date + time 10:00) at time zone America/Santiago,
+               ($2::date + time 12:00) at time zone America/Santiago)`,
+      [resourceId, MON],
+    );
+    const res = await availabilityRangeGET(
+      new Request(`http://x/api/availability/range?resource=${resourceId}&from=${MON}&days=2`),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.from).toBe(MON);
+    expect(body.days).toHaveLength(2);
+    expect(body.days[0]).toMatchObject({ date: MON, weekday: 1, closed: false, openMinute: 540, minStart: 0 });
+    expect(body.days[0].booked).toEqual([{ start: 600, end: 720 }]);
+    expect(body.days[1].booked).toEqual([]);
+  });
+
+  it("400 con parámetros inválidos; 404 con recurso inexistente", async () => {
+    const get = (q: string) => availabilityRangeGET(new Request(`http://x/api/availability/range?${q}`));
+    expect((await get(`resource=${resourceId}&from=${MON}&days=0`)).status).toBe(400);
+    expect((await get(`resource=${resourceId}&from=${MON}&days=32`)).status).toBe(400);
+    expect((await get(`resource=${resourceId}&from=2026-02-30&days=3`)).status).toBe(400);
+    expect((await get(`from=${MON}&days=3`)).status).toBe(400);
+    expect((await get(`resource=00000000-0000-4000-a000-000000000000&from=${MON}&days=3`)).status).toBe(404);
+  });
 });

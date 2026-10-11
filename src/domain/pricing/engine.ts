@@ -10,7 +10,7 @@ import type { AddonLine, Quote, QuoteInput, RatePlan, RateTier, TierLine } from 
 const HOUR = 60;
 
 /** Franja aplicable a (día, minuto); desempata por prioridad y monto. */
-export function rateForSlot(plan: RatePlan, weekday: number, minute: number): RateTier | null {
+export function rateForSlot(plan: Pick<RatePlan, "tiers">, weekday: number, minute: number): RateTier | null {
   const matches = plan.tiers.filter(
     (t) => t.weekdays.includes(weekday) && minute >= t.startMinute && minute < t.endMinute,
   );

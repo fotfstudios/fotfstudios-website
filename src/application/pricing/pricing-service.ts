@@ -1,6 +1,6 @@
 import type { RatePlanRepository } from "@/src/application/ports/pricing";
 import { quote as quoteEngine } from "@/src/domain/pricing/engine";
-import type { Quote } from "@/src/domain/pricing/types";
+import type { Quote, RateTier } from "@/src/domain/pricing/types";
 import { rangeFor, weekdayFor } from "@/src/domain/scheduling/time";
 import { err, ok, type Result } from "@/src/domain/shared/result";
 
@@ -22,6 +22,8 @@ export interface BookingQuote {
 /** Catálogo para pintar la UI (add-ons + descuentos por volumen), sin cotizar un horario. */
 export interface PricingCatalog {
   currency: string;
+  /** Tramos de tarifa: el cliente pinta el precio por hora de cada horario (`slot-rates.ts`). */
+  tiers: RateTier[];
   addons: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
   volumeDiscounts: { minHours: number; pct: number }[];
 }
@@ -69,6 +71,7 @@ export class PricingService {
     const { ratePlan } = pricing;
     return {
       currency: ratePlan.currency,
+      tiers: ratePlan.tiers.map((t) => ({ ...t, weekdays: [...t.weekdays] })),
       addons: ratePlan.addons.map((a) => ({ key: a.key, name: a.name, amount: a.amount, kind: a.kind })),
       volumeDiscounts: [...ratePlan.volumeDiscounts].sort((a, b) => a.minHours - b.minHours),
     };
