@@ -209,6 +209,8 @@
 }
 .fotf-ds .ds-input--mono { font-family: var(--font-ds-mono), ui-monospace, monospace; }
 .fotf-ds .ds-input[aria-invalid="true"] { border-color: var(--danger); }
+/* Bloqueado (dato guardado, se edita con "Editar"): se lee como dato, no como control apagado. */
+.fotf-ds .ds-input:disabled { background: transparent; border-color: var(--border-subtle); color: var(--text-secondary); cursor: default; }
 .fotf-ds .ds-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 1px var(--danger); }
 
 /* ---------- Pills (selección única) ---------- */
@@ -307,6 +309,47 @@
 .fotf-ds .ds-switch:has(:checked) .ds-switch-track::after { left: 20px; }
 .fotf-ds .ds-switch:has(:focus-visible) .ds-switch-track { box-shadow: var(--focus-ring); }
 
+/* ---------- Opción en tarjeta (radio/checkbox nativo, visualmente oculto) ---------- */
+
+.fotf-ds .ds-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 16px 20px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.fotf-ds .ds-option:hover { border-color: var(--border-strong); }
+.fotf-ds .ds-option:has(:checked) { border-color: var(--accent); background: rgba(255, 77, 29, 0.06); }
+.fotf-ds .ds-option:has(:focus-visible) { box-shadow: var(--focus-ring); }
+.fotf-ds .ds-option:has(:disabled) { cursor: default; opacity: 0.45; }
+/* Tarjeta apilada (duración): contenido en columna, más compacta. */
+.fotf-ds .ds-option--stack { flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 16px; border-radius: var(--radius-sm); }
+/* Marcador: anillo (radio) o caja (checkbox). */
+.fotf-ds .ds-option-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-control);
+  color: var(--text-inverse);
+}
+.fotf-ds .ds-option-mark--radio { border-radius: 999px; }
+.fotf-ds .ds-option-mark--radio::after { content: ""; width: 8px; height: 8px; border-radius: 999px; background: transparent; }
+.fotf-ds .ds-option:has(:checked) .ds-option-mark--radio { border-color: var(--accent); }
+.fotf-ds .ds-option:has(:checked) .ds-option-mark--radio::after { background: var(--accent); }
+.fotf-ds .ds-option-mark--check { border-radius: 4px; }
+.fotf-ds .ds-option-mark--check svg { opacity: 0; }
+.fotf-ds .ds-option:has(:checked) .ds-option-mark--check { border-color: var(--accent); background: var(--accent); }
+.fotf-ds .ds-option:has(:checked) .ds-option-mark--check svg { opacity: 1; }
+
 /* ---------- Badge ---------- */
 
 .fotf-ds .ds-badge {
@@ -345,6 +388,9 @@
   border-radius: var(--radius-md);
   background: var(--surface-card);
 }
+
+/* Tarjeta de aviso con valor (Beatcoins): borde oro. */
+.fotf-ds .ds-card--gold { border-color: var(--gold); background: rgba(232, 201, 74, 0.06); }
 
 /* ---------- Impresión ("Guardar comprobante") ---------- */
 

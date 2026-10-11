@@ -3,12 +3,17 @@ import type { ComponentProps } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BookingWidget from "@/components/booking/BookingWidget";
+import { dsFonts } from "@/components/ds/fonts";
+import "@/components/ds/ds.css";
 import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import { accountEnabled } from "@/lib/flags";
 import type { CustomerProfile } from "@/src/application/ports/customers";
 import { bookingEnabled, customerService, db, pricingService } from "@/src/composition";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
+import { todayInTz } from "@/src/domain/scheduling/time";
+import { whatsappDecided } from "@/src/domain/contact/whatsapp-checkout-consent";
+import { updateBookingContactAction } from "./actions";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +58,8 @@ export default async function ReservarPage() {
           // La casilla parte marcada salvo que el titular se haya dado de BAJA antes: una baja
           // explícita se respeta; "nunca eligió" no es una baja.
           whatsappOptIn: ensured.profile.whatsapp.optIn || ensured.profile.whatsapp.optOutAt === null,
+          // Ya eligió (alta o baja): el checkout no vuelve a preguntar; se cambia en /cuenta.
+          whatsappDecided: whatsappDecided(ensured.profile.whatsapp),
         };
       }
       // Con email_conflict el widget sigue como invitado: un conflicto de
@@ -61,26 +68,31 @@ export default async function ReservarPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-20 md:py-28">
-      <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
-        ← FOTF Studios
-      </Link>
-      <p className="label mt-10 text-gold">Reserva</p>
-      <h1 className="font-display mt-3 text-bone" style={{ fontSize: "clamp(2.5rem,7vw,4.5rem)" }}>
-        {data.name}
-      </h1>
-      <p className="font-editorial mt-4 max-w-xl text-xl text-bone-dim">
-        Elige día, hora y duración. Pagas en línea y tu sesión queda reservada.
-        {FIRST_BOOKING_PROMO.enabled && <> Tu primera reserva lleva −{FIRST_BOOKING_PROMO.pct}% en la sala.</>}
-      </p>
-      <div className="mt-12">
+    // Design system de Claude Design (decisión del dueño: el mismo de /curso-dj), acotado a
+    // este wrapper. /reserva/estado lo adopta en su propio PR.
+    <div className={`fotf-ds ${dsFonts} min-h-screen`}>
+      <main className="mx-auto w-full max-w-[1200px] px-4 pt-10 pb-16 sm:px-10">
+        <Link href="/" className="ds-mono text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--accent)]">
+          ← FOTF Studios
+        </Link>
+        <header className="mt-8 mb-10 flex max-w-[640px] flex-col gap-3">
+          <p className="ds-eyebrow text-[var(--accent)]">Reserva</p>
+          <h1 className="ds-h2">{data.name}</h1>
+          <p className="text-[15px] text-[var(--text-secondary)]">
+            Elige duración, día y hora. Pagas en línea y tu sesión queda reservada.
+            {FIRST_BOOKING_PROMO.enabled && <> Tu primera reserva lleva −{FIRST_BOOKING_PROMO.pct}% en la sala.</>}
+          </p>
+        </header>
         <BookingWidget
           resourceId={data.id}
+          today={todayInTz("America/Santiago")}
+          tiers={catalog?.tiers ?? []}
           addons={catalog?.addons ?? []}
           volumeDiscounts={catalog?.volumeDiscounts ?? []}
           customer={customer}
+          saveContact={updateBookingContactAction}
         />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

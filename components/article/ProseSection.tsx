@@ -8,9 +8,10 @@
  * Los artículos en MDX NO la usan: su `h2` lleva estas mismas clases desde el mapeo
  * de components/mdx/. Esto es para TSX escrito a mano (legales, páginas de prosa).
  */
-export function ProseSection({ title, children }: { title: string; children: React.ReactNode }) {
+export function ProseSection({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-12 border-t hairline pt-10">
+    // `id` para enlazar a una sección (p. ej. /terminos#beatcoins desde el checkout).
+    <section id={id} className="mt-12 scroll-mt-24 border-t hairline pt-10">
       <h2 className="font-display text-bone" style={{ fontSize: "clamp(1.4rem,4vw,2rem)" }}>
         {title}
       </h2>

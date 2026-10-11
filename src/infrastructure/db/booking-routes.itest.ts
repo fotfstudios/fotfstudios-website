@@ -355,6 +355,37 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
     expect(row.rows[0].customer_phone).toBe("+56962803298");
   });
 
+  // Preferencia de WhatsApp = del CLIENTE. Un invitado no cambia la de una ficha que ya
+  // decidió (escribir el correo de otro no le cambia sus avisos); sí fija la de una que no.
+  // La escritura ocurre antes del pago: sin token de MP el POST termina en 503, igual vale.
+  const guestBody = (startMinute: number, optIn: boolean) => ({
+    resourceId,
+    date: MON,
+    startMinute,
+    durationHours: 1,
+    customer: { email: AUTH_EMAIL, name: "Otra Persona", phone: "9 1234 5678" },
+    termsAccepted: true,
+    whatsappOptIn: optIn,
+  });
+
+  it("un invitado NO cambia los avisos de una ficha que ya decidió", async () => {
+    const customerId = await adoptedCustomer(100);
+    await pg.query(
+      "update customers set whatsapp_opt_in = true, whatsapp_opt_in_at = now(), whatsapp_opt_in_source = 'account' where id = $1",
+      [customerId],
+    );
+    await post(guestBody(1140, false));
+    const c = await pg.query("select whatsapp_opt_in, whatsapp_opt_out_at from customers where id = $1", [customerId]);
+    expect(c.rows[0]).toEqual({ whatsapp_opt_in: true, whatsapp_opt_out_at: null });
+  });
+
+  it("un invitado SÍ fija los avisos de una ficha que nunca decidió", async () => {
+    const customerId = await adoptedCustomer(100);
+    await post(guestBody(1200, true));
+    const c = await pg.query("select whatsapp_opt_in, whatsapp_opt_in_source from customers where id = $1", [customerId]);
+    expect(c.rows[0]).toEqual({ whatsapp_opt_in: true, whatsapp_opt_in_source: "customer" });
+  });
+
   // Fix round 2: `name`/`phone` no-string reventaban dentro del try (la ruta
   // les llama trim/slice) y salían como 503. Un cuerpo malformado es 400.
   it.each([{ name: 12345 }, { phone: { n: 1 } }, { name: ["a"] }])(

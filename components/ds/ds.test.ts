@@ -9,7 +9,7 @@ import Switch from "./Switch";
 /** Cableado de accesibilidad del DS: controles nativos y descripciones enlazadas. */
 describe("design system: controles", () => {
   it("Checkbox es un checkbox nativo dentro de su label", () => {
-    const html = renderToStaticMarkup(h(Checkbox, { name: "terms", defaultChecked: true }, "Acepto"));
+    const html = renderToStaticMarkup(h(Checkbox, { name: "terms", defaultChecked: true, children: "Acepto" }));
     expect(html).toMatch(/^<label class="ds-check">/);
     expect(html).toContain('type="checkbox"');
     expect(html).toContain('name="terms"');
@@ -34,9 +34,9 @@ describe("design system: controles", () => {
   });
 
   it("Badge aplica la variante y el punto decorativo", () => {
-    const html = renderToStaticMarkup(h(Badge, { variant: "gold", dot: true }, "−10%"));
+    const html = renderToStaticMarkup(h(Badge, { variant: "gold", dot: true, children: "−10%" }));
     expect(html).toContain('class="ds-badge ds-badge--gold"');
     expect(html).toContain('aria-hidden="true"');
-    expect(renderToStaticMarkup(h(Badge, null, "x"))).toContain('class="ds-badge"');
+    expect(renderToStaticMarkup(h(Badge, { children: "x" }))).toContain('class="ds-badge"');
   });
 });

@@ -1,6 +1,7 @@
 import {
   bookingEnabled,
   checkoutService,
+  customerDirectory,
   customerService,
   db,
   notificationService,
@@ -12,6 +13,7 @@ import { TERMS_VERSION } from "@/lib/site";
 import { normalizeEmail } from "@/src/domain/contact/contact";
 import { toE164ClMobile } from "@/lib/phone-input";
 import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
+import { applyCheckoutWhatsAppChoice } from "@/src/domain/contact/whatsapp-checkout-consent";
 
 export const dynamic = "force-dynamic";
 
@@ -139,12 +141,20 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Consentimiento de WhatsApp en la ficha del pedido, ANTES del correo de confirmación
-    // (que encola el WhatsApp con lo que diga la ficha). Best-effort: una falla acá no puede
-    // tumbar una reserva ya creada; solo se pierde la preferencia de este pedido.
+    // (que encola el WhatsApp con lo que diga la ficha). Es una preferencia del CLIENTE: con
+    // sesión se aplica; un invitado solo la fija si la ficha de ese correo aún no decidió
+    // (escribir el correo de otro no le cambia sus avisos). Best-effort: una falla acá no
+    // puede tumbar una reserva ya creada; solo se pierde la preferencia de este pedido.
     if (typeof b.whatsappOptIn === "boolean") {
-      await customerService(client)
-        .setWhatsAppOptInForOrder(booking.value.orderId, b.whatsappOptIn)
-        .catch((e) => console.error("[bookings:whatsapp-consent]", e));
+      const optIn = b.whatsappOptIn;
+      await (async () => {
+        const session = await currentCustomer();
+        const authenticated = !!session && normalizeEmail(session.email) === normalizeEmail(customer.email ?? "");
+        const consent = authenticated ? null : ((await customerDirectory(client).findByEmail(customer.email ?? ""))?.whatsapp ?? null);
+        if (applyCheckoutWhatsAppChoice({ authenticated, consent })) {
+          await customerService(client).setWhatsAppOptInForOrder(booking.value.orderId, optIn);
+        }
+      })().catch((e) => console.error("[bookings:whatsapp-consent]", e));
     }
 
     // 100% puntos: no hay nada que cobrar — la reserva ya quedó confirmada en la

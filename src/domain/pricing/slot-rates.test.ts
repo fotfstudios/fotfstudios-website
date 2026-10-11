@@ -26,12 +26,12 @@ describe("hourlyRates", () => {
 
 describe("peakLegend", () => {
   it("punta desde la primera hora cara del día", () => {
-    expect(peakLegend(TIERS, 2, 540, 1380)).toBe("Punta semana desde 17:00");
-    expect(peakLegend(TIERS, 5, 540, 1380)).toBe("Punta finde desde 17:00");
+    expect(peakLegend(TIERS, 2, 540, 1380)).toBe("Tarifa nocturna desde 17:00");
+    expect(peakLegend(TIERS, 5, 540, 1380)).toBe("Tarifa fin de semana desde 17:00");
   });
 
   it("todo el día cuando no hay hora valle; null sin punta", () => {
-    expect(peakLegend(TIERS, 6, 600, 1380)).toBe("Punta finde · todo el día");
+    expect(peakLegend(TIERS, 6, 600, 1380)).toBe("Tarifa fin de semana · todo el día");
     expect(peakLegend(TIERS, 2, 540, 1020)).toBeNull();
   });
 });

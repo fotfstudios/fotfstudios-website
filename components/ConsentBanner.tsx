@@ -1,6 +1,8 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   consentUpdateSignals,
   type ConsentValue,
@@ -9,6 +11,10 @@ import {
   STORAGE_KEY,
 } from "@/lib/consent";
 
+// Solo se descarga en la superficie de reservas: trae el CSS y las fuentes del design system,
+// que no deben cargarse (ni precargarse) en el resto del sitio.
+const ConsentStrip = dynamic(() => import("@/components/booking/ConsentStrip"), { ssr: false });
+
 declare global {
   interface Window {
     dataLayer?: unknown[];
@@ -16,8 +22,16 @@ declare global {
   }
 }
 
-/** Banner de consentimiento (Aceptar/Rechazar). Aparece si no hay elección guardada. */
+/** Rutas de la superficie de reservas: ahí el banner es una línea con el design system. */
+const isBookingPath = (p: string | null) => !!p && (p === "/reservar" || p.startsWith("/reservar/") || p.startsWith("/reserva/"));
+
+/**
+ * Banner de consentimiento (Aceptar/Rechazar). Aparece si no hay elección guardada.
+ * En /reservar y /reserva/* se presenta como ConsentStrip (una línea, design system,
+ * sobre la barra fija del checkout); en el resto del sitio, como siempre.
+ */
 export default function ConsentBanner() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -42,6 +56,10 @@ export default function ConsentBanner() {
   };
 
   if (!open) return null;
+
+  if (isBookingPath(pathname)) {
+    return <ConsentStrip onAccept={() => choose("granted")} onReject={() => choose("denied")} />;
+  }
 
   return (
     <div
