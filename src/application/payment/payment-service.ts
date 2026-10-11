@@ -33,9 +33,8 @@ export class PaymentService {
       /** Texto que ve el pagador en MP. Por defecto habla de una reserva. */
       description?: string;
       /**
-       * Ruta de retorno. Por defecto /reserva/estado, que está detrás de
-       * `bookingEnabled()` y espera una reserva: un pedido de curso necesita la
-       * suya o el comprador vuelve a un 404.
+       * Ruta de retorno. Por defecto /reserva/estado, que espera un pedido con
+       * reserva: un pedido de curso necesita la suya o el comprador vuelve a un 404.
        */
       backPath?: string;
     },
