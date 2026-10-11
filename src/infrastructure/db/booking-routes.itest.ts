@@ -355,9 +355,9 @@ describe("GET /api/availability/range", () => {
     // Reserva confirmada el lunes futuro 10:00–12:00 hora de Santiago.
     await pg.query(
       `insert into reservations (resource_id, kind, status, starts_at, ends_at)
-       values ($1, booking, confirmed,
-               ($2::date + time 10:00) at time zone America/Santiago,
-               ($2::date + time 12:00) at time zone America/Santiago)`,
+       values ($1, 'booking', 'confirmed',
+               ($2::date + time '10:00') at time zone 'America/Santiago',
+               ($2::date + time '12:00') at time zone 'America/Santiago')`,
       [resourceId, MON],
     );
     const res = await availabilityRangeGET(
