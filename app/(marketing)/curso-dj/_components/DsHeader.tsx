@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
-import Button from "../_ds/Button";
+import Button from "@/components/ds/Button";
 
 /**
  * Barra fija mínima: la landing tiene una sola acción (la solicitud), así que no

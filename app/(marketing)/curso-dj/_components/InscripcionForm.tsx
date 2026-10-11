@@ -17,9 +17,9 @@ import {
 } from "@/src/domain/course/course";
 import { formatCLP } from "@/lib/pricing";
 import { PRECIOS } from "@/lib/curso-content";
-import Button from "../_ds/Button";
-import Faders from "../_ds/Faders";
-import Input, { Textarea } from "../_ds/Input";
+import Button from "@/components/ds/Button";
+import Faders from "@/components/ds/Faders";
+import Input, { Textarea } from "@/components/ds/Input";
 import WhatsAppCta from "./WhatsAppCta";
 
 /** La prueba primero: es la puerta de entrada que vende la página. */

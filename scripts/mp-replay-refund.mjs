@@ -185,7 +185,8 @@ async function buildFixture() {
 
 /** Firma como el panel de MP: HMAC-SHA256 del manifiesto `id:{data.id};request-id:{rid};ts:{ts};`. */
 async function deliver(paymentId) {
-  const ts = String(Date.now());
+  // MP firma con `ts` en SEGUNDOS; en ms la ventana anti-replay del webhook lo rechaza.
+  const ts = String(Math.floor(Date.now() / 1000));
   const rid = randomUUID();
   const v1 = createHmac("sha256", secret).update(`id:${paymentId};request-id:${rid};ts:${ts};`).digest("hex");
   const res = await fetch(`${args.base}/api/webhooks/mercadopago?data.id=${paymentId}&type=payment`, {

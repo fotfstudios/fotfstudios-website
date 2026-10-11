@@ -1,7 +1,7 @@
 import { formatCLP } from "@/lib/pricing";
 import { GEAR } from "@/lib/site";
 import { PRECIOS } from "@/lib/curso-content";
-import Button from "../_ds/Button";
+import Button from "@/components/ds/Button";
 
 export default function DsHero() {
   return (

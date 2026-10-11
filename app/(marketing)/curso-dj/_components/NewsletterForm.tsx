@@ -10,8 +10,8 @@ import {
   newsletterFieldMessage,
   parseNewsletterSubscribe,
 } from "@/src/domain/newsletter/subscribe";
-import Button from "../_ds/Button";
-import Input from "../_ds/Input";
+import Button from "@/components/ds/Button";
+import Input from "@/components/ds/Input";
 
 const SOURCE = "curso_dj";
 
