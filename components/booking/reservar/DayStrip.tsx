@@ -2,8 +2,8 @@ import type { StartDay } from "@/src/domain/scheduling/day-starts";
 import { stripCell } from "@/src/domain/scheduling/day-starts";
 
 /**
- * Tira horizontal de días (64px, scroll-snap): HOY / día de semana, número y cuántos
- * inicios caben con la duración elegida ("N hrs" en acento si quedan ≤3, LLENO, CERRADO).
+ * Tira horizontal de días (64px, scroll-snap): HOY / día de semana y número. No revela
+ * cuántas horas quedan (decisión del dueño): solo rotula el día sin inicios (LLENO / CERRADO).
  */
 export default function DayStrip({
   days,
@@ -36,7 +36,7 @@ export default function DayStrip({
             onClick={() => onSelect(c.date)}
             disabled={c.disabled}
             aria-pressed={active}
-            aria-label={`${c.dow === "HOY" ? "Hoy" : c.dow} ${c.num}: ${c.label.toLowerCase()}`}
+            aria-label={`${c.dow === "HOY" ? "Hoy" : c.dow} ${c.num}${c.label ? `: ${c.label.toLowerCase()}` : ""}`}
             className={`flex w-16 shrink-0 snap-start flex-col items-center rounded-[6px] border py-2.5 transition-colors disabled:cursor-default disabled:opacity-45 ${
               active
                 ? "border-[var(--accent)] bg-[rgba(255,77,29,0.06)]"
@@ -47,11 +47,8 @@ export default function DayStrip({
               {c.dow}
             </span>
             <span className="ds-mono mt-0.5 text-lg">{c.num}</span>
-            <span
-              className={`ds-mono mt-1 text-[10px] ${
-                c.disabled ? "text-[var(--grey-500)]" : c.low ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
-              }`}
-            >
+            {/* Alto fijo: con o sin rótulo, todas las celdas miden lo mismo. */}
+            <span aria-hidden="true" className="ds-mono mt-1 min-h-[15px] text-[10px] text-[var(--grey-500)]">
               {c.label}
             </span>
           </button>

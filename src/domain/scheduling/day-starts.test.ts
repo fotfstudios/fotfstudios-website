@@ -25,19 +25,16 @@ describe("startCountsByDuration", () => {
 });
 
 describe("stripCell", () => {
-  it("HOY en la fecha de hoy, DOW en el resto; 'N hrs' con acento si quedan ≤3", () => {
-    expect(stripCell(DAY, 1, "2026-10-13")).toMatchObject({ dow: "HOY", num: "13", free: 3, label: "3 hrs", low: true, disabled: false });
+  // Decisión del dueño: la tira NO revela cuántas horas quedan; solo LLENO / CERRADO.
+  it("HOY en la fecha de hoy, DOW en el resto; sin conteo de horas", () => {
+    const c = stripCell(DAY, 1, "2026-10-13");
+    expect(c).toEqual({ date: "2026-10-13", dow: "HOY", num: "13", label: null, disabled: false });
     expect(stripCell(DAY, 1, "2026-10-12")).toMatchObject({ dow: "MAR" });
   });
 
   it("LLENO sin inicios para la duración; CERRADO si el local no abre", () => {
-    expect(stripCell(DAY, 3, "2026-10-12")).toMatchObject({ label: "LLENO", disabled: true, low: false });
+    expect(stripCell(DAY, 3, "2026-10-12")).toMatchObject({ label: "LLENO", disabled: true });
     expect(stripCell(CLOSED, 1, "2026-10-10")).toMatchObject({ label: "CERRADO", disabled: true, dow: "DOM" });
-  });
-
-  it("no marca acento con más de 3 inicios", () => {
-    const wide = { ...DAY, closeMinute: 1080, booked: [] };
-    expect(stripCell(wide, 1, "2026-10-12")).toMatchObject({ free: 9, low: false });
   });
 });
 

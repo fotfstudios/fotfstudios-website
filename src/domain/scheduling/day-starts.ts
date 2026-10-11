@@ -20,9 +20,6 @@ export interface StartDay {
 const DOW = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
 const MON = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
-/** Con esta cantidad de inicios o menos, el día se marca con el acento ("quedan pocos"). */
-export const LOW_STARTS = 3;
-
 export const dowLabel = (weekday: number): string => DOW[weekday];
 
 /** Inicios (minuto del día, en la hora) donde cabe una reserva de `durationHours`. */
@@ -40,23 +37,24 @@ export interface StripCell {
   date: string;
   dow: string; // "HOY" o "LUN"…
   num: string; // "07"
-  free: number;
-  label: string; // "N hrs" | "LLENO" | "CERRADO"
-  low: boolean;
+  /** Solo el día sin inicios se rotula ("LLENO" / "CERRADO"); el resto, null. */
+  label: "LLENO" | "CERRADO" | null;
   disabled: boolean;
 }
 
-/** Una celda de la tira de días para la duración elegida. */
+/**
+ * Una celda de la tira de días para la duración elegida. Decisión del dueño: la tira
+ * NO revela cuántas horas quedan libres (ni cuenta ni "quedan pocos"); solo marca el
+ * día que no tiene ningún inicio, para que no parezca un botón roto.
+ */
 export function stripCell(day: StartDay, durationHours: number, today: string): StripCell {
-  const free = validStarts(day, durationHours).length;
+  const full = validStarts(day, durationHours).length === 0;
   return {
     date: day.date,
     dow: day.date === today ? "HOY" : dowLabel(day.weekday),
     num: day.date.slice(8, 10),
-    free,
-    label: day.closed ? "CERRADO" : free === 0 ? "LLENO" : `${free} hrs`,
-    low: free > 0 && free <= LOW_STARTS,
-    disabled: free === 0,
+    label: day.closed ? "CERRADO" : full ? "LLENO" : null,
+    disabled: full,
   };
 }
 
