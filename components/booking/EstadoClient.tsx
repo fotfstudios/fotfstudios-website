@@ -8,6 +8,7 @@ import CalendarButtons from "@/components/booking/CalendarButtons";
 import ReceiptCard from "@/components/booking/ReceiptCard";
 import WhatsAppCta from "@/components/WhatsAppCta";
 import type { ConfirmationView } from "@/lib/confirmation";
+import { resolveEstadoUi } from "@/lib/estado-ui";
 import { nextPollDelay } from "@/lib/estado-polling";
 import { SITE } from "@/lib/site";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
@@ -114,14 +115,7 @@ export default function EstadoClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
-  const ui =
-    status === "paid" || status === "fulfilled"
-      ? "confirmed"
-      : status === "cancelled"
-        ? "failed"
-        : status === "refunded"
-          ? "refunded"
-          : "pending";
+  const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired);
 
   return (
     <section
@@ -130,21 +124,13 @@ export default function EstadoClient({
       className="grain relative overflow-hidden border hairline bg-ink"
     >
       <div className="relative p-6 md:p-10">
-        {ui === "confirmed" && reservation === "expired" ? (
-          <PaidNoHold />
-        ) : ui === "confirmed" ? (
-          <Confirmed orderId={orderId} view={view} sessionUpcoming={sessionUpcoming} />
-        ) : null}
+        {ui === "paid_no_hold" && <PaidNoHold />}
+        {ui === "confirmed" && <Confirmed orderId={orderId} view={view} sessionUpcoming={sessionUpcoming} />}
         {ui === "failed" && <Failed />}
         {ui === "refunded" && <Refunded />}
-        {ui === "pending" &&
-          (paymentHint === "approved" && !hintExpired ? (
-            <Pending view={view} />
-          ) : reservation === "expired" ? (
-            <ExpiredHold />
-          ) : (
-            <PendingPayment view={view} />
-          ))}
+        {ui === "confirming" && <Pending view={view} />}
+        {ui === "expired" && <ExpiredHold />}
+        {ui === "pending_payment" && <PendingPayment view={view} />}
       </div>
     </section>
   );
