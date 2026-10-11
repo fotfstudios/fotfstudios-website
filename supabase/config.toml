@@ -162,8 +162,14 @@ site_url = "http://127.0.0.1:3000"
 # external_url = ""
 # A list of URLs that auth providers are permitted to redirect to post authentication.
 # Debe incluir la ruta /auth/callback (con comodín /**), si no Supabase ignora el
-# emailRedirectTo y cae al site_url (la home de marketing).
-additional_redirect_urls = ["http://127.0.0.1:3000/**", "http://localhost:3000/**"]
+# emailRedirectTo y cae al site_url (la home de marketing). El puerto 3001 es para una
+# segunda sesión de desarrollo en paralelo (git worktree) contra el mismo stack local.
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3001/**",
+  "http://localhost:3001/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

@@ -462,7 +462,7 @@ export async function shareCoursePaymentLinkAction(
       // Sin hold que vencer: la ventana la define la paciencia del dueño, no la sala.
       expiresInMinutes: COURSE_LINK_HOURS * 60,
       description: `Curso de DJ FOTF · ${inscripcion.generationCode}`,
-      // /reserva/estado espera una reserva y está detrás de bookingEnabled().
+      // /reserva/estado espera un pedido con reserva; el curso tiene su propia página.
       backPath: "/curso-dj/pago",
     });
     if (!pref.ok) throw new Error(pref.error);
