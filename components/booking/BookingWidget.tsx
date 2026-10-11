@@ -1,196 +1,132 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
-import { DateTime } from "luxon";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Button from "@/components/ds/Button";
+import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
+import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
+import { ctaLabel, missingItem, type BookingStep } from "@/lib/booking-steps";
+import { summaryLines } from "@/lib/booking-summary";
+import { accountEnabled } from "@/lib/flags";
+import { clMobileDigits, formatClMobile, isValidClMobile } from "@/lib/phone-input";
+import { normalizeEmail } from "@/src/domain/contact/contact";
 import { formatCLP } from "@/src/domain/money/money";
 import { clampPoints } from "@/src/domain/points/points";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
-import { availableStartMinutes, type Interval } from "@/src/domain/scheduling/availability";
-import type { DayStatus } from "@/src/domain/scheduling/month-availability";
-import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
-import { accountEnabled } from "@/lib/flags";
-import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
-import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
-import Calendar from "./Calendar";
-import TimeSlots from "./TimeSlots";
-import Skeleton from "./Skeleton";
-import { hhmm, tierLabel } from "./format";
+import type { RateTier } from "@/src/domain/pricing/types";
+import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/scheduling/day-starts";
+import { hhmm } from "./format";
 import { useIsDesktop } from "./useIsDesktop";
+import BottomBar from "./reservar/BottomBar";
+import CustomerSection, { type BookingCustomer } from "./reservar/CustomerSection";
+import DayStrip from "./reservar/DayStrip";
+import DurationSection from "./reservar/DurationSection";
+import ExtrasDisclosure, { type Addon } from "./reservar/ExtrasDisclosure";
+import PayCta from "./reservar/PayCta";
+import PaySection from "./reservar/PaySection";
+import PromoNote from "./reservar/PromoNote";
+import ReviewCard from "./reservar/ReviewCard";
+import SectionHead from "./reservar/SectionHead";
+import StepBar from "./reservar/StepBar";
+import SummaryCard from "./reservar/SummaryCard";
+import TimeGrid from "./reservar/TimeGrid";
+import { useAvailabilityRange } from "./reservar/useAvailabilityRange";
 import { useBookingQuote } from "./reservar/useBookingQuote";
+import Skeleton from "./Skeleton";
 
-// SDK de MP solo en el browser y solo cuando el brick monta (post-payReady).
-const MpWalletButton = dynamic(() => import("./MpWalletButton"), { ssr: false });
+/** Corte del wizard móvil: debajo de esto, un paso a la vez con barra fija. */
+const DESKTOP_QUERY = "(min-width: 860px)";
+const STEP_INDEX: Record<BookingStep, number> = { horario: 0, datos: 1, pago: 2 };
 
-interface DayAvailability {
-  closed: boolean;
-  openMinute: number;
-  closeMinute: number;
-  booked: Interval[];
-}
-
-const todayInSantiago = () =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-
-/** Minuto del día actual en Santiago (para descartar horarios ya pasados hoy). */
-const nowMinuteInSantiago = () => {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Santiago",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-  return h * 60 + m;
-};
-
+/**
+ * Checkout público de la sala (/reservar): duración → día y hora (+ extras) → datos → pago.
+ * Orquestador: estado, derivados y envío; cada sección es presentacional (`reservar/*`).
+ * En escritorio todo en una columna con el resumen fijo a la derecha; en móvil, wizard
+ * de tres pasos con barra fija abajo. El total mostrado es el que se cobra (cotización
+ * del servidor + promo con la misma función pura + Beatcoins acotados).
+ */
 export default function BookingWidget({
   resourceId,
+  today,
+  tiers = [],
   addons = [],
   volumeDiscounts = [],
   customer = null,
 }: {
   resourceId: string;
-  addons?: { key: string; name: string; amount: number; kind: "flat_service" | "per_hour" }[];
+  /** Hoy en la zona del recurso (lo resuelve el servidor: sin desfase de hidratación). */
+  today: string;
+  tiers?: RateTier[];
+  addons?: Addon[];
   volumeDiscounts?: { minHours: number; pct: number }[];
-  /** Sesión de cliente (server la resuelve): prefill + puntos canjeables. */
-  customer?: {
-    email: string;
-    name: string;
-    phone: string;
-    points: number;
-    /** Solo cuando parte del saldo vence en ≤ 30 días: "500 vencen el …". */
-    pointsExpiryNote?: string | null;
-    whatsappOptIn: boolean;
-  } | null;
+  /** Sesión de cliente (server la resuelve): prefill + Beatcoins canjeables. */
+  customer?: BookingCustomer | null;
 }) {
   const router = useRouter();
-  const today = todayInSantiago();
-  const maxDate = DateTime.fromISO(today).plus({ days: 90 }).toFormat("yyyy-MM-dd");
+  const isDesktop = useIsDesktop(DESKTOP_QUERY);
+  const wizard = isDesktop === false;
 
-  const [month, setMonth] = useState(today.slice(0, 7));
-  const [dayStatus, setDayStatus] = useState<Record<string, DayStatus>>({});
-  const [loadingMonth, setLoadingMonth] = useState(true);
+  const range = useAvailabilityRange(resourceId, today);
   const [selected, setSelected] = useState<string | null>(null);
-  const [avail, setAvail] = useState<DayAvailability | null>(null);
-  const [loadingAvail, setLoadingAvail] = useState(false);
   const [start, setStart] = useState<number | null>(null);
   const [duration, setDuration] = useState(1);
-  const [rec, setRec] = useState<string>("none");
+  const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+
   const [name, setName] = useState(customer?.name ?? "");
   const [email, setEmail] = useState(customer?.email ?? "");
-  const [phone, setPhone] = useState(customer?.phone ?? "");
+  const [phone, setPhone] = useState(clMobileDigits(customer?.phone ?? ""));
+  const [emailBlurred, setEmailBlurred] = useState(false);
+  const [phoneBlurred, setPhoneBlurred] = useState(false);
+  // Avisos por WhatsApp: marcado por defecto (decisión del dueño), salvo que el titular ya se
+  // haya dado de baja en /cuenta. Solo viaja con un celular válido.
+  const [whatsappOptIn, setWhatsappOptIn] = useState(customer?.whatsappOptIn ?? true);
+  const [usePoints, setUsePoints] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const [tried, setTried] = useState(false);
+  const [step, setStep] = useState(0);
+  // A dónde llevar el foco tras el próximo render (ver efecto abajo).
+  const pendingAnchor = useRef<string | null>(null);
+  // Fuerza el render (y el efecto) aunque nada más cambie: segundo clic en el CTA.
+  const [, setFocusTick] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usePoints, setUsePoints] = useState(false);
-  const [pointsInput, setPointsInput] = useState(0);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  // Avisos por WhatsApp: marcado por defecto (decisión del dueño), salvo que el titular ya se
-  // haya dado de baja en /cuenta. Solo viaja si hay teléfono: sin número no hay a dónde avisar,
-  // y mandar false le daría de baja a quien se había dado de alta en otra reserva.
-  const [whatsappOptIn, setWhatsappOptIn] = useState(customer?.whatsappOptIn ?? true);
-  const hasPhone = phone.trim().length > 0;
-  // Login en línea (código OTP): entrar sin salir del flujo de reserva. El correo
-  // es el mismo campo de la reserva (bk-email): un solo lugar donde escribirlo.
+  const [walletFailed, setWalletFailed] = useState(false);
+
+  // Acceso con código sin salir del flujo. El correo es el mismo campo de la reserva.
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginCode, setLoginCode] = useState("");
   const login = useOtpLogin();
   const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
 
-  // Al llegar la sesión (tras verificar el código → router.refresh() re-resuelve
-  // `customer` en el server sin desmontar el widget): prefill + cerrar el panel.
-  // Patrón "ajustar estado al cambiar un prop" en render (no en efecto) — las
-  // selecciones de reserva (fecha/hora/duración) sobreviven al refresh.
+  // Al llegar la sesión (verificar el código → router.refresh() re-resuelve `customer` sin
+  // desmontar el widget): prefill + cerrar el panel. Ajuste en render, no en efecto: la
+  // selección (día/hora/duración) sobrevive al refresh.
   if (customer && customer.email !== syncedCustomer) {
     setSyncedCustomer(customer.email);
     setEmail(customer.email);
     setName((n) => n || customer.name);
-    setPhone((p) => p || customer.phone);
+    setPhone((p) => p || clMobileDigits(customer.phone));
     setLoginOpen(false);
   }
 
-  // Paso 1: pide el código al correo de la reserva (sin emailRedirectTo → el
-  // enlace del correo no vuelve aquí; el código sí, sin salir del flujo).
-  const sendLoginCode = useCallback(() => login.send(email), [login, email]);
-
-  // Paso 2: verifica el código → sesión en el browser → refresh del server. En
-  // éxito el hook deja busy en true a propósito: el estado de carga puentea sin
-  // corte hasta que llega `customer` (el server re-resuelve prefill + puntos) y
-  // el ajuste en render cierra el panel. El widget no se desmonta → estado intacto.
+  const sendLoginCode = useCallback(() => void login.send(email), [login, email]);
+  // En éxito el hook deja busy en true a propósito: la carga puentea hasta que llega `customer`.
   const verifyLoginCode = useCallback(async () => {
     if (await login.verify(loginCode)) router.refresh();
   }, [login, loginCode, router]);
 
-  // Disponibilidad del mes visible (pinta el calendario). Degrada a {} si falla.
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      setLoadingMonth(true);
-      try {
-        const d = await (await fetch(`/api/availability/month?resource=${resourceId}&month=${month}`)).json();
-        const days = (d?.days ?? {}) as Record<string, DayStatus>;
-        if (active) {
-          setDayStatus(days);
-          // Si el mes visible no tiene ningún día seleccionable, salta al siguiente
-          // (hasta el horizonte): evita aterrizar en un calendario muerto a fin de mes.
-          const maxMonth = maxDate.slice(0, 7);
-          const hasSelectable = Object.entries(days).some(
-            ([date, status]) => date >= today && date <= maxDate && status !== "closed" && status !== "full",
-          );
-          if (!hasSelectable && Object.keys(days).length > 0 && month < maxMonth) {
-            setMonth(DateTime.fromISO(`${month}-01`).plus({ months: 1 }).toFormat("yyyy-MM"));
-          }
-        }
-      } catch {
-        if (active) setDayStatus({});
-      } finally {
-        if (active) setLoadingMonth(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [resourceId, month, today, maxDate]);
-
-  // Disponibilidad del día al elegir fecha.
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      if (selected === null) {
-        if (active) setAvail(null);
-        return;
-      }
-      setLoadingAvail(true);
-      setStart(null);
-      try {
-        const d = await (await fetch(`/api/availability?resource=${resourceId}&date=${selected}`)).json();
-        if (active) setAvail(d?.error ? null : d);
-      } catch {
-        if (active) setAvail(null);
-      } finally {
-        if (active) setLoadingAvail(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [resourceId, selected]);
-
-  // Si la fecha elegida es hoy, descarta los horarios cuya hora ya pasó.
-  const minStart = selected === today ? nowMinuteInSantiago() + MIN_LEAD_MINUTES : 0;
-  const starts =
-    avail && !avail.closed
-      ? availableStartMinutes(avail.openMinute, avail.closeMinute, duration, avail.booked, 60, minStart)
-      : [];
+  // Día elegido por defecto: el primero con algún inicio para la duración (si no, el primero).
+  const days = range.days;
+  if (selected === null && days.length > 0) {
+    setSelected((days.find((d) => validStarts(d, duration).length > 0) ?? days[0]).date);
+  }
+  const day = days.find((d) => d.date === selected) ?? null;
+  const starts = day ? validStarts(day, duration) : [];
   const selectedStart = start !== null && starts.includes(start) ? start : null;
-  const maxDuration =
-    avail && !avail.closed && selectedStart !== null ? (avail.closeMinute - selectedStart) / 60 : 8;
 
-  // Cotización + promo de primera reserva (elegibilidad por correo, misma función pura que el servidor).
   const addonKeys = useMemo(() => [...(rec !== "none" ? [rec] : []), ...extras], [rec, extras]);
   const { quote, quoting, promoEmail, promoEligible, promoLine, total, requote } = useBookingQuote({
     resourceId,
@@ -201,35 +137,89 @@ export default function BookingWidget({
     email,
   });
 
-  // Canje: derivado y SIEMPRE re-acotado al render (si cambia el total, el
-  // aplicado se ajusta solo). El servidor re-valida contra el saldo real.
-  // Se capa contra el total YA con promo: mismo orden descuento → puntos que el servidor.
+  // Beatcoins: el máximo aplicable, re-acotado en cada render contra el total YA con promo
+  // (mismo orden descuento → Beatcoins que el servidor, que re-valida contra el saldo).
   const maxApplicable = customer && total !== null ? clampPoints(customer.points, total, customer.points) : 0;
-  const pointsApplied = usePoints && customer && total !== null ? clampPoints(customer.points, total, pointsInput) : 0;
+  const pointsApplied = usePoints ? maxApplicable : 0;
   const payable = total !== null ? total - pointsApplied : null;
   const fullPoints = pointsApplied > 0 && payable === 0;
 
-  // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError
-  // con el código mapeable; deja `error` seteado y `submitting` reseteado al fallar.
+  const phoneValid = isValidClMobile(phone);
+  const stepState = { hasSlot: selectedStart !== null, name, email, phone, termsAccepted: acceptedTerms };
+  const missing = missingItem(stepState);
+  const ready = missing === null && quote !== null;
+
+  // Errores de campo: tras un intento, o al salir de un campo mal escrito.
+  const emailBad = normalizeEmail(email) === null;
+  const emailError =
+    emailBad && (tried || (emailBlurred && email.trim()))
+      ? email.trim()
+        ? "Falta el @ o el dominio"
+        : "Ingresa tu email"
+      : undefined;
+  const nameError = tried && !name.trim() ? "Escribe tu nombre" : undefined;
+  const phoneError =
+    !phoneValid && (tried || (phoneBlurred && phone))
+      ? phone
+        ? "Faltan dígitos: 9 1234 5678"
+        : "Ingresa tu celular: 9 1234 5678"
+      : undefined;
+  const emailHint = customer
+    ? "Sesión iniciada con este correo."
+    : promoLine
+      ? `−${FIRST_BOOKING_PROMO.pct}% de primera reserva aplicado.`
+      : "Aquí llega la confirmación y el código de acceso.";
+
+  // Llevar al usuario a lo que falta: en móvil primero se cambia de paso y, tras pintar,
+  // se hace scroll + foco (el elemento del paso nuevo aún no existe en este render).
+  useEffect(() => {
+    const id = pendingAnchor.current;
+    if (!id) return;
+    pendingAnchor.current = null;
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus({ preventScroll: true });
+    }
+  });
+
+  const goToMissing = () => {
+    setTried(true);
+    if (!missing) return;
+    if (wizard) setStep(STEP_INDEX[missing.step]);
+    pendingAnchor.current = missing.anchorId;
+    setFocusTick((t) => t + 1);
+  };
+
+  const goStep = (n: number) => {
+    setStep(n);
+    setTried(false);
+    window.scrollTo({ top: 0 });
+  };
+
+  const pickDuration = (h: number) => {
+    setDuration(h);
+    if (day && start !== null && !validStarts(day, h).includes(start)) setStart(null);
+  };
+  const pickDay = (date: string) => {
+    setSelected(date);
+    const d = days.find((x) => x.date === date);
+    if (d && start !== null && !validStarts(d, duration).includes(start)) setStart(null);
+  };
+
+  // Crea pedido + hold + preference (POST /api/bookings). Lanza BookingRequestError con el
+  // código mapeable; deja `error` seteado y `submitting` reseteado al fallar.
   const createBookingAndGetPreference = useCallback(async (): Promise<{
     orderId: string;
     preferenceId?: string;
     initPoint?: string;
     paidWithPoints?: boolean;
   }> => {
-    if (selected === null || selectedStart === null || !email) {
-      throw new BookingRequestError("invalid");
-    }
+    if (selected === null || selectedStart === null || !email) throw new BookingRequestError("invalid");
     setSubmitting(true);
     setError(null);
     try {
-      let data: {
-        error?: string;
-        orderId?: string;
-        preferenceId?: string;
-        initPoint?: string;
-        paidWithPoints?: boolean;
-      };
+      let data: { error?: string; orderId?: string; preferenceId?: string; initPoint?: string; paidWithPoints?: boolean };
       let ok: boolean;
       try {
         const res = await fetch("/api/bookings", {
@@ -244,7 +234,7 @@ export default function BookingWidget({
             customer: { name, email, phone },
             pointsToRedeem: pointsApplied,
             termsAccepted: acceptedTerms,
-            ...(hasPhone ? { whatsappOptIn } : {}),
+            ...(phoneValid ? { whatsappOptIn } : {}),
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
           }),
@@ -260,6 +250,12 @@ export default function BookingWidget({
       const err = e instanceof BookingRequestError ? e : new BookingRequestError("network");
       // El total real ya no es el mostrado: re-cotiza antes del reintento.
       if (err.code === "amount_changed") requote();
+      // Alguien tomó el horario: se refresca la tira y se suelta el inicio.
+      if (err.code === "slot_taken") {
+        setStart(null);
+        void range.reload();
+        if (wizard) setStep(0);
+      }
       setError(bookingErrorMessage(err.code));
       setSubmitting(false);
       throw err;
@@ -275,625 +271,263 @@ export default function BookingWidget({
     phone,
     pointsApplied,
     acceptedTerms,
-    hasPhone,
+    phoneValid,
     whatsappOptIn,
     payable,
     requote,
+    range,
+    wizard,
   ]);
 
-  // Flujo clásico (fallback): redirect a init_point. `submitting` queda en true
-  // a propósito → "Redirigiendo…" mientras el navegador navega.
-  const submit = useCallback(async () => {
+  // Redirect clásico a init_point. `submitting` queda en true a propósito ("Redirigiendo…").
+  const submitClassic = useCallback(async () => {
     try {
       const { initPoint } = await createBookingAndGetPreference();
       window.location.assign(initPoint as string);
     } catch {
-      // error ya seteado por createBookingAndGetPreference
+      // error ya seteado
     }
   }, [createBookingAndGetPreference]);
 
-  // Flujo Wallet Brick: resuelve el preferenceId; el brick hace el redirect.
-  const walletSubmit = useCallback(async () => {
+  // Wallet Brick: resuelve el preferenceId; el brick hace el redirect.
+  const submitWallet = useCallback(async () => {
     const { preferenceId } = await createBookingAndGetPreference();
     setSubmitting(false);
     return preferenceId as string;
   }, [createBookingAndGetPreference]);
 
-  // Flujo 100% puntos: no hay paso de pago — la reserva ya sale confirmada;
-  // directo a la página de estado. `submitting` queda en true durante la navegación.
-  const pointsSubmit = useCallback(async () => {
+  // 100 % Beatcoins: la reserva ya sale confirmada; directo a la confirmación.
+  const submitPoints = useCallback(async () => {
     try {
       const { orderId } = await createBookingAndGetPreference();
       window.location.assign(`/reserva/estado?b=${orderId}`);
     } catch {
-      // error ya seteado por createBookingAndGetPreference
+      // error ya seteado
     }
   }, [createBookingAndGetPreference]);
 
-  const isDesktop = useIsDesktop();
-  const [walletFailed, setWalletFailed] = useState(false);
-  // Gate de montaje del brick: SIN !submitting (desmontaría el brick a mitad del pago).
-  // Requiere aceptar T&C → ninguna vía de pago (clásica, Wallet, puntos) la evita.
-  const payReady = selectedStart !== null && !!email && acceptedTerms;
   const walletEnabled = !!process.env.NEXT_PUBLIC_MP_PUBLIC_KEY && !walletFailed;
-  const canPay = payReady && !submitting;
-  const inputCls =
-    "w-full border hairline bg-ink px-4 py-3 font-mono text-sm text-bone outline-none transition-colors hover:border-gold focus-visible:border-gold";
-  const recordingAddons = addons.filter((a) => a.kind === "flat_service");
-  const hourlyAddons = addons.filter((a) => a.kind === "per_hour");
-  const hourlyKeys = new Set(hourlyAddons.map((a) => a.key));
+  const cta = (
+    <PayCta
+      label={ctaLabel({ state: stepState, tried, submitting, fullPoints, payable })}
+      ready={ready}
+      fullPoints={fullPoints}
+      submitting={submitting}
+      walletEnabled={walletEnabled}
+      glow={ready}
+      onBlocked={goToMissing}
+      onClassic={submitClassic}
+      onPoints={submitPoints}
+      onWallet={submitWallet}
+      onWalletFallback={() => setWalletFailed(true)}
+    />
+  );
+
+  const hourlyKeys = new Set(addons.filter((a) => a.kind === "per_hour").map((a) => a.key));
+  const lines = summaryLines({ quote, duration, hourlyKeys, promoLine, pointsApplied });
+  const dateLabel = selected && selectedStart !== null ? dateShortLabel(selected) : null;
+  const rangeLabel =
+    selectedStart !== null ? `${hhmm(selectedStart)} – ${hhmm(selectedStart + duration * 60)} · ${duration}h` : null;
+  const totalLabel = payable !== null && selectedStart !== null ? formatCLP(payable) : "—";
+  const volPct = quote?.adjust
+    ? volumeDiscounts.filter((v) => duration >= v.minHours).reduce((m, v) => Math.max(m, v.pct), 0)
+    : 0;
+  const under = fullPoints ? "Tu reserva queda confirmada al instante" : "IVA incluido · pago seguro con Mercado Pago";
+  const promoNote = <PromoNote promoEmail={promoEmail} promoEligible={promoEligible} />;
+  const extrasNames = addons.filter((a) => a.key === rec || extras.includes(a.key)).map((a) => a.name);
+
+  const showTime = !wizard || step === 0;
+  const showData = !wizard || step === 1;
+  const showPay = !wizard || step === 2;
+  const n = (desktopN: string) => (wizard ? undefined : desktopN);
 
   return (
-    <div className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
-      {/* IZQUIERDA: 1 duración · 2 fecha · 3 hora (grabación va en el resumen) */}
-      <div className="space-y-6">
-        {/* 1. Duración */}
-        <div className="border hairline p-5">
-          <Field label="Duración">
-            <div className="flex items-stretch border hairline">
-              <button
-                type="button"
-                onClick={() => setDuration((d) => Math.max(1, d - 1))}
-                disabled={duration <= 1}
-                aria-label="Restar"
-                className="w-12 shrink-0 font-display text-2xl text-bone transition-colors hover:bg-ink-soft hover:text-gold disabled:opacity-25"
+    <div className="grid items-start gap-10 pb-40 min-[860px]:grid-cols-[minmax(0,1.5fr)_360px] min-[860px]:pb-0">
+      <div className="flex min-w-0 flex-col gap-11">
+        {wizard && <StepBar current={step} onGo={goStep} />}
+
+        {showTime && (
+          <>
+            <DurationSection n={n("01")} duration={duration} onPick={pickDuration} day={day} volumeDiscounts={volumeDiscounts} />
+
+            <section id="bk-schedule" tabIndex={-1} className="flex flex-col gap-6 outline-none" aria-labelledby="bk-schedule-title">
+              <SectionHead
+                id="bk-schedule-title"
+                n={n("02")}
+                title="Día y hora"
+                aside={
+                  days.length > 0 && (
+                    <span className="ds-mono text-xs text-[var(--text-muted)]">
+                      {monthRangeLabel(days[0].date, days[days.length - 1].date)}
+                    </span>
+                  )
+                }
               >
-                −
-              </button>
-              <span className="flex flex-1 items-center justify-center border-x hairline py-3 font-display text-2xl text-bone">
-                {duration}h
-              </span>
-              <button
-                type="button"
-                onClick={() => setDuration((d) => Math.min(maxDuration, d + 1))}
-                disabled={duration >= maxDuration}
-                aria-label="Sumar"
-                className="w-12 shrink-0 font-display text-2xl text-bone transition-colors hover:bg-ink-soft hover:text-gold disabled:opacity-25"
-              >
-                +
-              </button>
-            </div>
-          </Field>
-          {volumeDiscounts.length > 0 && (
-            <p className="label-sm mt-3 text-bone-quiet">
-              Ahorra:{" "}
-              {volumeDiscounts.map((v, i) => (
-                <span key={v.minHours}>
-                  {i > 0 && " · "}
-                  <span className={duration >= v.minHours ? "text-gold" : ""}>
-                    {v.minHours}h −{Math.round(v.pct * 100)}%
-                  </span>
-                </span>
-              ))}
-            </p>
-          )}
-        </div>
+                Elige el día y la hora de inicio. Solo se muestran bloques de {duration}h que caben completos.
+              </SectionHead>
 
-        {/* 2 + 3. Calendario + horarios */}
-        <div className="grid gap-4 md:grid-cols-2 md:items-start">
-          <Calendar
-            month={month}
-            today={today}
-            maxDate={maxDate}
-            selected={selected}
-            dayStatus={dayStatus}
-            loading={loadingMonth}
-            onSelect={setSelected}
-            onMonth={setMonth}
-          />
-          <div className="border hairline p-4 md:min-h-[20rem] md:p-5">
-            <span className="label-sm mb-4 block text-bone-quiet">Selecciona un horario</span>
-            <TimeSlots
-              hasDate={selected !== null}
-              loading={loadingAvail}
-              closed={!!avail?.closed}
-              durationHours={duration}
-              slots={starts}
-              selected={selectedStart}
-              onSelect={setStart}
-            />
-          </div>
-        </div>
-
-      </div>
-
-      {/* DERECHA: resumen → desglose → tus datos → pago */}
-      <div className="grain relative overflow-hidden border hairline bg-ink lg:sticky lg:top-28">
-        <div className="relative p-6 md:p-8">
-          <span className="label text-bone-quiet">{pointsApplied > 0 ? "Total a pagar" : "Total"}</span>
-          {quote ? (
-            <div className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.6rem,8vw,4rem)" }}>
-              {formatCLP(payable ?? quote.total)}
-            </div>
-          ) : quoting ? (
-            <Skeleton className="mt-3 h-12 w-44 md:h-14" />
-          ) : (
-            <p className="mt-3 label-sm text-bone-quiet">Selecciona un horario para ver el total.</p>
-          )}
-          {selected !== null && selectedStart !== null && (
-            <p className="mt-1 label-sm text-gold">
-              {selected} · {hhmm(selectedStart)}–{hhmm(selectedStart + duration * 60)} · {duration}h
-            </p>
-          )}
-
-          {quoting && (
-            <ul className="mt-6 space-y-2.5 border-t hairline pt-5">
-              {[0, 1].map((i) => (
-                <li key={i} className="flex justify-between gap-3">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-4 w-16" />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {quote && (
-            <ul className="mt-6 space-y-2.5 border-t hairline pt-5 text-sm">
-              {quote.tierLines.map((l) => (
-                <li key={l.key} className="flex justify-between gap-3 text-bone-dim">
-                  <span>{tierLabel(l.key)} · {l.hours}h</span>
-                  <span className="font-mono text-bone">{formatCLP(l.subtotal)}</span>
-                </li>
-              ))}
-              {quote.addonLines.map((a) => (
-                <li key={a.key} className="flex justify-between gap-3 text-bone-dim">
-                  <span>
-                    {a.name}
-                    {hourlyKeys.has(a.key) ? ` · ${duration}h` : ""}
-                  </span>
-                  <span className="font-mono text-bone">{formatCLP(a.amount)}</span>
-                </li>
-              ))}
-              {quote.adjust && (
-                <li className="flex justify-between gap-3 text-gold">
-                  <span>{quote.adjust.description}</span>
-                  <span className="font-mono">
-                    {quote.adjust.amount < 0 ? "−" : "+"}
-                    {formatCLP(Math.abs(quote.adjust.amount))}
-                  </span>
-                </li>
-              )}
-              {promoLine && (
-                <li className="flex justify-between gap-3 text-gold">
-                  <span>{promoLine.description}</span>
-                  <span className="shrink-0 whitespace-nowrap font-mono">−{formatCLP(promoLine.amount)}</span>
-                </li>
-              )}
-              {pointsApplied > 0 && (
-                <li className="flex justify-between gap-3 text-gold">
-                  <span>Beatcoins</span>
-                  <span className="font-mono">−{formatCLP(pointsApplied)}</span>
-                </li>
-              )}
-            </ul>
-          )}
-          {quote && FIRST_BOOKING_PROMO.enabled && !promoEmail && (
-            <p className="mt-3 label-sm text-gold">
-              ¿Primera vez? −{FIRST_BOOKING_PROMO.pct}% en la sala al ingresar tu correo.
-            </p>
-          )}
-          {quote && FIRST_BOOKING_PROMO.enabled && promoEmail && promoEligible === false && (
-            <p className="mt-3 text-xs leading-relaxed text-bone-quiet">
-              El −{FIRST_BOOKING_PROMO.pct}% de primera reserva ya se usó con este correo.
-            </p>
-          )}
-
-          {/* Mejora la sesión: grabación (elige una) + guía por hora (opcional). */}
-          {recordingAddons.length > 0 && (
-            <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-quiet">¿Grabamos tu sesión?</span>
-              <p className="font-editorial mt-1 text-sm text-bone-dim">Llévate tu set listo para publicar.</p>
-              <div className="mt-3 space-y-1.5">
-                <RecOption active={rec === "none"} onClick={() => setRec("none")} label="Sin grabación" />
-                {recordingAddons.map((a) => (
-                  <RecOption
-                    key={a.key}
-                    active={rec === a.key}
-                    onClick={() => setRec(a.key)}
-                    label={a.name}
-                    delta={`+${formatCLP(a.amount)}`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {hourlyAddons.length > 0 && (
-            <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-quiet">¿Sumas un guía?</span>
-              <p className="font-editorial mt-1 text-sm text-bone-dim">Un DJ te acompaña durante toda la sesión.</p>
-              <div className="mt-3 space-y-1.5">
-                {hourlyAddons.map((a) => (
-                  <RecOption
-                    key={a.key}
-                    active={extras.includes(a.key)}
-                    onClick={() =>
-                      setExtras((xs) => (xs.includes(a.key) ? xs.filter((k) => k !== a.key) : [...xs, a.key]))
-                    }
-                    label={a.name}
-                    delta={`+${formatCLP(a.amount)}/h`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tus puntos (solo con sesión y saldo) */}
-          {customer && customer.points > 0 && quote && selectedStart !== null && (
-            <div className="mt-6 border-t hairline pt-5">
-              <span className="label-sm text-bone-quiet">Tus Beatcoins</span>
-              <p className="mt-1 text-sm text-bone-dim">
-                Tienes <strong className="text-bone">{formatCLP(customer.points)}</strong> en Beatcoins.
-              </p>
-              {customer.pointsExpiryNote && <p className="mt-1 text-sm text-bone-quiet">{customer.pointsExpiryNote}</p>}
-              <div className="mt-3 space-y-1.5">
-                <RecOption
-                  active={usePoints}
-                  onClick={() => {
-                    setUsePoints((v) => {
-                      if (!v) setPointsInput(maxApplicable);
-                      return !v;
-                    });
-                  }}
-                  label="Usar mis Beatcoins"
-                  delta={usePoints ? `−${formatCLP(pointsApplied)}` : undefined}
-                />
-              </div>
-              {usePoints && (
-                <div className="mt-2 flex items-center gap-2">
-                  <label htmlFor="bk-points" className="sr-only">
-                    Beatcoins a usar
-                  </label>
-                  <input
-                    id="bk-points"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={maxApplicable}
-                    value={pointsInput}
-                    onChange={(e) => setPointsInput(Number(e.target.value) || 0)}
-                    onBlur={() => setPointsInput(pointsApplied)}
-                    className={inputCls}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPointsInput(maxApplicable)}
-                    className="label-sm shrink-0 border hairline px-3 py-3 text-bone-dim transition-colors hover:border-gold hover:text-gold"
-                  >
-                    Máx
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tus datos (aparecen al elegir horario, junto al botón de pago) */}
-          {selectedStart !== null && (
-            <div className="rise mt-6 border-t hairline pt-5">
-              <span className="label-sm mb-3 block text-bone-quiet">Tus datos</span>
-              <div className="space-y-2">
-                <label htmlFor="bk-name" className="sr-only">
-                  Nombre (opcional)
-                </label>
-                <input
-                  id="bk-name"
-                  type="text"
-                  autoComplete="name"
-                  placeholder="Nombre (opcional)"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={inputCls}
-                />
-                <label htmlFor="bk-email" className="sr-only">
-                  Email (requerido)
-                </label>
-                <input
-                  id="bk-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="Email *"
-                  value={email}
-                  disabled={!!customer}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`${inputCls} ${customer ? "opacity-60" : ""}`}
-                />
-                <label htmlFor="bk-phone" className="sr-only">
-                  Teléfono (opcional)
-                </label>
-                <input
-                  id="bk-phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="Teléfono (opcional)"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              <label className={`mt-3 flex items-start gap-2.5 text-bone-dim ${hasPhone ? "" : "opacity-60"}`}>
-                <input
-                  type="checkbox"
-                  checked={hasPhone && whatsappOptIn}
-                  disabled={!hasPhone}
-                  onChange={(e) => setWhatsappOptIn(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
-                />
-                <span className="label-sm leading-relaxed">
-                  {hasPhone
-                    ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
-                    : "Agrega tu celular para recibir también los avisos por WhatsApp."}
-                </span>
-              </label>
-              {customer ? (
-                <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
-                  Sesión iniciada como {customer.email}. Ya puedes usar tus Beatcoins.
+              {range.failed ? (
+                <p role="alert" className="text-sm text-[var(--danger)]">
+                  No pudimos cargar la disponibilidad. Recarga la página para intentar de nuevo.
                 </p>
+              ) : days.length === 0 ? (
+                <div className="flex gap-1.5" role="status" aria-label="Cargando días">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-[76px] w-16 shrink-0" />
+                  ))}
+                </div>
               ) : (
-                accountEnabled() &&
-                (loginOpen ? (
-                  // Sin tarjeta anidada: el panel es una sección del bloque "Tus
-                  // datos", y el correo es el campo de arriba (bk-email).
-                  <div className="mt-4 border-t hairline pt-4">
-                    {/* Los dos pasos van con key: tienen la misma forma y sin key
-                        React reutilizaría el MISMO <input>, así que el del código
-                        nunca se montaría y su autoFocus no correría. */}
-                    {login.state.step === "email" ? (
-                      <Fragment key="email">
-                        <p className="text-xs leading-relaxed text-bone-quiet">
-                          Te enviamos un código a{" "}
-                          {email.trim() ? <strong className="text-bone">{email.trim()}</strong> : "tu correo"} — sin
-                          salir de aquí.
-                        </p>
-                        <div className="mt-3 flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => void sendLoginCode()}
-                            disabled={login.state.busy || !email.trim()}
-                            className="bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
-                          >
-                            {login.state.busy ? "Enviando…" : "Enviar código"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLoginOpen(false)}
-                            className="label-sm text-bone-quiet transition-colors hover:text-gold"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </Fragment>
-                    ) : (
-                      <Fragment key="code">
-                        <p className="text-xs leading-relaxed text-bone-quiet">
-                          Escribe el código que enviamos a{" "}
-                          <strong className="text-bone">{login.state.sentTo}</strong>.
-                        </p>
-                        <div className="mt-3 space-y-2">
-                          <label htmlFor="bk-login-code" className="sr-only">
-                            Código de verificación
-                          </label>
-                          <input
-                            id="bk-login-code"
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            // Al cambiar de paso el input anterior se desmonta: sin
-                            // esto el teclado del teléfono se cierra y hay que volver
-                            // a tocar el campo.
-                            autoFocus
-                            placeholder="Código del correo"
-                            value={loginCode}
-                            onChange={(e) => setLoginCode(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && void verifyLoginCode()}
-                            className={inputCls}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void verifyLoginCode()}
-                            disabled={login.state.busy || !loginCode.trim()}
-                            className="w-full bg-gold px-5 py-3 label text-ink transition-opacity disabled:opacity-40"
-                          >
-                            {login.state.verified ? "Iniciando sesión…" : login.state.busy ? "Verificando…" : "Verificar"}
-                          </button>
-                          <div className="flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={() => void login.resend()}
-                              disabled={login.state.busy}
-                              className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
-                            >
-                              Reenviar código
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLoginCode("");
-                                login.changeEmail();
-                              }}
-                              disabled={login.state.busy}
-                              className="label-sm text-bone-quiet transition-colors hover:text-gold disabled:opacity-40"
-                            >
-                              Cambiar correo
-                            </button>
-                          </div>
-                        </div>
-                      </Fragment>
-                    )}
-                    {login.state.error && (
-                      <p role="alert" className="mt-2 text-xs leading-relaxed text-sirena">
-                        {login.state.error}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs leading-relaxed text-bone-quiet">
-                    ¿Tienes cuenta?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginCode("");
-                        login.changeEmail();
-                        setLoginOpen(true);
-                        // El correo se escribe arriba: si está vacío, llevamos el foco ahí.
-                        if (!email.trim()) document.getElementById("bk-email")?.focus();
-                      }}
-                      className="text-gold transition-opacity hover:opacity-80"
-                    >
-                      Inicia sesión
-                    </button>{" "}
-                    para usar tus Beatcoins.
-                  </p>
-                ))
+                <DayStrip
+                  days={days}
+                  duration={duration}
+                  today={today}
+                  selected={selected}
+                  onSelect={pickDay}
+                  canExtend={range.canExtend}
+                  onExtend={() => void range.extend()}
+                  loading={range.loading}
+                />
               )}
 
-              {/* Aceptación de T&C — obligatoria para pagar (gatea payReady). */}
-              <label className="mt-4 flex items-start gap-2.5 text-bone-dim">
-                <input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-gold"
+              {day && (
+                <TimeGrid
+                  day={day}
+                  tiers={tiers}
+                  starts={starts}
+                  duration={duration}
+                  selectedStart={selectedStart}
+                  onSelect={(m) => {
+                    setStart(m);
+                    setTried(false);
+                  }}
                 />
-                <span className="label-sm leading-relaxed">
-                  Acepto los{" "}
-                  <Link
-                    href="/terminos"
-                    target="_blank"
-                    className="text-gold transition-opacity hover:opacity-80"
-                  >
-                    términos y condiciones
-                  </Link>{" "}
-                  y la{" "}
-                  <Link
-                    href="/privacidad"
-                    target="_blank"
-                    className="text-gold transition-opacity hover:opacity-80"
-                  >
-                    política de privacidad
-                  </Link>
-                  .
-                </span>
-              </label>
-            </div>
-          )}
+              )}
+              {tried && selectedStart === null && (
+                <p className="text-[13px] text-[var(--danger)]">Selecciona un horario para continuar.</p>
+              )}
 
-          {error && <p className="mt-4 label-sm text-sirena">{error}</p>}
+              <ExtrasDisclosure
+                addons={addons}
+                rec={rec}
+                onRec={setRec}
+                extras={extras}
+                onToggleExtra={(k) => setExtras((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]))}
+                duration={duration}
+                open={extrasOpen}
+                onToggle={() => setExtrasOpen((o) => !o)}
+              />
+            </section>
+          </>
+        )}
 
-          {fullPoints ? (
-            // Puntos cubren el 100%: sin paso de pago — el brick NO debe montar.
-            <button
-              type="button"
-              onClick={pointsSubmit}
-              disabled={!canPay}
-              className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
-            >
-              {submitting ? "Confirmando…" : "Pagar con Beatcoins"}
-              <span>→</span>
-            </button>
-          ) : payReady && walletEnabled && isDesktop === true ? (
-            <MpWalletButton
-              className="mt-6"
-              onSubmit={walletSubmit}
-              onFallback={() => setWalletFailed(true)}
-            />
-          ) : payReady && walletEnabled && isDesktop === false ? null : (
-            // En móvil con wallet activo el CTA único es el brick de la barra
-            // fija (evita dos botones distintos a la vez); si no, botón clásico.
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canPay}
-              className="mt-6 inline-flex w-full items-center justify-center gap-3 bg-gold px-7 py-4 label text-ink transition-transform disabled:opacity-40"
-            >
-              {submitting ? "Redirigiendo…" : "Ir a pagar"}
-              <span>→</span>
-            </button>
-          )}
-          {selectedStart !== null && !email ? (
-            <p className="mt-3 text-center label-sm text-gold">Ingresa tu email para continuar</p>
-          ) : selectedStart !== null && !acceptedTerms ? (
-            <p className="mt-3 text-center label-sm text-gold">Acepta los términos para continuar</p>
-          ) : fullPoints ? (
-            <p className="mt-3 text-center label-sm text-bone-quiet">Tu reserva queda confirmada al instante</p>
-          ) : (
-            <p className="mt-3 text-center label-sm text-bone-quiet">IVA incluido · pago seguro con Mercado Pago</p>
-          )}
-        </div>
+        {showData && (
+          <CustomerSection
+            n={n("03")}
+            customer={customer}
+            accountOn={accountEnabled()}
+            email={email}
+            onEmail={(v) => {
+              setEmail(v);
+              setEmailBlurred(false);
+            }}
+            onEmailBlur={() => setEmailBlurred(true)}
+            emailError={emailError}
+            emailHint={emailHint}
+            name={name}
+            onName={setName}
+            nameError={nameError}
+            phoneDigits={phone}
+            onPhoneDigits={setPhone}
+            onPhoneBlur={() => setPhoneBlurred(true)}
+            phoneError={phoneError}
+            phoneValid={phoneValid}
+            whatsappOptIn={whatsappOptIn}
+            onWhatsappOptIn={setWhatsappOptIn}
+            login={login}
+            loginOpen={loginOpen}
+            onLoginOpen={setLoginOpen}
+            loginCode={loginCode}
+            onLoginCode={setLoginCode}
+            onSendCode={sendLoginCode}
+            onVerifyCode={() => void verifyLoginCode()}
+            usePoints={usePoints}
+            onUsePoints={setUsePoints}
+            pointsApplied={pointsApplied}
+          />
+        )}
+
+        {wizard && step === 2 && (
+          <ReviewCard
+            session={dateLabel && rangeLabel ? `${dateLabel} · ${rangeLabel}` : "Sin horario"}
+            extras={extrasNames.join(" · ") || "Sin extras"}
+            contact={[email, name, phone ? `+56 ${formatClMobile(phone)}` : ""].filter(Boolean).join(" · ")}
+            lines={lines}
+            totalLabel={totalLabel}
+            promoNote={promoNote}
+            onEditTime={() => goStep(0)}
+            onEditData={() => goStep(1)}
+          />
+        )}
+
+        {showPay && (
+          <PaySection
+            n={n("04")}
+            title={wizard ? "Pagar" : "Pago"}
+            fullPoints={fullPoints}
+            acceptedTerms={acceptedTerms}
+            onAcceptedTerms={setAcceptedTerms}
+            termsError={tried && missing?.step === "pago"}
+          />
+        )}
       </div>
 
-      {/* Barra fija móvil */}
-      {selectedStart !== null && (
-        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t hairline bg-ink/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div>
-            <div className="label-sm text-bone-quiet">Total</div>
-            <div className="font-display text-xl text-bone">
-              {quote ? formatCLP(payable ?? quote.total) : quoting ? <Skeleton className="h-6 w-20" /> : "—"}
-            </div>
-          </div>
-          {fullPoints ? (
-            <button
-              type="button"
-              onClick={pointsSubmit}
-              disabled={!canPay}
-              className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
-            >
-              {submitting ? "…" : "Pagar con Beatcoins"}
-              <span>→</span>
-            </button>
-          ) : payReady && walletEnabled && isDesktop === false ? (
-            <div className="min-w-0 flex-1">
-              <MpWalletButton onSubmit={walletSubmit} onFallback={() => setWalletFailed(true)} />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canPay}
-              className="inline-flex items-center justify-center gap-2 bg-gold px-6 py-3 label text-ink disabled:opacity-40"
-            >
-              {submitting ? "…" : "Ir a pagar"}
-              <span>→</span>
-            </button>
-          )}
-        </div>
+      {!wizard && (
+        <SummaryCard
+          title={pointsApplied > 0 ? "Total a pagar" : "Total"}
+          volLabel={volPct > 0 ? `−${Math.round(volPct * 100)}%` : null}
+          dateLabel={dateLabel}
+          rangeLabel={rangeLabel}
+          lines={lines}
+          quoting={quoting}
+          totalLabel={totalLabel}
+          promoNote={promoNote}
+          cta={cta}
+          error={error}
+          under={under}
+        />
+      )}
+
+      {wizard && (
+        <BottomBar
+          sub={dateLabel && rangeLabel ? `${dateLabel} · ${rangeLabel}` : "Selecciona un horario"}
+          totalLabel={totalLabel}
+          onBack={step > 0 ? () => goStep(step - 1) : null}
+          error={error}
+          under={step === 0 ? "El total se actualiza al elegir horario" : step === 1 ? "Tus datos se piden una sola vez" : under}
+          action={
+            step === 2 ? (
+              cta
+            ) : (
+              <Button
+                fullWidth
+                onClick={() => {
+                  const blocked = step === 0 ? selectedStart === null : missing?.step === "datos";
+                  if (blocked) goToMissing();
+                  else goStep(step + 1);
+                }}
+              >
+                {tried && step === 0 && selectedStart === null
+                  ? "Selecciona un horario"
+                  : tried && step === 1 && missing?.step === "datos"
+                    ? missing.label
+                    : step === 0
+                      ? "Continuar"
+                      : "Revisar y pagar"}
+              </Button>
+            )
+          }
+        />
       )}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-sm mb-3 block text-bone-quiet">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function RecOption({
-  active,
-  onClick,
-  label,
-  delta,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  delta?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`flex w-full items-center justify-between gap-3 border px-4 py-3 text-left label-sm transition-colors ${
-        active ? "border-gold bg-gold text-ink" : "hairline text-bone-dim hover:border-gold hover:text-gold"
-      }`}
-    >
-      <span>{label}</span>
-      {delta && <span className="font-mono">{delta}</span>}
-    </button>
   );
 }

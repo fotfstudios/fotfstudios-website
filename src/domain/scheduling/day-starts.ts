@@ -69,3 +69,9 @@ export function monthRangeLabel(first: string, last: string): string {
   if (a.month !== b.month) return `${mon(a)} — ${mon(b)} ${a.year}`;
   return `${mon(a)} ${a.year}`;
 }
+
+/** "LUN 19 OCT" para el resumen y la barra móvil. */
+export function dateShortLabel(date: string): string {
+  const d = DateTime.fromISO(date);
+  return `${DOW[d.weekday % 7]} ${date.slice(8, 10)} ${MON[d.month - 1]}`;
+}

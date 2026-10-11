@@ -14,14 +14,15 @@ describe("missingItem", () => {
     expect(missingItem(DONE)).toBeNull();
   });
 
-  it("en orden: horario → nombre → email → celular → términos", () => {
+  it("en orden: horario → email → nombre → celular → términos", () => {
     expect(missingItem({ ...DONE, hasSlot: false, name: "" })).toEqual({
       step: "horario",
       anchorId: "bk-schedule",
       label: "Selecciona un horario",
     });
-    expect(missingItem({ ...DONE, name: "  ", email: "" })?.anchorId).toBe("bk-name");
+    expect(missingItem({ ...DONE, name: "  ", email: "" })?.anchorId).toBe("bk-email");
     expect(missingItem({ ...DONE, email: "nico@" })).toMatchObject({ step: "datos", label: "Ingresa tu email" });
+    expect(missingItem({ ...DONE, name: "  " })).toMatchObject({ anchorId: "bk-name", label: "Ingresa tu nombre" });
     expect(missingItem({ ...DONE, phone: "9 1234" })).toMatchObject({ anchorId: "bk-phone", label: "Ingresa tu celular" });
     expect(missingItem({ ...DONE, termsAccepted: false })).toMatchObject({ step: "pago", anchorId: "bk-terms" });
   });

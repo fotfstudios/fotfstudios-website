@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dowLabel, monthRangeLabel, startCountsByDuration, stripCell, validStarts, type StartDay } from "./day-starts";
+import { dateShortLabel, dowLabel, monthRangeLabel, startCountsByDuration, stripCell, validStarts, type StartDay } from "./day-starts";
 
 // 09:00–13:00, ocupado 10:00–11:00.
 const DAY: StartDay = { date: "2026-10-13", weekday: 2, closed: false, openMinute: 540, closeMinute: 780, booked: [{ start: 600, end: 660 }], minStart: 0 };
@@ -50,5 +50,12 @@ describe("etiquetas", () => {
     expect(monthRangeLabel("2026-10-11", "2026-10-24")).toBe("OCT 2026");
     expect(monthRangeLabel("2026-10-25", "2026-11-07")).toBe("OCT — NOV 2026");
     expect(monthRangeLabel("2026-12-25", "2027-01-07")).toBe("DIC 2026 — ENE 2027");
+  });
+});
+
+describe("dateShortLabel", () => {
+  it("DOW, día y mes abreviado", () => {
+    expect(dateShortLabel("2026-10-19")).toBe("LUN 19 OCT");
+    expect(dateShortLabel("2026-11-01")).toBe("DOM 01 NOV");
   });
 });

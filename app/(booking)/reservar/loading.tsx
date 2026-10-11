@@ -1,58 +1,49 @@
 import Skeleton from "@/components/booking/Skeleton";
+import { dsFonts } from "@/components/ds/fonts";
+import "@/components/ds/ds.css";
 
-/** Shell skeleton mientras el server component carga el recurso de /reservar. */
+/** Esqueleto del checkout (mismo layout que el widget) mientras el server resuelve el recurso. */
 export default function Loading() {
   return (
-    <main role="status" aria-label="Cargando la reserva" className="mx-auto max-w-5xl px-6 py-20 md:py-28">
-      <Skeleton className="h-4 w-32" />
-      <Skeleton className="mt-10 h-3 w-16" />
-      <Skeleton className="mt-3 h-12 w-72 md:h-16" />
-      <Skeleton className="mt-4 h-5 w-full max-w-md" />
-
-      <div className="mt-12 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
-        {/* Izquierda */}
-        <div className="space-y-6">
-          {/* Barra de sesión */}
-          <div className="grid gap-6 border hairline p-5 sm:grid-cols-2">
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
-          </div>
-
-          {/* Calendario + horarios */}
-          <div className="grid gap-4 md:grid-cols-2 md:items-start">
-            <div className="border hairline p-4 md:p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <Skeleton className="size-9" />
-                <Skeleton className="h-5 w-28" />
-                <Skeleton className="size-9" />
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 42 }).map((_, i) => (
-                  <Skeleton key={i} className="aspect-square" />
+    <div className={`fotf-ds ${dsFonts} min-h-screen`}>
+      <main role="status" aria-label="Cargando la reserva" className="mx-auto w-full max-w-[1200px] px-4 pt-10 pb-16 sm:px-10">
+        <Skeleton className="h-3 w-28" />
+        <div className="mt-8 mb-10 flex max-w-[640px] flex-col gap-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-12 w-72 md:h-16" />
+          <Skeleton className="h-4 w-full max-w-md" />
+        </div>
+        <div className="grid items-start gap-10 min-[860px]:grid-cols-[minmax(0,1.5fr)_360px]">
+          <div className="flex flex-col gap-11">
+            {/* Duración */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-[74px] rounded-[6px]" />
+              ))}
+            </div>
+            {/* Tira de días + grilla */}
+            <div className="flex flex-col gap-6">
+              <div className="flex gap-1.5 overflow-hidden">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[76px] w-16 shrink-0 rounded-[6px]" />
                 ))}
               </div>
-            </div>
-            <div className="border hairline p-4 md:min-h-[20rem] md:p-5">
-              <Skeleton className="mb-4 h-3 w-40" />
-              <div className="flex flex-col gap-1.5">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-[2.85rem] w-full" />
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-1.5">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[58px] rounded-[6px]" />
                 ))}
               </div>
             </div>
           </div>
+          {/* Resumen */}
+          <div className="hidden flex-col gap-4 rounded-[10px] border border-[var(--border-subtle)] p-6 min-[860px]:flex">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-8 w-44" />
+            <Skeleton className="h-11 w-full" />
+          </div>
         </div>
-
-        {/* Derecha: resumen */}
-        <div className="border hairline bg-ink p-6 md:p-8">
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="mt-3 h-12 w-44 md:h-14" />
-          <Skeleton className="mt-8 h-12 w-full" />
-          <Skeleton className="mt-3 h-3 w-56" />
-        </div>
-      </div>
-
-      <span className="sr-only">Cargando la reserva…</span>
-    </main>
+        <span className="sr-only">Cargando la reserva…</span>
+      </main>
+    </div>
   );
 }

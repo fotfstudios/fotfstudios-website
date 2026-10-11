@@ -1,5 +1,6 @@
 /**
- * Qué le falta a la reserva para poder pagar, en el orden en que se pide en /reservar.
+ * Qué le falta a la reserva para poder pagar, en el orden en que se pide en /reservar
+ * (horario, email, nombre, celular, términos).
  * Puro: decide el paso del wizard móvil, a dónde hace scroll el CTA y su etiqueta
  * ("Ir a pagar $24.000" o, tras un intento, lo que falta).
  */
@@ -28,8 +29,9 @@ const dataOk = (s: BookingStepState) => !!s.name.trim() && normalizeEmail(s.emai
 
 export function missingItem(s: BookingStepState): MissingItem | null {
   if (!s.hasSlot) return { step: "horario", anchorId: "bk-schedule", label: "Selecciona un horario" };
-  if (!s.name.trim()) return { step: "datos", anchorId: "bk-name", label: "Ingresa tu nombre" };
+  // Mismo orden que los campos en pantalla: email, nombre, celular.
   if (normalizeEmail(s.email) === null) return { step: "datos", anchorId: "bk-email", label: "Ingresa tu email" };
+  if (!s.name.trim()) return { step: "datos", anchorId: "bk-name", label: "Ingresa tu nombre" };
   if (!isValidClMobile(s.phone)) return { step: "datos", anchorId: "bk-phone", label: "Ingresa tu celular" };
   if (!s.termsAccepted) return { step: "pago", anchorId: "bk-terms", label: "Acepta los términos" };
   return null;

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -20,6 +20,16 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 const LOGIN = "app/cuenta/login/page.tsx";
 const PERFIL = "app/cuenta/(panel)/perfil/page.tsx";
 const WIDGET = "components/booking/BookingWidget.tsx";
+/** El widget es un orquestador: los campos y el acceso viven en sus secciones (reservar/). */
+const WIDGET_DIR = "components/booking/reservar";
+const widgetFiles = () => [
+  WIDGET,
+  ...readdirSync(join(ROOT, WIDGET_DIR))
+    .filter((f) => f.endsWith(".tsx"))
+    .map((f) => `${WIDGET_DIR}/${f}`),
+];
+/** Todo el código del widget de reserva, concatenado (orquestador + secciones). */
+const widgetSrc = () => widgetFiles().map(read).join("\n");
 
 /** El bloque JSX del <input>/<Input> cuyo `id`/`name`/`type` contiene `needle`. */
 function inputTag(src: string, needle: string): string {
@@ -43,7 +53,7 @@ describe("inputs de identidad declaran su propósito (autocomplete)", () => {
   });
 
   it("widget: nombre, email y teléfono de la reserva llevan autoComplete", () => {
-    const src = read(WIDGET);
+    const src = widgetSrc();
     expect(inputTag(src, 'id="bk-name"')).toContain('autoComplete="name"');
     expect(inputTag(src, 'id="bk-email"')).toContain('autoComplete="email"');
     expect(inputTag(src, 'id="bk-phone"')).toContain('autoComplete="tel"');
@@ -79,10 +89,10 @@ describe("el largo del código lo decide Supabase (otp_length), no el cliente", 
   // "6 dígitos" en el cliente convierte esa diferencia en un login imposible:
   // el navegador rechaza el 7.º dígito y verifyOtp recibe un código truncado.
   it("ningún campo de código lleva maxLength ni promete un número de dígitos", () => {
-    for (const f of [LOGIN, WIDGET]) {
-      const code = inputTag(read(f), 'autoComplete="one-time-code"');
+    for (const [f, src] of [[LOGIN, read(LOGIN)], [WIDGET, widgetSrc()]]) {
+      const code = inputTag(src, 'autoComplete="one-time-code"');
       expect(code, f).not.toMatch(/maxLength=/);
-      expect(read(f), f).not.toMatch(/\d+ dígitos/);
+      expect(src, f).not.toMatch(/\d+ dígitos/);
     }
   });
 
@@ -95,17 +105,18 @@ describe("el largo del código lo decide Supabase (otp_length), no el cliente", 
 
 describe("un solo gesto de acceso (login + widget)", () => {
   it("las dos superficies usan el mismo hook useOtpLogin", () => {
-    for (const f of [LOGIN, WIDGET]) expect(read(f), f).toMatch(/from "@\/components\/cuenta\/useOtpLogin"/);
+    expect(read(LOGIN)).toMatch(/from "@\/components\/cuenta\/useOtpLogin"/);
+    expect(read(WIDGET)).toMatch(/from "@\/components\/cuenta\/useOtpLogin"/);
   });
 
   it("el widget tiene UN solo campo de correo: el de la reserva (no hay bk-login-email)", () => {
-    const src = read(WIDGET);
+    const src = widgetSrc();
     expect(src).not.toContain("bk-login-email");
     expect(src).not.toContain("loginEmail");
   });
 
   it("el panel del código no es una tarjeta anidada ni repite el mensaje de éxito", () => {
-    const src = read(WIDGET);
+    const src = widgetSrc();
     expect(src).not.toContain('className="mt-3 border hairline p-4"');
     expect(src).not.toContain("¡Sesión iniciada!");
     expect(src).toContain("Sesión iniciada como");
@@ -113,7 +124,7 @@ describe("un solo gesto de acceso (login + widget)", () => {
 });
 
 describe("widget de reserva — acceso con código", () => {
-  const src = read(WIDGET);
+  const src = widgetSrc();
 
   it("el campo del código se enfoca solo", () => {
     expect(inputTag(src, 'id="bk-login-code"')).toContain("autoFocus");
