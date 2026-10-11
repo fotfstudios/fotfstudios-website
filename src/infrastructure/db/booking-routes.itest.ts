@@ -369,7 +369,7 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
   });
 
   it("un invitado NO cambia los avisos de una ficha que ya decidió", async () => {
-    const customerId = await adoptedCustomer(0);
+    const customerId = await adoptedCustomer(100);
     await pg.query(
       "update customers set whatsapp_opt_in = true, whatsapp_opt_in_at = now(), whatsapp_opt_in_source = 'account' where id = $1",
       [customerId],
@@ -380,7 +380,7 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
   });
 
   it("un invitado SÍ fija los avisos de una ficha que nunca decidió", async () => {
-    const customerId = await adoptedCustomer(0);
+    const customerId = await adoptedCustomer(100);
     await post(guestBody(1200, true));
     const c = await pg.query("select whatsapp_opt_in, whatsapp_opt_in_source from customers where id = $1", [customerId]);
     expect(c.rows[0]).toEqual({ whatsapp_opt_in: true, whatsapp_opt_in_source: "customer" });
