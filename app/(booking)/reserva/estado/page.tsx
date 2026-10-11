@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EstadoClient from "@/components/booking/EstadoClient";
+import { dsFonts } from "@/components/ds/fonts";
+import "@/components/ds/ds.css";
+import { accountEnabled } from "@/lib/flags";
+import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { buildConfirmationView, isUpcoming } from "@/lib/confirmation";
 import { orderConfirmation } from "@/src/composition";
 
@@ -42,21 +46,29 @@ export default async function EstadoPage({
   // En el servidor (force-dynamic): decide si mostrar "agregar al calendario".
   const sessionUpcoming = isUpcoming(order.endsAt);
 
+  // Cuentas: gestionar la reserva desde /cuenta; a un invitado se le invita a activarla.
+  const accounts = accountEnabled();
+  const session = accounts ? await currentCustomer().catch(() => null) : null;
+
   return (
-    <main className="mx-auto max-w-2xl px-6 py-20 md:py-28">
-      <Link href="/" className="label-sm text-bone-mute transition-colors hover:text-gold">
-        ← FOTF Studios
-      </Link>
-      <div className="mt-10">
-        <EstadoClient
-          orderId={b}
-          initialStatus={order.orderStatus}
-          view={view}
-          sessionUpcoming={sessionUpcoming}
-          paymentHint={paymentHint}
-          holdExpiresAt={order.holdExpiresAt}
-        />
-      </div>
-    </main>
+    <div className={`fotf-ds ${dsFonts} min-h-screen`}>
+      <main className="mx-auto w-full max-w-[760px] px-4 pt-10 pb-20 sm:px-10">
+        <Link href="/" className="ds-mono ds-no-print text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--accent)]">
+          ← FOTF Studios
+        </Link>
+        <div className="mt-10">
+          <EstadoClient
+            orderId={b}
+            initialStatus={order.orderStatus}
+            view={view}
+            sessionUpcoming={sessionUpcoming}
+            paymentHint={paymentHint}
+            holdExpiresAt={order.holdExpiresAt}
+            manageHref={accounts ? "/cuenta/reservas" : null}
+            showActivate={accounts && !session}
+          />
+        </div>
+      </main>
+    </div>
   );
 }

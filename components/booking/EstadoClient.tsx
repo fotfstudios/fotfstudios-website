@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import MaskText from "@/components/MaskText";
-import Reveal from "@/components/Reveal";
 import CalendarButtons from "@/components/booking/CalendarButtons";
-import ReceiptCard from "@/components/booking/ReceiptCard";
+import { dsButtonClass } from "@/components/ds/Button";
 import WhatsAppCta from "@/components/WhatsAppCta";
-import type { ConfirmationView } from "@/lib/confirmation";
+import { orderShort, type ConfirmationView } from "@/lib/confirmation";
+import ActivateAccountCard from "./estado/ActivateAccountCard";
+import HelpRow from "./estado/HelpRow";
+import NextSteps from "./estado/NextSteps";
+import SessionCard from "./estado/SessionCard";
+import StatusHeader from "./estado/StatusHeader";
 import { resolveEstadoUi } from "@/lib/estado-ui";
 import { nextPollDelay } from "@/lib/estado-polling";
-import { SITE } from "@/lib/site";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
 type OrderStatus = OrderConfirmation["orderStatus"];
@@ -33,6 +35,8 @@ export default function EstadoClient({
   sessionUpcoming,
   paymentHint,
   holdExpiresAt,
+  manageHref = null,
+  showActivate = false,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
@@ -43,6 +47,10 @@ export default function EstadoClient({
   paymentHint: "approved" | "none";
   /** Vencimiento del hold (ISO) — acota el sondeo; null en hold firme. */
   holdExpiresAt: string | null;
+  /** Gestionar la reserva (/cuenta/reservas) cuando hay cuentas; null si no. */
+  manageHref?: string | null;
+  /** Invitado (sin sesión) y cuentas activas: invitarlo a activar la cuenta. */
+  showActivate?: boolean;
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [reservation, setReservation] = useState<ReservationStatus>(view.reservationStatus);
@@ -116,209 +124,114 @@ export default function EstadoClient({
   }, [orderId]);
 
   const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired);
+  const number = orderShort(orderId);
 
   return (
-    <section
-      role="status"
-      aria-live="polite"
-      className="grain relative overflow-hidden border hairline bg-ink"
-    >
-      <div className="relative p-6 md:p-10">
-        {ui === "paid_no_hold" && <PaidNoHold />}
-        {ui === "confirmed" && <Confirmed orderId={orderId} view={view} sessionUpcoming={sessionUpcoming} />}
-        {ui === "failed" && <Failed />}
-        {ui === "refunded" && <Refunded />}
-        {ui === "confirming" && <Pending view={view} />}
-        {ui === "expired" && <ExpiredHold />}
-        {ui === "pending_payment" && <PendingPayment view={view} />}
-      </div>
-    </section>
+    <div role="status" aria-live="polite" className="flex flex-col gap-8">
+      {ui === "confirmed" && (
+        <Confirmed
+          orderId={orderId}
+          number={number}
+          view={view}
+          sessionUpcoming={sessionUpcoming}
+          manageHref={manageHref}
+          showActivate={showActivate}
+        />
+      )}
+      {ui === "paid_no_hold" && <PaidNoHold />}
+      {ui === "failed" && <Failed />}
+      {ui === "refunded" && <Refunded />}
+      {ui === "confirming" && <Confirming view={view} number={number} />}
+      {ui === "expired" && <ExpiredHold />}
+      {ui === "pending_payment" && <PendingPayment view={view} number={number} />}
+    </div>
   );
 }
+
+const primary = dsButtonClass({ variant: "primary" });
+const ghost = dsButtonClass({ variant: "ghost" });
 
 /* ── Estado: pagado / cumplido ─────────────────────────────────────────── */
 
 function Confirmed({
   orderId,
+  number,
   view,
   sessionUpcoming,
+  manageHref,
+  showActivate,
 }: {
   orderId: string;
+  number: string;
   view: ConfirmationView;
   sessionUpcoming: boolean;
+  manageHref: string | null;
+  showActivate: boolean;
 }) {
-  const waMsg = view.when
-    ? `Hola FOTF Studios. Tengo una reserva confirmada para el ${view.when}.`
-    : undefined;
+  const waMsg = view.when ? `Hola FOTF Studios. Tengo una reserva confirmada para el ${view.when}.` : undefined;
+  const startShort = view.dateLong && view.timeRange ? `${view.dateLong.slice(0, 3).toUpperCase()} ${view.timeRange.slice(0, 5)}` : null;
 
   return (
-    <div>
-      <span className="label-sm text-gold">Reserva confirmada</span>
-      {/* El momento tipográfico de la página; el resto queda quieto. */}
-      <div className="mt-3" style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}>
-        <MaskText
-          as="h1"
-          immediate
-          lines={[view.firstName ? `¡Listo, ${view.firstName}!` : "¡Reserva confirmada!"]}
-          className="block font-display text-bone"
-        />
-      </div>
-      <p className="mt-3 font-editorial text-lg text-bone-dim">La cabina es tuya.</p>
-
-      <Reveal className="mt-8">
-        <ReceiptCard view={view} />
-      </Reveal>
-
-      <div className="mt-10">
-        <span className="label-sm text-bone-mute">Qué sigue</span>
-        <ol className="mt-4 space-y-4">
-          <Step n="01">Te enviamos un email con el detalle de tu reserva.</Step>
-          <Step n="02">
-            Tu <strong className="text-bone">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de
-            tu sesión. Entras solo, sin esperar a nadie. Si no lo ves, escríbenos por WhatsApp.
-          </Step>
-          <Step n="03">
-            {SITE.address}.{" "}
-            <a
-              href={SITE.mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-bone underline decoration-gold underline-offset-4 transition-colors hover:text-gold"
-            >
-              Ver en Google Maps →
-            </a>
-          </Step>
-        </ol>
-      </div>
-
-      <div className="mt-10 flex flex-wrap gap-3">
-        <WhatsAppCta
-          source="estado-confirmado"
-          waMessage={waMsg}
-          className="inline-flex bg-gold px-6 py-3 label text-ink"
-        >
-          Escríbenos por WhatsApp →
-        </WhatsAppCta>
-        {sessionUpcoming && view.startsAt && view.endsAt && (
-          <CalendarButtons
-            orderId={orderId}
-            startsAt={view.startsAt}
-            endsAt={view.endsAt}
-            resourceName={view.resourceName}
-          />
-        )}
-      </div>
-    </div>
+    <>
+      <StatusHeader badge="Pago recibido · reserva confirmada" tone="live" confirmed title={view.firstName ? `¡Listo, ${view.firstName}!` : "¡Reserva confirmada!"}>
+        La cabina es tuya. Te enviamos el comprobante a tu correo.
+      </StatusHeader>
+      <SessionCard
+        view={view}
+        number={number}
+        totalTitle="Total pagado"
+        actions={
+          <>
+            <button type="button" onClick={() => window.print()} className={dsButtonClass({ variant: "secondary", size: "sm" })}>
+              Guardar comprobante (PDF)
+            </button>
+            {sessionUpcoming && view.startsAt && view.endsAt && (
+              <CalendarButtons orderId={orderId} startsAt={view.startsAt} endsAt={view.endsAt} resourceName={view.resourceName} />
+            )}
+          </>
+        }
+      />
+      <NextSteps startShort={startShort} />
+      {showActivate && <ActivateAccountCard />}
+      <HelpRow source="estado-confirmado" waMessage={waMsg} manageHref={manageHref} />
+    </>
   );
 }
 
-function Step({ n, children }: { n: string; children: React.ReactNode }) {
+/* ── Estado: confirmando (volvió de MP con approved; esperando la confirmación real) ── */
+
+function Confirming({ view, number }: { view: ConfirmationView; number: string }) {
   return (
-    <li className="flex gap-4 text-sm text-bone-dim">
-      <span className="label-sm text-gold">{n}</span>
-      <span className="flex-1">{children}</span>
-    </li>
-  );
-}
-
-/* ── Estado: pago no completado ────────────────────────────────────────── */
-
-function Failed() {
-  return (
-    <div>
-      <span className="label-sm text-sirena">Pago no completado</span>
-      <h1
-        className="mt-3 font-display text-bone"
-        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
-      >
-        El pago no se completó
-      </h1>
-      <p className="mt-4 text-bone-dim">
-        No se realizó ningún cobro. Puedes intentarlo de nuevo cuando quieras.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center gap-4">
-        <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
-          Volver a reservar →
-        </Link>
-        <WhatsAppCta
-          source="estado-fallido"
-          waMessage="Hola FOTF Studios. Tuve un problema con el pago de mi reserva."
-          className="label-sm text-bone-dim transition-colors hover:text-gold"
-        >
-          ¿Tuviste un problema? Escríbenos por WhatsApp →
-        </WhatsAppCta>
-      </div>
-    </div>
-  );
-}
-
-/* ── Estado: pago devuelto ─────────────────────────────────────────────── */
-
-function Refunded() {
-  return (
-    <div>
-      <span className="label-sm text-bone-mute">Pago devuelto</span>
-      <h1
-        className="mt-3 font-display text-bone"
-        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
-      >
-        Tu pago fue devuelto
-      </h1>
-      <p className="mt-4 text-bone-dim">
-        Esta reserva se canceló y el pago fue devuelto. Si tienes dudas, escríbenos.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center gap-4">
-        <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
-          Volver a reservar →
-        </Link>
-        <WhatsAppCta
-          source="estado-devuelto"
-          waMessage="Hola FOTF Studios. Tengo una consulta sobre un pago devuelto."
-          className="label-sm text-bone-dim transition-colors hover:text-gold"
-        >
-          Escríbenos por WhatsApp →
-        </WhatsAppCta>
-      </div>
-    </div>
+    <>
+      <StatusHeader badge="Procesando" tone="gold" title="Confirmando tu pago…">
+        Esto puede tomar unos segundos. No cierres esta página.
+      </StatusHeader>
+      <SessionCard view={view} number={number} totalTitle="Total" skeleton />
+    </>
   );
 }
 
 /* ── Estado: pago pendiente (checkout abandonado / rechazado / visita directa) ── */
 
-function PendingPayment({ view }: { view: ConfirmationView }) {
+function PendingPayment({ view, number }: { view: ConfirmationView; number: string }) {
   return (
-    <div>
-      <span className="label-sm text-bone-mute">Pago pendiente</span>
-      <h1
-        className="mt-3 font-display text-bone"
-        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
-      >
-        Completa tu pago
-      </h1>
-      <p className="mt-4 text-bone-dim">
-        Tu horario está reservado por unos minutos mientras completas el pago. Si no se
-        completa, el horario se libera.
-      </p>
-      {view.when && (
-        <p className="mt-3 label-sm text-gold">
-          {view.when}
-          {view.timeRange ? ` · ${view.timeRange}` : ""}
-        </p>
-      )}
-      <div className="mt-8 flex flex-wrap items-center gap-4">
+    <>
+      <StatusHeader badge="Pago pendiente" tone="gold" title="Completa tu pago">
+        Tu horario está reservado por unos minutos mientras completas el pago. Si no se completa, el horario se
+        libera.
+      </StatusHeader>
+      <SessionCard view={view} number={number} totalTitle="Total a pagar" />
+      <div className="flex flex-wrap items-center gap-3">
         {view.resumeUrl && (
-          <a href={view.resumeUrl} className="inline-flex bg-gold px-6 py-3 label text-ink">
-            Completar el pago →
+          <a href={view.resumeUrl} className={primary}>
+            Completar el pago
           </a>
         )}
-        <Link
-          href="/reservar"
-          className="label-sm text-bone-dim transition-colors hover:text-gold"
-        >
-          Elegir otro horario →
+        <Link href="/reservar" className={ghost}>
+          Elegir otro horario
         </Link>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -326,24 +239,65 @@ function PendingPayment({ view }: { view: ConfirmationView }) {
 
 function ExpiredHold() {
   return (
-    <div>
-      <span className="label-sm text-bone-mute">Reserva expirada</span>
-      <h1
-        className="mt-3 font-display text-bone"
-        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
-      >
-        Tu reserva expiró
-      </h1>
-      <p className="mt-4 text-bone-dim">
-        El horario se liberó porque el pago no se completó a tiempo. No se realizó ningún
-        cobro. Puedes reservar de nuevo.
-      </p>
-      <div className="mt-8">
-        <Link href="/reservar" className="inline-flex bg-gold px-6 py-3 label text-ink">
-          Volver a reservar →
+    <>
+      <StatusHeader badge="Reserva expirada" tone="neutral" title="Tu reserva expiró">
+        El horario se liberó porque el pago no se completó a tiempo. No se realizó ningún cobro. Puedes reservar de
+        nuevo.
+      </StatusHeader>
+      <div>
+        <Link href="/reservar" className={primary}>
+          Volver a reservar
         </Link>
       </div>
-    </div>
+    </>
+  );
+}
+
+/* ── Estado: pago no completado ────────────────────────────────────────── */
+
+function Failed() {
+  return (
+    <>
+      <StatusHeader badge="Pago no completado" tone="danger" title="El pago no se completó">
+        No se realizó ningún cobro. Puedes intentarlo de nuevo cuando quieras.
+      </StatusHeader>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link href="/reservar" className={primary}>
+          Volver a reservar
+        </Link>
+        <WhatsAppCta
+          source="estado-fallido"
+          waMessage="Hola FOTF Studios. Tuve un problema con el pago de mi reserva."
+          className={ghost}
+        >
+          ¿Tuviste un problema? Escríbenos
+        </WhatsAppCta>
+      </div>
+    </>
+  );
+}
+
+/* ── Estado: pago devuelto ─────────────────────────────────────────────── */
+
+function Refunded() {
+  return (
+    <>
+      <StatusHeader badge="Pago devuelto" tone="neutral" title="Tu pago fue devuelto">
+        Esta reserva se canceló y el pago fue devuelto. Si tienes dudas, escríbenos.
+      </StatusHeader>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link href="/reservar" className={primary}>
+          Volver a reservar
+        </Link>
+        <WhatsAppCta
+          source="estado-devuelto"
+          waMessage="Hola FOTF Studios. Tengo una consulta sobre un pago devuelto."
+          className={ghost}
+        >
+          Escríbenos por WhatsApp
+        </WhatsAppCta>
+      </div>
+    </>
   );
 }
 
@@ -351,44 +305,20 @@ function ExpiredHold() {
 
 function PaidNoHold() {
   return (
-    <div>
-      <span className="label-sm text-bone-mute">Pago recibido</span>
-      <h1 className="mt-3 font-display text-bone" style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}>
-        Recibimos tu pago
-      </h1>
-      <p className="mt-4 text-bone-dim">
-        El horario se había liberado antes de que llegara el pago. Te escribimos para
-        reagendar o devolverte el monto — no tienes que hacer nada.
-      </p>
-      <div className="mt-8">
+    <>
+      <StatusHeader badge="Pago recibido" tone="gold" title="Recibimos tu pago">
+        El horario se había liberado antes de que llegara el pago. Te escribimos para reagendar o devolverte el monto
+        — no tienes que hacer nada.
+      </StatusHeader>
+      <div>
         <WhatsAppCta
           source="estado-pago-sin-cupo"
           waMessage="Hola FOTF Studios. Pagué una reserva pero el horario ya se había liberado."
-          className="inline-flex bg-gold px-6 py-3 label text-ink"
+          className={primary}
         >
-          Escríbenos por WhatsApp →
+          Escríbenos por WhatsApp
         </WhatsAppCta>
       </div>
-    </div>
-  );
-}
-
-/* ── Estado: confirmando ───────────────────────────────────────────────── */
-
-function Pending({ view }: { view: ConfirmationView }) {
-  return (
-    <div>
-      <span className="label-sm text-bone-mute">Procesando</span>
-      <h1
-        className="mt-3 font-display text-bone"
-        style={{ fontSize: "clamp(2.2rem,7vw,3.6rem)" }}
-      >
-        Confirmando tu pago…
-      </h1>
-      <p className="mt-4 text-bone-dim">Esto puede tomar unos segundos. No cierres esta página.</p>
-      <div className="mt-8">
-        <ReceiptCard view={view} skeleton />
-      </div>
-    </div>
+    </>
   );
 }

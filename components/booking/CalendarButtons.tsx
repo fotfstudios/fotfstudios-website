@@ -1,12 +1,13 @@
 "use client";
 
+import { dsButtonClass } from "@/components/ds/Button";
 import { buildIcs, googleCalendarUrl } from "@/lib/ics";
 import { SITE, SITE_URL } from "@/lib/site";
 
 /**
  * "Agregar al calendario": descarga .ics (Blob, sin endpoint) + link a Google
  * Calendar prellenado. Solo se renderiza con fechas presentes y sesión futura
- * (lo decide el caller).
+ * (lo decide el caller). Botones del design system: vive dentro de un wrapper .fotf-ds.
  */
 export default function CalendarButtons({
   orderId,
@@ -43,13 +44,12 @@ export default function CalendarButtons({
     URL.revokeObjectURL(href);
   };
 
-  const secondary =
-    "inline-flex items-center border hairline px-5 py-3 label text-bone-dim transition-colors hover:text-gold";
+  const secondary = dsButtonClass({ variant: "ghost", size: "sm" });
 
   return (
     <>
       <button type="button" onClick={downloadIcs} className={`${secondary} cursor-pointer`}>
-        Agregar al calendario (.ics)
+        Apple / Outlook (.ics)
       </button>
       <a
         href={googleCalendarUrl({ start: startsAt, end: endsAt, summary, description, location: SITE.address })}
@@ -57,7 +57,7 @@ export default function CalendarButtons({
         rel="noopener noreferrer"
         className={secondary}
       >
-        Abrir en Google Calendar →
+        Google Calendar
       </a>
     </>
   );

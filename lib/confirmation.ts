@@ -9,11 +9,14 @@ import { formatCLP } from "@/src/domain/money/money";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
 const TZ = "America/Santiago";
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export interface ConfirmationView {
   firstName: string | null;
   /** "jueves 9 de julio, 18:00 h" — idéntico al email. */
   when: string | null;
+  /** "Jueves 9 de julio de 2026" — la tarjeta de la sesión (la hora va en timeRange). */
+  dateLong: string | null;
   /** "18:00–20:00" */
   timeRange: string | null;
   /** "2 h" / "1,5 h" (coma es-CL). */
@@ -30,6 +33,11 @@ export interface ConfirmationView {
   holdExpiresAt: string | null;
   /** URL para retomar un checkout abandonado (null sin preference). */
   resumeUrl: string | null;
+}
+
+/** Número corto del pedido: los mismos 8 caracteres que muestra el admin (para citarlo). */
+export function orderShort(orderId: string): string {
+  return orderId.slice(0, 8);
 }
 
 /** Primer nombre (mismo split que payment-service). Vacío/espacios → null. */
@@ -66,6 +74,7 @@ export function buildConfirmationView(m: OrderConfirmation, tz: string = TZ): Co
   return {
     firstName: firstNameOf(m.customerName),
     when: start ? start.toFormat("cccc d 'de' LLLL, HH:mm 'h'") : null,
+    dateLong: start ? cap(start.toFormat("cccc d 'de' LLLL 'de' yyyy")) : null,
     timeRange: start && end ? `${start.toFormat("HH:mm")}–${end.toFormat("HH:mm")}` : null,
     durationLabel: m.startsAt && m.endsAt ? durationLabel(m.startsAt, m.endsAt) : null,
     resourceName: m.resourceName,
