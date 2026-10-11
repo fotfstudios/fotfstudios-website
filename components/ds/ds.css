@@ -209,6 +209,8 @@
 }
 .fotf-ds .ds-input--mono { font-family: var(--font-ds-mono), ui-monospace, monospace; }
 .fotf-ds .ds-input[aria-invalid="true"] { border-color: var(--danger); }
+/* Bloqueado (dato guardado, se edita con "Editar"): se lee como dato, no como control apagado. */
+.fotf-ds .ds-input:disabled { background: transparent; border-color: var(--border-subtle); color: var(--text-secondary); cursor: default; }
 .fotf-ds .ds-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 1px var(--danger); }
 
 /* ---------- Pills (selección única) ---------- */

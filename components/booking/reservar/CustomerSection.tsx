@@ -7,8 +7,22 @@ import Input from "@/components/ds/Input";
 import { formatCLP } from "@/src/domain/money/money";
 import type { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import BeatcoinsInfo from "./BeatcoinsInfo";
+import EditControls from "./EditControls";
 import PhoneInput from "./PhoneInput";
 import SectionHead from "./SectionHead";
+
+/** Edición de nombre/celular guardados en la cuenta ("Editar" → "Guardar" en la ficha). */
+export interface ContactEdit {
+  editing: "name" | "phone" | null;
+  saving: boolean;
+  error: string | null;
+  /** El dato existe en la cuenta → el campo va bloqueado hasta "Editar". */
+  lockedName: boolean;
+  lockedPhone: boolean;
+  onEdit: (field: "name" | "phone") => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
 
 export interface BookingCustomer {
   email: string;
@@ -59,6 +73,7 @@ export default function CustomerSection({
   onSignOut,
   signingOut,
   earnPreview,
+  contactEdit,
 }: {
   n?: string;
   customer: BookingCustomer | null;
@@ -91,6 +106,7 @@ export default function CustomerSection({
   signingOut: boolean;
   /** Beatcoins que suma esta reserva (5 % de lo pagado en dinero); null sin horario. */
   earnPreview: number | null;
+  contactEdit: ContactEdit;
 }) {
   const canLogin = accountOn && !customer;
   const initials = (customer?.name || customer?.email || "DJ").slice(0, 2).toUpperCase();
@@ -254,17 +270,65 @@ export default function CustomerSection({
       )}
 
       <div className="grid max-w-[760px] gap-4 sm:grid-cols-2">
-        <Input
-          id="bk-name"
-          autoComplete="name"
-          label="Nombre"
-          placeholder="Tu nombre o alias DJ"
-          error={nameError}
-          value={name}
-          onChange={(e) => onName(e.target.value)}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex min-h-5 items-center justify-between gap-3">
+            <label htmlFor="bk-name" className="ds-eyebrow text-[var(--text-secondary)]">
+              Nombre
+            </label>
+            {customer && contactEdit.lockedName && (
+              <EditControls
+                what="nombre"
+                editing={contactEdit.editing === "name"}
+                saving={contactEdit.saving}
+                onEdit={() => contactEdit.onEdit("name")}
+                onSave={contactEdit.onSave}
+                onCancel={contactEdit.onCancel}
+              />
+            )}
+          </div>
+          <input
+            id="bk-name"
+            autoComplete="name"
+            className="ds-input"
+            placeholder="Tu nombre o alias DJ"
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={nameError ? "bk-name-err" : undefined}
+            disabled={!!customer && contactEdit.lockedName && contactEdit.editing !== "name"}
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+          />
+          {nameError && (
+            <span id="bk-name-err" className="text-[13px] text-[var(--danger)]">
+              {nameError}
+            </span>
+          )}
+        </div>
+        <PhoneInput
+          digits={phoneDigits}
+          onDigits={onPhoneDigits}
+          onBlur={onPhoneBlur}
+          error={phoneError}
+          disabled={!!customer && contactEdit.lockedPhone && contactEdit.editing !== "phone"}
+          aside={
+            customer &&
+            contactEdit.lockedPhone && (
+              <EditControls
+                what="celular"
+                editing={contactEdit.editing === "phone"}
+                saving={contactEdit.saving}
+                onEdit={() => contactEdit.onEdit("phone")}
+                onSave={contactEdit.onSave}
+                onCancel={contactEdit.onCancel}
+              />
+            )
+          }
         />
-        <PhoneInput digits={phoneDigits} onDigits={onPhoneDigits} onBlur={onPhoneBlur} error={phoneError} />
       </div>
+      {contactEdit.error && (
+        <p role="alert" className="text-[13px] text-[var(--danger)]">
+          {contactEdit.error}
+        </p>
+      )}
 
       <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
         {phoneValid

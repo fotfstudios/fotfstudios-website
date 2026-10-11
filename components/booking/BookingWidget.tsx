@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ds/Button";
 import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
-import { ctaLabel, missingItem, type BookingStep } from "@/lib/booking-steps";
+import { ctaLabel, missingItem, type BookingStep, type MissingItem } from "@/lib/booking-steps";
 import { summaryLines } from "@/lib/booking-summary";
 import { accountEnabled } from "@/lib/flags";
 import { clMobileDigits, formatClMobile, isValidClMobile } from "@/lib/phone-input";
@@ -55,6 +55,7 @@ export default function BookingWidget({
   addons = [],
   volumeDiscounts = [],
   customer = null,
+  saveContact,
 }: {
   resourceId: string;
   /** Hoy en la zona del recurso (lo resuelve el servidor: sin desfase de hidratación). */
@@ -64,6 +65,8 @@ export default function BookingWidget({
   volumeDiscounts?: { minHours: number; pct: number }[];
   /** Sesión de cliente (server la resuelve): prefill + Beatcoins canjeables. */
   customer?: BookingCustomer | null;
+  /** Guarda nombre/celular en la ficha (server action del segmento, la pasa la página). */
+  saveContact?: (input: { name: string; phone: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
   const router = useRouter();
   const isDesktop = useIsDesktop(DESKTOP_QUERY);
@@ -104,6 +107,12 @@ export default function BookingWidget({
   const login = useOtpLogin();
   const [syncedCustomer, setSyncedCustomer] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  // Edición de nombre/celular guardados en la cuenta: un campo a la vez, con el valor guardado
+  // para "Cancelar". Mientras se edita no se puede pagar (la reserva toma lo de la ficha).
+  const [editing, setEditing] = useState<"name" | "phone" | null>(null);
+  const [savedValue, setSavedValue] = useState("");
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
   // Correo de la sesión que se acaba de cerrar: no se le vuelve a ofrecer entrar.
   const [signedOutEmail, setSignedOutEmail] = useState<string | null>(null);
   const accountOn = accountEnabled();
@@ -136,6 +145,34 @@ export default function BookingWidget({
     } finally {
       router.refresh();
     }
+  };
+
+  const startEdit = (field: "name" | "phone") => {
+    setEditing(field);
+    setSavedValue(field === "name" ? name : phone);
+    setContactError(null);
+    pendingAnchor.current = field === "name" ? "bk-name" : "bk-phone";
+    setFocusTick((t) => t + 1);
+  };
+  const cancelEdit = () => {
+    if (editing === "name") setName(savedValue);
+    if (editing === "phone") setPhone(savedValue);
+    setEditing(null);
+    setContactError(null);
+  };
+  const saveEdit = async () => {
+    setContactSaving(true);
+    setContactError(null);
+    if (!saveContact) return;
+    const r = await saveContact({ name, phone });
+    setContactSaving(false);
+    if (!r.ok) {
+      setContactError(r.error);
+      return;
+    }
+    setEditing(null);
+    setTried(false);
+    router.refresh();
   };
 
   // Invitado que escribe un correo con Beatcoins → se le ofrece entrar con código.
@@ -178,7 +215,10 @@ export default function BookingWidget({
 
   const phoneValid = isValidClMobile(phone);
   const stepState = { hasSlot: selectedStart !== null, name, email, phone, termsAccepted: acceptedTerms };
-  const missing = missingItem(stepState);
+  const pendingEdit: MissingItem | null = editing
+    ? { step: "datos", anchorId: editing === "name" ? "bk-name" : "bk-phone", label: "Guarda tus cambios" }
+    : null;
+  const missing = pendingEdit ?? missingItem(stepState);
   const ready = missing === null && quote !== null;
 
   // Errores de campo: tras un intento, o al salir de un campo mal escrito.
@@ -341,7 +381,7 @@ export default function BookingWidget({
   const walletEnabled = !!process.env.NEXT_PUBLIC_MP_PUBLIC_KEY && !walletFailed;
   const cta = (
     <PayCta
-      label={ctaLabel({ state: stepState, tried, submitting, fullPoints, payable })}
+      label={ctaLabel({ state: stepState, tried, submitting, fullPoints, payable, missing })}
       ready={ready}
       fullPoints={fullPoints}
       submitting={submitting}
@@ -486,6 +526,16 @@ export default function BookingWidget({
             onSignOut={() => void signOut()}
             signingOut={signingOut}
             earnPreview={earnPreview}
+            contactEdit={{
+              editing,
+              saving: contactSaving,
+              error: contactError,
+              lockedName: !!customer?.name,
+              lockedPhone: isValidClMobile(customer?.phone ?? ""),
+              onEdit: startEdit,
+              onSave: () => void saveEdit(),
+              onCancel: cancelEdit,
+            }}
           />
         )}
 

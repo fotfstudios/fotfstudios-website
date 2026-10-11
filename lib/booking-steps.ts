@@ -50,9 +50,11 @@ export function ctaLabel(o: {
   submitting: boolean;
   fullPoints: boolean;
   payable: number | null;
+  /** Faltante ya calculado por quien llama (incluye bloqueos propios); si no, se deriva del estado. */
+  missing?: MissingItem | null;
 }): string {
   if (o.submitting) return o.fullPoints ? "Confirmando…" : "Redirigiendo…";
-  const missing = missingItem(o.state);
+  const missing = o.missing !== undefined ? o.missing : missingItem(o.state);
   if (o.tried && missing) return missing.label;
   if (o.fullPoints) return "Pagar con Beatcoins";
   return o.state.hasSlot && o.payable !== null ? `Ir a pagar ${formatCLP(o.payable)}` : "Ir a pagar";

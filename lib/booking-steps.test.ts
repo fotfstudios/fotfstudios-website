@@ -50,6 +50,12 @@ describe("ctaLabel", () => {
     expect(ctaLabel({ ...base, tried: false, state: { ...DONE, phone: "" } })).toBe("Ir a pagar $24.000");
   });
 
+  it("acepta un faltante calculado afuera (p. ej. un dato a medio editar)", () => {
+    const pending = { step: "datos" as const, anchorId: "bk-name", label: "Guarda tus cambios" };
+    expect(ctaLabel({ ...base, tried: true, missing: pending })).toBe("Guarda tus cambios");
+    expect(ctaLabel({ ...base, tried: false, missing: pending })).toBe("Ir a pagar $24.000");
+  });
+
   it("Beatcoins al 100 % y estado de envío", () => {
     expect(ctaLabel({ ...base, fullPoints: true, payable: 0 })).toBe("Pagar con Beatcoins");
     expect(ctaLabel({ ...base, submitting: true })).toBe("Redirigiendo…");

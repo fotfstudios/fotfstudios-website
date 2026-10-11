@@ -12,6 +12,7 @@ import { bookingEnabled, customerService, db, pricingService } from "@/src/compo
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
 import { todayInTz } from "@/src/domain/scheduling/time";
+import { updateBookingContactAction } from "./actions";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ export default async function ReservarPage() {
           addons={catalog?.addons ?? []}
           volumeDiscounts={catalog?.volumeDiscounts ?? []}
           customer={customer}
+          saveContact={updateBookingContactAction}
         />
       </main>
     </div>

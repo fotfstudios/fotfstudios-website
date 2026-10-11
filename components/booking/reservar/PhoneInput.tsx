@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { clMobileDigits, formatClMobile } from "@/lib/phone-input";
 
 /**
@@ -9,21 +10,34 @@ export default function PhoneInput({
   onDigits,
   onBlur,
   error,
+  disabled = false,
+  aside,
 }: {
   digits: string;
   onDigits: (digits: string) => void;
   onBlur: () => void;
   error?: string;
+  /** Bloqueado: dato guardado en la cuenta (se desbloquea con "Editar"). */
+  disabled?: boolean;
+  /** Controles junto a la etiqueta (Editar / Guardar). */
+  aside?: ReactNode;
 }) {
   const msgId = "bk-phone-msg";
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor="bk-phone" className="ds-eyebrow text-[var(--text-secondary)]">
-        Celular
-      </label>
+      <div className="flex min-h-5 items-center justify-between gap-3">
+        <label htmlFor="bk-phone" className="ds-eyebrow text-[var(--text-secondary)]">
+          Celular
+        </label>
+        {aside}
+      </div>
       <div
-        className={`flex items-stretch overflow-hidden rounded-[6px] border bg-[var(--surface-input)] transition-colors focus-within:border-[var(--accent)] ${
-          error ? "border-[var(--danger)]" : "border-[var(--border-control)]"
+        className={`flex items-stretch overflow-hidden rounded-[6px] border transition-colors focus-within:border-[var(--accent)] ${
+          error
+            ? "border-[var(--danger)] bg-[var(--surface-input)]"
+            : disabled
+              ? "border-[var(--border-subtle)] bg-transparent"
+              : "border-[var(--border-control)] bg-[var(--surface-input)]"
         }`}
       >
         <span aria-hidden="true" className="ds-mono flex items-center border-r border-[var(--border-subtle)] px-3 text-sm text-[var(--text-secondary)]">
@@ -37,10 +51,11 @@ export default function PhoneInput({
           placeholder="9 1234 5678"
           aria-invalid={error ? true : undefined}
           aria-describedby={msgId}
+          disabled={disabled}
           value={formatClMobile(digits)}
           onChange={(e) => onDigits(clMobileDigits(e.target.value))}
           onBlur={onBlur}
-          className="ds-mono h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--grey-500)]"
+          className="ds-mono h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--grey-500)] disabled:text-[var(--text-secondary)]"
         />
       </div>
       <span id={msgId} className={`min-h-4 text-xs ${error ? "text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>
