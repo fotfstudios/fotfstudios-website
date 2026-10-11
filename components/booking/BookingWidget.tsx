@@ -114,8 +114,10 @@ export default function BookingWidget({
   if (customer && customer.email !== syncedCustomer) {
     setSyncedCustomer(customer.email);
     setEmail(customer.email);
-    setName((n) => n || customer.name);
-    setPhone((p) => p || clMobileDigits(customer.phone));
+    // Lo de la cuenta llena nombre y celular (siguen editables); lo tecleado se queda solo
+    // donde la ficha no tiene dato.
+    setName((n) => customer.name || n);
+    setPhone((p) => clMobileDigits(customer.phone) || p);
     setLoginOpen(false);
   }
   // Al salir (refresh sin sesión): vuelve a invitado. El correo y los datos escritos se

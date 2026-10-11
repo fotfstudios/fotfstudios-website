@@ -155,71 +155,23 @@ export default function CustomerSection({
         </div>
       )}
 
-      <div className="grid max-w-[760px] gap-4 sm:grid-cols-2">
-        {!customer && (
-        <Input
-          id="bk-email"
-          autoComplete="email"
-          type="email"
-          inputMode="email"
-          label="Email"
-          placeholder="tu@email.cl"
-          help={emailHint}
-          error={emailError}
-          value={email}
-          onChange={(e) => onEmail(e.target.value)}
-          onBlur={onEmailBlur}
-        />
-        )}
-        <Input
-          id="bk-name"
-          autoComplete="name"
-          label="Nombre"
-          placeholder="Tu nombre o alias DJ"
-          error={nameError}
-          value={name}
-          onChange={(e) => onName(e.target.value)}
-        />
-        <PhoneInput digits={phoneDigits} onDigits={onPhoneDigits} onBlur={onPhoneBlur} error={phoneError} />
-      </div>
-
-      <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
-        {phoneValid
-          ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
-          : "Agrega tu celular para recibir también los avisos por WhatsApp."}
-      </Checkbox>
-
-      {canLogin && suggestLogin && !loginOpen && (
-        <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
-          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
-            <span className="text-[15px] font-medium">Este correo tiene Beatcoins</span>
-            <span className="text-[13px] text-[var(--text-muted)]">Entra con un código al correo y úsalos en esta reserva.</span>
-          </span>
-          <Button variant="gold" size="sm" onClick={openLogin}>
-            Entrar con código
-          </Button>
-          <div className="basis-full">
-            <BeatcoinsInfo earn={earnPreview} />
-          </div>
-        </div>
-      )}
-
-      {/* Invitado sin Beatcoins conocidos: invitar a entrar para sumarlos y usarlos. Las
-          reservas como invitado igual se suman al entrar después con el mismo correo. */}
-      {canLogin && !suggestLogin && !loginOpen && (
-        <div className="ds-card flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
-          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
-            <span className="text-[15px] font-medium">Acumula y usa Beatcoins</span>
-            <span className="text-[13px] text-[var(--text-muted)]">
-              Entra con un código a tu correo, sin contraseña, para sumarlos y pagar con ellos.
-            </span>
-          </span>
-          <Button variant="secondary" size="sm" onClick={openLogin}>
-            Entrar con código
-          </Button>
-          <div className="basis-full">
-            <BeatcoinsInfo earn={earnPreview} />
-          </div>
+      {/* Email en su propia fila; el acceso con código va justo debajo de él (es el mismo
+          correo), y nombre + celular comparten la fila siguiente. */}
+      {!customer && (
+        <div className="max-w-[760px]">
+          <Input
+            id="bk-email"
+            autoComplete="email"
+            type="email"
+            inputMode="email"
+            label="Email"
+            placeholder="tu@email.cl"
+            help={emailHint}
+            error={emailError}
+            value={email}
+            onChange={(e) => onEmail(e.target.value)}
+            onBlur={onEmailBlur}
+          />
         </div>
       )}
 
@@ -298,6 +250,59 @@ export default function CustomerSection({
               {login.state.error}
             </p>
           )}
+        </div>
+      )}
+
+      <div className="grid max-w-[760px] gap-4 sm:grid-cols-2">
+        <Input
+          id="bk-name"
+          autoComplete="name"
+          label="Nombre"
+          placeholder="Tu nombre o alias DJ"
+          error={nameError}
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+        />
+        <PhoneInput digits={phoneDigits} onDigits={onPhoneDigits} onBlur={onPhoneBlur} error={phoneError} />
+      </div>
+
+      <Checkbox checked={phoneValid && whatsappOptIn} disabled={!phoneValid} onChange={(e) => onWhatsappOptIn(e.target.checked)}>
+        {phoneValid
+          ? "Avísame también por WhatsApp (confirmación, recordatorio, código de acceso y pagos). Lo puedes desactivar en tu cuenta."
+          : "Agrega tu celular para recibir también los avisos por WhatsApp."}
+      </Checkbox>
+
+      {canLogin && suggestLogin && !loginOpen && (
+        <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Este correo tiene Beatcoins</span>
+            <span className="text-[13px] text-[var(--text-muted)]">Entra con un código al correo y úsalos en esta reserva.</span>
+          </span>
+          <Button variant="gold" size="sm" onClick={openLogin}>
+            Entrar con código
+          </Button>
+          <div className="basis-full">
+            <BeatcoinsInfo earn={earnPreview} />
+          </div>
+        </div>
+      )}
+
+      {/* Invitado sin Beatcoins conocidos: invitar a entrar para sumarlos y usarlos. Las
+          reservas como invitado igual se suman al entrar después con el mismo correo. */}
+      {canLogin && !suggestLogin && !loginOpen && (
+        <div className="ds-card flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Acumula y usa Beatcoins</span>
+            <span className="text-[13px] text-[var(--text-muted)]">
+              Entra con un código a tu correo, sin contraseña, para sumarlos y pagar con ellos.
+            </span>
+          </span>
+          <Button variant="secondary" size="sm" onClick={openLogin}>
+            Entrar con código
+          </Button>
+          <div className="basis-full">
+            <BeatcoinsInfo earn={earnPreview} />
+          </div>
         </div>
       )}
 
