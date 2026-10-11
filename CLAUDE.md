@@ -118,6 +118,9 @@ en vivo ni la base Supabase remota real.
     scroll via `html:has(...)` in `globals.css`) and `PublicChrome`. It returns a fragment and
     never mounts `Nav`/`Footer` — pages and `(articulos)/layout.tsx` own those.
   - `app/(booking)/`: `reservar/`, `reserva/`. `layout.tsx` mounts `PublicChrome` only.
+    `NEXT_PUBLIC_BOOKING_ENABLED` gates only the public checkout (`/reservar`, `POST /api/bookings`,
+    the first-booking promo); `/reserva/estado` is always on because admin payment links and
+    reschedule deltas return there. `lib/booking-flag-contract.test.ts` pins this.
   - `app/cuenta/`: `layout.tsx` mounts `PublicChrome` only, above `login/` and `(panel)/`.
     `/cuenta` keeps GTM by decision (it fires `whatsapp_click`; EEA visitors need the banner).
   - `app/admin/`: **no chrome at all** — no `PublicChrome`, no cursor, no GTM, no banner. Never

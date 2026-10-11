@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import EstadoClient from "@/components/booking/EstadoClient";
 import { buildConfirmationView, isUpcoming } from "@/lib/confirmation";
-import { bookingEnabled, orderConfirmation } from "@/src/composition";
+import { orderConfirmation } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +18,15 @@ export const metadata: Metadata = {
  * la URL es compartible); el estado en vivo lo maneja la isla cliente contra el
  * endpoint liviano de estado. Los query params de MP se ignoran a propósito:
  * la verdad es la orden en nuestra DB.
+ *
+ * NO va detrás de `bookingEnabled()`: los links de cobro del admin y el delta de
+ * reagendamiento devuelven al comprador aquí aunque el checkout público esté apagado.
  */
 export default async function EstadoPage({
   searchParams,
 }: {
   searchParams: Promise<{ b?: string; status?: string; collection_status?: string }>;
 }) {
-  if (!bookingEnabled()) notFound();
   const { b, status, collection_status } = await searchParams;
   if (!b) notFound();
   // PISTA de mensajería, jamás verdad: MP agrega ?status=approved al volver de un
