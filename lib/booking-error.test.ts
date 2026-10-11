@@ -63,3 +63,10 @@ describe("BookingRequestError", () => {
     expect(new BookingRequestError(null).message).toBe("unknown");
   });
 });
+
+describe("bookingErrorMessage: datos obligatorios", () => {
+  it("nombre y celular tienen mensaje propio", () => {
+    expect(bookingErrorMessage("name_required")).toMatch(/nombre/);
+    expect(bookingErrorMessage("phone_invalid")).toMatch(/celular chileno/);
+  });
+});

@@ -23,6 +23,10 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
       return "Tu correo ya está en otro cliente nuestro: no podemos usar tus Beatcoins así. Escríbenos por WhatsApp y lo unificamos, o continúa sin canjear Beatcoins.";
     case "terms_required":
       return "Debes aceptar los términos y condiciones para reservar.";
+    case "name_required":
+      return "Escribe tu nombre para reservar.";
+    case "phone_invalid":
+      return "Ingresa un celular chileno válido (9 dígitos, empieza con 9).";
     case "amount_changed":
       return "El total cambió. Revisa el resumen e intenta de nuevo.";
     default:

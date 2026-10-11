@@ -9,7 +9,8 @@ import {
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
-import { normalizeEmail, normalizePhone } from "@/src/domain/contact/contact";
+import { normalizeEmail } from "@/src/domain/contact/contact";
+import { toE164ClMobile } from "@/lib/phone-input";
 import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
 
 export const dynamic = "force-dynamic";
@@ -46,9 +47,9 @@ export async function POST(req: Request): Promise<Response> {
     whatsappOptIn?: boolean;
   };
 
-  // `name` y `phone` son opcionales, pero si vienen tienen que ser strings: el
-  // cuerpo abajo les llama métodos de string (trim/slice) y un número o un
-  // objeto reventaría dentro del try → 503 donde corresponde un 400.
+  // `name` y `phone` tienen que ser strings si vienen: el cuerpo abajo les llama
+  // métodos de string (trim/slice) y un número o un objeto reventaría dentro del
+  // try → 503 donde corresponde un 400. Ausentes caen en name_required/phone_invalid.
   const optionalString = (v: unknown): boolean => v === undefined || v === null || typeof v === "string";
 
   if (
@@ -70,19 +71,24 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "terms_required" }, { status: 400 });
   }
 
+  // Nombre y celular chileno obligatorios (backstop del formulario): el celular es por
+  // donde se avisa por WhatsApp y el estudio llama si hay un cambio.
+  const name = b.customer.name?.trim().slice(0, CUSTOMER_CAPS.name);
+  if (!name) return Response.json({ error: "name_required" }, { status: 400 });
+  const phone = toE164ClMobile(b.customer.phone ?? "");
+  if (!phone) return Response.json({ error: "phone_invalid" }, { status: 400 });
+
   try {
     const client = db();
 
     // Normalización de dominio: el email válido se guarda canónico (minúsculas)
-    // y el teléfono en "+dígitos"; un email inválido NO bloquea la reserva (se
+    // y el celular en "+569XXXXXXXX"; un email inválido NO bloquea la reserva (se
     // guarda tal como se tipeó y la reserva queda sin vincular, como hoy).
     const points = typeof b.pointsToRedeem === "number" ? Math.floor(b.pointsToRedeem) : 0;
     let customer: { name?: string; email?: string; phone?: string } = {
-      name: b.customer.name?.trim().slice(0, CUSTOMER_CAPS.name) || undefined,
+      name,
       email: normalizeEmail(b.customer.email) ?? b.customer.email.trim().slice(0, CUSTOMER_CAPS.email),
-      phone: b.customer.phone
-        ? (normalizePhone(b.customer.phone) ?? b.customer.phone.trim().slice(0, CUSTOMER_CAPS.phone))
-        : undefined,
+      phone,
     };
     let customerId: string | undefined;
 
