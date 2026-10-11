@@ -36,7 +36,9 @@ describe("Beatcoins — copy", () => {
 
   it("/terminos tiene la sección Beatcoins, su equivalencia y la regla del curso", () => {
     const src = read(TERMS);
-    expect(src).toContain('<ProseSection title="Beatcoins">');
+    // id="beatcoins": el checkout enlaza a /terminos#beatcoins ("Ver condiciones").
+    expect(src).toContain('<ProseSection id="beatcoins" title="Beatcoins">');
+    expect(read("components/booking/reservar/BeatcoinsInfo.tsx")).toContain('"/terminos#beatcoins"');
     expect(src).toContain("1 Beatcoin equivale a $1 CLP");
     expect(src).toMatch(/El Curso de DJ no genera Beatcoins/);
     expect(src).toMatch(/sesión de prueba/);
