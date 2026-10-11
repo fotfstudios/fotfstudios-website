@@ -1,10 +1,10 @@
 import localFont from "next/font/local";
 
 /**
- * Tipografías del design system de Claude Design para /curso-dj. Se cargan SOLO
- * aquí: las variables se aplican en el wrapper `.curso-ds` de la página, no en
- * <html>, así el resto del sitio sigue con Big Shoulders / JetBrains Mono.
- * lib/chrome-contract.test.ts impide que salgan de app/(marketing)/curso-dj.
+ * Tipografías del design system de Claude Design (/curso-dj y la reserva). Se cargan
+ * SOLO aquí: las variables se aplican en el wrapper `.fotf-ds` de cada superficie, no
+ * en <html>, así el resto del sitio sigue con Big Shoulders / JetBrains Mono.
+ * lib/chrome-contract.test.ts impide que salgan de las superficies permitidas.
  *
  * Autoalojadas (./fonts, subset latin de Google Fonts, licencia SIL OFL) y no con
  * el loader de Google de next/font: Google a veces sirve estas familias con URLs sin extensión
@@ -38,4 +38,4 @@ const spaceMono = localFont({
   fallback: ["ui-monospace", "monospace"],
 });
 
-export const cursoDsFonts = `${anton.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`;
+export const dsFonts = `${anton.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`;

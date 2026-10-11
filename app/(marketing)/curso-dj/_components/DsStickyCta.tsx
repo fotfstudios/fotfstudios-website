@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatCLP } from "@/lib/pricing";
 import { PRECIOS } from "@/lib/curso-content";
-import Button from "../_ds/Button";
+import Button from "@/components/ds/Button";
 
 /**
  * CTA fijo solo en móvil. Se esconde cuando #reserva entra en pantalla: ahí ya está
