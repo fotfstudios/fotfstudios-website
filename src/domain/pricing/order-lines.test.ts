@@ -21,7 +21,7 @@ describe("orderLinesFromQuote", () => {
     expect(orderLinesFromQuote(base)).toEqual([
       {
         line_type: "room_time",
-        description: "Sala · 1h (Valle)",
+        description: "Sala · 1h (Tarifa diurna)",
         quantity: 1,
         unit_price_clp: 9990,
         subtotal_clp: 9990,
@@ -39,7 +39,7 @@ describe("orderLinesFromQuote", () => {
     };
     const lines = orderLinesFromQuote(q);
     expect(lines).toHaveLength(1);
-    expect(lines[0].description).toBe("Sala · 1h (Punta semana)");
+    expect(lines[0].description).toBe("Sala · 1h (Tarifa nocturna)");
   });
 
   it("con add-on → agrega una línea flat_service con addon_key", () => {

@@ -4,7 +4,7 @@
  * Beatcoins. Puro: sale de la cotización del servidor, no recalcula precios.
  */
 import { formatCLP } from "@/src/domain/money/money";
-import { checkoutTierLabel } from "@/src/domain/pricing/tier-labels";
+import { tierLabel } from "@/src/domain/pricing/tier-labels";
 
 export interface SummaryLine {
   label: string;
@@ -32,7 +32,7 @@ export function summaryLines({
   if (!quote) return [];
   const lines: SummaryLine[] = [
     ...quote.tierLines.map((l) => ({
-      label: `${checkoutTierLabel(l.key)} · ${l.hours}h × ${formatCLP(l.rate)}`,
+      label: `${tierLabel(l.key)} · ${l.hours}h × ${formatCLP(l.rate)}`,
       value: formatCLP(l.subtotal),
       gold: false,
     })),
