@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -19,12 +19,18 @@ const root = process.cwd();
 const read = (p: string) => readFileSync(join(root, p), "utf8");
 
 const EMAIL_TEMPLATES = "src/application/notifications/templates.ts";
-const WEB_SURFACES = ["components/booking/EstadoClient.tsx", "components/booking/CalendarButtons.tsx"];
+// La promesa de /reserva/estado vive en "Qué sigue" (estado/NextSteps.tsx); el resto de la
+// página (EstadoClient + estado/*) igual no puede prometer el acceso por otro canal.
+const WEB_SURFACES = ["components/booking/estado/NextSteps.tsx", "components/booking/CalendarButtons.tsx"];
+const ESTADO_FILES = [
+  "components/booking/EstadoClient.tsx",
+  ...readdirSync(join(root, "components/booking/estado")).map((f) => `components/booking/estado/${f}`),
+];
 
 const FORBIDDEN = /acceso por WhatsApp|coordinamos por WhatsApp|Coordinaremos tu acceso|enviar el código de acceso/;
 
 describe("promesa de acceso: por email 10 minutos antes", () => {
-  it.each([EMAIL_TEMPLATES, ...WEB_SURFACES])("%s no promete el acceso por WhatsApp", (file) => {
+  it.each([EMAIL_TEMPLATES, ...WEB_SURFACES, ...ESTADO_FILES])("%s no promete el acceso por WhatsApp", (file) => {
     expect(read(file)).not.toMatch(FORBIDDEN);
   });
 

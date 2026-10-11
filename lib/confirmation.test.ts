@@ -5,6 +5,7 @@ import {
   durationLabel,
   firstNameOf,
   isUpcoming,
+  orderShort,
 } from "./confirmation";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
@@ -122,5 +123,19 @@ describe("buildConfirmationView", () => {
   it("reserva expirada → sin resumeUrl (la preference ya no sirve)", () => {
     const v = buildConfirmationView({ ...MODEL, orderStatus: "pending_payment", reservationStatus: "expired" });
     expect(v.resumeUrl).toBeNull();
+  });
+});
+
+describe("confirmación con el design system: número y fecha larga", () => {
+  it("orderShort: los mismos 8 caracteres que muestra el admin", () => {
+    expect(orderShort("3bae8aa7-0291-412c-b81c-f3a4961b3d9a")).toBe("3bae8aa7");
+  });
+
+  it("dateLong: día con mayúscula, fecha y año, sin hora", () => {
+    expect(buildConfirmationView(MODEL).dateLong).toBe("Jueves 9 de julio de 2026");
+  });
+
+  it("sin fecha → null", () => {
+    expect(buildConfirmationView({ ...MODEL, startsAt: null, endsAt: null }).dateLong).toBeNull();
   });
 });

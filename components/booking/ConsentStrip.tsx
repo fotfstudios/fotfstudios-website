@@ -15,7 +15,7 @@ export default function ConsentStrip({ onAccept, onReject }: { onAccept: () => v
     <div
       role="dialog"
       aria-label="Consentimiento de cookies"
-      className={`fotf-ds ${dsFonts} fixed inset-x-0 z-50 border-t border-[var(--border-subtle)] backdrop-blur`}
+      className={`fotf-ds ${dsFonts} fixed inset-x-0 z-50 border-t border-[var(--border-subtle)] backdrop-blur print:hidden`}
       // .fotf-ds fija su propio fondo (CSS sin capa): el translúcido va en línea.
       style={{ bottom: "var(--fixed-bottom-offset, 0px)", background: "rgba(10, 10, 10, 0.92)" }}
     >
