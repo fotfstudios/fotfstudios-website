@@ -7,7 +7,7 @@ import Input from "@/components/ds/Input";
 import { formatCLP } from "@/src/domain/money/money";
 import type { useOtpLogin } from "@/components/cuenta/useOtpLogin";
 import BeatcoinsInfo from "./BeatcoinsInfo";
-import EditControls from "./EditControls";
+import EditControls, { EDIT_CONTROLS_PAD } from "./EditControls";
 import PhoneInput from "./PhoneInput";
 import SectionHead from "./SectionHead";
 
@@ -109,6 +109,8 @@ export default function CustomerSection({
   contactEdit: ContactEdit;
 }) {
   const canLogin = accountOn && !customer;
+  const nameLocked = !!customer && contactEdit.lockedName;
+  const phoneLocked = !!customer && contactEdit.lockedPhone;
   const initials = (customer?.name || customer?.email || "DJ").slice(0, 2).toUpperCase();
   const openLogin = () => {
     onLoginCode("");
@@ -271,32 +273,40 @@ export default function CustomerSection({
 
       <div className="grid max-w-[760px] gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <div className="flex min-h-5 items-center justify-between gap-3">
-            <label htmlFor="bk-name" className="ds-eyebrow text-[var(--text-secondary)]">
-              Nombre
-            </label>
-            {customer && contactEdit.lockedName && (
-              <EditControls
-                what="nombre"
-                editing={contactEdit.editing === "name"}
-                saving={contactEdit.saving}
-                onEdit={() => contactEdit.onEdit("name")}
-                onSave={contactEdit.onSave}
-                onCancel={contactEdit.onCancel}
-              />
+          <label htmlFor="bk-name" className="ds-eyebrow text-[var(--text-secondary)]">
+            Nombre
+          </label>
+          <div className="relative">
+            <input
+              id="bk-name"
+              autoComplete="name"
+              className="ds-input"
+              placeholder="Tu nombre o alias DJ"
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? "bk-name-err" : undefined}
+              disabled={nameLocked && contactEdit.editing !== "name"}
+              // El padding de .ds-input es CSS sin capa: el hueco para los íconos va en línea.
+              style={
+                nameLocked
+                  ? { paddingRight: contactEdit.editing === "name" ? EDIT_CONTROLS_PAD.editing : EDIT_CONTROLS_PAD.locked }
+                  : undefined
+              }
+              value={name}
+              onChange={(e) => onName(e.target.value)}
+            />
+            {nameLocked && (
+              <span className="absolute inset-y-0 right-1 flex items-center">
+                <EditControls
+                  what="nombre"
+                  editing={contactEdit.editing === "name"}
+                  saving={contactEdit.saving}
+                  onEdit={() => contactEdit.onEdit("name")}
+                  onSave={contactEdit.onSave}
+                  onCancel={contactEdit.onCancel}
+                />
+              </span>
             )}
           </div>
-          <input
-            id="bk-name"
-            autoComplete="name"
-            className="ds-input"
-            placeholder="Tu nombre o alias DJ"
-            aria-invalid={nameError ? true : undefined}
-            aria-describedby={nameError ? "bk-name-err" : undefined}
-            disabled={!!customer && contactEdit.lockedName && contactEdit.editing !== "name"}
-            value={name}
-            onChange={(e) => onName(e.target.value)}
-          />
           {nameError && (
             <span id="bk-name-err" className="text-[13px] text-[var(--danger)]">
               {nameError}
@@ -308,10 +318,9 @@ export default function CustomerSection({
           onDigits={onPhoneDigits}
           onBlur={onPhoneBlur}
           error={phoneError}
-          disabled={!!customer && contactEdit.lockedPhone && contactEdit.editing !== "phone"}
-          aside={
-            customer &&
-            contactEdit.lockedPhone && (
+          disabled={phoneLocked && contactEdit.editing !== "phone"}
+          trailing={
+            phoneLocked && (
               <EditControls
                 what="celular"
                 editing={contactEdit.editing === "phone"}

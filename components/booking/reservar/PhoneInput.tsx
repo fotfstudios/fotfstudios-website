@@ -11,7 +11,7 @@ export default function PhoneInput({
   onBlur,
   error,
   disabled = false,
-  aside,
+  trailing,
 }: {
   digits: string;
   onDigits: (digits: string) => void;
@@ -19,18 +19,15 @@ export default function PhoneInput({
   error?: string;
   /** Bloqueado: dato guardado en la cuenta (se desbloquea con "Editar"). */
   disabled?: boolean;
-  /** Controles junto a la etiqueta (Editar / Guardar). */
-  aside?: ReactNode;
+  /** Controles dentro de la caja, a la derecha (lápiz / ✓ ✕). */
+  trailing?: ReactNode;
 }) {
   const msgId = "bk-phone-msg";
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex min-h-5 items-center justify-between gap-3">
-        <label htmlFor="bk-phone" className="ds-eyebrow text-[var(--text-secondary)]">
-          Celular
-        </label>
-        {aside}
-      </div>
+      <label htmlFor="bk-phone" className="ds-eyebrow text-[var(--text-secondary)]">
+        Celular
+      </label>
       <div
         className={`flex items-stretch overflow-hidden rounded-[6px] border transition-colors focus-within:border-[var(--accent)] ${
           error
@@ -57,6 +54,7 @@ export default function PhoneInput({
           onBlur={onBlur}
           className="ds-mono h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--grey-500)] disabled:text-[var(--text-secondary)]"
         />
+        {trailing && <span className="flex items-center pr-1">{trailing}</span>}
       </div>
       <span id={msgId} className={`min-h-4 text-xs ${error ? "text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>
         {error ?? "Solo Chile (+56). Te avisamos por WhatsApp si hay un cambio."}
