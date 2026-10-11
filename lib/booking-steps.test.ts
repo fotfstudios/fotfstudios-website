@@ -40,9 +40,9 @@ describe("stepsCompleted", () => {
 describe("ctaLabel", () => {
   const base = { state: DONE, tried: false, submitting: false, fullPoints: false, payable: 24000 };
 
-  it("Ir a pagar con el monto; sin horario, sin monto", () => {
+  it("Ir a pagar con el monto; sin horario, pide el horario desde el inicio (sin intento previo)", () => {
     expect(ctaLabel(base)).toBe("Ir a pagar $24.000");
-    expect(ctaLabel({ ...base, state: { ...DONE, hasSlot: false }, payable: null })).toBe("Ir a pagar");
+    expect(ctaLabel({ ...base, state: { ...DONE, hasSlot: false }, payable: null })).toBe("Selecciona un horario");
   });
 
   it("tras un intento nombra lo que falta", () => {

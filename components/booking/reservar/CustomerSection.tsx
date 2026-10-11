@@ -195,6 +195,22 @@ export default function CustomerSection({
         </div>
       )}
 
+      {/* Justo bajo el correo: el aviso depende de lo que se escribió ahí. */}
+      {canLogin && suggestLogin && !loginOpen && (
+        <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
+          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-medium">Este correo tiene Beatcoins</span>
+            <span className="text-[13px] text-[var(--text-muted)]">Entra con un código al correo y úsalos en esta reserva.</span>
+          </span>
+          <Button variant="gold" size="sm" onClick={openLogin}>
+            Entrar con código
+          </Button>
+          <div className="basis-full">
+            <BeatcoinsInfo earn={earnPreview} />
+          </div>
+        </div>
+      )}
+
       {canLogin && loginOpen && (
         <div className="ds-card flex max-w-[480px] flex-col gap-3.5 p-5">
           {/* Los dos pasos van con key: misma forma JSX → sin key React reutilizaría el MISMO
@@ -359,20 +375,6 @@ export default function CustomerSection({
         </Checkbox>
       )}
 
-      {canLogin && suggestLogin && !loginOpen && (
-        <div role="status" className="ds-card ds-card--gold flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
-          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
-            <span className="text-[15px] font-medium">Este correo tiene Beatcoins</span>
-            <span className="text-[13px] text-[var(--text-muted)]">Entra con un código al correo y úsalos en esta reserva.</span>
-          </span>
-          <Button variant="gold" size="sm" onClick={openLogin}>
-            Entrar con código
-          </Button>
-          <div className="basis-full">
-            <BeatcoinsInfo earn={earnPreview} />
-          </div>
-        </div>
-      )}
 
 
       {!customer && (

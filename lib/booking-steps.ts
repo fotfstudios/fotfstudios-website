@@ -55,6 +55,8 @@ export function ctaLabel(o: {
 }): string {
   if (o.submitting) return o.fullPoints ? "Confirmando…" : "Redirigiendo…";
   const missing = o.missing !== undefined ? o.missing : missingItem(o.state);
+  // Sin horario no hay nada que pagar todavía: se pide desde el primer momento, no tras un intento.
+  if (!o.state.hasSlot) return "Selecciona un horario";
   if (o.tried && missing) return missing.label;
   if (o.fullPoints) return "Pagar con Beatcoins";
   return o.state.hasSlot && o.payable !== null ? `Ir a pagar ${formatCLP(o.payable)}` : "Ir a pagar";
