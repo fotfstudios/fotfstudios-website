@@ -139,7 +139,7 @@ export default function CustomerSection({
               }}
               className="py-2 text-[13px] text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
             >
-              {loginOpen ? "Seguir como invitado" : "¿Tienes cuenta? Inicia sesión"}
+              {loginOpen ? "Seguir como invitado" : "¿Tienes cuenta? Inicia sesión: acumula y usa Beatcoins"}
             </button>
           )
         }
@@ -374,24 +374,6 @@ export default function CustomerSection({
         </div>
       )}
 
-      {/* Invitado sin Beatcoins conocidos: invitar a entrar para sumarlos y usarlos. Las
-          reservas como invitado igual se suman al entrar después con el mismo correo. */}
-      {canLogin && !suggestLogin && !loginOpen && (
-        <div className="ds-card flex max-w-[760px] flex-wrap items-center gap-4 px-5 py-4">
-          <span className="flex min-w-48 flex-1 flex-col gap-0.5">
-            <span className="text-[15px] font-medium">Acumula y usa Beatcoins</span>
-            <span className="text-[13px] text-[var(--text-muted)]">
-              Entra con un código a tu correo, sin contraseña, para sumarlos y pagar con ellos.
-            </span>
-          </span>
-          <Button variant="secondary" size="sm" onClick={openLogin}>
-            Entrar con código
-          </Button>
-          <div className="basis-full">
-            <BeatcoinsInfo earn={earnPreview} />
-          </div>
-        </div>
-      )}
 
       {!customer && (
         <p className="text-xs text-[var(--text-muted)]">Reservar no requiere cuenta. No compartimos tus datos.</p>
