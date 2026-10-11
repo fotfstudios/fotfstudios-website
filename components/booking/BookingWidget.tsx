@@ -23,7 +23,7 @@ import BottomBar from "./reservar/BottomBar";
 import CustomerSection, { type BookingCustomer } from "./reservar/CustomerSection";
 import DayStrip from "./reservar/DayStrip";
 import DurationSection from "./reservar/DurationSection";
-import ExtrasDisclosure, { type Addon } from "./reservar/ExtrasDisclosure";
+import ExtrasSection, { type Addon } from "./reservar/ExtrasSection";
 import PayCta from "./reservar/PayCta";
 import PaySection from "./reservar/PaySection";
 import PromoNote from "./reservar/PromoNote";
@@ -78,7 +78,6 @@ export default function BookingWidget({
   const [duration, setDuration] = useState(1);
   const [rec, setRec] = useState("none");
   const [extras, setExtras] = useState<string[]>([]);
-  const [extrasOpen, setExtrasOpen] = useState(false);
 
   const [name, setName] = useState(customer?.name ?? "");
   const [email, setEmail] = useState(customer?.email ?? "");
@@ -478,24 +477,22 @@ export default function BookingWidget({
               {tried && selectedStart === null && (
                 <p className="text-[13px] text-[var(--danger)]">Selecciona un horario para continuar.</p>
               )}
-
-              <ExtrasDisclosure
-                addons={addons}
-                rec={rec}
-                onRec={setRec}
-                extras={extras}
-                onToggleExtra={(k) => setExtras((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]))}
-                duration={duration}
-                open={extrasOpen}
-                onToggle={() => setExtrasOpen((o) => !o)}
-              />
             </section>
+
+            <ExtrasSection
+              n={n("03")}
+              addons={addons}
+              rec={rec}
+              onRec={setRec}
+              extras={extras}
+              onToggleExtra={(k) => setExtras((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]))}
+            />
           </>
         )}
 
         {showData && (
           <CustomerSection
-            n={n("03")}
+            n={n("04")}
             customer={customer}
             accountOn={accountOn}
             email={email}
@@ -555,7 +552,7 @@ export default function BookingWidget({
 
         {showPay && (
           <PaySection
-            n={n("04")}
+            n={n("05")}
             title={wizard ? "Pagar" : "Pago"}
             fullPoints={fullPoints}
             acceptedTerms={acceptedTerms}
