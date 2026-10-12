@@ -39,6 +39,11 @@ export interface OrderConfirmation {
    * retomar el checkout. null en filas viejas; ahí se arma desde el preference id.
    */
   initPoint: string | null;
+  /**
+   * Pago por transferencia (respaldo del checkout): cuándo la eligió y cuándo avisó "Ya
+   * transferí". null si se paga por Mercado Pago.
+   */
+  transfer: { requestedAt: string; declaredAt: string | null } | null;
   lines: { description: string; subtotal: number }[];
   total: number;
   currency: string;

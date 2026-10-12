@@ -23,7 +23,11 @@ const GATED = [
   "app/api/checkout/login-hint/route.ts",
 ];
 
-const UNGATED = ["app/(booking)/reserva/estado/page.tsx"];
+const UNGATED = [
+  "app/(booking)/reserva/estado/page.tsx",
+  // "Ya transferí" desde /reserva/estado: sirve aunque el checkout se apague después.
+  "app/api/orders/[id]/transfer/route.ts",
+];
 
 describe("contrato del flag de reservas", () => {
   it.each(GATED)("%s sigue detrás de bookingEnabled()", (rel) => {

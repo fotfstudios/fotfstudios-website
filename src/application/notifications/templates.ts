@@ -1183,6 +1183,34 @@ export function bookingPaymentReminder(
   return { template: "bookingPaymentReminder", subject: `Falta el pago de tu hora · ${v.when}`, html, text };
 }
 
+/**
+ * Email al dueño: un cliente del checkout público avisó "Ya transferí". Lo accionable es
+ * verificar la transferencia en el banco y marcarla pagada en el admin (Cobro →
+ * Transferencia); el cupo espera hasta `holdUntil` y después se libera solo. Gold, no
+ * Sirena: es una tarea, no una emergencia.
+ */
+export function ownerTransferDeclared(v: {
+  name: string | null;
+  email: string | null;
+  when: string;
+  total: string;
+  holdUntil: string;
+  adminUrl: string;
+}): EmailContent {
+  const who = `${v.name ?? "Cliente"} · ${v.email ?? "sin email"}`;
+  const html = shell(
+    `<h1 style="font-size:22px;margin:0 0 8px">Revisa una transferencia</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${esc(who)} avisó que ya transfirió.</p>
+     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
+     <p style="font-size:20px;margin:8px 0 16px"><strong>${esc(v.total)}</strong></p>
+     <p style="margin:0 0 20px">Si la transferencia llegó, márcala pagada en el admin y el cliente recibe su confirmación. El cupo se sostiene hasta el <strong>${esc(v.holdUntil)}</strong>; si no la confirmas, se libera solo.</p>
+     <a href="${esc(v.adminUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Abrir la reserva</a>`,
+    `${v.when} · ${v.total} · ${v.name ?? "Cliente"}`,
+  );
+  const text = `${who} avisó que ya transfirió ${v.total} por la reserva del ${v.when}. Si llegó, márcala pagada en el admin: ${v.adminUrl}. El cupo se sostiene hasta el ${v.holdUntil}; si no la confirmas, se libera solo.`;
+  return { template: "ownerTransferDeclared", subject: `Revisa una transferencia — ${v.when}`, html, text };
+}
+
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
 export function ownerCoursePaid(v: {
   name: string;

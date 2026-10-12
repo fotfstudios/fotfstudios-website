@@ -2,11 +2,12 @@ import { Button } from "@/components/admin/ui/Button";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Stat } from "@/components/admin/ui/Stat";
-import { adminRepository } from "@/src/composition";
+import { adminRepository, transferRepository } from "@/src/composition";
 import { parseReservasSearchParams, reservasHref } from "@/src/domain/admin/reservas-list";
 import { formatCLP } from "@/src/domain/money/money";
 import { BookingsTable } from "./_components/BookingsTable";
 import { FilterBar } from "./_components/FilterBar";
+import { TransferSwitch } from "./_components/TransferSwitch";
 import { Pagination } from "@/components/admin/ui/Pagination";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,11 @@ export default async function ReservasPage({
 }) {
   const query = parseReservasSearchParams(await searchParams);
   const repo = adminRepository();
-  const [list, kpis] = await Promise.all([repo.listBookings(query), repo.reservasKpis()]);
+  const [list, kpis, transferEnabled] = await Promise.all([
+    repo.listBookings(query),
+    repo.reservasKpis(),
+    transferRepository().isEnabled(),
+  ]);
 
   // "Limpiar filtros" vuelve al default; si el default (próximas) es lo que está
   // vacío, lo útil es abrir el rango temporal.
@@ -41,6 +46,10 @@ export default async function ReservasPage({
           </Button>
         }
       />
+
+      <div className="mt-8">
+        <TransferSwitch enabled={transferEnabled} />
+      </div>
 
       {list.grandTotal === 0 ? (
         <div className="mt-8">

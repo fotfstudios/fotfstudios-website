@@ -45,6 +45,7 @@ import { SupabasePromoRepository } from "@/src/infrastructure/db/promo-repositor
 import type { Database } from "@/src/infrastructure/db/database.types";
 import { SupabaseNotificationRepository } from "@/src/infrastructure/db/notification-repository";
 import { SupabaseOrderRepository } from "@/src/infrastructure/db/order-repository";
+import { SupabaseTransferRepository } from "@/src/infrastructure/db/transfer-repository";
 import { SupabaseRatePlanRepository } from "@/src/infrastructure/db/rate-plan-repository";
 import { SupabaseSchedulingRepository } from "@/src/infrastructure/db/scheduling-repository";
 import { serviceClientFromEnv } from "@/src/infrastructure/db/supabase-client";
@@ -116,6 +117,11 @@ export function paymentService(
       notificationUrl: process.env.MP_NOTIFICATION_URL || undefined,
     },
   );
+}
+
+/** Transferencia como respaldo del checkout: interruptor del admin + request/declare. */
+export function transferRepository(client: SupabaseClient<Database> = db()): SupabaseTransferRepository {
+  return new SupabaseTransferRepository(client);
 }
 
 /** Vista de confirmación (sin PII de contacto) para la página /reserva/estado. */

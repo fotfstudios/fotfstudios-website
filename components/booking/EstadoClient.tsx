@@ -14,6 +14,7 @@ import HelpRow from "./estado/HelpRow";
 import NextSteps from "./estado/NextSteps";
 import SessionCard from "./estado/SessionCard";
 import StatusHeader from "./estado/StatusHeader";
+import TransferPending from "./estado/TransferPending";
 import { isFreshPurchase, resolveEstadoUi } from "@/lib/estado-ui";
 import { nextPollDelay } from "@/lib/estado-polling";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
@@ -41,6 +42,7 @@ export default function EstadoClient({
   manageHref = null,
   showActivate = false,
   amount,
+  transfer = null,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
@@ -57,6 +59,8 @@ export default function EstadoClient({
   showActivate?: boolean;
   /** Efectivo cobrado (orders.amount_clp, numérico) — el value de `purchase`. */
   amount: number;
+  /** Pago por transferencia (respaldo del checkout); null si va por Mercado Pago. */
+  transfer?: OrderConfirmation["transfer"];
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [reservation, setReservation] = useState<ReservationStatus>(view.reservationStatus);
@@ -148,11 +152,11 @@ export default function EstadoClient({
       orderId,
       value: amount,
       items: started?.items.length ? started.items : [{ ...ROOM_ITEM, price: amount, quantity: 1 }],
-      paymentType: started?.paymentType ?? "mercadopago",
+      paymentType: started?.paymentType ?? (transfer ? "transferencia" : "mercadopago"),
     });
-  }, [status, initialStatus, orderId, amount]);
+  }, [status, initialStatus, orderId, amount, transfer]);
 
-  const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired);
+  const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired, transfer !== null);
   const number = orderShort(orderId);
 
   return (
@@ -173,6 +177,16 @@ export default function EstadoClient({
       {ui === "confirming" && <Confirming view={view} number={number} />}
       {ui === "expired" && <ExpiredHold />}
       {ui === "pending_payment" && <PendingPayment view={view} number={number} />}
+      {ui === "transfer" && (
+        <TransferPending
+          orderId={orderId}
+          view={view}
+          number={number}
+          amount={amount}
+          holdExpiresAt={holdExpiresAt}
+          declaredAt={transfer?.declaredAt ?? null}
+        />
+      )}
     </div>
   );
 }

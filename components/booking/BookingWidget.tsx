@@ -26,6 +26,8 @@ import { clampPoints, computeEarn } from "@/src/domain/points/points";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { rateForSlot } from "@/src/domain/pricing/engine";
 import { tierLabel } from "@/src/domain/pricing/tier-labels";
+import { transferOffered } from "@/src/domain/checkout/transfer";
+import { rangeFor } from "@/src/domain/scheduling/time";
 import type { RateTier } from "@/src/domain/pricing/types";
 import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/scheduling/day-starts";
 import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
@@ -38,7 +40,7 @@ import DayStrip from "./reservar/DayStrip";
 import DurationSection from "./reservar/DurationSection";
 import ExtrasSection, { type Addon } from "./reservar/ExtrasSection";
 import PayCta from "./reservar/PayCta";
-import PaySection from "./reservar/PaySection";
+import PaySection, { type PayMethod } from "./reservar/PaySection";
 import PromoNote from "./reservar/PromoNote";
 import ReviewCard from "./reservar/ReviewCard";
 import SectionHead from "./reservar/SectionHead";
@@ -69,6 +71,7 @@ export default function BookingWidget({
   volumeDiscounts = [],
   customer = null,
   saveContact,
+  transferEnabled = false,
 }: {
   resourceId: string;
   /** Hoy en la zona del recurso (lo resuelve el servidor: sin desfase de hidratación). */
@@ -80,6 +83,8 @@ export default function BookingWidget({
   customer?: BookingCustomer | null;
   /** Guarda nombre/celular en la ficha (server action del segmento, la pasa la página). */
   saveContact?: (input: { name: string; phone: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Respaldo de transferencia prendido desde el admin (checkout_settings). */
+  transferEnabled?: boolean;
 }) {
   const router = useRouter();
   const isDesktop = useIsDesktop(DESKTOP_QUERY);
@@ -112,6 +117,10 @@ export default function BookingWidget({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [walletFailed, setWalletFailed] = useState(false);
+  const [payMethod, setPayMethod] = useState<PayMethod>("mercadopago");
+  // Hora de carga para la regla de anticipación de la transferencia (render puro; el servidor
+  // y la DB re-validan con la hora real al reservar).
+  const [loadedAt] = useState(() => Date.now());
 
   // Acceso con código sin salir del flujo. El correo es el mismo campo de la reserva.
   const [loginOpen, setLoginOpen] = useState(false);
@@ -227,6 +236,14 @@ export default function BookingWidget({
   const fullPoints = pointsApplied > 0 && payable === 0;
   // Lo que suma esta reserva: 5 % de lo que se paga en dinero (lo pagado con Beatcoins no suma).
   const earnPreview = payable !== null && selectedStart !== null ? computeEarn(payable) : null;
+
+  // Transferencia: solo con el interruptor prendido y un horario que empiece en ≥ 3 h.
+  const transferAllowed =
+    transferEnabled &&
+    selected !== null &&
+    selectedStart !== null &&
+    transferOffered(rangeFor(selected, selectedStart, duration, "America/Santiago").startsAt, loadedAt);
+  const viaTransfer = transferAllowed && payMethod === "transferencia" && !fullPoints;
 
   const phoneValid = isValidClMobile(phone);
   const stepState = { hasSlot: selectedStart !== null, name, email, phone, termsAccepted: acceptedTerms };
@@ -358,6 +375,7 @@ export default function BookingWidget({
             ...(phoneValid && !whatsappDecided ? { whatsappOptIn } : {}),
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
+            ...(viaTransfer ? { paymentMethod: "transferencia" } : {}),
           }),
         });
         ok = res.ok;
@@ -369,7 +387,7 @@ export default function BookingWidget({
       // Medición: pedido creado (las 3 vías). Se recuerda en este navegador para que
       // /reserva/estado mande purchase con los mismos ítems y no lo repita.
       if (data.orderId) {
-        const paymentType = data.paidWithPoints ? "beatcoins" : "mercadopago";
+        const paymentType = data.paidWithPoints ? "beatcoins" : viaTransfer ? "transferencia" : "mercadopago";
         const items = checkoutItems({ quote, duration });
         trackBeginCheckout({
           orderId: data.orderId,
@@ -416,6 +434,7 @@ export default function BookingWidget({
     whatsappDecided,
     quote,
     promoLine,
+    viaTransfer,
   ]);
 
   // Redirect clásico a init_point. `submitting` queda en true a propósito ("Redirigiendo…").
@@ -445,10 +464,29 @@ export default function BookingWidget({
     }
   }, [createBookingAndGetPreference]);
 
+  // Transferencia: reserva (hold de 2 h) y lleva a /reserva/estado con los datos bancarios.
+  const submitTransfer = useCallback(async () => {
+    try {
+      const { orderId } = await createBookingAndGetPreference();
+      router.push(`/reserva/estado?b=${orderId}`);
+    } catch {
+      // error ya seteado
+    }
+  }, [createBookingAndGetPreference, router]);
+
   const walletEnabled = !!process.env.NEXT_PUBLIC_MP_PUBLIC_KEY && !walletFailed;
+  const baseLabel = ctaLabel({ state: stepState, tried, submitting, fullPoints, payable, missing });
+  // Con transferencia no hay "ir a pagar": se reserva y se transfiere después.
+  const label = !viaTransfer
+    ? baseLabel
+    : submitting
+      ? "Reservando…"
+      : baseLabel.startsWith("Ir a pagar")
+        ? `Reservar y transferir ${payable !== null ? formatCLP(payable) : ""}`.trim()
+        : baseLabel;
   const cta = (
     <PayCta
-      label={ctaLabel({ state: stepState, tried, submitting, fullPoints, payable, missing })}
+      label={label}
       ready={ready}
       fullPoints={fullPoints}
       submitting={submitting}
@@ -459,6 +497,8 @@ export default function BookingWidget({
       onPoints={submitPoints}
       onWallet={submitWallet}
       onWalletFallback={() => setWalletFailed(true)}
+      transfer={viaTransfer}
+      onTransfer={submitTransfer}
     />
   );
 
@@ -471,7 +511,11 @@ export default function BookingWidget({
   const volPct = quote?.adjust
     ? volumeDiscounts.filter((v) => duration >= v.minHours).reduce((m, v) => Math.max(m, v.pct), 0)
     : 0;
-  const under = fullPoints ? "Tu reserva queda confirmada al instante" : "IVA incluido · pago seguro con Mercado Pago";
+  const under = fullPoints
+    ? "Tu reserva queda confirmada al instante"
+    : viaTransfer
+      ? "IVA incluido · se confirma al verificar la transferencia"
+      : "IVA incluido · pago seguro con Mercado Pago";
   const promoNote = <PromoNote promoEmail={promoEmail} promoEligible={promoEligible} />;
   const extrasNames = addons.filter((a) => a.key === rec || extras.includes(a.key)).map((a) => a.name);
 
@@ -634,6 +678,11 @@ export default function BookingWidget({
             onAcceptedTerms={setAcceptedTerms}
             termsError={tried && missing?.step === "pago"}
             pointsApplied={pointsApplied}
+            transfer={
+              transferEnabled
+                ? { method: viaTransfer ? "transferencia" : "mercadopago", onMethod: setPayMethod, allowed: transferAllowed }
+                : null
+            }
             beatcoins={
               customer && (
                 <BeatcoinsBlock

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // formado responde 404, igual que un pedido inexistente (no revela la diferencia).
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type OrderRow = { status: string; amount_clp: number; currency: string };
+type OrderRow = { status: string; amount_clp: number; currency: string; transfer_requested_at: string | null };
 
 async function readOrder(
   client: ReturnType<typeof db>,
@@ -16,7 +16,7 @@ async function readOrder(
 ): Promise<OrderRow | null> {
   const { data } = await client
     .from("orders")
-    .select("status, amount_clp, currency")
+    .select("status, amount_clp, currency, transfer_requested_at")
     .eq("id", id)
     .single();
   return (data as OrderRow | null) ?? null;
@@ -64,7 +64,9 @@ export async function GET(
     const res = await readReservation(client, id);
     const reservation = res ? effectiveReservationStatus(res.status, res.expires_at) : null;
     const withinGrace = !res?.expires_at || Date.now() < Date.parse(res.expires_at) + RECONCILE_GRACE_MS;
-    if (row.status === "pending_payment" && (reservation !== "expired" || withinGrace)) {
+    // Un pedido por transferencia no tiene pago en MP que reconciliar: lo confirma el dueño.
+    const viaTransfer = Boolean(row.transfer_requested_at);
+    if (row.status === "pending_payment" && !viaTransfer && (reservation !== "expired" || withinGrace)) {
       try {
         const reconcileResult = await reconcileOrder(id, client);
         row = (await readOrder(client, id)) ?? row;

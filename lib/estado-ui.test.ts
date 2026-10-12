@@ -23,6 +23,13 @@ describe("resolveEstadoUi", () => {
     expect(resolveEstadoUi("pending_payment", "held", "approved", true)).toBe("pending_payment");
     expect(resolveEstadoUi("pending_payment", "held", "none", false)).toBe("pending_payment");
   });
+
+  it("por transferencia: pendiente → transfer (sin pista de MP); vencida → expired; pagada → confirmada", () => {
+    expect(resolveEstadoUi("pending_payment", "held", "none", false, true)).toBe("transfer");
+    expect(resolveEstadoUi("pending_payment", "held", "approved", false, true)).toBe("transfer");
+    expect(resolveEstadoUi("pending_payment", "expired", "approved", false, true)).toBe("expired");
+    expect(resolveEstadoUi("paid", "confirmed", "none", false, true)).toBe("confirmed");
+  });
 });
 
 describe("isFreshPurchase (cuándo /reserva/estado manda purchase)", () => {

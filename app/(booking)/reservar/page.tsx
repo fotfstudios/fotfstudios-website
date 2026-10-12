@@ -9,7 +9,7 @@ import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import { accountEnabled } from "@/lib/flags";
 import type { CustomerProfile } from "@/src/application/ports/customers";
 import { pageMetadata } from "@/lib/seo";
-import { customerService, db, pricingService } from "@/src/composition";
+import { customerService, db, pricingService, transferRepository } from "@/src/composition";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
 import { todayInTz } from "@/src/domain/scheduling/time";
@@ -41,6 +41,8 @@ export default async function ReservarPage() {
   if (!data) notFound();
 
   const catalog = await pricingService().getCatalog(data.id);
+  // Respaldo si Mercado Pago falla: el dueño lo prende desde el admin (Reservas).
+  const transferEnabled = await transferRepository().isEnabled();
 
   // Sesión de cliente (opcional): prefill de datos + puntos canjeables en el
   // widget. ensureCustomer otorga aquí también los retroactivos, para que un
@@ -96,6 +98,7 @@ export default async function ReservarPage() {
           volumeDiscounts={catalog?.volumeDiscounts ?? []}
           customer={customer}
           saveContact={updateBookingContactAction}
+          transferEnabled={transferEnabled}
         />
       </main>
     </div>

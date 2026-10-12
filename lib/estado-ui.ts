@@ -15,17 +15,21 @@ export type EstadoUi =
   | "refunded"
   | "confirming" // volvió de MP con approved: esperando el webhook / la reconciliación
   | "expired" // no pagó y el hold venció
-  | "pending_payment"; // no pagó todavía: "Completa tu pago"
+  | "pending_payment" // no pagó todavía: "Completa tu pago"
+  | "transfer"; // eligió transferencia (respaldo si MP falla): datos + "Ya transferí"
 
 export function resolveEstadoUi(
   status: EstadoOrderStatus,
   reservation: EstadoReservationStatus,
   paymentHint: "approved" | "none",
   hintExpired: boolean,
+  viaTransfer = false,
 ): EstadoUi {
   if (status === "paid" || status === "fulfilled") return reservation === "expired" ? "paid_no_hold" : "confirmed";
   if (status === "cancelled") return "failed";
   if (status === "refunded") return "refunded";
+  // Por transferencia no hay vuelta desde MP: la pista "approved" no aplica.
+  if (viaTransfer) return reservation === "expired" ? "expired" : "transfer";
   if (paymentHint === "approved" && !hintExpired) return "confirming";
   return reservation === "expired" ? "expired" : "pending_payment";
 }

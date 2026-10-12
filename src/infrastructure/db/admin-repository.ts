@@ -152,6 +152,10 @@ export interface BookingTimelineEvent {
     to_name?: string | null;
     to_email?: string | null;
     points_moved?: number;
+    /** `transfer_requested`: plazo para transferir (vencimiento del hold). */
+    pay_by?: string;
+    /** `transfer_declared`: hasta cuándo se sostiene el cupo mientras se verifica. */
+    hold_until?: string;
   } | null;
   occurredAt: string;
 }
