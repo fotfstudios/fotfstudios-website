@@ -39,7 +39,7 @@ const DB_URL = process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@12
 const pg = new Client({ connectionString: DB_URL });
 let resourceId: string;
 const cleanup =
-  "truncate reservations, orders, order_lines, payment_intents, points_ledger, customers cascade";
+  "truncate reservations, orders, order_lines, payment_intents, points_ledger, customers, rate_limit_counters cascade";
 const MON = futureDate(1); // lunes futuro
 
 // Usuario de auth propio de este archivo (ids distintos a points/customer-repo).
@@ -441,6 +441,76 @@ describe("POST /api/bookings: identidad del canje (sin MP)", () => {
       expect((await res.json()).error).toBe("datos incompletos");
     },
   );
+});
+
+// Auditoría 2026-10-12, hallazgo 2: el checkout público solo toma inicios que /reservar
+// ofrece, y un script no puede mantener tomada la agenda (topes por IP y por celular).
+describe("POST /api/bookings: antiabuso del checkout público (sin MP)", () => {
+  const FLAG = "NEXT_PUBLIC_BOOKING_ENABLED";
+  const prevFlag = process.env[FLAG];
+  beforeAll(() => {
+    process.env[FLAG] = "true";
+  });
+  afterAll(async () => {
+    if (prevFlag === undefined) delete process.env[FLAG];
+    else process.env[FLAG] = prevFlag;
+    await pg.query("update checkout_settings set transfer_enabled = false");
+  });
+
+  const post = (over: Record<string, unknown>) =>
+    bookingsPOST(
+      new Request("http://x/api/bookings", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.7" },
+        body: JSON.stringify({
+          resourceId,
+          date: MON,
+          startMinute: 600,
+          durationHours: 1,
+          customer: { email: "abuso@e.cl", name: "DJ Prueba", phone: "9 1234 5678" },
+          termsAccepted: true,
+          ...over,
+        }),
+      }),
+    );
+  const holds = async () => (await pg.query<{ n: number }>("select count(*)::int n from reservations")).rows[0].n;
+
+  it("un inicio que /reservar no ofrece se rechaza antes de tomar el hold", async () => {
+    for (const [over, error] of [
+      [{ startMinute: 180 }, "outside_hours"], // 03:00, con tarifa pero la sala cerrada
+      [{ startMinute: 630 }, "outside_hours"], // 10:30
+      [{ date: futureDate(1, 20) }, "too_far"], // más allá de los 90 días
+    ] as const) {
+      const res = await post(over);
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(error);
+    }
+    expect(await holds()).toBe(0);
+  });
+
+  it("la fecha tiene que venir como YYYY-MM-DD", async () => {
+    const res = await post({ date: "lunes" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("datos incompletos");
+  });
+
+  it("tope por IP: el intento 11 en 10 min responde 429 sin tocar la agenda", async () => {
+    for (let i = 0; i < 10; i++) expect((await post({ startMinute: 180 })).status).toBe(400);
+    const res = await post({ startMinute: 180 });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toBe("rate_limited");
+  });
+
+  it("transferencia: un mismo celular no sostiene más de 2 cupos sin pagar", async () => {
+    await pg.query("update checkout_settings set transfer_enabled = true");
+    const transfer = (startMinute: number) => post({ startMinute, paymentMethod: "transferencia" });
+    expect((await transfer(600)).status).toBe(200);
+    expect((await transfer(660)).status).toBe(200);
+    const third = await transfer(720);
+    expect(third.status).toBe(409);
+    expect((await third.json()).error).toBe("transfer_limit");
+    expect(await holds()).toBe(2);
+  });
 });
 
 describe("GET /api/availability/range", () => {

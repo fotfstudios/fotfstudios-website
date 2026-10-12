@@ -81,3 +81,46 @@ describe("AvailabilityService.getRangeAvailability", () => {
     expect(beyond.ok && beyond.value.days).toEqual([]);
   });
 });
+
+describe("AvailabilityService.checkOnlineSlot (checkout público)", () => {
+  // Lunes 1 jun 2026 10:05 en Santiago (-04). CAL: Lun–Sáb 09:00–12:00, domingo cerrado.
+  const NOW = new Date("2026-06-01T14:05:00.000Z");
+  const svc = (reservations: BookedRange[] = []) => new AvailabilityService(fakeRepo(CAL, reservations));
+  const check = (s: AvailabilityService, date: string, start: number, hours = 1) =>
+    s.checkOnlineSlot("res", date, start, hours, NOW);
+
+  it("acepta exactamente un inicio que ofrece la grilla", async () => {
+    expect(await check(svc(), "2026-06-02", 600)).toEqual({ ok: true, value: true });
+    expect(await check(svc(), "2026-06-02", 540, 3)).toEqual({ ok: true, value: true });
+  });
+
+  it("fuera de horario, cerrado o desalineado → outside_hours", async () => {
+    expect(await check(svc(), "2026-06-02", 180)).toEqual({ ok: false, error: "outside_hours" }); // 03:00
+    expect(await check(svc(), "2026-06-02", 660, 2)).toEqual({ ok: false, error: "outside_hours" }); // pasa el cierre
+    expect(await check(svc(), "2026-06-02", 630)).toEqual({ ok: false, error: "outside_hours" }); // 10:30
+    expect(await check(svc(), "2026-06-02", 600.5)).toEqual({ ok: false, error: "outside_hours" });
+    expect(await check(svc(), "2026-06-07", 600)).toEqual({ ok: false, error: "outside_hours" }); // domingo
+  });
+
+  it("hoy antes del corte de anticipación, o un día pasado → too_soon", async () => {
+    expect(await check(svc(), "2026-06-01", 600)).toEqual({ ok: false, error: "too_soon" });
+    expect(await check(svc(), "2026-05-30", 600)).toEqual({ ok: false, error: "too_soon" });
+  });
+
+  it("más allá del horizonte → too_far", async () => {
+    expect(await check(svc(), "2026-08-29", 600)).toEqual({ ok: true, value: true }); // último día
+    expect(await check(svc(), "2026-08-31", 600)).toEqual({ ok: false, error: "too_far" });
+  });
+
+  it("ocupado → slot_taken", async () => {
+    // 2 jun 10:00–11:00 local = 14:00–15:00Z
+    const taken = svc([{ startsAt: "2026-06-02T14:00:00.000Z", endsAt: "2026-06-02T15:00:00.000Z" }]);
+    expect(await check(taken, "2026-06-02", 600)).toEqual({ ok: false, error: "slot_taken" });
+    expect(await check(taken, "2026-06-02", 540, 2)).toEqual({ ok: false, error: "slot_taken" });
+  });
+
+  it("recurso inexistente → outside_hours (nunca un error crudo)", async () => {
+    const none = new AvailabilityService(fakeRepo(null, []));
+    expect(await none.checkOnlineSlot("x", "2026-06-02", 600, 1, NOW)).toEqual({ ok: false, error: "outside_hours" });
+  });
+});

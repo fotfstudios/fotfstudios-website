@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import { BOOKING_HORIZON_DAYS, MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { BookingRequestError, bookingErrorMessage } from "./booking-error";
 
 describe("bookingErrorMessage", () => {
@@ -11,6 +11,13 @@ describe("bookingErrorMessage", () => {
     const msg = bookingErrorMessage("too_soon");
     expect(msg).toContain(`${MIN_LEAD_MINUTES} min`);
     expect(msg).toContain("anticipación");
+  });
+
+  it("los rechazos del checkout público tienen copy propia (no 'no se pudo crear')", () => {
+    for (const code of ["outside_hours", "too_far", "rate_limited", "transfer_limit"]) {
+      expect(bookingErrorMessage(code)).not.toBe("No se pudo crear la reserva.");
+    }
+    expect(bookingErrorMessage("too_far")).toContain(`${BOOKING_HORIZON_DAYS} días`);
   });
 
   it("network → error de conexión", () => {

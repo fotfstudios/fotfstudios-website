@@ -12,6 +12,10 @@ import {
 import { classifyDay, type DayStatus } from "@/src/domain/scheduling/month-availability";
 import { BOOKING_HORIZON_DAYS, MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { err, ok, type Result } from "@/src/domain/shared/result";
+import { validStarts } from "@/src/domain/scheduling/day-starts";
+
+/** Por qué el checkout público rechaza un inicio (códigos que mapea `lib/booking-error.ts`). */
+export type OnlineSlotError = "outside_hours" | "too_soon" | "too_far" | "slot_taken";
 
 export interface DayAvailability {
   date: string;
@@ -95,6 +99,35 @@ export class AvailabilityService {
         minStart: date < today ? 1440 : date === today ? nowMin + MIN_LEAD_MINUTES : 0,
       })),
     });
+  }
+
+  /**
+   * ¿Ofrece /reservar este inicio? El checkout público lo exige antes de tomar el hold: el
+   * motor de tarifas solo mira franjas de precio (que cubren horas en que la sala está
+   * cerrada), así que sin esto un POST directo reservaba a las 03:00, a las 10:30 o a un año
+   * (auditoría 2026-10-12). Misma regla que la grilla (`validStarts`): horario de apertura,
+   * en la hora, anticipación mínima y horizonte. La exclusion constraint sigue siendo la
+   * verdad para `slot_taken`; acá solo se adelanta el aviso.
+   */
+  async checkOnlineSlot(
+    resourceId: string,
+    date: string,
+    startMinute: number,
+    durationHours: number,
+    now: Date = new Date(),
+  ): Promise<Result<true, OnlineSlotError>> {
+    const range = await this.getRangeAvailability(resourceId, date, 1, now);
+    if (!range.ok) return err("outside_hours");
+    const day = range.value.days[0];
+    if (!day) return err("too_far");
+    if (validStarts(day, durationHours).includes(startMinute)) return ok(true);
+
+    // Por qué no: fuera de horario (o desalineado) antes que anticipación, y esa antes que ocupado.
+    const aligned = Number.isInteger(startMinute) && (startMinute - day.openMinute) % 60 === 0;
+    const fits = startMinute >= day.openMinute && startMinute + durationHours * 60 <= day.closeMinute;
+    if (day.closed || !aligned || !fits) return err("outside_hours");
+    if (startMinute < day.minStart) return err("too_soon");
+    return err("slot_taken");
   }
 
   /** Estado por día del mes "YYYY-MM" para pintar el calendario (granularidad 1h). */
