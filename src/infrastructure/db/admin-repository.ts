@@ -1535,9 +1535,13 @@ export class SupabaseAdminRepository {
         .maybeSingle();
       if (recErr) throw new Error(recErr.message);
       if (!rec) throw new Error("customer_not_found");
-      snapName = rec.name ?? snapName;
+      // Espejo de create_checkout (20261017120000): sin customerId (invitado por email) gana lo
+      // tipeado, porque upsert_guest_customer ya no lo copia a una ficha existente; con
+      // customerId elegido en el picker manda la ficha. El email siempre es el de la ficha.
+      const guest = customerId == null;
+      snapName = guest ? (snapName ?? rec.name) : (rec.name ?? snapName);
       snapEmail = rec.email;
-      snapPhone = rec.phone ?? snapPhone;
+      snapPhone = guest ? (snapPhone ?? rec.phone) : (rec.phone ?? snapPhone);
     }
 
     const { data, error } = await this.db

@@ -265,6 +265,35 @@ describe("admin actions", () => {
     });
   });
 
+  it("cortesía por email de una ficha existente: lo tipeado va a la reserva, la ficha queda intacta", async () => {
+    const ficha = (
+      await pg.query<{ id: string }>(
+        "insert into customers (name, email, phone) values ('Ficha Vieja', 'vuelve-cortesia@dir.cl', '+56 9 1010 1010') returning id",
+      )
+    ).rows[0].id;
+    const { startsAt, endsAt } = rangeFor("2099-06-03", 720, 1, tz);
+    const id = await repo.createCourtesyBooking(resourceId, startsAt, endsAt, {
+      name: "Nombre Nuevo",
+      email: "vuelve-cortesia@dir.cl",
+      phone: "+56 9 2020 2020",
+    });
+
+    expect((await pg.query("select name, phone from customers where id=$1", [ficha])).rows[0]).toEqual({
+      name: "Ficha Vieja",
+      phone: "+56 9 1010 1010",
+    });
+    const r = await pg.query(
+      "select customer_id, customer_name, customer_email, customer_phone from reservations where id=$1",
+      [id],
+    );
+    expect(r.rows[0]).toEqual({
+      customer_id: ficha,
+      customer_name: "Nombre Nuevo",
+      customer_email: "vuelve-cortesia@dir.cl",
+      customer_phone: "+56 9 2020 2020",
+    });
+  });
+
   it("cortesía con customerId: la ficha manda y el email tipeado no la pisa", async () => {
     const c = (
       await pg.query<{ id: string }>(
