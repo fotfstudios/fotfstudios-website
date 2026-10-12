@@ -72,6 +72,23 @@ describe("first_booking_promo_used(email)", () => {
     expect(await used("a@example.com")).toBe(true);
   });
 
+  // Auditoría 2026-10-12, hallazgo 3: Gmail ignora puntos y "+etiqueta", y googlemail.com
+  // es el mismo buzón — no son "primeras reservas" nuevas.
+  it.each(["ana@gmail.com", "a.n.a@gmail.com", "ana+promo@gmail.com", "A.na+2@GoogleMail.com"])(
+    "un alias de Gmail de una casilla que ya pagó (%s) no recibe la promo",
+    async (alias) => {
+      await insertOrder({ email: "an.a+vieja@gmail.com", status: "paid" });
+      expect(await used(alias)).toBe(true);
+    },
+  );
+
+  it("fuera de Gmail, '+' y puntos siguen siendo casillas distintas", async () => {
+    await insertOrder({ email: "ana@empresa.cl", status: "paid" });
+    expect(await used("ana+1@empresa.cl")).toBe(false);
+    expect(await used("a.na@empresa.cl")).toBe(false);
+    expect(await used("otra@gmail.com")).toBe(false);
+  });
+
   it("compara sin distinguir mayúsculas ni espacios (filas históricas con mayúsculas)", async () => {
     await insertOrder({ email: "Mixed@Case.CL", status: "paid" });
     expect(await used("mixed@case.cl")).toBe(true);
