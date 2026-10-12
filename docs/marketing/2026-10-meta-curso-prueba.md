@@ -1,7 +1,7 @@
 # Primera campaña en Meta Ads — Curso DJ · sesión de prueba
 
 **Campaña:** `curso-prueba-2026-10` · **Lanzamiento:** viernes 9 oct 2026 · **Presupuesto:** $100.000 CLP/mes
-**Estado:** brief aprobado 2026-10-04 · Pixel, GTM y campaña pendientes (se arma en pausa; el dueño publica)
+**Estado:** **publicada 2026-10-12** (en revisión de Meta) · 2 anuncios: `carrusel-b` y `story-c` · lanzamiento real lun 12 oct (no el vie 9)
 
 ---
 
@@ -63,7 +63,7 @@ Una campaña, un conjunto de anuncios, 2–3 anuncios. Es lo correcto para ~$3.3
 | Ubicaciones | Advantage+ (Reels, Feed y Stories de IG y FB) |
 | URL | `https://fotfstudios.cl/curso-dj` |
 | Parámetros de URL | `utm_source=meta&utm_medium=paid_social&utm_campaign=curso-prueba-2026-10&utm_content={{ad.name}}` |
-| Botón | “Más información” |
+| Botón | “Ver detalles” (*See details*, el predeterminado de Meta; se dejó en vez de “Más información”) |
 | Titulares | “Sesión de prueba · $19.990” / “Aprende a mezclar desde cero” |
 
 Con este presupuesto la campaña quedará en **“aprendizaje limitado”** (Meta pide ~50 leads/semana para
@@ -94,8 +94,8 @@ Comparar ambos cada semana.
 | Pieza | Formato | Prioridad | Fuente |
 |---|---|---|---|
 | Reel A | video 9:16, 15–20 s, subtítulos quemados | Imprescindible (puede sumarse después del lanzamiento) | `public/video/curso-clase.mp4` + material crudo |
-| Carrusel B | 4 × 4:5: equipos, cabina, cita de Martín, precio + CTA | Imprescindible | `public/photos/curso-*.jpg` |
-| Story C | 9:16 estático: “¿Siempre quisiste aprender a mezclar?” + precio | Deseable | mismas fotos |
+| Carrusel B | 4 × 4:5: equipos, cabina, cita de Martín, precio + CTA | Imprescindible · **hecho** | fotos profesionales del dueño (ver Registro) |
+| Story C | 9:16 estático: “¿Siempre quisiste aprender a mezclar?” + precio (+ versión 4:5 para feed) | Deseable · **hecho**, anuncio propio | fotos profesionales del dueño |
 | Texto principal ×2 | ≤ 125 caracteres antes de “ver más” | Imprescindible | §3 |
 | Titulares ×2 | ver §4 | Imprescindible | §4 |
 | Landing | `/curso-dj` | Existe | revisar formulario en móvil y precio visible arriba |
@@ -106,12 +106,12 @@ Toda foto con texto encima lleva scrim. Tipografía y colores del sistema de `/c
 
 | Cuándo | Qué | Dónde | Estado |
 |---|---|---|---|
-| Lun 5 oct | Pixel + tags GTM + eventos de prueba | Events Manager / GTM | |
-| Lun 5 oct | Campaña armada **en pausa**; método de pago cargado (dueño) | Ads Manager | |
-| Mar 6–Mié 7 | Carrusel B y Story C | — | |
-| Mar 6–Mié 7 | Reel A (opcional para el lanzamiento) | edición del dueño | |
+| Lun 5 oct | Pixel + tags GTM + eventos de prueba | Events Manager / GTM | Hecho (4–5 oct) |
+| Lun 5 oct | Campaña armada **en pausa**; método de pago cargado (dueño) | Ads Manager | Hecho (borrador) |
+| Mar 6–Mié 7 | Carrusel B y Story C | — | Hecho el 12 oct (esperaba las fotos) |
+| Mar 6–Mié 7 | Reel A (opcional para el lanzamiento) | edición del dueño | Pendiente |
 | Jue 8 | Link de la bio de IG → `/curso-dj?utm_source=instagram&utm_medium=social&utm_campaign=bio` | Instagram | |
-| **Vie 9** | **Lanzamiento**; envío de prueba real del formulario → `Lead` en Events Manager | Ads Manager | |
+| **Vie 9** | **Lanzamiento**; envío de prueba real del formulario → `Lead` en Events Manager | Ads Manager | Publicada **lun 12 oct**; falta la prueba del formulario cuando esté activa |
 | Semana 1 | Mirar a diario gasto, CPM, CTR, leads; responder leads por WhatsApp en < 1 h | Ads Manager / admin | |
 | Semana 2 | Primera lectura: pausar el anuncio peor si CTR < 0,6 % con ≥ 3.000 impresiones | Ads Manager | |
 | Semana 3 | Conjunto de remarketing ($1.000/día del mismo presupuesto): ViewContent 30 días, excluyendo leads; creatividad = testimonio | Ads Manager | |
@@ -198,3 +198,8 @@ por los UTM de la sesión.
 | 2026-10-04 | **GTM v13 “Meta Pixel curso” publicada** (23:07) con la plantilla oficial “Meta Pixel” de facebook: PageView (Initialization – All Pages), ViewContent (nuevo activador `INIT - /curso-dj`, Page Path empieza por `/curso-dj`), Lead (`CE - course_lead_submit`, `content_name=course_lead`, `content_category={{DLV - plan}}`). Las tres requieren `ad_storage` y llevan la excepción de rutas internas; opt-in CAPI de la plantilla desactivado. Verificado en Vista previa: PageView, ViewContent y Lead llegan a `facebook.com/tr` (200); con `ad_storage` denegado el Lead **no** se envía. Lead de prueba sintético (`plan=test-gtm-preview`, sin enviar el formulario). |
 | 2026-10-05 | Verificado en vivo (sin modo depuración): `/curso-dj` envía PageView + ViewContent al Pixel. |
 | 2026-10-05 | Campaña armada **en borrador** (sin publicar, $0): `curso-prueba-2026-10` → Leads, presupuesto de campaña $3.300/día (tope semanal Meta $23.100). Conjunto `vina-25km-18-40-lead`: Sitio web → dataset FOTF Studios → evento **Lead**; inicio **vie 9 oct 09:00**; ubicación Viña del Mar + 16 mi (≈25 km; Ads Manager solo ofrece millas), **sin** “llegar a más personas” fuera del radio; edad mínima 18 (control) y 18–40 como sugerencia; intereses sugeridos: Disc jockey, Electronic dance music, House music, Techno, Boiler Room (Pioneer DJ y rekordbox no existen como interés). Anuncio `carrusel-b`: identidad FOTF Studios + @fotfstudios, Pixel en seguimiento, parámetros UTM con `utm_content={{ad.name}}`; **falta la creatividad** (fotos profesionales del dueño). Pendiente del dueño: aviso “Account info needed” en Account Overview antes de publicar. |
+| 2026-10-12 | **Piezas** a partir de 6 fotos profesionales del dueño (`Extreme Pro/FOTF Studios/Images/La Sala/Post`), con el sistema de `/curso-dj` (Anton / Space Grotesk / Space Mono, acento naranja) y scrim en todas: carrusel 01 equipos (IMG_5882), 02 sala roja “Uno a uno.” (IMG_5918), 03 cita de Martín, literal y sin corregir (IMG_5730, solo manos: la foto con persona identificable se descartó por consentimiento), 04 precio + CTA (IMG_5806, edición del dueño); Story 9:16 (IMG_5932) y su versión 4:5 para feed. Exportadas en `…/Post/ads-curso-prueba-2026-10/`. |
+| 2026-10-12 | Anuncio `carrusel-b` completo: 4 tarjetas con titular propio (“Aprende a mezclar desde cero”, “Clases 1:1 en sala de club”, “Reseña 5★ en Google”, “Sesión de prueba · $19.990”), URL `/curso-dj` en todas, texto principal del §3, botón “Ver detalles”. Mejoras con IA de Meta apagadas (retoques visuales, música). |
+| 2026-10-12 | Segundo anuncio `story-c` en el mismo conjunto: imagen única por ubicación (feed = 4:5, Stories/Reels/Estados de WhatsApp = 9:16), titular “Sesión de prueba · $19.990”. **Sin** imágenes generadas por IA (mostraban personas y equipos que no son del estudio) y sin música, animación ni *flex media*. |
+| 2026-10-12 | Inicio del conjunto movido de vie 9 oct (ya pasado) a **lun 12 oct**. Transparencia: anunciante y pagador **FOTF STUDIOS SPA** (lo completó Meta). Puntuación de campaña 59–60: baja a propósito por rechazar “llegar a personas fuera del radio” (+7 pts), que mostraría anuncios fuera de los 25 km. |
+| 2026-10-12 | **Campaña publicada por el dueño** (1 campaña, 1 conjunto, 2 anuncios) → en revisión. No editar el conjunto hasta ~19 oct. Próximo: prueba real del formulario cuando esté activa; lectura de la semana 2 comparando `carrusel-b` vs `story-c` (≥ 3.000 impresiones por anuncio). |
