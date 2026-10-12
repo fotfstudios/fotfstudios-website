@@ -3,7 +3,7 @@
  * clásico y el Wallet Brick) + error tipado para que el código sobreviva la
  * cadena de promesas del brick. En `lib/` para que vitest lo cubra.
  */
-import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
+import { BOOKING_HORIZON_DAYS, MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 
 export type BookingErrorCode = string | null | undefined;
 
@@ -31,6 +31,14 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
       return "El total cambió. Revisa el resumen e intenta de nuevo.";
     case "transfer_unavailable":
       return "La transferencia no está disponible para este horario. Paga con Mercado Pago o elige otro horario.";
+    case "transfer_limit":
+      return "Ya tienes reservas esperando transferencia. Págalas o paga esta con Mercado Pago.";
+    case "outside_hours":
+      return "Ese horario no está disponible. Elige otro.";
+    case "too_far":
+      return `Puedes reservar hasta ${BOOKING_HORIZON_DAYS} días hacia adelante. Elige una fecha más cercana.`;
+    case "rate_limited":
+      return "Demasiados intentos seguidos. Espera unos minutos e intenta de nuevo.";
     default:
       return "No se pudo crear la reserva.";
   }
