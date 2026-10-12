@@ -64,6 +64,7 @@ export default async function EstadoPage({
             sessionUpcoming={sessionUpcoming}
             paymentHint={paymentHint}
             holdExpiresAt={order.holdExpiresAt}
+            amount={order.total}
             manageHref={accounts ? "/cuenta/reservas" : null}
             showActivate={accounts && !session}
           />

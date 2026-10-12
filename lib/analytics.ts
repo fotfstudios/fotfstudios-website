@@ -90,3 +90,98 @@ export function trackGuideCtaClick(guide: string, placement: string): void {
     page: pageFromPathname(window.location.pathname),
   });
 }
+
+/* ── Embudo de reserva (/reservar → /reserva/estado) ─────────────────────────────────── */
+
+/** Ítem GA4 (ecommerce). La sala va como un ítem con cantidad = horas. */
+export interface GaItem {
+  item_id: string;
+  item_name: string;
+  price: number;
+  quantity: number;
+}
+
+const BOOKING_PAGE = "reservar";
+
+/**
+ * Evento ecommerce de GA4: primero `{ ecommerce: null }` (recomendación de GA4 para que el
+ * objeto del evento anterior no se arrastre), después el evento con el objeto `ecommerce`
+ * estándar — en GTM basta "Enviar datos de ecommerce → Capa de datos", sin mapear `items`.
+ * A Vercel Analytics va una copia plana: solo acepta primitivos.
+ */
+function pushEcommerce(
+  event: string,
+  ecommerce: { value?: number; transaction_id?: string; coupon?: string; items: GaItem[] },
+  extra: Record<string, string> = {},
+): void {
+  if (typeof window === "undefined") return;
+  const eco = { currency: "CLP", ...ecommerce };
+  window.dataLayer?.push({ ecommerce: null });
+  window.dataLayer?.push({ event, ...extra, ecommerce: eco });
+  const flat: Record<string, string | number> = { currency: "CLP" };
+  if (eco.value !== undefined) flat.value = eco.value;
+  if (eco.transaction_id) flat.transaction_id = eco.transaction_id;
+  track(event, { ...flat, ...extra, ...(eco.coupon ? { coupon: eco.coupon } : {}) });
+}
+
+/** Una vez por carga de /reservar. */
+export function trackViewItem(item: GaItem): void {
+  pushEcommerce("view_item", { items: [item] });
+}
+
+/** Extra agregado (grabación / guía). */
+export function trackAddon(item: GaItem): void {
+  pushEcommerce("add_to_cart", { value: item.price * item.quantity, items: [item] });
+}
+
+/** Horario elegido (intención; el llamador lo debouncea). */
+export function trackSlotSelected(p: { date: string; start: string; durationHours: number; tier: string }): void {
+  if (typeof window === "undefined") return;
+  pushEvent("booking_slot_selected", {
+    date: p.date,
+    start: p.start,
+    duration_hours: String(p.durationHours),
+    tier: p.tier,
+    page: BOOKING_PAGE,
+  });
+}
+
+/** Avance del wizard móvil (02 Datos / 03 Pagar). */
+export function trackBookingStep(step: "datos" | "pago"): void {
+  if (typeof window === "undefined") return;
+  pushEvent("booking_step", { step, page: BOOKING_PAGE });
+}
+
+/** Entró con el código del correo sin salir del checkout. */
+export function trackLogin(): void {
+  if (typeof window === "undefined") return;
+  pushEvent("login", { method: "email_otp", page: BOOKING_PAGE });
+}
+
+/** Error al crear la reserva (código de lib/booking-error.ts). */
+export function trackCheckoutError(code: string): void {
+  if (typeof window === "undefined") return;
+  pushEvent("checkout_error", { code, page: BOOKING_PAGE });
+}
+
+export type PaymentType = "mercadopago" | "beatcoins";
+
+/** Pedido creado y camino de pago elegido (antes del redirect / brick / confirmación). */
+export function trackBeginCheckout(p: {
+  orderId: string;
+  value: number;
+  items: GaItem[];
+  coupon?: string;
+  paymentType: PaymentType;
+}): void {
+  pushEcommerce(
+    "begin_checkout",
+    { value: p.value, transaction_id: p.orderId, ...(p.coupon ? { coupon: p.coupon } : {}), items: p.items },
+    { payment_type: p.paymentType },
+  );
+}
+
+/** Pago confirmado (lo decide isFreshPurchase en lib/estado-ui.ts). GA4 dedupa por transaction_id. */
+export function trackPurchase(p: { orderId: string; value: number; items: GaItem[]; paymentType: PaymentType }): void {
+  pushEcommerce("purchase", { value: p.value, transaction_id: p.orderId, items: p.items }, { payment_type: p.paymentType });
+}

@@ -43,6 +43,13 @@ None of these are site bugs — the site works. They are measurement blind spots
 
 ### A1 · Booking funnel emits zero events
 
+> **Resuelto en código (2026-10-12, PR "embudo de reserva en GA4").** `begin_checkout` en las 3 vías
+> de pago y `purchase` en /reserva/estado (transición observada a `paid` o checkout iniciado en ese
+> navegador; marca en sessionStorage + dedupe de GA4 por `transaction_id`), con `value` numérico
+> (`orders.amount_clp`), más `view_item`, `booking_slot_selected`, `booking_step`, `add_to_cart`,
+> `login` y `checkout_error`. Falta la configuración de GTM/GA4 (DEPLOY.md → "Medición del embudo
+> de reserva").
+
 No `dataLayer`, `track()`, or `gtag` anywhere in `components/booking/*`, `app/reservar/*`, `app/reserva/*`. GA4 cannot answer: how many people start checkout, how many pay, revenue by channel, funnel drop-off.
 
 - **`begin_checkout`** belongs at `components/booking/BookingWidget.tsx:259-307` (`createBookingAndGetPreference()` success — `POST /api/bookings` returns `{orderId, preferenceId, …}`), value = payable CLP.
@@ -76,7 +83,7 @@ Net effect: `whatsapp_click` per page/source comparisons are biased — `/curso-
 ## P1 — data-quality pollution
 
 - **B1 · Admin/staff traffic measured as customers.** GTM fires on all of `/admin/*` (11 routes) and `/cuenta/*` (4 routes); Chile default consent is granted, so the owner's daily panel use inflates users/pageviews. `/admin/reservas/[id]` puts a booking UUID in the path → one GA4 page row per booking. Admin pages render customer name/email/phone on screen — safe today (`page_view` sends URLs, not DOM), but any future form/engagement tag in the container would capture PII there. **Fix is GTM-only, no deploy**: a blocking exception trigger (Page Path matches `^/(admin|cuenta)`) on all tags; optionally a GA4 internal-traffic IP filter for the studio.
-- **B2 · Transaction identifiers in `page_location`.** `/reserva/estado?b=<orderUUID>` plus MP's appended `?status=…&collection_status=…` fragment landing-page reports and put a customer-linkable key in GA4 URLs. Mitigate in GTM (clean the page-path variable) and pass the UUID deliberately as `transaction_id` on `purchase` instead.
+- **B2 · Transaction identifiers in `page_location`.** *(El UUID ya viaja como `transaction_id`; la limpieza de la URL queda en GTM: DEPLOY.md → "Medición del embudo de reserva", paso 4.)* `/reserva/estado?b=<orderUUID>` plus MP's appended `?status=…&collection_status=…` fragment landing-page reports and put a customer-linkable key in GA4 URLs. Mitigate in GTM (clean the page-path variable) and pass the UUID deliberately as `transaction_id` on `purchase` instead.
 - **B3 · Double-counting WhatsApp clicks.** Enhanced Measurement's outbound `click` event fires on every `wa.me` link *in addition to* the custom `whatsapp_click` (both were visible in Realtime: `click: 4`). Treat `whatsapp_click` as canonical; optionally disable EM outbound clicks in the data stream.
 - **B4 · Stale auto key events.** `close_convert_lead` and `qualify_lead` are marked key (property-creation defaults) and never fire — unmark to keep conversion reporting clean. `purchase` is present unmarked; mark it when A1 ships.
 - **B5 · `/unete` submissions invisible.** `ApplicationForm.tsx` swaps to a success panel with **no route/URL change** (L102-134), so no GTM trigger can catch it — a `generate_lead` push at the success branch (L102) is the only clean option. Caution: `sentEmail` holds a raw email — never push it.

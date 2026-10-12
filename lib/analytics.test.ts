@@ -6,10 +6,18 @@ vi.mock("@vercel/analytics", () => ({ track: (...args: unknown[]) => track(...ar
 import {
   pageFromPathname,
   pushEvent,
+  trackAddon,
+  trackBeginCheckout,
   trackBookingCta,
+  trackBookingStep,
+  trackCheckoutError,
   trackGuideCtaClick,
   trackGuideLead,
+  trackLogin,
   trackNewsletter,
+  trackPurchase,
+  trackSlotSelected,
+  trackViewItem,
   trackWhatsAppClick,
 } from "./analytics";
 
@@ -150,5 +158,64 @@ describe("trackGuideCtaClick", () => {
     delete (globalThis as { window?: TestWindow }).window;
     expect(() => trackGuideCtaClick("guia-dj", "cierre")).not.toThrow();
     expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe("embudo de reserva (GA4 ecommerce)", () => {
+  const ITEM = { item_id: "sala-ensayo", item_name: "Sala de ensayo DJ", price: 9990, quantity: 2 };
+
+  it("begin_checkout limpia ecommerce antes y empuja el objeto ecommerce estándar", () => {
+    const dl = stubWindow("/reservar");
+    trackBeginCheckout({ orderId: "ord-1", value: 17990, items: [ITEM], coupon: "first_booking", paymentType: "mercadopago" });
+    expect(dl).toEqual([
+      { ecommerce: null },
+      {
+        event: "begin_checkout",
+        payment_type: "mercadopago",
+        ecommerce: { currency: "CLP", value: 17990, transaction_id: "ord-1", coupon: "first_booking", items: [ITEM] },
+      },
+    ]);
+    // Vercel Analytics solo acepta primitivos: copia plana sin items.
+    expect(track).toHaveBeenCalledWith("begin_checkout", {
+      currency: "CLP",
+      value: 17990,
+      transaction_id: "ord-1",
+      payment_type: "mercadopago",
+      coupon: "first_booking",
+    });
+  });
+
+  it("purchase lleva transaction_id, value e items; sin cupón no manda coupon", () => {
+    const dl = stubWindow("/reserva/estado");
+    trackPurchase({ orderId: "ord-1", value: 0, items: [ITEM], paymentType: "beatcoins" });
+    expect(dl[1]).toEqual({
+      event: "purchase",
+      payment_type: "beatcoins",
+      ecommerce: { currency: "CLP", value: 0, transaction_id: "ord-1", items: [ITEM] },
+    });
+  });
+
+  it("view_item y add_to_cart usan ecommerce; slot/step/login/error son eventos simples", () => {
+    const dl = stubWindow("/reservar");
+    trackViewItem({ item_id: "sala-ensayo", item_name: "Sala de ensayo DJ", price: 9990, quantity: 1 });
+    trackAddon({ item_id: "rec_audio", item_name: "Grabación de audio", price: 9990, quantity: 1 });
+    trackSlotSelected({ date: "2026-10-21", start: "10:00", durationHours: 2, tier: "Tarifa diurna" });
+    trackBookingStep("datos");
+    trackLogin();
+    trackCheckoutError("slot_taken");
+    const events = dl.filter((e) => (e as { event?: string }).event).map((e) => e as Record<string, unknown>);
+    expect(events.map((e) => e.event)).toEqual([
+      "view_item",
+      "add_to_cart",
+      "booking_slot_selected",
+      "booking_step",
+      "login",
+      "checkout_error",
+    ]);
+    expect(events[1].ecommerce).toEqual({ currency: "CLP", value: 9990, items: [expect.objectContaining({ item_id: "rec_audio" })] });
+    expect(events[2]).toMatchObject({ date: "2026-10-21", start: "10:00", duration_hours: "2", tier: "Tarifa diurna", page: "reservar" });
+    expect(events[3]).toMatchObject({ step: "datos", page: "reservar" });
+    expect(events[4]).toMatchObject({ method: "email_otp", page: "reservar" });
+    expect(events[5]).toMatchObject({ code: "slot_taken", page: "reservar" });
   });
 });
