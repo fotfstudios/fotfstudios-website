@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notificationService, rescheduleNotifyInfo } from "@/src/composition";
+import { clientIpFromHeaders } from "@/lib/request-ip";
+import { notificationService, rateLimiter, rescheduleNotifyInfo } from "@/src/composition";
 import { WebhookService } from "@/src/application/payment/webhook-service";
 import type { Database } from "@/src/infrastructure/db/database.types";
 import { createServiceClient } from "@/src/infrastructure/db/supabase-client";
@@ -10,6 +12,26 @@ import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/me
 import { mpSignatureFailure } from "@/src/infrastructure/payments/mercadopago/verify-signature";
 
 export const dynamic = "force-dynamic";
+
+// Antiabuso (auditoría 2026-10-12): una notificación SIN firma válida igual dispara un
+// GET /v1/payments con nuestro token. Una ráfaga podía agotar la cuota de MP y tumbar el
+// checkout. Las firmadas (Webhooks del panel, prod y test) nunca cuentan; las sin firma
+// legítimas (IPN legacy del escape hatch de dev) son pocas por minuto.
+const UNSIGNED_RATE_MAX = 30;
+const UNSIGNED_RATE_WINDOW_S = 60;
+const RATE_SALT = "fotf-mp-webhook-v1";
+
+/** ¿Pasa el tope de notificaciones sin firma de esta IP? Fail-open: nunca perder un pago. */
+async function unsignedWithinRate(client: SupabaseClient<Database>, req: Request): Promise<boolean> {
+  try {
+    const ip = clientIpFromHeaders(req.headers) ?? "unknown";
+    const key = "mpwh:" + createHash("sha256").update(RATE_SALT + ip).digest("hex");
+    return await rateLimiter(client).hit(key, UNSIGNED_RATE_MAX, UNSIGNED_RATE_WINDOW_S);
+  } catch (e) {
+    console.error("[mp-webhook:ratelimit]", e);
+    return true;
+  }
+}
 
 /**
  * Webhook de Mercado Pago.
@@ -75,6 +97,11 @@ export async function POST(req: Request): Promise<Response> {
   if (!type.includes("payment") || !resourceId) return new Response("ok", { status: 200 });
 
   const client = createServiceClient(url, key);
+  if (signatureFailure !== null && !(await unsignedWithinRate(client, req))) {
+    // 200 para que MP no escale reintentos; la reconciliación (sondeo + cron) es el respaldo.
+    console.warn(`[mp-webhook] sin firma y sobre el tope por IP; no se consulta MP (rid=${xRequestId ?? "-"})`);
+    return new Response("ok", { status: 200 });
+  }
   // Con los dos finalizadores: los pedidos SIN reserva —delta de reagendamiento e
   // inscripción de curso— se finalizan por su propio camino en vez del confirm
   // normal, que los mandaría a 'paid_no_hold' (sin boleta, cliente en silencio).
