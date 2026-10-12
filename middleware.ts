@@ -2,14 +2,36 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { type AdminClaims, isAdminMember } from "@/src/domain/auth/permissions";
 import { accountEnabled } from "@/lib/flags";
+import {
+  ESTADO_COOKIE,
+  ESTADO_COOKIE_MAX_AGE_S,
+  ESTADO_PATH,
+  estadoRedirect,
+  isPrefetchRequest,
+} from "@/lib/estado-link";
 
 /**
  * Refresca la sesión y protege las áreas privadas: /admin/* exige rol admin
  * (claims RBAC en el JWT), /cuenta/* exige cualquier sesión válida. /reservar
  * solo pasa por aquí para refrescar cookies (los Server Components no pueden
- * escribirlas), sin guard.
+ * escribirlas), sin guard. /reserva/estado no toca la sesión: solo saca el id del pedido
+ * de la URL (`lib/estado-link.ts`) antes de que el Pixel de Meta la lea.
  */
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === ESTADO_PATH) {
+    const estado = estadoRedirect(request.nextUrl, isPrefetchRequest(request.headers));
+    if (!estado) return NextResponse.next();
+    const res = NextResponse.redirect(estado.location);
+    res.cookies.set(ESTADO_COOKIE, estado.orderId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: ESTADO_PATH,
+      maxAge: ESTADO_COOKIE_MAX_AGE_S,
+    });
+    return res;
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -59,4 +81,4 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/admin/:path*", "/cuenta/:path*", "/reservar"] };
+export const config = { matcher: ["/admin/:path*", "/cuenta/:path*", "/reservar", "/reserva/estado"] };
