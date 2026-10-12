@@ -37,6 +37,18 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
       .select("description, subtotal_clp")
       .eq("order_id", orderId);
 
+    // payment_intents es 1:N por pedido: el init_point de LA preference vigente del pedido.
+    const { data: intent } = o.mp_preference_id
+      ? await this.db
+          .from("payment_intents")
+          .select("init_point")
+          .eq("order_id", orderId)
+          .eq("preference_id", o.mp_preference_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+
     return {
       orderId: o.id,
       orderStatus: o.status,
@@ -47,6 +59,7 @@ export class SupabaseOrderRepository implements OrderPaymentRepository, OrderCon
       reservationStatus: r ? effectiveReservationStatus(r.status, r.expires_at) : null,
       holdExpiresAt: r?.expires_at ?? null,
       preferenceId: o.mp_preference_id,
+      initPoint: intent?.init_point ?? null,
       lines: (lines ?? []).map((l) => ({ description: l.description, subtotal: l.subtotal_clp })),
       total: o.amount_clp,
       currency: o.currency,

@@ -19,6 +19,7 @@ const MODEL: OrderConfirmation = {
   reservationStatus: "confirmed",
   holdExpiresAt: null,
   preferenceId: "3497260371-abcd-ef01",
+  initPoint: null,
   lines: [
     { description: "Sala · 2h (valle)", subtotal: 19990 },
     { description: "Sesión guiada · 1h", subtotal: 9990 },
@@ -59,6 +60,30 @@ describe("checkoutResumeUrl", () => {
   });
   it("sin preference → null", () => {
     expect(checkoutResumeUrl(null)).toBeNull();
+  });
+
+  it("prefiere el init_point que devolvió MP al crear la preference", () => {
+    const init = "https://www.mercadopago.cl/checkout/v1/redirect?pref_id=3497260371-abcd-ef01&from=mp";
+    expect(checkoutResumeUrl("3497260371-abcd-ef01", init)).toBe(init);
+    expect(checkoutResumeUrl(null, init)).toBe(init);
+  });
+});
+
+describe("buildConfirmationView: retomar el pago", () => {
+  const init = "https://www.mercadopago.cl/checkout/v1/redirect?pref_id=persistido";
+  it("con init_point persistido lo usa tal cual", () => {
+    const v = buildConfirmationView({ ...MODEL, orderStatus: "pending_payment", reservationStatus: "held", initPoint: init });
+    expect(v.resumeUrl).toBe(init);
+  });
+
+  it("sin init_point (filas viejas) cae a la URL armada con el preference id", () => {
+    const v = buildConfirmationView({ ...MODEL, orderStatus: "pending_payment", reservationStatus: "held" });
+    expect(v.resumeUrl).toBe("https://www.mercadopago.cl/checkout/v1/redirect?pref_id=3497260371-abcd-ef01");
+  });
+
+  it("hold vencido → sin checkout que retomar", () => {
+    const v = buildConfirmationView({ ...MODEL, orderStatus: "pending_payment", reservationStatus: "expired", initPoint: init });
+    expect(v.resumeUrl).toBeNull();
   });
 });
 

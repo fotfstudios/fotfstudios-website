@@ -153,6 +153,44 @@ describe.skipIf(!TOKEN)("rutas de reserva", () => {
   });
 });
 
+describe("confirmación: retomar el pago con el init_point persistido (sin MP)", () => {
+  it("devuelve el init_point de la preference VIGENTE del pedido, no el de una anterior", async () => {
+    const b = await checkoutService().createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 780,
+      durationHours: 1,
+      customer: { email: "retomar@pago.cl" },
+    });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+    const id = b.value.orderId;
+    // Dos intentos de cobro (p. ej. un link reenviado): solo cuenta el de mp_preference_id.
+    await pg.query(
+      `insert into payment_intents (order_id, provider, preference_id, init_point, amount_clp, currency, status, created_at)
+       values ($1, 'mercadopago', 'pref-vieja', 'https://mp.test/vieja', 1, 'CLP', 'created', now() - interval '5 minutes'),
+              ($1, 'mercadopago', 'pref-vigente', 'https://mp.test/vigente', 1, 'CLP', 'created', now())`,
+      [id],
+    );
+    await pg.query("update orders set mp_preference_id = 'pref-vigente' where id = $1", [id]);
+    const c = await orderConfirmation(id);
+    expect(c?.preferenceId).toBe("pref-vigente");
+    expect(c?.initPoint).toBe("https://mp.test/vigente");
+  });
+
+  it("sin preference no hay init_point", async () => {
+    const b = await checkoutService().createBooking({
+      resourceId,
+      date: MON,
+      startMinute: 840,
+      durationHours: 1,
+      customer: { email: "sin@preference.cl" },
+    });
+    if (!b.ok) throw new Error(b.error);
+    expect((await orderConfirmation(b.value.orderId))?.initPoint).toBeNull();
+  });
+});
+
 describe("confirmación de un hold vencido (sin MP)", () => {
   it("orderConfirmation deriva expired desde expires_at y expone holdExpiresAt", async () => {
     const b = await checkoutService().createBooking({
