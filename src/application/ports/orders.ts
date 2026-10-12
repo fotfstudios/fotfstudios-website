@@ -34,6 +34,11 @@ export interface OrderConfirmation {
   holdExpiresAt: string | null;
   /** Preference de MP (orders.mp_preference_id) — permite retomar un checkout abandonado. */
   preferenceId: string | null;
+  /**
+   * init_point que devolvió MP al crear esa preference (payment_intents) — la URL oficial para
+   * retomar el checkout. null en filas viejas; ahí se arma desde el preference id.
+   */
+  initPoint: string | null;
   lines: { description: string; subtotal: number }[];
   total: number;
   currency: string;

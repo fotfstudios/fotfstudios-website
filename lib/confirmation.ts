@@ -58,11 +58,14 @@ export function isUpcoming(endsAt: string | null, now: Date = new Date()): boole
 }
 
 /**
- * URL para retomar un checkout de MP abandonado ("Volver a la tienda"): el
- * init_point canónico de Checkout Pro es este redirect con el preference id.
- * Válido mientras la preference no expire (10 min, alineada con el hold).
+ * URL para retomar un checkout de MP abandonado ("Volver a la tienda"). La oficial es el
+ * init_point que MP devolvió al crear la preference (persistido en payment_intents); para
+ * filas viejas sin él, se arma el redirect de Checkout Pro con el preference id (no
+ * documentado: solo como respaldo). Válido mientras la preference no expire (10 min,
+ * alineada con el hold).
  */
-export function checkoutResumeUrl(preferenceId: string | null): string | null {
+export function checkoutResumeUrl(preferenceId: string | null, initPoint?: string | null): string | null {
+  if (initPoint) return initPoint;
   if (!preferenceId) return null;
   return `https://www.mercadopago.cl/checkout/v1/redirect?pref_id=${encodeURIComponent(preferenceId)}`;
 }
@@ -86,6 +89,6 @@ export function buildConfirmationView(m: OrderConfirmation, tz: string = TZ): Co
     holdExpiresAt: m.holdExpiresAt,
     // Sin hold vivo no hay checkout que retomar: MP responde "ya no disponible" y su
     // "Volver a la tienda" traía al cliente de vuelta aquí en bucle (auditoría H2).
-    resumeUrl: m.reservationStatus === "expired" ? null : checkoutResumeUrl(m.preferenceId),
+    resumeUrl: m.reservationStatus === "expired" ? null : checkoutResumeUrl(m.preferenceId, m.initPoint),
   };
 }
