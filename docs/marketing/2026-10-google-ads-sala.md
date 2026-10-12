@@ -2,7 +2,7 @@
 
 **Campaña:** `curso-sala-search-2026-10` · **Cuenta:** Google Ads `911-876-8131` (CLP, hora de Chile)
 **Presupuesto:** $1.500 CLP/día como techo; el gasto real lo limita el volumen de búsqueda (≈ $10.000–25.000/mes)
-**Estado:** brief replanteado 2026-10-12 con datos del Planificador de palabras clave · campaña **sin armar**
+**Estado:** campaña **armada y detenida** (2026-10-12) · la enciende el dueño
 
 ---
 
@@ -137,8 +137,8 @@ acústicamente en Viña del Mar. 20% de descuento en tu primera reserva.
 |---|---|---|
 | 12 oct | Alta de la cuenta (dueño): CLP, hora de Chile, Visa; campaña del alta detenida al instante ($0) | Hecho |
 | 12 oct | Planificador de palabras clave → replanteo a Curso + Sala | Hecho |
-| 1 | Importar conversiones + GTM v15 (`url_passthrough`) | |
-| 2 | Campaña completa **en pausa** + vista previa | |
+| 1 | Importar conversiones + GTM v15 (`url_passthrough`) | Conversiones hechas; GTM guardado en el espacio 15, **sin publicar** |
+| 2 | Campaña completa **en pausa** + vista previa | Hecho |
 | 3 | Dueño la revisa y la enciende (grupo Curso); grupo Sala al encender el flag | |
 | Días 1–7 | Términos de búsqueda a diario: solo agregar negativas | |
 | Semana 4 | Reglas de decisión (§2) | |
@@ -160,3 +160,7 @@ acústicamente en Viña del Mar. 20% de descuento en tu primera reserva.
 | 2026-10-12 | Brief aprobado (solo sala, $4.000/día) con evaluación financiera de datos reales de producción. |
 | 2026-10-12 | La cuenta `911-876-8131` estaba trabada en el alta (asistente de campaña “inteligente”, sin opción de modo experto). El dueño completó el alta: perfil de pagos FOTF Studios, Visa ••3771, Chile, hora de Chile, CLP. El alta creó una campaña **Máximo rendimiento** (“Sala de ensayo DJ en Viña”, $1.000/día, textos de la sala); Claude la **detuvo** de inmediato (0 impresiones, $0). |
 | 2026-10-12 | **Planificador de palabras clave:** sala ≈ 0 búsquedas locales; curso ≈ 200–600/mes en la Región de Valparaíso, oferta superior $80–650. El dueño eligió replantear a **Curso primero + grupo Sala chico**; presupuesto rehecho con la economía del curso. |
+| 2026-10-12 | **Conversiones** importadas de GA4: `course_lead_submit` (categoría Reservar cita, principal, **una** por clic), `purchase` (Compra, principal, valor dinámico); `whatsapp_click` y “Calls from ads” como **secundarias**. `guide_lead_submit` no se importó. |
+| 2026-10-12 | **GTM:** `url_passthrough = true` agregado a la etiqueta “GA4 - Configuración” en el espacio de trabajo 15 — **guardado, sin publicar** (lo publica el dueño). |
+| 2026-10-12 | **Campaña `curso-sala-search-2026-10`** (ID 24347381447) publicada con OK del dueño y **detenida al instante** ($0, 0 impresiones). Búsqueda solamente; Viña, Valparaíso, Quilpué, Villa Alemana, Concón con “Presencia”; español; Maximizar clics con CPC máx. $600; $1.500/día; IA Max, personalización de texto y expansión de URL apagadas; sufijo de URL final con los UTM. Estimación de Google a $1.500/día: 55 clics/semana, CPC ≈ $191. |
+| 2026-10-12 | Grupo **Curso DJ**: 16 palabras (frase + exacta) → `/curso-dj`; RSA con 15 títulos y 4 descripciones (fuerza 84 %). Grupo **Sala**: 10 palabras → **`/`** (no `/reservar`: devuelve 404 mientras el flag está apagado), RSA 15/4, **detenido** hasta encender el flag. Grupo Marca descartado (la marca ya rankea primera orgánica). 26 palabras negativas a nivel de campaña. Recursos: 4 vínculos a sitios (Curso DJ 1:1, Sesión de prueba, Precios de la sala, Grabación de sets) y 4 textos destacados (Clases 1:1, Prueba $19.990, Aislada acústicamente, Equipos Pioneer de club), en revisión. |
