@@ -124,3 +124,15 @@ describe("buildSitemap", () => {
     }
   });
 });
+
+describe("/reservar en el sitemap: solo con las reservas en línea encendidas", () => {
+  it("con el flag apagado no se lista (la página responde 404)", () => {
+    expect(buildSitemap([], NOW).some((e) => e.url.endsWith("/reservar"))).toBe(false);
+    expect(buildSitemap([], NOW, { bookingOn: false }).some((e) => e.url.endsWith("/reservar"))).toBe(false);
+  });
+
+  it("encendido, se lista con prioridad alta (es la página de conversión)", () => {
+    const e = buildSitemap([], NOW, { bookingOn: true }).find((x) => x.url === `${SITE_URL}/reservar`);
+    expect(e).toMatchObject({ priority: 0.9, changeFrequency: "weekly" });
+  });
+});

@@ -43,6 +43,12 @@ export const STATIC_ROUTES: readonly SitemapEntry[] = [
   { path: "/terminos", priority: 0.3, changeFrequency: "yearly" },
 ] as const;
 
+/**
+ * /reservar entra solo con las reservas en línea encendidas (NEXT_PUBLIC_BOOKING_ENABLED): con
+ * el flag apagado la página responde 404 y listarla sería pedirle a Google que indexe un error.
+ */
+export const BOOKING_ROUTE: SitemapEntry = { path: "/reservar", priority: 0.9, changeFrequency: "weekly" };
+
 /** La misma que tenían las tres guías en raíz: migrarlas no las mueve de lugar. */
 export const ARTICLE_PRIORITY = 0.6;
 export const CATEGORY_PRIORITY = 0.4;
@@ -54,8 +60,13 @@ export const CATEGORY_PRIORITY = 0.4;
  * Una categoría sin artículos NO entra: una página vacía en el sitemap es pedirle a Google
  * que indexe contenido delgado.
  */
-export function buildSitemap(articles: readonly ArticleMeta[], now: Date): MetadataRoute.Sitemap {
-  const fijas = STATIC_ROUTES.map((e) => ({
+export function buildSitemap(
+  articles: readonly ArticleMeta[],
+  now: Date,
+  opts: { bookingOn?: boolean } = {},
+): MetadataRoute.Sitemap {
+  const rutas = opts.bookingOn ? [...STATIC_ROUTES, BOOKING_ROUTE] : STATIC_ROUTES;
+  const fijas = rutas.map((e) => ({
     url: `${SITE_URL}${e.path === "/" ? "" : e.path}`,
     lastModified: e.lastModified ? new Date(`${e.lastModified}T00:00:00Z`) : now,
     changeFrequency: e.changeFrequency,
