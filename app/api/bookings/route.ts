@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import {
+  availabilityService,
   bookingEnabled,
   checkoutService,
   customerDirectory,
@@ -6,8 +8,10 @@ import {
   db,
   notificationService,
   paymentService,
+  rateLimiter,
   transferRepository,
 } from "@/src/composition";
+import { clientIpFromHeaders } from "@/lib/request-ip";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
 import { TERMS_VERSION } from "@/lib/site";
@@ -22,6 +26,32 @@ import { rangeFor } from "@/src/domain/scheduling/time";
 const STUDIO_TZ = "America/Santiago";
 
 export const dynamic = "force-dynamic";
+
+// Antiabuso (auditoría 2026-10-12): cada POST toma un cupo sin cobrar nada (10 min; por
+// transferencia 2 h, y 48 h tras "Ya transferí"). Sin tope, un script mantenía tomada la
+// agenda entera. Holgado para un cliente real que reintenta (slot_taken, amount_changed).
+const RATE_SALT = "fotf-bookings-v1";
+const BOOKING_RATE = { max: 10, windowS: 600 };
+const TRANSFER_RATE = { max: 3, windowS: 3600 };
+/** Cupos por transferencia sin pagar que un mismo celular puede tener a la vez. */
+const MAX_OPEN_TRANSFER_HOLDS = 2;
+
+/** ¿Pasa el limitador? Fail-open: un problema del limitador no puede tumbar una reserva real. */
+async function withinRate(
+  client: ReturnType<typeof db>,
+  req: Request,
+  scope: string,
+  rate: { max: number; windowS: number },
+): Promise<boolean> {
+  try {
+    const ip = clientIpFromHeaders(req.headers) ?? "unknown";
+    const key = `${scope}:` + createHash("sha256").update(RATE_SALT + ip).digest("hex");
+    return await rateLimiter(client).hit(key, rate.max, rate.windowS);
+  } catch (e) {
+    console.error("[bookings:ratelimit]", e);
+    return true;
+  }
+}
 
 /**
  * POST /api/bookings → crea pedido + hold (atómico) y genera el pago de Mercado
@@ -68,6 +98,7 @@ export async function POST(req: Request): Promise<Response> {
   if (
     !b.resourceId ||
     !b.date ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(b.date) ||
     typeof b.startMinute !== "number" ||
     typeof b.durationHours !== "number" ||
     typeof b.customer?.email !== "string" ||
@@ -96,12 +127,29 @@ export async function POST(req: Request): Promise<Response> {
     const client = db();
     const transfer = b.paymentMethod === "transferencia";
 
-    // Transferencia: se valida ANTES de tomar el hold (interruptor + anticipación), así un
-    // rechazo no deja un cupo tomado 10 min. request_transfer re-valida en la DB.
+    if (!(await withinRate(client, req, "booking", BOOKING_RATE))) {
+      return Response.json({ error: "rate_limited" }, { status: 429 });
+    }
+
+    // Solo los inicios que ofrece /reservar: horario de apertura, en la hora, anticipación y
+    // horizonte. El motor de tarifas no lo cubre (sus franjas incluyen horas de sala cerrada).
+    const slot = await availabilityService(client).checkOnlineSlot(b.resourceId, b.date, b.startMinute, b.durationHours);
+    if (!slot.ok) {
+      return Response.json({ error: slot.error }, { status: slot.error === "slot_taken" ? 409 : 400 });
+    }
+
+    // Transferencia: se valida ANTES de tomar el hold (interruptor + anticipación + topes), así
+    // un rechazo no deja un cupo tomado 10 min. request_transfer re-valida en la DB.
     if (transfer) {
       const { startsAt } = rangeFor(b.date, b.startMinute, b.durationHours, STUDIO_TZ);
       if (!(await transferRepository(client).isEnabled()) || !transferOffered(startsAt, Date.now())) {
         return Response.json({ error: "transfer_unavailable" }, { status: 409 });
+      }
+      if (!(await withinRate(client, req, "booking-transfer", TRANSFER_RATE))) {
+        return Response.json({ error: "rate_limited" }, { status: 429 });
+      }
+      if ((await transferRepository(client).openHoldsForPhone(phone)) >= MAX_OPEN_TRANSFER_HOLDS) {
+        return Response.json({ error: "transfer_limit" }, { status: 409 });
       }
     }
 
