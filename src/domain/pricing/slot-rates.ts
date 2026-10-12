@@ -3,7 +3,7 @@
  * `rateForSlot` del motor: la grilla muestra exactamente lo que se cobraría.
  */
 import { rateForSlot } from "./engine";
-import { checkoutTierLabel } from "./tier-labels";
+import { tierLabel } from "./tier-labels";
 import type { RateTier } from "./types";
 
 export interface HourRate {
@@ -34,6 +34,6 @@ export function peakLegend(tiers: RateTier[], weekday: number, openMinute: numbe
   const rates = hourlyRates(tiers, weekday, openMinute, closeMinute);
   const firstPeak = rates.find((r) => r.peak);
   if (!firstPeak) return null;
-  const name = checkoutTierLabel(firstPeak.tierKey!);
+  const name = tierLabel(firstPeak.tierKey!);
   return rates.every((r) => r.peak) ? `${name} · todo el día` : `${name} desde ${hhmm(firstPeak.minute)}`;
 }
