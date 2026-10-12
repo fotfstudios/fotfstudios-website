@@ -1078,6 +1078,9 @@ isOneToOne: false
 "declare_transfer":
 { Args: { "p_grace"?: string,"p_order": string }; Returns: string
                            },
+"email_promo_key":
+{ Args: { "p_email": string }; Returns: string
+                           },
 "ensure_customer":
 { Args: { "p_email": string,"p_name": string,"p_phone": string }; Returns: string
                            },
