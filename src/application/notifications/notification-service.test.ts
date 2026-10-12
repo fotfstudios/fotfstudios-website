@@ -715,7 +715,10 @@ describe("estados que antes eran silencio (H6)", () => {
     expect(await service.notifyHoldExpired("o1")).toBe(true);
     const msg = mailer.send.mock.calls[0][0];
     expect(msg.to).toBe("ana@e.cl");
-    expect(msg.html).toContain("14:00–16:00 h");
+    // La ficha parte el horario (Fecha / Hora); el asunto lleva el horario completo.
+    expect(msg.subject).toContain("14:00–16:00 h");
+    expect(msg.html).toContain("12 de julio de 2999");
+    expect(msg.html).toContain("14:00–16:00");
     expect(msg.html).toContain("https://www.fotfstudios.cl/reservar");
   });
 

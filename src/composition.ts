@@ -299,6 +299,7 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     address: SITE.address,
     mapsUrl: SITE.mapsUrl,
     whatsappUrl: `https://wa.me/${SITE.whatsapp}`,
+    instagramUrl: SITE.instagramUrl,
     termsUrl: `${SITE_URL}/terminos`,
     privacyUrl: `${SITE_URL}/privacidad`,
     reviewUrl: GOOGLE_REVIEW_URL,

@@ -4,23 +4,95 @@ import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course"
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { formatPoints, fmtBeatcoins } from "@/src/domain/points/points";
-import { EMAIL as T } from "./email-tokens";
+import {
+  a,
+  amountRow,
+  b,
+  callout,
+  codeBox,
+  copyBlock,
+  cta,
+  dsShell,
+  esc,
+  eyebrow,
+  fine,
+  type FooterCtx,
+  gap,
+  ghosts,
+  mono,
+  p,
+  quiet,
+  receipt,
+  steps,
+  ticket,
+  type TicketRow,
+  toned,
+} from "./ds-email";
+import { EMAIL as T, EMAIL_DS as D } from "./email-tokens";
+import type { SessionParts } from "./format-when";
 
 export interface BookingView {
   name: string | null;
   when: string;
   total: string;
   lines: { description: string; amount: string }[];
+  /** El mismo horario partido para la ficha (Fecha / Hora). Sin él, una fila "Cuándo". */
+  parts?: SessionParts;
 }
 
-/** Escapa texto para incrustar en HTML (datos del cliente/catálogo). */
-const esc = (s: string | null | undefined): string =>
-  String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+// ── Piezas compartidas de los correos del flujo de reserva (design system) ──
+// Las plantillas del flujo público de reserva usan dsShell (ds-email.ts); el resto
+// sigue en `shell` hasta migrarlas. Ver CLAUDE.md → Brand guardrails.
+
+/** Links opcionales del pie: Instagram y la cuenta, cuando el servicio los conoce. */
+export interface BookingFoot {
+  instagramUrl?: string;
+  accountUrl?: string;
+}
+
+const bookingFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; whatsappUrl?: string }): FooterCtx => ({
+  address: ctx.address,
+  mapsUrl: ctx.mapsUrl,
+  whatsappUrl: ctx.whatsappUrl,
+  instagramUrl: ctx.instagramUrl,
+  accountUrl: ctx.accountUrl,
+  reason: "Recibes este correo porque reservaste en fotfstudios.cl.",
+});
+
+/** Fecha y hora de la sesión como filas de la ficha; sin `parts`, una sola fila con `when`. */
+const sessionRows = (v: { when: string; parts?: SessionParts }): TicketRow[] =>
+  v.parts
+    ? [
+        { label: "Fecha", value: esc(v.parts.date) },
+        { label: "Hora", value: `${esc(v.parts.time)}${v.parts.duration ? ` ${quiet(`· ${esc(v.parts.duration)}`)}` : ""}` },
+      ]
+    : [{ label: "Cuándo", value: esc(v.when) }];
+
+/** La dirección como link PROPIO a Maps (Gmail auto-enlaza el texto plano en su azul). */
+const placeRow = (ctx: { address: string; mapsUrl: string }): TicketRow => ({
+  label: "Lugar",
+  value: a(esc(ctx.address), ctx.mapsUrl, D.text),
+});
+
+/** Email del cliente en los avisos al dueño: un mailto, o "sin email". */
+const contact = (email: string | null): string => (email ? a(esc(email), `mailto:${email}`, D.text) : "sin email");
+
+/** Actividad de la cuenta de Mercado Pago: desde ahí se devuelve un pago. */
+const MP_ACTIVITIES = "https://www.mercadopago.cl/activities";
+
+/** Los cuatro correos de código de Supabase Auth comparten forma: código grande + aviso. */
+const authShell = (o: { preheader: string; title: string; lead: string; token: string; action?: [string, string]; note: string }): string =>
+  dsShell({
+    preheader: o.preheader,
+    status: ["Verificación", "neutral"],
+    eyebrow: "Tu cuenta",
+    title: o.title,
+    body: `${p(o.lead, "0 0 28px")}
+${codeBox("Código de verificación", esc(o.token), { size: 40 })}
+${o.action ? `${gap(24)}${cta(o.action[0], o.action[1])}` : ""}
+${gap(28)}${callout("No es tu PIN de la sala", o.note, "neutral")}`,
+    footer: { reason: "Recibes este correo porque pediste un código en fotfstudios.cl." },
+  });
 
 /** "Hola Ana, tu sesión…" o, sin nombre, "Tu sesión…" (la mayúscula la ponía el saludo). */
 const hola = (name: string | null | undefined, rest: string): string =>
@@ -30,16 +102,9 @@ const hola = (name: string | null | undefined, rest: string): string =>
 const place = (ctx: { address: string; mapsUrl: string }): string =>
   `<a href="${esc(ctx.mapsUrl)}" style="color:${T.gold};text-decoration:underline">${esc(ctx.address)}</a>`;
 
-const rows = (lines: { description: string; amount: string }[]) =>
-  lines
-    .map(
-      (l) =>
-        `<tr><td style="padding:4px 0;color:${T.boneDim}">${esc(l.description)}</td><td style="padding:4px 0;text-align:right;color:${T.bone}">${esc(l.amount)}</td></tr>`,
-    )
-    .join("");
-
 /**
- * Envoltorio de todos los correos. Documento completo, no un <div> suelto:
+ * Envoltorio clásico (Arial / Gold), el de los correos que todavía no pasan al design
+ * system de reservas (`dsShell` en ds-email.ts). Documento completo, no un <div> suelto:
  * - `lang="es"` + `color-scheme: dark` declarados: Gmail/Outlook con dark mode no
  *   invierten un correo que ya es oscuro (Gold sobre Ink seguía siendo el diseño).
  * - Tabla contenedora con `bgcolor`: Outlook de escritorio ignora `max-width` y el
@@ -76,7 +141,7 @@ ${inner}
 /** Email al cliente: confirmación de reserva + cómo llega el acceso (PIN por email 10 min antes). */
 export function customerConfirmation(
   v: BookingView,
-  ctx: {
+  ctx: BookingFoot & {
     address: string;
     mapsUrl: string;
     whatsappUrl: string;
@@ -84,20 +149,28 @@ export function customerConfirmation(
     links: { statusUrl: string; calendarUrl: string; accountUrl: string };
   },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">¡Reserva confirmada!</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión quedó reservada.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <table style="width:100%;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};margin:8px 0">${rows(v.lines)}</table>
-     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:${T.boneQuiet};font-size:12px">IVA incluido</span></p>
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus Beatcoins y tus próximas sesiones, en <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold}">tu cuenta</a>.</p>`,
-    `${v.when} · ${ctx.address}`,
-  );
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (Beatcoins y próximas sesiones): ${ctx.links.accountUrl}`;
+  const html = dsShell({
+    preheader: `${v.when} · ${ctx.address} · tu código llega 10 min antes`,
+    status: ["Confirmada", "ok"],
+    eyebrow: "Tu reserva",
+    title: "¡Reserva confirmada!",
+    body: `${p(hola(v.name, "tu sesión quedó reservada."), "0 0 28px")}
+${ticket([...sessionRows(v), placeRow(ctx)])}
+${gap(12)}${receipt(v.lines.map((l) => ({ description: esc(l.description), amount: esc(l.amount) })), esc(v.total))}
+${gap(32)}${steps("Qué sigue", [
+      ["Agrégala a tu calendario", "Va adjunta como evento (.ics) en este correo."],
+      [
+        "Tu código de acceso te llega por email 10 minutos antes",
+        "Y por WhatsApp si lo activaste. Revisa spam; si no lo ves, escríbenos por WhatsApp.",
+      ],
+      ["Llegas, conectas tu música y a darle", "Trae tus audífonos y tu USB."],
+    ])}
+${gap(12)}${cta("Agregar a mi calendario", ctx.links.calendarUrl)}
+${ghosts([["Ver mi reserva", ctx.links.statusUrl], ["WhatsApp", ctx.whatsappUrl]])}
+${fine(`Tus Beatcoins y tus próximas sesiones, en ${a("tu cuenta", ctx.links.accountUrl, D.text2)}.`)}`,
+    footer: bookingFooter({ ...ctx, accountUrl: ctx.links.accountUrl }),
+  });
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Trae tus audífonos y tu USB. Agregar a mi calendario: ${ctx.links.calendarUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (Beatcoins y próximas sesiones): ${ctx.links.accountUrl}`;
   return { template: "customerConfirmation", subject: `Reserva confirmada · ${v.when}`, html, text };
 }
 
@@ -146,19 +219,30 @@ export function customerCourtesyConfirmation(
  * cada vez que el staff guarda el acceso — un código corregido también viaja.
  */
 export function customerAccessCode(
-  v: { name: string | null; when: string; code: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string },
+  v: { name: string | null; when: string; code: string; parts?: SessionParts },
+  ctx: BookingFoot & { address: string; mapsUrl: string; whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu acceso a la sala</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "aquí")} tienes el acceso para tu sesión del <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="background:${T.inkLine};color:${T.gold};font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:.08em;padding:14px 18px;margin:0 0 16px">${esc(v.code)}</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Llegas, conectas tu música y a darle.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Tu PIN para el ${v.when}`,
-  );
-  const text = `Tu acceso para el ${v.when}: ${v.code}. ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
+  // El "código" es texto libre del staff: un PIN corto va en grande; instrucciones
+  // largas, en un tamaño que se lea sin cortar.
+  const short = v.code.trim().length <= 12;
+  const html = dsShell({
+    preheader: `Tu PIN para el ${v.when}`,
+    status: ["Acceso activo", "accent"],
+    eyebrow: esc(v.parts ? `${v.parts.date} · ${v.parts.time}` : v.when),
+    title: "Tu acceso a la sala",
+    body: `${p(hola(v.name, "aquí tienes el acceso para tu sesión."), "0 0 28px")}
+${codeBox("Código de acceso", esc(v.code), {
+      size: short ? 52 : 20,
+      labelColor: D.orange,
+      note: short ? "Marca el código en la cerradura de la puerta." : undefined,
+    })}
+${gap(12)}${ticket([placeRow(ctx), ...sessionRows(v).filter((r) => r.label !== "Fecha")])}
+${gap(24)}${p("Llegas, conectas tu música y a darle.", "0 0 24px")}
+${cta("Cómo llegar", ctx.mapsUrl)}
+${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
+    footer: bookingFooter(ctx),
+  });
+  const text = `Tu acceso para el ${v.when}: ${v.code}. ${ctx.address}. Cómo llegar: ${ctx.mapsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerAccessCode", subject: `Tu código de acceso · ${v.when}`, html, text };
 }
 
@@ -169,19 +253,29 @@ export function customerAccessCode(
  * min antes) porque este es el correo que el cliente relee camino a la sala.
  */
 export function customerReminder(
-  v: { name: string | null; when: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; statusUrl: string },
+  v: { name: string | null; when: string; parts?: SessionParts },
+  ctx: BookingFoot & { address: string; mapsUrl: string; whatsappUrl: string; statusUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu sesión se acerca</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> (revisa spam). Entras solo, sin esperar a nadie. Trae tu música en USB.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Algo cambió? Escríbenos por WhatsApp</a>`,
-    `${v.when} · ${ctx.address}`,
-  );
-  const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes (revisa spam). Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
+  const html = dsShell({
+    preheader: `${v.when} · ${ctx.address} · tu código llega por email 10 min antes`,
+    status: ["Confirmada", "ok"],
+    eyebrow: "Recordatorio",
+    title: "Tu sesión se acerca",
+    body: `${p(hola(v.name, `te esperamos el ${b(esc(v.when))}.`), "0 0 28px")}
+${ticket([...sessionRows(v), placeRow(ctx)])}
+${gap(12)}${callout(
+      "Acceso",
+      `Tu código de acceso te llega ${b("por email (y por WhatsApp si lo activaste) 10 minutos antes")}. Revisa spam. Entras solo, sin esperar a nadie.`,
+    )}
+${gap(28)}${steps("Lo que traes tú", [
+      ["Audífonos", "Traes los tuyos."],
+      ["Tu música en USB", null],
+    ])}
+${gap(4)}${cta("Cómo llegar", ctx.mapsUrl)}
+${ghosts([["Ver mi reserva", ctx.statusUrl], ["¿Algo cambió?", ctx.whatsappUrl]])}`,
+    footer: bookingFooter(ctx),
+  });
+  const text = `Tu sesión se acerca: ${v.when}. ${ctx.address}. Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes (revisa spam). Trae tus audífonos y tu música en USB. Ver mi reserva: ${ctx.statusUrl}. ¿Algo cambió? ${ctx.whatsappUrl}`;
   return { template: "customerReminder", subject: `Tu sesión se acerca · ${v.when}`, html, text };
 }
 
@@ -320,25 +414,31 @@ export function practiceReleased(
 /** Confirmación de una prueba pagada. */
 export function trialConfirmation(
   v: BookingView & { creditDays: number },
-  ctx: {
+  ctx: BookingFoot & {
     address: string;
     mapsUrl: string;
     whatsappUrl: string;
     links: { statusUrl: string; calendarUrl: string; accountUrl: string };
   },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ está confirmada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos para tu sesión de prueba de 1 hora.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong> <span style="color:${T.boneQuiet};font-size:12px">IVA incluido</span></p>
-     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Si después te inscribes en el curso, <strong style="color:${T.bone}">te descontamos los ${v.total}</strong>: el descuento vale ${v.creditDays} días desde la prueba.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.links.statusUrl)}" style="color:${T.gold};font-weight:bold">Ver mi reserva</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `${v.when} · ${ctx.address}`,
-  );
+  const html = dsShell({
+    preheader: `${v.when} · ${ctx.address} · sesión guiada de 1 hora`,
+    status: ["Confirmada", "ok"],
+    eyebrow: "Curso de DJ · prueba",
+    title: "Tu prueba está confirmada",
+    body: `${p(hola(v.name, "te esperamos para tu sesión de prueba de 1 hora."), "0 0 28px")}
+${ticket([...sessionRows(v), placeRow(ctx)])}
+${gap(12)}${receipt(v.lines.map((l) => ({ description: esc(l.description), amount: esc(l.amount) })), esc(v.total))}
+${gap(12)}${callout("Si te inscribes", `Si después te inscribes en el curso, ${b(`te descontamos los ${esc(v.total)}`)}: el descuento vale ${v.creditDays} días desde la prueba.`, "pending")}
+${gap(32)}${steps("Qué sigue", [
+      ["Agrégala a tu calendario", "Va adjunta como evento (.ics) en este correo."],
+      ["Te recibimos en la puerta", GUIADA],
+      ["Trae tus audífonos", "Y, si tienes, un USB con tu música."],
+    ])}
+${gap(12)}${cta("Agregar a mi calendario", ctx.links.calendarUrl)}
+${ghosts([["Ver mi reserva", ctx.links.statusUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: bookingFooter({ ...ctx, accountUrl: ctx.links.accountUrl }),
+  });
   const text = `Tu prueba del Curso de DJ está confirmada: ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. Si te inscribes en el curso te descontamos los ${v.total} (vale ${v.creditDays} días desde la prueba). Ver mi reserva: ${ctx.links.statusUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "trialConfirmation", subject: `Prueba del Curso de DJ confirmada · ${v.when}`, html, text };
 }
@@ -424,15 +524,23 @@ export function ownerDuplicatePayment(
   v: { when: string; email: string | null; paymentId: string; amount: string; storedMethod: string | null },
 ): EmailContent {
   const already = v.storedMethod ? ` por ${esc(v.storedMethod)}` : "";
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px;color:${T.sirena}">Pago duplicado — devolver</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">Llegó un pago de Mercado Pago para una reserva que <strong style="color:${T.bone}">ya estaba pagada${already}</strong>. No se registró: hay que <strong style="color:${T.bone}">devolverlo desde el panel de Mercado Pago</strong>.</p>
-     <p style="margin:0 0 4px">Reserva: <strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Pago a devolver: #${esc(v.paymentId)} · ${esc(v.amount)}</p>`,
-  );
-  const text = `PAGO DUPLICADO — devolver. Reserva ${v.when}, ya pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}. Cliente ${v.email ?? "?"}. Pago MP #${v.paymentId}, ${v.amount}. Devolverlo desde el panel de Mercado Pago.`;
-  return { template: "ownerDuplicatePayment", subject: `⚠️ Pago duplicado — devolver desde Mercado Pago · ${v.when}`, html, text };
+  const html = dsShell({
+    preheader: `La reserva ya estaba pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}.`,
+    status: ["Devolver", "danger"],
+    eyebrow: "Para el estudio",
+    title: "Pago duplicado — devolver",
+    body: `${p(`Llegó un pago de Mercado Pago para una reserva que ${b(`ya estaba pagada${already}`)}. No se registró: hay que ${b("devolverlo desde el panel de Mercado Pago")}.`, "0 0 24px")}
+${ticket([
+      { label: "Devolver", value: toned(esc(v.amount), "danger", true), accent: "danger" },
+      { label: "Pago MP", value: `#${esc(v.paymentId)}` },
+      { label: "Reserva", value: esc(v.when) },
+      { label: "Cliente", value: contact(v.email) },
+    ])}
+${gap(28)}${cta("Devolver en Mercado Pago", MP_ACTIVITIES)}`,
+    footer: "owner",
+  });
+  const text = `PAGO DUPLICADO — devolver. Reserva ${v.when}, ya pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}. Cliente ${v.email ?? "?"}. Pago MP #${v.paymentId}, ${v.amount}. Devolverlo desde el panel de Mercado Pago: ${MP_ACTIVITIES}`;
+  return { template: "ownerDuplicatePayment", subject: `Acción requerida · Pago duplicado · devolver ${v.amount} · ${v.when}`, html, text };
 }
 
 /**
@@ -470,17 +578,27 @@ export function courseSessionReminder(
  */
 export function customerPaymentNoSlot(
   v: { name: string | null; when: string; total: string },
-  ctx: { whatsappUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu pago</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "recibimos")} tu pago de <strong style="color:${T.bone}">${esc(v.total)}</strong> para el <strong style="color:${T.bone}">${esc(v.when)}</strong>, pero ese horario ya no estaba disponible cuando llegó el pago.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Te escribimos por WhatsApp en breve para darte otro horario o devolverte el pago completo. Si prefieres, adelántate:</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `${v.total} · ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `${v.total} · el horario ya no estaba disponible. Otro horario o devolución completa.`,
+    status: ["En revisión", "pending"],
+    eyebrow: "Pago recibido",
+    title: "Recibimos tu pago",
+    body: `${p(hola(v.name, `recibimos tu pago de ${b(mono(esc(v.total)))}, pero ese horario ya no estaba disponible cuando llegó el pago.`), "0 0 28px")}
+${ticket([
+      { label: "Pedido", value: esc(v.when), strike: true },
+      { label: "Pagado", value: esc(v.total) },
+    ])}
+${gap(28)}${steps("Qué pasa ahora", [
+      ["Te escribimos por WhatsApp en breve", null],
+      ["Eliges otro horario o te devolvemos el pago completo", null],
+    ])}
+${gap(4)}${cta("Adelantarme por WhatsApp", ctx.whatsappUrl)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `Recibimos tu pago de ${v.total} para el ${v.when}, pero ese horario ya no estaba disponible cuando llegó el pago. Te escribimos por WhatsApp en breve para darte otro horario o devolverte el pago completo: ${ctx.whatsappUrl}`;
-  return { template: "customerPaymentNoSlot", subject: `Recibimos tu pago · ${v.when} — te escribimos por WhatsApp`, html, text };
+  return { template: "customerPaymentNoSlot", subject: `Recibimos tu pago · ${v.when} · te escribimos por WhatsApp`, html, text };
 }
 
 /**
@@ -488,16 +606,21 @@ export function customerPaymentNoSlot(
  * se liberó. Antes recibía "Tu hora está tomada — falta el pago" y después silencio.
  */
 export function customerHoldExpired(
-  v: { name: string | null; when: string },
-  ctx: { whatsappUrl: string; bookUrl: string },
+  v: { name: string | null; when: string; parts?: SessionParts },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Se liberó tu hora</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "no")} recibimos el pago de tu reserva del <strong style="color:${T.bone}">${esc(v.when)}</strong>, así que el horario volvió a quedar disponible para todos.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Si aún quieres la sesión, <a href="${esc(ctx.bookUrl)}" style="color:${T.gold};font-weight:bold">reserva de nuevo</a> o escríbenos y te ayudamos.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Sesión del ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: "No recibimos el pago y el horario volvió a quedar disponible.",
+    status: ["Anulada", "neutral"],
+    eyebrow: "Reserva sin pago",
+    title: "Se liberó tu hora",
+    body: `${p(hola(v.name, "no recibimos el pago de tu reserva, así que el horario volvió a quedar disponible para todos."), "0 0 28px")}
+${ticket(sessionRows(v).map((r) => ({ ...r, strike: true })))}
+${gap(28)}${p("Si aún quieres la sesión, reserva de nuevo o escríbenos y te ayudamos.", "0 0 24px")}
+${cta("Reservar de nuevo", ctx.bookUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `No recibimos el pago de tu reserva del ${v.when}, así que el horario volvió a quedar disponible. Si aún quieres la sesión, reserva de nuevo: ${ctx.bookUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerHoldExpired", subject: `Se liberó tu hora · ${v.when}`, html, text };
 }
@@ -518,57 +641,75 @@ export function customerCourtesyCancelled(
 
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
-  v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null },
-  ctx: { whatsappUrl: string },
+  v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null; parts?: SessionParts },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl?: string },
 ): EmailContent {
   // Orden pagada 100% con puntos: no hubo cobro, se reponen puntos (nada de "tarjeta").
   const pts = v.restoredPoints && v.restoredPoints > 0 ? fmtBeatcoins(v.restoredPoints) : null;
-  const refundLine = pts
-    ? `<p style="color:${T.boneDim};margin:0 0 16px">Te repusimos <strong style="color:${T.bone}">${pts}</strong> en tu cuenta.</p>`
+  const money: TicketRow[] = pts
+    ? [{ label: "Repuestos", value: esc(pts), accent: "ok" }]
     : v.refunded
-      ? `<p style="color:${T.boneDim};margin:0 0 16px">Te reembolsamos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
-      : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Reserva cancelada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión del <strong style="color:${T.bone}">${esc(v.when)}</strong> fue cancelada.</p>
-     ${refundLine}
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Sesión del ${v.when}`,
-  );
+      ? [{ label: "Reembolso", value: esc(v.refunded), accent: "ok" }]
+      : [];
+  const refundLine = pts
+    ? p(`Te repusimos ${b(esc(pts))} en tu cuenta.`, "0 0 28px")
+    : v.refunded
+      ? p("Te reembolsamos al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.", "0 0 28px")
+      : gap(28);
+  const html = dsShell({
+    preheader: pts ? `Te repusimos ${pts}.` : v.refunded ? `Te reembolsamos ${v.refunded} al medio de pago original.` : `Sesión del ${v.when}`,
+    status: ["Cancelada", "neutral"],
+    eyebrow: "Tu reserva",
+    title: "Reserva cancelada",
+    body: `${p(hola(v.name, "tu sesión fue cancelada."), "0 0 28px")}
+${ticket([...sessionRows(v).map((r) => ({ ...r, strike: true })), ...money])}
+${gap(12)}${refundLine}
+${ctx.bookUrl ? `${cta("Reservar otra hora", ctx.bookUrl)}\n${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}` : cta("¿Dudas? Escríbenos por WhatsApp", ctx.whatsappUrl)}`,
+    footer: bookingFooter(ctx),
+  });
   const textLine = pts
     ? ` Te repusimos ${pts} en tu cuenta.`
     : v.refunded
       ? ` Te reembolsamos ${v.refunded} al medio de pago original.`
       : "";
-  const text = `Tu reserva del ${v.when} fue cancelada.${textLine} ¿Dudas? ${ctx.whatsappUrl}`;
+  const text = `Tu reserva del ${v.when} fue cancelada.${textLine}${ctx.bookUrl ? ` Reservar otra hora: ${ctx.bookUrl}.` : ""} ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerCancellation", subject: `Reserva cancelada · ${v.when}`, html, text };
 }
 
 export function customerReschedule(
-  v: { name: string | null; when: string; refunded: string | null; refundedOffline: boolean },
-  ctx: { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
+  v: { name: string | null; when: string; refunded: string | null; refundedOffline: boolean; oldWhen?: string | null; parts?: SessionParts },
+  ctx: BookingFoot & { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
 ): EmailContent {
   const refundLine = v.refunded
     ? v.refundedOffline
-      ? `<p style="color:${T.boneDim};margin:0 0 16px">Como el nuevo horario cuesta menos, coordinamos contigo la devolución de <strong style="color:${T.bone}">${esc(v.refunded)}</strong> (pagaste en efectivo/transferencia).</p>`
-      : `<p style="color:${T.boneDim};margin:0 0 16px">Como el nuevo horario cuesta menos, te reembolsamos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.</p>`
-    : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Reserva reagendada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión quedó reagendada para el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     ${refundLine}
-     <p style="color:${T.boneDim};margin:0 0 20px">Te esperamos en ${place(ctx)}.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.calendarUrl)}" style="color:${T.gold};font-weight:bold">Actualizar en mi calendario</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Nuevo horario: ${v.when}`,
-  );
+      ? p(`Como el nuevo horario cuesta menos, coordinamos contigo la devolución de ${b(esc(v.refunded))} (pagaste en efectivo/transferencia).`, "0 0 28px")
+      : p(`Como el nuevo horario cuesta menos, te reembolsamos ${b(esc(v.refunded))} al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.`, "0 0 28px")
+    : gap(16);
+  const now = v.parts ? `${v.parts.date} · ${v.parts.time}` : v.when;
+  const html = dsShell({
+    preheader: `Nuevo horario: ${v.when}`,
+    status: ["Reagendada", "ok"],
+    eyebrow: "Cambio de horario",
+    title: "Reserva reagendada",
+    body: `${p(hola(v.name, "tu sesión quedó reagendada."), "0 0 28px")}
+${ticket([
+      ...(v.oldWhen ? [{ label: "Antes", value: esc(v.oldWhen), strike: true }] : []),
+      { label: "Ahora", value: esc(now), accent: "ok" as const },
+      placeRow(ctx),
+    ])}
+${gap(12)}${callout("Acceso", "Tu código de acceso te llega por email 10 minutos antes del nuevo horario.")}
+${gap(12)}${refundLine}
+${cta("Actualizar en mi calendario", ctx.calendarUrl)}
+${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
+    footer: bookingFooter(ctx),
+  });
   const refundTextLine = v.refunded
     ? v.refundedOffline
       ? ` Coordinamos contigo la devolución de ${v.refunded} (pagaste en efectivo/transferencia).`
       : ` Te reembolsamos ${v.refunded} al medio de pago original.`
     : "";
-  const text = `Tu reserva quedó reagendada para el ${v.when}.${refundTextLine} Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerReschedule", subject: `Reserva reagendada · ${v.when}`, html, text };
+  const text = `Tu reserva quedó reagendada para el ${v.when}.${refundTextLine} Tu código de acceso te llega por email 10 minutos antes del nuevo horario. Te esperamos en ${ctx.address}. Actualizar en mi calendario: ${ctx.calendarUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  return { template: "customerReschedule", subject: `Reserva reagendada · ahora ${v.when}`, html, text };
 }
 
 /** Email al cliente: su sesión de CORTESÍA cambió de horario. Sin dinero de por medio (sin línea de reembolso). */
@@ -601,24 +742,35 @@ export function customerCourtesyRescheduled(
  */
 export function customerRescheduleFailed(
   v: { name: string | null; when: string; refunded: string; kept: boolean },
-  ctx: { whatsappUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string },
 ): EmailContent {
+  const devuelto: TicketRow = { label: "Devuelto", value: `${esc(v.refunded)} ${quiet("· medio de pago original")}` };
   if (!v.kept) {
-    const html = shell(
-      `<h1 style="font-size:24px;margin:0 0 8px">Devolvimos el cobro del cambio de horario</h1>
-       <p style="color:${T.boneDim};margin:0 0 16px">Tu reserva ya estaba cancelada cuando llegó el pago del cambio de horario, así que te devolvimos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago original (si pagaste con tarjeta, el abono puede tardar unos días).</p>
-       <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos si tienes dudas</a>`,
-      `Te devolvimos ${v.refunded}`,
-    );
+    const html = dsShell({
+      preheader: `Te devolvimos ${v.refunded}.`,
+      status: ["Devuelto", "neutral"],
+      eyebrow: "Cambio de horario",
+      title: "Devolvimos el cobro del cambio de horario",
+      body: `${p(`Tu reserva ya estaba cancelada cuando llegó el pago del cambio de horario, así que te devolvimos ${b(esc(v.refunded))} al medio de pago original.`, "0 0 28px")}
+${ticket([devuelto])}
+${gap(28)}${cta("Escríbenos si tienes dudas", ctx.whatsappUrl)}
+${fine("Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.")}`,
+      footer: bookingFooter(ctx),
+    });
     const text = `Tu reserva ya estaba cancelada cuando llegó el pago del cambio de horario, así que te devolvimos ${v.refunded} al medio de pago original (si pagaste con tarjeta, el abono puede tardar unos días). Escríbenos: ${ctx.whatsappUrl}`;
     return { template: "customerRescheduleFailed", subject: `Te devolvimos ${v.refunded} · cambio de horario`, html, text };
   }
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">No pudimos cambiar tu horario</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "el")} horario que pediste ya estaba tomado cuando se procesó el pago. Mantuvimos tu reserva original del <strong style="color:${T.bone}">${esc(v.when)}</strong> y te devolvimos <strong style="color:${T.bone}">${esc(v.refunded)}</strong> al medio de pago.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos para elegir otro horario</a>`,
-    `Se mantiene tu reserva del ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `Te devolvimos ${v.refunded}. Tu reserva original sigue en pie.`,
+    status: ["Sin cambios", "neutral"],
+    eyebrow: "Cambio de horario",
+    title: "No pudimos cambiar tu horario",
+    body: `${p(hola(v.name, `el horario que pediste ya estaba tomado cuando se procesó el pago. Mantuvimos tu reserva original del ${b(esc(v.when))}.`), "0 0 28px")}
+${ticket([{ label: "Se mantiene", value: esc(v.when), accent: "ok" }, devuelto])}
+${gap(28)}${cta("Escríbenos para elegir otro horario", ctx.whatsappUrl)}
+${fine("Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.")}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `No pudimos moverte de horario (ya estaba tomado). Mantuvimos tu reserva del ${v.when} y te devolvimos ${v.refunded}. Escríbenos: ${ctx.whatsappUrl}`;
   return { template: "customerRescheduleFailed", subject: `No pudimos cambiar tu horario · se mantiene ${v.when}`, html, text };
 }
@@ -630,18 +782,27 @@ export function customerRescheduleFailed(
  */
 export function customerReschedulePaymentLink(
   v: { name: string | null; oldWhen: string; newWhen: string; amount: string; initPoint: string; expiresInHours: number },
-  ctx: { whatsappUrl: string; termsUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; termsUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Confirma tu nuevo horario</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "pediste")} mover tu sesión del <strong style="color:${T.bone}">${esc(v.oldWhen)}</strong> al <strong style="color:${T.bone}">${esc(v.newWhen)}</strong>. El nuevo horario cuesta <strong style="color:${T.bone}">${esc(v.amount)}</strong> más.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Tu reserva se mueve sola apenas pagues la diferencia. El link vence en ${v.expiresInHours} h; mientras tanto se mantiene tu horario actual.</p>
-     <a href="${esc(v.initPoint)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Pagar la diferencia</a>
-     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Aplican los <a href="${esc(ctx.termsUrl)}" style="color:${T.bone}">términos de reagendamiento</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
-    `Nuevo horario: ${v.newWhen} · falta pagar ${v.amount}`,
-  );
+  const html = dsShell({
+    preheader: `El link vence en ${v.expiresInHours} h; mientras tanto se mantiene tu horario actual.`,
+    status: ["Falta pagar", "pending"],
+    eyebrow: "Cambio de horario",
+    title: "Confirma tu nuevo horario",
+    body: `${p(hola(v.name, `pediste mover tu sesión. El nuevo horario cuesta ${b(mono(esc(v.amount)))} más.`), "0 0 28px")}
+${ticket([
+      { label: "Actual", value: esc(v.oldWhen) },
+      { label: "Nuevo", value: esc(v.newWhen), accent: "pending" },
+      { label: "Diferencia", value: esc(v.amount) },
+      { label: "Vence en", value: toned(`${v.expiresInHours} h`, "pending") },
+    ])}
+${gap(12)}${p("Tu reserva se mueve sola apenas pagues la diferencia. Mientras tanto se mantiene tu horario actual.", "0 0 28px")}
+${cta(`Pagar la diferencia · ${esc(v.amount)}`, v.initPoint)}
+${fine(`Aplican los ${a("términos de reagendamiento", ctx.termsUrl, D.text2)}. ¿Dudas? ${a("WhatsApp", ctx.whatsappUrl, D.text2)}.`)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `Pediste mover tu sesión del ${v.oldWhen} al ${v.newWhen}. Cuesta ${v.amount} más; paga aquí y la reserva se mueve sola: ${v.initPoint} (vence en ${v.expiresInHours} h). Mientras tanto se mantiene tu horario actual. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "customerReschedulePaymentLink", subject: `Confirma tu nuevo horario · ${v.newWhen}`, html, text };
+  return { template: "customerReschedulePaymentLink", subject: `Confirma tu nuevo horario · ${v.newWhen} · falta pagar ${v.amount}`, html, text };
 }
 
 /**
@@ -777,17 +938,29 @@ export function beatcoinsExpired(
  * Sirena (${T.sirena}) es legítima aquí: es urgencia real, no decoración.
  */
 export function ownerNeedsReview(
-  v: { when: string; total: string; email: string | null; paymentId: string },
+  v: { when: string; total: string; email: string | null; paymentId: string; adminUrl?: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px;color:${T.sirena}">Pago sin reserva — revisar</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que <strong style="color:${T.bone}">devolver o reasignar</strong>.</p>
-     <p style="margin:0 0 4px">Horario solicitado: <strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 4px">Cliente: ${esc(v.email ?? "sin email")}</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Pago: ${esc(v.paymentId)} · Total ${esc(v.total)}</p>`,
-  );
-  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.`;
-  return { template: "ownerNeedsReview", subject: "⚠️ Pago sin reserva — acción requerida", html, text };
+  const html = dsShell({
+    preheader: "El hold venció antes del pago. Devolver o reasignar.",
+    status: ["Acción requerida", "danger"],
+    eyebrow: "Para el estudio",
+    title: "Pago sin reserva — revisar",
+    body: `${p(`Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que ${b("devolver o reasignar")}.`, "0 0 24px")}
+${ticket([
+      { label: "Horario", value: esc(v.when) },
+      { label: "Cliente", value: contact(v.email) },
+      { label: "Pago", value: esc(v.paymentId) },
+      { label: "Total", value: esc(v.total) },
+    ])}
+${gap(28)}${steps("Por hacer", [
+      ["Escribirle al cliente por WhatsApp", v.email ? "Ya recibió un correo que se lo avisa." : null],
+      ["Reasignar otro horario o devolver el pago", null],
+    ])}
+${v.adminUrl ? `${gap(4)}${cta("Abrir la reserva", v.adminUrl)}` : ""}`,
+    footer: "owner",
+  });
+  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.${v.adminUrl ? ` ${v.adminUrl}` : ""}`;
+  return { template: "ownerNeedsReview", subject: `Acción requerida · pago sin reserva · ${v.total} · ${v.when}`, html, text };
 }
 
 /**
@@ -1060,21 +1233,26 @@ export function courseEnrollmentPending(
  * no lo va a esperar hasta la sesión.
  */
 export function bookingPaymentPending(
-  v: { name: string | null; when: string; total: string; initPoint: string; expiresInHours: number },
-  ctx: { termsUrl: string; whatsappUrl: string },
+  v: { name: string | null; when: string; total: string; initPoint: string; expiresInHours: number; parts?: SessionParts },
+  ctx: BookingFoot & { termsUrl: string; whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu hora está tomada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
-     <a href="${esc(v.initPoint)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Pagar ahora</a>
-     <p style="color:${T.boneDim};margin:20px 0 0">El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos y te mandamos otro.</p>
-     <p style="color:${T.boneDim};margin:16px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
-    `${v.when} · ${v.total} · el link vence en ${v.expiresInHours} h`,
-  );
+  const html = dsShell({
+    preheader: `${v.when} · ${v.total} · el link vence en ${v.expiresInHours} h`,
+    status: ["Pendiente de pago", "pending"],
+    eyebrow: "Falta el pago",
+    title: "Tu hora está tomada",
+    body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.`, "0 0 28px")}
+${ticket([
+      ...sessionRows(v),
+      { label: "Total", value: esc(v.total) },
+      { label: "Vence en", value: toned(`${v.expiresInHours} h`, "pending"), accent: "pending" },
+    ])}
+${gap(28)}${cta(`Pagar ahora · ${esc(v.total)}`, v.initPoint)}
+${fine(`El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos por ${a("WhatsApp", ctx.whatsappUrl, D.text2)} y te mandamos otro. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
-  return { template: "bookingPaymentPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
+  return { template: "bookingPaymentPending", subject: `Falta el pago · link para tu hora del ${v.when} · vence en ${v.expiresInHours} h`, html, text };
 }
 
 /** Datos de transferencia (lib/site.ts TRANSFER), inyectados por la config del servicio. */
@@ -1110,14 +1288,11 @@ function transferLines(t: TransferDetails): [string, string][] {
  * seleccionarlo y copiarlo sale texto limpio, línea por línea, listo para pegar.
  */
 function transferHtml(t: TransferDetails, total: string): string {
-  const block = transferLines(t)
-    .map(([k, v]) => `${k}: ${esc(v)}`)
-    .join("<br>");
-  return `<p style="margin:0 0 4px"><strong>Paga por transferencia</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 8px;font-size:13px">Copia estos datos y pégalos en tu banco para agregar el destinatario:</p>
-     <div style="background:${T.inkSoft};border:1px solid ${T.inkLine};padding:14px 16px;margin:0 0 12px;line-height:1.6">${block}</div>
-     <p style="margin:0 0 12px">Monto a transferir: <strong>${esc(total)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Envía el comprobante a <a href="mailto:${esc(t.email)}" style="color:${T.gold}">${esc(t.email)}</a> o por WhatsApp y confirmamos tu hora.</p>`;
+  const block = transferLines(t).map(([k, v]) => `${k}: ${esc(v)}`);
+  return `${eyebrow("Paga por transferencia")}
+${p("Copia estos datos y pégalos en tu banco para agregar el destinatario:", "0 0 12px")}
+${copyBlock(block)}
+${amountRow("Monto a transferir", esc(total))}`;
 }
 
 /** Versión texto: el mismo bloque, una línea por campo, para que también se pueda pegar. */
@@ -1139,22 +1314,28 @@ function transferText(t: TransferDetails, total: string): string {
  * Solo transferencia: el efectivo existe pero no se ofrece (decisión del dueño).
  */
 export function bookingHeldPending(
-  v: { name: string | null; when: string; total: string; payBy: string },
-  ctx: { termsUrl: string; whatsappUrl: string; transfer: TransferDetails },
+  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts },
+  ctx: BookingFoot & { termsUrl: string; whatsappUrl: string; transfer: TransferDetails; address?: string; mapsUrl?: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu hora está tomada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
-     <p style="margin:0 0 20px">Para confirmarla, paga antes del <strong>${esc(v.payBy)}</strong>. Si no recibimos el pago antes, la reserva se anula.</p>
-     ${transferHtml(ctx.transfer, v.total)}
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
-    `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
-  );
+  const html = dsShell({
+    preheader: `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
+    status: ["Pendiente de pago", "pending"],
+    eyebrow: "Falta el pago",
+    title: "Tu hora está tomada",
+    body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.`, "0 0 28px")}
+${ticket([
+      ...sessionRows(v),
+      ...(ctx.address && ctx.mapsUrl ? [placeRow({ address: ctx.address, mapsUrl: ctx.mapsUrl })] : []),
+      { label: "Paga antes", value: toned(esc(v.payBy), "pending"), accent: "pending" },
+    ])}
+${gap(12)}${p(`Para confirmarla, paga antes del ${b(esc(v.payBy))}. Si no recibimos el pago antes, la reserva se anula.`, "0 0 32px")}
+${transferHtml(ctx.transfer, v.total)}
+${gap(28)}${cta("Enviar comprobante por WhatsApp", ctx.whatsappUrl)}
+${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`, D.text2)} y confirmamos tu hora. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nWhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
-  return { template: "bookingHeldPending", subject: `Tu hora · ${v.when} — falta el pago`, html, text };
+  return { template: "bookingHeldPending", subject: `Falta el pago · tu hora del ${v.when}`, html, text };
 }
 
 /**
@@ -1164,23 +1345,27 @@ export function bookingHeldPending(
  * Gold, no Sirena: un recordatorio no es una emergencia.
  */
 export function bookingPaymentReminder(
-  v: { name: string | null; when: string; total: string; payBy: string },
-  ctx: { termsUrl: string; whatsappUrl: string; transfer: TransferDetails },
+  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts },
+  ctx: BookingFoot & { termsUrl: string; whatsappUrl: string; transfer: TransferDetails; address?: string; mapsUrl?: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Falta el pago de tu hora</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${v.name ? `${esc(v.name)}: ` : ""}todavía no recibimos el pago de tu reserva.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="font-size:22px;margin:8px 0 20px"><strong>${esc(v.total)}</strong></p>
-     <p style="margin:0 0 20px">Para confirmarla, paga antes del <strong>${esc(v.payBy)}</strong>. Si no recibimos el pago antes, la reserva se anula.</p>
-     ${transferHtml(ctx.transfer, v.total)}
-     <p style="color:${T.boneDim};margin:0 0 20px">Si ya pagaste, mándanos el comprobante y listo.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:${T.boneDim};margin:20px 0 0;font-size:13px">Al pagar aceptas los <a href="${ctx.termsUrl}" style="color:${T.gold}">términos y condiciones</a>.</p>`,
-    `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
-  );
+  const html = dsShell({
+    preheader: `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
+    status: ["Falta el pago", "pending"],
+    eyebrow: "Recordatorio de pago",
+    title: "Falta el pago de tu hora",
+    body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}todavía no recibimos el pago de tu reserva.`, "0 0 28px")}
+${ticket([
+      ...sessionRows(v),
+      { label: "Paga antes", value: toned(esc(v.payBy), "pending"), accent: "pending" },
+    ])}
+${gap(12)}${p(`Para confirmarla, paga antes del ${b(esc(v.payBy))}. Si no recibimos el pago antes, la reserva se anula. Si ya pagaste, mándanos el comprobante y listo.`, "0 0 32px")}
+${transferHtml(ctx.transfer, v.total)}
+${gap(28)}${cta("Enviar comprobante por WhatsApp", ctx.whatsappUrl)}
+${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`, D.text2)}. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nSi ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
-  return { template: "bookingPaymentReminder", subject: `Falta el pago de tu hora · ${v.when}`, html, text };
+  return { template: "bookingPaymentReminder", subject: `Recordatorio · falta el pago de tu hora del ${v.when}`, html, text };
 }
 
 /**
@@ -1198,17 +1383,24 @@ export function ownerTransferDeclared(v: {
   adminUrl: string;
 }): EmailContent {
   const who = `${v.name ?? "Cliente"} · ${v.email ?? "sin email"}`;
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">Revisa una transferencia</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${esc(who)} avisó que ya transfirió.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="font-size:20px;margin:8px 0 16px"><strong>${esc(v.total)}</strong></p>
-     <p style="margin:0 0 20px">Si la transferencia llegó, márcala pagada en el admin y el cliente recibe su confirmación. El cupo se sostiene hasta el <strong>${esc(v.holdUntil)}</strong>; si no la confirmas, se libera solo.</p>
-     <a href="${esc(v.adminUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Abrir la reserva</a>`,
-    `${v.when} · ${v.total} · ${v.name ?? "Cliente"}`,
-  );
+  const html = dsShell({
+    preheader: `El cupo se sostiene hasta el ${v.holdUntil}.`,
+    status: ["Por verificar", "pending"],
+    eyebrow: "Para el estudio",
+    title: "Revisa una transferencia",
+    body: `${p(`${esc(v.name ?? "Un cliente")} avisó que ya transfirió.`, "0 0 24px")}
+${ticket([
+      { label: "Monto", value: `<span style="font-size:20px;font-weight:700">${esc(v.total)}</span>` },
+      { label: "Sesión", value: esc(v.when) },
+      { label: "Cliente", value: `${esc(v.name ?? "Cliente")} · ${contact(v.email)}` },
+      { label: "Cupo hasta", value: toned(esc(v.holdUntil), "pending"), accent: "pending" },
+    ])}
+${gap(12)}${p("Si la transferencia llegó, márcala pagada en el admin y el cliente recibe su confirmación. Si no la confirmas, el cupo se libera solo.", "0 0 28px")}
+${cta("Abrir la reserva", v.adminUrl)}`,
+    footer: "owner",
+  });
   const text = `${who} avisó que ya transfirió ${v.total} por la reserva del ${v.when}. Si llegó, márcala pagada en el admin: ${v.adminUrl}. El cupo se sostiene hasta el ${v.holdUntil}; si no la confirmas, se libera solo.`;
-  return { template: "ownerTransferDeclared", subject: `Revisa una transferencia — ${v.when}`, html, text };
+  return { template: "ownerTransferDeclared", subject: `Revisa una transferencia · ${v.total} · ${v.name ?? v.email ?? "Cliente"} · ${v.when}`, html, text };
 }
 
 /** Email al dueño: inscripción pagada. Cierra recordando la boleta, como ownerNotification. */
@@ -1278,74 +1470,95 @@ export function courseEnrollmentRefunded(
 
 /** Código de inicio de sesión (magic link y alta de cliente nuevo). */
 export function authLoginCode(v: { token: string; confirmUrl: string }): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Inicia sesión en tu cuenta</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">Usa este código para confirmar que eres tú e iniciar sesión en FOTF Studios. Vence en una hora y sirve una sola vez.</p>
-     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:${T.gold};margin:0 0 20px">${esc(v.token)}</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:${T.bone};font-weight:bold">Iniciar sesión</a>.</p>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0;border-top:1px solid ${T.inkLine};padding-top:16px">Este es tu código para iniciar sesión en el sitio — no es el código de acceso a la sala (ese te llega en otro correo, 10 minutos antes de tu sesión). Si no intentaste iniciar sesión, ignora este correo: tu cuenta sigue segura.</p>`,
-  );
+  const html = authShell({
+    preheader: "Vence en una hora y sirve una sola vez.",
+    title: "Inicia sesión en tu cuenta",
+    lead: "Usa este código para confirmar que eres tú e iniciar sesión en FOTF Studios. Vence en una hora y sirve una sola vez.",
+    token: v.token,
+    action: ["Iniciar sesión con un clic", v.confirmUrl],
+    note: "Este código es solo para el sitio. El código de acceso a la sala te llega en otro correo, 10 minutos antes de tu sesión. Si no intentaste iniciar sesión, ignora este correo: tu cuenta sigue segura.",
+  });
   const text = `Tu código para iniciar sesión en FOTF Studios: ${v.token} (vence en una hora, sirve una sola vez). O entra con un clic: ${v.confirmUrl}. No es el código de acceso a la sala; ese te llega 10 minutos antes de tu sesión. Si no fuiste tú, ignora este correo.`;
-  return { template: "authLoginCode", subject: `Tu código para iniciar sesión en FOTF Studios: ${v.token}`, html, text };
+  return { template: "authLoginCode", subject: `${v.token} es tu código para iniciar sesión · FOTF Studios`, html, text };
 }
 
 /** Recuperación de acceso (la app es passwordless; queda on-brand por si se gatilla). */
 export function authRecovery(v: { token: string; confirmUrl: string }): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Recupera el acceso a tu cuenta</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">Pediste recuperar el acceso a tu cuenta de FOTF Studios. Usa este código para verificar que eres tú. Vence en una hora y sirve una sola vez.</p>
-     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:${T.gold};margin:0 0 20px">${esc(v.token)}</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:${T.bone};font-weight:bold">Recuperar mi cuenta</a>.</p>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0;border-top:1px solid ${T.inkLine};padding-top:16px">Este código es para tu cuenta del sitio — no es el código de acceso a la sala (ese te llega en otro correo, 10 minutos antes de tu sesión). Si no lo pediste, ignora este correo: tu cuenta sigue segura.</p>`,
-  );
+  const html = authShell({
+    preheader: "Vence en una hora y sirve una sola vez.",
+    title: "Recupera el acceso a tu cuenta",
+    lead: "Pediste recuperar el acceso a tu cuenta de FOTF Studios. Usa este código para verificar que eres tú. Vence en una hora y sirve una sola vez.",
+    token: v.token,
+    action: ["Recuperar mi cuenta", v.confirmUrl],
+    note: "Este código es para tu cuenta del sitio — no es el código de acceso a la sala (ese te llega en otro correo, 10 minutos antes de tu sesión). Si no lo pediste, ignora este correo: tu cuenta sigue segura.",
+  });
   const text = `Tu código para recuperar el acceso a FOTF Studios: ${v.token} (vence en una hora). O con un clic: ${v.confirmUrl}. Si no lo pediste, ignora este correo.`;
   return { template: "authRecovery", subject: `Tu código para recuperar el acceso a FOTF Studios: ${v.token}`, html, text };
 }
 
 /** Confirmación de cambio de correo (puede ir al actual y al nuevo). */
 export function authEmailChange(v: { token: string; confirmUrl: string }): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Confirma tu nuevo correo</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">Pediste cambiar el correo de tu cuenta de FOTF Studios. Confirma que este correo es tuyo con el código o el botón. Vence en una hora y sirve una sola vez.</p>
-     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:${T.gold};margin:0 0 20px">${esc(v.token)}</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">¿Prefieres un clic? <a href="${esc(v.confirmUrl)}" style="color:${T.bone};font-weight:bold">Confirmar correo</a>.</p>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0;border-top:1px solid ${T.inkLine};padding-top:16px">Este código es para verificar tu correo en el sitio — no es el código de acceso a la sala. Si no pediste este cambio, ignora este correo: tu cuenta sigue segura.</p>`,
-  );
+  const html = authShell({
+    preheader: "Vence en una hora y sirve una sola vez.",
+    title: "Confirma tu nuevo correo",
+    lead: "Pediste cambiar el correo de tu cuenta de FOTF Studios. Confirma que este correo es tuyo con el código o el botón. Vence en una hora y sirve una sola vez.",
+    token: v.token,
+    action: ["Confirmar correo", v.confirmUrl],
+    note: "Este código es para verificar tu correo en el sitio — no es el código de acceso a la sala. Si no pediste este cambio, ignora este correo: tu cuenta sigue segura.",
+  });
   const text = `Confirma tu nuevo correo en FOTF Studios con este código: ${v.token} (vence en una hora). O con un clic: ${v.confirmUrl}. Si no pediste este cambio, ignora este correo.`;
   return { template: "authEmailChange", subject: `Confirma tu nuevo correo en FOTF Studios: ${v.token}`, html, text };
 }
 
 /** Código de verificación genérico (reautenticación u otros tipos con token). */
 export function authVerificationCode(v: { token: string }): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu código de verificación</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">Usa este código para confirmar que eres tú. Vence en una hora y sirve una sola vez.</p>
-     <p style="font-size:34px;letter-spacing:8px;font-weight:700;font-family:'Courier New',monospace;color:${T.gold};margin:0 0 20px">${esc(v.token)}</p>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0;border-top:1px solid ${T.inkLine};padding-top:16px">Es un código de verificación del sitio — no es el código de acceso a la sala. Si no lo pediste, ignora este correo.</p>`,
-  );
+  const html = authShell({
+    preheader: "Vence en una hora y sirve una sola vez.",
+    title: "Tu código de verificación",
+    lead: "Usa este código para confirmar que eres tú. Vence en una hora y sirve una sola vez.",
+    token: v.token,
+    note: "Es un código de verificación del sitio — no es el código de acceso a la sala. Si no lo pediste, ignora este correo.",
+  });
   const text = `Tu código de verificación en FOTF Studios: ${v.token} (vence en una hora). Si no lo pediste, ignora este correo.`;
   return { template: "authVerificationCode", subject: `Tu código de verificación en FOTF Studios: ${v.token}`, html, text };
 }
 
 /** Email al dueño: aviso de nueva reserva pagada. */
 export function ownerNotification(
-  v: BookingView & { email: string | null; method?: string | null; trial?: boolean },
+  v: BookingView & { email: string | null; method?: string | null; trial?: boolean; adminUrl?: string },
 ): EmailContent {
   const paidBy = v.method ? ` · pagó por ${v.method}` : "";
   // Una prueba del curso es guiada: no hay PIN que cargar.
   const what = v.trial ? "Nueva prueba del curso pagada" : "Nueva reserva pagada";
   const todo = v.trial ? "Es guiada: sin PIN. Recuerda emitir la boleta." : "Recuerda cargar el PIN en la cerradura y emitir la boleta.";
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">${what}</h1>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(v.email ?? "sin email")}</p>
-     <table style="width:100%;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};margin:8px 0">${rows(v.lines)}</table>
-     <p style="font-size:20px;margin:12px 0"><strong>Total: ${v.total}</strong>${esc(paidBy)}</p>
-     <p style="color:${T.gold};margin:16px 0">${todo}</p>`,
-    `${v.when} · ${v.total} · ${v.name ?? "Cliente"}`,
-  );
-  const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}`;
-  return { template: "ownerNotification", subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} — ${v.when}`, html, text };
+  const html = dsShell({
+    preheader: v.trial ? "Es guiada: sin PIN. Emitir la boleta." : "Cargar el PIN en la cerradura y emitir la boleta.",
+    status: ["Pagada", "ok"],
+    eyebrow: "Para el estudio",
+    title: what,
+    body: `${gap(8)}${ticket([
+      { label: "Sesión", value: esc(v.when) },
+      { label: "Cliente", value: esc(v.name ?? "Cliente") },
+      { label: "Contacto", value: contact(v.email) },
+      ...(v.method ? [{ label: "Pago", value: `pagó por ${esc(v.method)}` }] : []),
+    ])}
+${gap(12)}${receipt(v.lines.map((l) => ({ description: esc(l.description), amount: esc(l.amount) })), esc(v.total))}
+${gap(28)}${steps(
+      "Por hacer",
+      v.trial
+        ? [["Es guiada: sin PIN", "La recibes en la puerta."], ["Recuerda emitir la boleta", null]]
+        : [["Recuerda cargar el PIN en la cerradura", "Cerradura → Por cargar"], ["Emitir la boleta", null]],
+    )}
+${v.adminUrl ? `${gap(4)}${cta("Abrir la reserva", v.adminUrl)}` : ""}`,
+    footer: "owner",
+  });
+  const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}${v.adminUrl ? ` ${v.adminUrl}` : ""}`;
+  return {
+    template: "ownerNotification",
+    subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} · ${v.when} · ${v.name ?? v.email ?? "Cliente"} · ${v.total}`,
+    html,
+    text,
+  };
 }
 
 /**

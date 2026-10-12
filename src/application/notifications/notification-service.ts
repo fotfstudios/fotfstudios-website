@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { formatSessionWhen } from "./format-when";
+import { formatSessionParts, formatSessionWhen, type SessionParts } from "./format-when";
 import { manualHoldDeadline } from "@/src/domain/scheduling/manual-hold-deadline";
 import { buildIcs, googleCalendarUrl } from "@/src/domain/calendar/ics";
 import type { Mailer } from "@/src/application/ports/mailer";
@@ -68,7 +68,7 @@ import {
   bookingPaymentReminder,
   courseEnrollmentPending,
 } from "./templates";
-import type { GuideDeliveryCopy, TransferDetails } from "./templates";
+import type { BookingFoot, GuideDeliveryCopy, TransferDetails } from "./templates";
 
 /** Reloj de 72 h de una reserva manual pendiente (creación o último link). `now` solo para tests. */
 export interface PendingPaymentClock {
@@ -85,6 +85,8 @@ export interface NotificationConfig {
   /** Link a Maps de la dirección (la dirección va como link propio, no auto-enlazada). */
   mapsUrl: string;
   whatsappUrl: string;
+  /** Instagram del estudio, en el pie de los correos de reserva. */
+  instagramUrl?: string;
   termsUrl: string;
   privacyUrl: string;
   /** Formulario de reseña del perfil de Google. Sin él, notifyReviewRequest no envía. */
@@ -162,6 +164,7 @@ export class NotificationService {
     const view = {
       name: o.name,
       when,
+      parts: this.parts(o.startsAt, o.endsAt),
       total: formatCLP(o.amount),
       lines: o.lines.map((l) => ({ description: l.description, amount: formatCLP(l.subtotal) })),
     };
@@ -182,7 +185,7 @@ export class NotificationService {
         accountUrl: `${this.config.siteUrl}/cuenta`,
       };
       const attachments = ev ? [{ filename: "reserva-fotf.ics", content: buildIcs(ev) }] : undefined;
-      const ctx = { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links };
+      const ctx = { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, links };
       try {
         await this.mailer.send({
           to: o.email,
@@ -199,7 +202,7 @@ export class NotificationService {
     }
     if (this.config.ownerEmail) {
       await this.mailer
-        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod), trial: o.kind === "trial" }) })
+        .send({ to: this.config.ownerEmail, ...ownerNotification({ ...view, email: o.email, method: paymentMethodLabel(o.paymentMethod), trial: o.kind === "trial", adminUrl: this.adminUrl(o.reservationId) }) })
         .catch((e) => console.error("[notify:owner]", orderId, e));
     }
     // WhatsApp (después del correo y bajo el MISMO reclamo de notified_at): cliente si aceptó,
@@ -284,8 +287,8 @@ export class NotificationService {
     await this.mailer.send({
       to: input.email,
       ...customerAccessCode(
-        { name: input.name, when, code: input.code },
-        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
+        { name: input.name, when, code: input.code, parts: this.parts(input.startsAt, input.endsAt ?? null) },
+        { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
     if (input.reservationId) {
@@ -327,8 +330,8 @@ export class NotificationService {
     await this.mailer.send({
       to: input.email,
       ...customerReminder(
-        { name: input.name, when },
-        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, statusUrl },
+        { name: input.name, when, parts: this.parts(input.startsAt, input.endsAt) },
+        { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl, statusUrl },
       ),
     });
     if (input.reservationId) {
@@ -440,8 +443,9 @@ export class NotificationService {
           when,
           refunded: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
           restoredPoints: opts.restoredPoints ?? null,
+          parts: this.parts(o.startsAt, o.endsAt),
         },
-        { whatsappUrl: this.config.whatsappUrl },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar` },
       ),
     });
     return true;
@@ -466,8 +470,10 @@ export class NotificationService {
           when,
           refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
           refundedOffline: opts.offline ?? false,
+          parts: this.parts(o.startsAt, o.endsAt),
         },
         {
+          ...this.foot(),
           whatsappUrl: this.config.whatsappUrl,
           address: this.config.address,
           mapsUrl: this.config.mapsUrl,
@@ -496,7 +502,7 @@ export class NotificationService {
       to: o.email,
       ...customerRescheduleFailed(
         { name: o.name, when, refunded: formatCLP(opts.refundAmount), kept: opts.kept },
-        { whatsappUrl: this.config.whatsappUrl },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;
@@ -515,12 +521,12 @@ export class NotificationService {
     const total = formatCLP(o.amount);
     if (this.config.ownerEmail) {
       await this.mailer
-        .send({ to: this.config.ownerEmail, ...ownerNeedsReview({ when, total, email: o.email, paymentId }) })
+        .send({ to: this.config.ownerEmail, ...ownerNeedsReview({ when, total, email: o.email, paymentId, adminUrl: this.adminUrl(o.reservationId) }) })
         .catch((e) => console.error("[notify:review:owner]", orderId, e));
     }
     if (o.email) {
       await this.mailer
-        .send({ to: o.email, ...customerPaymentNoSlot({ name: o.name, when, total }, { whatsappUrl: this.config.whatsappUrl }) })
+        .send({ to: o.email, ...customerPaymentNoSlot({ name: o.name, when, total }, { ...this.foot(), whatsappUrl: this.config.whatsappUrl }) })
         .catch((e) => console.error("[notify:review:customer]", orderId, e));
     }
   }
@@ -553,8 +559,8 @@ export class NotificationService {
     await this.mailer.send({
       to: o.email,
       ...customerHoldExpired(
-        { name: o.name, when: this.when(o.startsAt, o.endsAt) },
-        { whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar` },
+        { name: o.name, when: this.when(o.startsAt, o.endsAt), parts: this.parts(o.startsAt, o.endsAt) },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar` },
       ),
     });
     return true;
@@ -870,8 +876,8 @@ export class NotificationService {
     await this.mailer.send({
       to: o.email,
       ...bookingPaymentPending(
-        { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours },
-        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+        { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours, parts: this.parts(o.startsAt, o.endsAt) },
+        { ...this.foot(), termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;
@@ -940,12 +946,20 @@ export class NotificationService {
     const view = {
       name: o.name,
       when: this.when(o.startsAt, o.endsAt),
+      parts: this.parts(o.startsAt, o.endsAt),
       total: formatCLP(o.amount),
       payBy: formatSessionWhen(payBy.toISOString(), this.config.tz),
     };
     await this.mailer.send({
       to: o.email,
-      ...template(view, { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl, transfer: this.config.transfer }),
+      ...template(view, {
+        ...this.foot(),
+        termsUrl: this.config.termsUrl,
+        whatsappUrl: this.config.whatsappUrl,
+        transfer: this.config.transfer,
+        address: this.config.address,
+        mapsUrl: this.config.mapsUrl,
+      }),
     });
     // WhatsApp vence con el plazo de pago: pasado el plazo el horario ya se liberó.
     const wa = { nombre: o.name ?? "", fecha: view.when, total: view.total, plazo: view.payBy };
@@ -1089,7 +1103,7 @@ export class NotificationService {
           initPoint: v.initPoint,
           expiresInHours: v.expiresInHours,
         },
-        { whatsappUrl: this.config.whatsappUrl, termsUrl: this.config.termsUrl },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl, termsUrl: this.config.termsUrl },
       ),
     });
     return true;
@@ -1394,5 +1408,20 @@ export class NotificationService {
   /** Horario en el formato único de los correos; "—" si la orden no tiene reserva. */
   private when(startsAt: string | null, endsAt: string | null): string {
     return startsAt ? formatSessionWhen(startsAt, this.config.tz, { endsAt }) : "—";
+  }
+
+  /** El mismo horario partido para la ficha de los correos de reserva; undefined sin reserva. */
+  private parts(startsAt: string | null, endsAt: string | null): SessionParts | undefined {
+    return startsAt ? formatSessionParts(startsAt, this.config.tz, { endsAt }) : undefined;
+  }
+
+  /** Links del pie de los correos de reserva (Instagram y la cuenta). */
+  private foot(): BookingFoot {
+    return { instagramUrl: this.config.instagramUrl, accountUrl: `${this.config.siteUrl}/cuenta` };
+  }
+
+  /** Ficha de la reserva en el admin (los avisos al dueño abren ahí). */
+  private adminUrl(reservationId: string | null | undefined): string | undefined {
+    return reservationId ? `${this.config.siteUrl}/admin/reservas/${reservationId}` : undefined;
   }
 }
