@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BookedRange, ResourceCalendar, SchedulingRepository } from "@/src/application/ports/scheduling";
+import { MIN_LEAD_MINUTES } from "@/src/domain/scheduling/booking-rules";
 import { AvailabilityService } from "./availability-service";
 
 function fakeRepo(cal: ResourceCalendar | null, reservations: BookedRange[]): SchedulingRepository {
@@ -66,7 +67,7 @@ describe("AvailabilityService.getRangeAvailability", () => {
     expect(r.value.days.map((d) => d.date)).toEqual(["2026-05-31", "2026-06-01", "2026-06-02"]);
     const [past, today, tomorrow] = r.value.days;
     expect(past).toMatchObject({ weekday: 0, closed: true, minStart: 1440 }); // domingo y ya pasó
-    expect(today).toMatchObject({ closed: false, openMinute: 540, closeMinute: 720, booked: [], minStart: 605 + 30 });
+    expect(today).toMatchObject({ closed: false, openMinute: 540, closeMinute: 720, booked: [], minStart: 605 + MIN_LEAD_MINUTES });
     expect(tomorrow).toMatchObject({ booked: [{ start: 600, end: 660 }], minStart: 0 });
   });
 
