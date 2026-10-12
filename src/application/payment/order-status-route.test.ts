@@ -12,6 +12,9 @@ const state = vi.hoisted(() => ({
   reconcile: vi.fn(),
   notifyOrder: vi.fn(async () => true),
   notifyPaymentNeedsReview: vi.fn(async () => true),
+  /** Lo que responde el limitador de reconciliaciones por IP. */
+  allowed: true,
+  hit: vi.fn(),
 }));
 
 vi.mock("@/src/composition", () => {
@@ -32,6 +35,7 @@ vi.mock("@/src/composition", () => {
   return {
     db: fakeDb,
     reconcileOrder: state.reconcile,
+    rateLimiter: () => ({ hit: state.hit }),
     notificationService: () => ({
       notifyOrder: state.notifyOrder,
       notifyPaymentNeedsReview: state.notifyPaymentNeedsReview,
@@ -48,6 +52,9 @@ beforeEach(() => {
   state.order = { status: "pending_payment", amount_clp: 9990, currency: "CLP" };
   state.reservation = { status: "held", expires_at: new Date(Date.now() + 5 * 60_000).toISOString() };
   state.reconcile.mockReset();
+  state.allowed = true;
+  state.hit.mockReset();
+  state.hit.mockImplementation(async () => state.allowed);
   state.notifyOrder.mockClear();
   state.notifyPaymentNeedsReview.mockClear();
 });
@@ -76,5 +83,23 @@ describe("GET /api/orders/[id]/status — emails cuando el sondeo reconcilia", (
     await call();
     expect(state.reconcile).not.toHaveBeenCalled();
     expect(state.notifyOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/orders/[id]/status — tope de reconciliaciones por IP", () => {
+  it("sobre el tope no consulta a MP, pero responde el estado desde la DB", async () => {
+    state.allowed = false;
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("pending_payment");
+    expect(state.reconcile).not.toHaveBeenCalled();
+  });
+
+  it("un pedido ya pagado no gasta cupo del limitador (ni consulta a MP)", async () => {
+    state.order = { ...state.order, status: "paid" };
+    state.allowed = false;
+    expect((await (await call()).json()).status).toBe("paid");
+    expect(state.hit).not.toHaveBeenCalled();
+    expect(state.reconcile).not.toHaveBeenCalled();
   });
 });

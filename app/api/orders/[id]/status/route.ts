@@ -1,4 +1,6 @@
-import { db, notificationService, reconcileOrder } from "@/src/composition";
+import { createHash } from "node:crypto";
+import { clientIpFromHeaders } from "@/lib/request-ip";
+import { db, notificationService, rateLimiter, reconcileOrder } from "@/src/composition";
 import { effectiveReservationStatus, type ReservationStatus } from "@/src/domain/scheduling/hold-expiry";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,27 @@ type ReservationRow = { status: ReservationStatus; expires_at: string | null };
  */
 const RECONCILE_GRACE_MS = 15 * 60_000;
 
+/**
+ * Antiabuso (auditoría 2026-10-12): cada sondeo de un pedido pendiente consulta a MP. La isla
+ * hace ~72 sondeos en sus primeros 10 min (lib/estado-polling.ts); sobre el tope la ruta
+ * sigue respondiendo desde la DB y solo se salta la consulta a MP — el sondeo nunca se rompe.
+ */
+const RECONCILE_RATE_MAX = 120;
+const RECONCILE_RATE_WINDOW_S = 600;
+const RATE_SALT = "fotf-order-status-v1";
+
+/** ¿Puede esta IP disparar otra reconciliación contra MP? Fail-open. */
+async function reconcileWithinRate(client: ReturnType<typeof db>, req: Request): Promise<boolean> {
+  try {
+    const ip = clientIpFromHeaders(req.headers) ?? "unknown";
+    const key = "order-status:" + createHash("sha256").update(RATE_SALT + ip).digest("hex");
+    return await rateLimiter(client).hit(key, RECONCILE_RATE_MAX, RECONCILE_RATE_WINDOW_S);
+  } catch (e) {
+    console.error("[order-status:ratelimit]", e);
+    return true;
+  }
+}
+
 async function readReservation(client: ReturnType<typeof db>, orderId: string): Promise<ReservationRow | null> {
   const { data } = await client
     .from("reservations")
@@ -51,7 +74,7 @@ async function readReservation(client: ReturnType<typeof db>, orderId: string): 
  * seguridad en prod). Idempotente: si ya está pagado, no hace nada.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
@@ -66,7 +89,12 @@ export async function GET(
     const withinGrace = !res?.expires_at || Date.now() < Date.parse(res.expires_at) + RECONCILE_GRACE_MS;
     // Un pedido por transferencia no tiene pago en MP que reconciliar: lo confirma el dueño.
     const viaTransfer = Boolean(row.transfer_requested_at);
-    if (row.status === "pending_payment" && !viaTransfer && (reservation !== "expired" || withinGrace)) {
+    if (
+      row.status === "pending_payment" &&
+      !viaTransfer &&
+      (reservation !== "expired" || withinGrace) &&
+      (await reconcileWithinRate(client, req))
+    ) {
       try {
         const reconcileResult = await reconcileOrder(id, client);
         row = (await readOrder(client, id)) ?? row;
