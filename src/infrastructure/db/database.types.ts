@@ -183,6 +183,20 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"checkout_settings": {
+                  Row: {
+                    "id": boolean,"transfer_enabled": boolean,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: boolean,"transfer_enabled"?: boolean,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "id"?: boolean,"transfer_enabled"?: boolean,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"course_credits": {
                   Row: {
                     "amount_clp": number,"consumed_at": string | null,"consumed_order_id": string | null,"email": string,"expires_at": string,"expiry_reminder_sent_at": string | null,"extended_count": number,"followup_sent_at": string | null,"id": string,"issued_at": string,"note": string | null,"source_reservation_id": string | null,"voided_at": string | null
@@ -559,14 +573,14 @@ isOneToOne: false
                   ]
                 },"orders": {
                   Row: {
-                    "amount_clp": number,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"id": string,"kind": string,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_method": string | null,"payment_reminder_sent_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null
+                    "amount_clp": number,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"id": string,"kind": string,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_method": string | null,"payment_reminder_sent_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null,"transfer_declared_at": string | null,"transfer_requested_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount_clp": number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null
+                    "amount_clp": number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null
                   }
                   Update: {
-                    "amount_clp"?: number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp"?: number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp"?: number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null
+                    "amount_clp"?: number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp"?: number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp"?: number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -1061,6 +1075,9 @@ isOneToOne: false
 "customer_sync_snapshots":
 { Args: { "p_customer": string,"p_old_email": string }; Returns: undefined
                            },
+"declare_transfer":
+{ Args: { "p_grace"?: string,"p_order": string }; Returns: string
+                           },
 "ensure_customer":
 { Args: { "p_email": string,"p_name": string,"p_phone": string }; Returns: string
                            },
@@ -1187,6 +1204,9 @@ isOneToOne: false
                            },
 "release_reschedule_hold":
 { Args: { "p_reschedule": string }; Returns: undefined
+                           },
+"request_transfer":
+{ Args: { "p_lead"?: string,"p_min_lead"?: string,"p_order": string,"p_window"?: string }; Returns: string
                            },
 "reschedule_courtesy":
 { Args: { "p_ends": string,"p_note"?: string,"p_reservation": string,"p_starts": string }; Returns: string
