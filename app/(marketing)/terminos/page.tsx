@@ -208,7 +208,7 @@ export default function TerminosPage() {
         <ProseSection title="Packs de horas">
           <p>
             Los packs son créditos de horas para usar en{" "}
-            <strong className="text-bone">horario valle</strong> (lunes a viernes hasta las
+            <strong className="text-bone">tarifa diurna</strong> (lunes a viernes hasta las
             17:00). Son personales (puedes entrar con acompañantes a tu sesión, como en
             cualquier reserva) y tienen una vigencia de{" "}
             <strong className="text-bone">90 días</strong> desde la compra. ¿Se te pasó la
@@ -286,8 +286,8 @@ export default function TerminosPage() {
             <li>El material grabado es tuyo.</li>
             <li>Los derechos de la música que uses durante la sesión son tu responsabilidad.</li>
             <li>
-              Los precios publicados de grabación corresponden a horario valle; si reservas en
-              horario punta, se suma la diferencia de tarifa correspondiente.
+              Los precios publicados de grabación corresponden a la tarifa diurna; si reservas en
+              tarifa nocturna o de fin de semana, se suma la diferencia de tarifa correspondiente.
             </li>
           </ul>
         </ProseSection>
