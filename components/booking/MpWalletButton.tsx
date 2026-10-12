@@ -1,8 +1,15 @@
 "use client";
 
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { initMercadoPago, Wallet } from "@mercadopago/sdk-react";
 import Skeleton from "./Skeleton";
+
+/**
+ * Si el brick no avisa que está listo en este plazo (SDK de MP bloqueado por un bloqueador de
+ * anuncios, CDN caído, red lenta), se cae al botón clásico: sin esto el checkout se quedaba en
+ * el esqueleto "Cargando el botón de pago…" sin ninguna forma de pagar.
+ */
+const READY_TIMEOUT_MS = 8000;
 
 /** Único punto de decisión visual del dueño: 'default' (azul MP) | 'black' | 'white'. */
 const BUTTON_BACKGROUND = "default" as const;
@@ -58,6 +65,15 @@ export default memo(function MpWalletButton({
     console.error("[mp-wallet]", e);
     onFallbackRef.current();
   }).current;
+
+  useEffect(() => {
+    if (ready) return;
+    const t = setTimeout(() => {
+      console.warn("[mp-wallet] el brick no cargó a tiempo; se usa el botón clásico");
+      onFallbackRef.current();
+    }, READY_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   return (
     <div className={className}>
