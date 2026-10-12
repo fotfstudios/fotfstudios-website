@@ -375,6 +375,48 @@ antes. `purchase` NUNCA sale del `?status=` de Mercado Pago (falsificable): sale
   `purchase` con el valor; Meta Events Manager recibe `Purchase`; a las 24–48 h Monetización →
   Compras lista "Sala de ensayo DJ".
 
+## Lanzamiento de reservas en línea
+
+`NEXT_PUBLIC_BOOKING_ENABLED` decide si se puede INICIAR una reserva: `/reservar` (gate en su
+`layout.tsx` → 404 real con el flag apagado), `/api/bookings`, `/api/promos/first-booking` y
+`/api/checkout/login-hint`. `/reserva/estado` va siempre (retorno de los links de cobro del admin).
+El sitemap lista `/reservar` solo con el flag prendido. Lo fija `lib/booking-flag-contract.test.ts`.
+
+### Antes de prender
+- [ ] Reserva de punta a punta verificada en local con túnel https (ver CLAUDE.md → Local-first).
+- [ ] Logs de prod con `firma ok (forma=webhooks)` en los webhooks recientes de MP.
+- [ ] `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `NEXT_PUBLIC_MP_PUBLIC_KEY` de la app **de prod**
+      (1020623123320658) en Production; `RESEND_API_KEY`, `OWNER_EMAIL`, `CRON_SECRET` presentes.
+- [ ] Agenda de prod al día: bloqueos/feriados cargados, sin reservas de prueba.
+- [ ] GTM v14 publicado (sección anterior), para medir desde la primera reserva.
+
+### Prender
+1. Vercel → Settings → Environment Variables → `NEXT_PUBLIC_BOOKING_ENABLED=true`
+   **solo en Production** (Preview no tiene DB).
+2. Redeploy de `main` **sin caché de build** (la var se incrusta al compilar; un redeploy con
+   caché puede servir el HTML viejo).
+
+### Smoke test (en prod, en este orden)
+1. `https://www.fotfstudios.cl/reservar` → 200, sin `<meta name="robots" content="noindex">`,
+   con `og:image` propia.
+2. `https://www.fotfstudios.cl/sitemap.xml` lista `/reservar`.
+3. `curl -X POST -H 'content-type: application/json' -d '{}' https://www.fotfstudios.cl/api/bookings`
+   → 400 `datos incompletos` (no 404).
+4. Una reserva real chica (1 h) pagada con tarjeta propia: vuelve sola a `/reserva/estado`, queda
+   **confirmada**, llegan el correo del cliente y el del dueño, aparece en `/admin/reservas`.
+5. Logs de Vercel: el webhook de ese pago dice `firma ok (forma=webhooks)`.
+6. Cancelar y reembolsar esa reserva desde el admin: UNA sola NC, el reembolso aparece en MP y el
+   horario vuelve a quedar libre.
+7. Search Console → Inspección de URL → `/reservar` → solicitar indexación.
+
+Después: mirar logs y `notification_log` a diario las primeras 72 h.
+
+### Apagar (rollback)
+Poner `NEXT_PUBLIC_BOOKING_ENABLED=false` (o borrarla) y redeploy sin caché: `/reservar` vuelve a
+404 y las APIs dejan de aceptar reservas nuevas. Las ya pagadas, el webhook, `/reserva/estado` y el
+admin siguen funcionando. Si el problema es de código, Instant Rollback (sección Rollback) es más
+rápido y no toca el flag.
+
 ## Referencias
 
 - [CLAUDE.md](CLAUDE.md) — guía del repo, comandos, guardrails de marca.

@@ -16,7 +16,8 @@ const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 
 const GATED = [
-  "app/(booking)/reservar/page.tsx",
+  // El gate de /reservar vive en su layout: un 404 real (la página tiene loading.tsx).
+  "app/(booking)/reservar/layout.tsx",
   "app/api/bookings/route.ts",
   "app/api/promos/first-booking/route.ts",
   "app/api/checkout/login-hint/route.ts",

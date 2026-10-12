@@ -8,7 +8,8 @@ import "@/components/ds/ds.css";
 import { beatcoinsExpiryLine } from "@/lib/beatcoins-expiry-copy";
 import { accountEnabled } from "@/lib/flags";
 import type { CustomerProfile } from "@/src/application/ports/customers";
-import { bookingEnabled, customerService, db, pricingService } from "@/src/composition";
+import { pageMetadata } from "@/lib/seo";
+import { customerService, db, pricingService } from "@/src/composition";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
 import { beatcoinsExpiry, expiresSoon } from "@/src/domain/points/expiry";
 import { todayInTz } from "@/src/domain/scheduling/time";
@@ -18,10 +19,15 @@ import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Reservar",
-  robots: { index: false }, // no indexar hasta el lanzamiento
-};
+// Indexable: con el flag apagado el layout responde 404 (no hay nada que indexar), y
+// encendido es la página de conversión. Trae su propia tarjeta OG (pageMetadata corta la
+// herencia de la del ancestro).
+export const metadata: Metadata = pageMetadata({
+  title: "Reservar sala de ensayo DJ en Viña del Mar",
+  description:
+    "Sala de ensayo DJ por hora en Viña del Mar, aislada acústicamente: 2× Pioneer XDJ-1000MK2, Pioneer DJM-450 y 2× Pioneer DJ VM-50. Reserva y paga en línea.",
+  path: "/reservar",
+});
 
 /** Aviso en el widget solo si parte del saldo vence en ≤ 30 días: ahí sí conviene usarlos ya. */
 function expiryNote(p: CustomerProfile): string | null {
@@ -30,7 +36,6 @@ function expiryNote(p: CustomerProfile): string | null {
 }
 
 export default async function ReservarPage() {
-  if (!bookingEnabled()) notFound();
 
   const { data } = await db().from("resources").select("id, name").eq("active", true).limit(1).single();
   if (!data) notFound();
