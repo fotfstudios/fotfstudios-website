@@ -29,3 +29,21 @@ export function resolveEstadoUi(
   if (paymentHint === "approved" && !hintExpired) return "confirming";
   return reservation === "expired" ? "expired" : "pending_payment";
 }
+
+/**
+ * ¿/reserva/estado debe mandar `purchase` ahora? Solo con el pedido pagado y una sola vez
+ * (`alreadyTracked`: marca en sessionStorage). Si la página lo vio pasar de pendiente a pagado,
+ * cuenta. Si llegó YA pagado (el webhook ganó la carrera, o el canje 100 % Beatcoins), cuenta
+ * solo si el checkout empezó en este navegador: una visita de vuelta no es una compra nueva.
+ */
+export function isFreshPurchase(o: {
+  status: EstadoOrderStatus;
+  initialStatus: EstadoOrderStatus;
+  checkoutStartedHere: boolean;
+  alreadyTracked: boolean;
+}): boolean {
+  if (o.alreadyTracked) return false;
+  if (o.status !== "paid" && o.status !== "fulfilled") return false;
+  const observedTransition = o.initialStatus !== "paid" && o.initialStatus !== "fulfilled";
+  return observedTransition || o.checkoutStartedHere;
+}

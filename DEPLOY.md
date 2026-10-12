@@ -321,6 +321,60 @@ en `/admin/whatsapp`. Tras aprobar una plantilla que faltaba: **Reintentar falli
   Muchos bloqueos o reportes bajan la calidad del número y Meta puede pausar los envíos: nada de marketing
   por este canal.
 
+## Medición del embudo de reserva (GTM + GA4)
+
+El código empuja los eventos a `dataLayer` (solo vía `lib/analytics.ts`; lo fija
+`lib/analytics-contract.test.ts`). Para que lleguen a GA4 y Meta hay que publicarlos en GTM
+(`GTM-WCC3V22R`) — UI del dueño, no repo. Nunca agregar `gtag.js` en el código.
+
+| Evento | Dónde | Parámetros |
+|---|---|---|
+| `view_item` | /reservar, una vez por carga | `ecommerce.items` |
+| `booking_slot_selected` | horario elegido (debounce 400 ms) | `date`, `start`, `duration_hours`, `tier`, `page` |
+| `booking_step` | wizard móvil (02 / 03) | `step` (datos / pago), `page` |
+| `add_to_cart` | extra agregado | `ecommerce.value`, `ecommerce.items` |
+| `login` | código verificado en el checkout | `method` = email_otp, `page` |
+| `begin_checkout` | pedido creado (MP clásico, Wallet o 100 % Beatcoins) | `ecommerce.{value, transaction_id, coupon, items}`, `payment_type` |
+| `purchase` | /reserva/estado, pago confirmado (una vez) | `ecommerce.{value, transaction_id, items}`, `payment_type` |
+| `checkout_error` | error al crear la reserva | `code` (slot_taken, amount_changed, …), `page` |
+
+Los eventos ecommerce van con el objeto `ecommerce` estándar de GA4 y un `{ ecommerce: null }`
+antes. `purchase` NUNCA sale del `?status=` de Mercado Pago (falsificable): sale del estado real.
+
+### GTM (workspace sobre v13 → publicar como v14 "Embudo de reserva")
+1. **Variables (Capa de datos):** `payment_type`, `step`, `code`, `tier`, `duration_hours`, `method`,
+   `date`, `start`.
+2. **Activadores** (Evento personalizado), uno por evento de la tabla, todos con la excepción
+   `{{JS - medición bloqueada}} equals true`.
+3. **Etiquetas GA4 Evento** (config `GA4 - Configuración`), nombre `{{Event}}` o fijo por evento, con
+   los parámetros de arriba. En `view_item`, `add_to_cart`, `begin_checkout` y `purchase` marcar
+   **"Enviar datos de comercio electrónico → Capa de datos"** (así `items`, `value`, `transaction_id`
+   viajan sin mapear).
+4. **Limpieza de URL (audit B2):** variable JS `JS - page_location limpio` que quite `b`, `status`,
+   `collection_status`, `collection_id`, `payment_id`, `preference_id`, `merchant_order_id`,
+   `external_reference`, `payment_type`, `site_id`, `processing_mode` de la URL; en `GA4 - Configuración`
+   → campo `page_location` = esa variable.
+5. **Meta Pixel** (plantilla ya en v13): `InitiateCheckout` (activador `begin_checkout`, value/currency)
+   y `Purchase` (activador `purchase`: value, currency, content_ids, `event_id` = transaction_id).
+6. **Vista previa** (Tag Assistant) contra `localhost:3000/reservar` con `NEXT_PUBLIC_GTM_FORCE=true`
+   antes de publicar.
+
+### GA4 (propiedad 543630438)
+- Marcar **`purchase` como evento clave** (no `begin_checkout`). Desmarcar los automáticos que nunca
+  disparan (`close_convert_lead`, `qualify_lead`; audit B4).
+- Dimensiones personalizadas (evento): `payment_type`, `tier`, `step`, `code`; métrica `duration_hours`.
+- Referencias no deseadas: `mercadopago.`, `mercadolibre.` (la vuelta de MP no debe partir la sesión).
+- Explorar → embudo: `booking_cta_click` → `view_item` → `booking_slot_selected` → `begin_checkout`
+  → `purchase`.
+- Google Ads (911-876-8131, ya enlazado): importar `purchase` como conversión con valor CLP.
+
+### Verificación
+- **Local:** `NEXT_PUBLIC_GTM_FORCE=true` + dev, Tag Assistant conectado: recorrer el embudo (escritorio y
+  390 px); cada evento una vez; recargar una confirmación ya pagada NO repite `purchase`.
+- **Prod (tras prender las reservas):** una reserva real chica → Tiempo real muestra `begin_checkout` y
+  `purchase` con el valor; Meta Events Manager recibe `Purchase`; a las 24–48 h Monetización →
+  Compras lista "Sala de ensayo DJ".
+
 ## Referencias
 
 - [CLAUDE.md](CLAUDE.md) — guía del repo, comandos, guardrails de marca.

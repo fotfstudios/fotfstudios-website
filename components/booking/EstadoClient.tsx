@@ -5,13 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import CalendarButtons from "@/components/booking/CalendarButtons";
 import { dsButtonClass } from "@/components/ds/Button";
 import WhatsAppCta from "@/components/WhatsAppCta";
+import { trackPurchase } from "@/lib/analytics";
+import { ROOM_ITEM } from "@/lib/booking-items";
+import { markPurchaseTracked, purchaseTracked, startedCheckout } from "@/lib/checkout-session";
 import { orderShort, type ConfirmationView } from "@/lib/confirmation";
 import ActivateAccountCard from "./estado/ActivateAccountCard";
 import HelpRow from "./estado/HelpRow";
 import NextSteps from "./estado/NextSteps";
 import SessionCard from "./estado/SessionCard";
 import StatusHeader from "./estado/StatusHeader";
-import { resolveEstadoUi } from "@/lib/estado-ui";
+import { isFreshPurchase, resolveEstadoUi } from "@/lib/estado-ui";
 import { nextPollDelay } from "@/lib/estado-polling";
 import type { OrderConfirmation } from "@/src/application/ports/orders";
 
@@ -37,6 +40,7 @@ export default function EstadoClient({
   holdExpiresAt,
   manageHref = null,
   showActivate = false,
+  amount,
 }: {
   orderId: string;
   initialStatus: OrderStatus;
@@ -51,6 +55,8 @@ export default function EstadoClient({
   manageHref?: string | null;
   /** Invitado (sin sesión) y cuentas activas: invitarlo a activar la cuenta. */
   showActivate?: boolean;
+  /** Efectivo cobrado (orders.amount_clp, numérico) — el value de `purchase`. */
+  amount: number;
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [reservation, setReservation] = useState<ReservationStatus>(view.reservationStatus);
@@ -122,6 +128,29 @@ export default function EstadoClient({
     // Solo al montar: el bucle se re-programa solo con `latest`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
+
+  // Medición: purchase UNA vez, cuando el pago está confirmado de verdad (nunca por el
+  // ?status=approved de MP, que es falsificable). Ver isFreshPurchase.
+  useEffect(() => {
+    const started = startedCheckout(orderId);
+    if (
+      !isFreshPurchase({
+        status,
+        initialStatus,
+        checkoutStartedHere: started !== null,
+        alreadyTracked: purchaseTracked(orderId),
+      })
+    ) {
+      return;
+    }
+    markPurchaseTracked(orderId);
+    trackPurchase({
+      orderId,
+      value: amount,
+      items: started?.items.length ? started.items : [{ ...ROOM_ITEM, price: amount, quantity: 1 }],
+      paymentType: started?.paymentType ?? "mercadopago",
+    });
+  }, [status, initialStatus, orderId, amount]);
 
   const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired);
   const number = orderShort(orderId);

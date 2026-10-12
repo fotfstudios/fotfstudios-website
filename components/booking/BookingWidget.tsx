@@ -4,7 +4,18 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ds/Button";
 import { useOtpLogin } from "@/components/cuenta/useOtpLogin";
+import {
+  trackAddon,
+  trackBeginCheckout,
+  trackBookingStep,
+  trackCheckoutError,
+  trackLogin,
+  trackSlotSelected,
+  trackViewItem,
+} from "@/lib/analytics";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
+import { checkoutItems, ROOM_ITEM } from "@/lib/booking-items";
+import { rememberCheckout } from "@/lib/checkout-session";
 import { ctaLabel, missingItem, type BookingStep, type MissingItem } from "@/lib/booking-steps";
 import { summaryLines } from "@/lib/booking-summary";
 import { accountEnabled } from "@/lib/flags";
@@ -13,6 +24,8 @@ import { normalizeEmail } from "@/src/domain/contact/contact";
 import { formatCLP } from "@/src/domain/money/money";
 import { clampPoints, computeEarn } from "@/src/domain/points/points";
 import { FIRST_BOOKING_PROMO } from "@/src/domain/pricing/first-booking-promo";
+import { rateForSlot } from "@/src/domain/pricing/engine";
+import { tierLabel } from "@/src/domain/pricing/tier-labels";
 import type { RateTier } from "@/src/domain/pricing/types";
 import { dateShortLabel, monthRangeLabel, validStarts } from "@/src/domain/scheduling/day-starts";
 import { createAuthBrowserClient } from "@/src/infrastructure/auth/browser";
@@ -181,7 +194,10 @@ export default function BookingWidget({
   const sendLoginCode = useCallback(() => void login.send(email), [login, email]);
   // En éxito el hook deja busy en true a propósito: la carga puentea hasta que llega `customer`.
   const verifyLoginCode = useCallback(async () => {
-    if (await login.verify(loginCode)) router.refresh();
+    if (await login.verify(loginCode)) {
+      trackLogin();
+      router.refresh();
+    }
   }, [login, loginCode, router]);
 
   // Día elegido por defecto: el primero con algún inicio para la duración (si no, el primero).
@@ -241,6 +257,30 @@ export default function BookingWidget({
       ? `−${FIRST_BOOKING_PROMO.pct}% de primera reserva aplicado.`
       : "Aquí llega la confirmación y el código de acceso.";
 
+  // Medición: una vista de la sala por carga (precio "desde": la tarifa más baja).
+  const viewed = useRef(false);
+  useEffect(() => {
+    if (viewed.current) return;
+    viewed.current = true;
+    const from = tiers.length ? Math.min(...tiers.map((t) => t.amount)) : 0;
+    trackViewItem({ ...ROOM_ITEM, price: from, quantity: 1 });
+  }, [tiers]);
+
+  // Medición: horario elegido, con debounce (solo el último de una secuencia de clics).
+  useEffect(() => {
+    if (selected === null || selectedStart === null || !day) return;
+    const t = setTimeout(() => {
+      const tier = rateForSlot({ tiers }, day.weekday, selectedStart);
+      trackSlotSelected({
+        date: selected,
+        start: hhmm(selectedStart),
+        durationHours: duration,
+        tier: tier ? tierLabel(tier.key) : "",
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [selected, selectedStart, duration, day, tiers]);
+
   // Llevar al usuario a lo que falta: en móvil primero se cambia de paso y, tras pintar,
   // se hace scroll + foco (el elemento del paso nuevo aún no existe en este render).
   useEffect(() => {
@@ -262,7 +302,13 @@ export default function BookingWidget({
     setFocusTick((t) => t + 1);
   };
 
+  const stepsTracked = useRef(new Set<number>());
   const goStep = (n: number) => {
+    // Medición: avance del wizard móvil, una vez por paso y carga.
+    if (n > step && !stepsTracked.current.has(n)) {
+      stepsTracked.current.add(n);
+      trackBookingStep(n === 1 ? "datos" : "pago");
+    }
     setStep(n);
     setTried(false);
     window.scrollTo({ top: 0 });
@@ -320,6 +366,20 @@ export default function BookingWidget({
         throw new BookingRequestError("network");
       }
       if (!ok) throw new BookingRequestError(data?.error);
+      // Medición: pedido creado (las 3 vías). Se recuerda en este navegador para que
+      // /reserva/estado mande purchase con los mismos ítems y no lo repita.
+      if (data.orderId) {
+        const paymentType = data.paidWithPoints ? "beatcoins" : "mercadopago";
+        const items = checkoutItems({ quote, duration });
+        trackBeginCheckout({
+          orderId: data.orderId,
+          value: payable ?? 0,
+          items,
+          ...(promoLine ? { coupon: "first_booking" } : {}),
+          paymentType,
+        });
+        rememberCheckout(data.orderId, { paymentType, items });
+      }
       return data as { orderId: string; preferenceId?: string; initPoint?: string; paidWithPoints?: boolean };
     } catch (e) {
       const err = e instanceof BookingRequestError ? e : new BookingRequestError("network");
@@ -331,6 +391,7 @@ export default function BookingWidget({
         void range.reload();
         if (wizard) setStep(0);
       }
+      trackCheckoutError(err.code ?? "unknown");
       setError(bookingErrorMessage(err.code));
       setSubmitting(false);
       throw err;
@@ -353,6 +414,8 @@ export default function BookingWidget({
     range,
     wizard,
     whatsappDecided,
+    quote,
+    promoLine,
   ]);
 
   // Redirect clásico a init_point. `submitting` queda en true a propósito ("Redirigiendo…").
@@ -486,9 +549,18 @@ export default function BookingWidget({
               n={n("03")}
               addons={addons}
               rec={rec}
-              onRec={setRec}
+              onRec={(k) => {
+                setRec(k);
+                const a = addons.find((x) => x.key === k);
+                if (a) trackAddon({ item_id: a.key, item_name: a.name, price: a.amount, quantity: 1 });
+              }}
               extras={extras}
-              onToggleExtra={(k) => setExtras((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]))}
+              onToggleExtra={(k) => {
+                const adding = !extras.includes(k);
+                setExtras((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]));
+                const a = addons.find((x) => x.key === k);
+                if (adding && a) trackAddon({ item_id: a.key, item_name: a.name, price: a.amount * duration, quantity: 1 });
+              }}
             />
           </>
         )}
