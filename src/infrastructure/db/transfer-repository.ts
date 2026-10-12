@@ -37,6 +37,24 @@ export class SupabaseTransferRepository {
     return data as RequestTransferResult;
   }
 
+  /**
+   * Cupos por transferencia que este celular tiene tomados y sin pagar. Una transferencia
+   * sostiene el horario 2 h (48 h tras "Ya transferí") sin cobrar nada, así que el checkout
+   * público pone un tope por celular (auditoría 2026-10-12).
+   */
+  async openHoldsForPhone(phone: string): Promise<number> {
+    const { count, error } = await this.db
+      .from("orders")
+      .select("id, reservations!inner(id)", { count: "exact", head: true })
+      .eq("customer_phone", phone)
+      .eq("status", "pending_payment")
+      .not("transfer_requested_at", "is", null)
+      .eq("reservations.status", "held")
+      .gt("reservations.expires_at", new Date().toISOString());
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
   async declare(orderId: string): Promise<DeclareTransferResult> {
     const { data, error } = await this.db.rpc("declare_transfer", { p_order: orderId });
     if (error) throw new Error(error.message);

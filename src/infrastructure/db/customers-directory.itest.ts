@@ -247,32 +247,26 @@ describe("upsert_guest_customer (escritor único de invitados)", () => {
     expect(row.rows[0]).toEqual({ name: null, phone: null });
   });
 
-  it("para fichas de invitado ganan los datos tipeados; los vacíos no pisan lo existente", async () => {
-    const g = await upsert("Ana", "ana@dir.cl", "+56911111111");
-    expect(await upsert("Ana María", "ANA@dir.cl", "+56922222222")).toBe(g);
+  // Auditoría 2026-10-12, hallazgo 1: quien escribe un correo no demuestra que es suyo. Si
+  // upsert pisara el teléfono, abandonar un checkout con el correo ajeno bastaba para que el
+  // PIN de la cerradura (que lee customers.phone primero) llegara al celular del atacante.
+  it("una ficha de invitado existente no se pisa ni se rellena: devuelve su id y nada más", async () => {
+    const g = await upsert("Ana", "ana@dir.cl", null);
+    expect(await upsert("Atacante", "ANA@dir.cl", "+56922222222")).toBe(g);
     expect((await pg.query("select name, phone from customers where id=$1", [g])).rows[0]).toEqual({
-      name: "Ana María",
-      phone: "+56922222222",
-    });
-    expect(await upsert(null, "ana@dir.cl", null)).toBe(g);
-    expect((await pg.query("select name, phone from customers where id=$1", [g])).rows[0]).toEqual({
-      name: "Ana María",
-      phone: "+56922222222",
+      name: "Ana",
+      phone: null, // ni siquiera el hueco se rellena desde un checkout sin sesión
     });
     expect(await count("customers")).toBe(1);
   });
 
-  it("titular de cuenta: conserva nombre y email; solo se rellena un teléfono vacío", async () => {
+  it("titular de cuenta: tampoco se rellena su teléfono vacío", async () => {
     const h = await customer({ name: "Titular Real", email: "titular@dir.cl", phone: null, authUserId: U_HOLDER });
     expect(await upsert("Otro Nombre", "titular@dir.cl", "+56933333333")).toBe(h);
     expect((await pg.query("select name, phone from customers where id=$1", [h])).rows[0]).toEqual({
       name: "Titular Real",
-      phone: "+56933333333",
+      phone: null,
     });
-    expect(await upsert("Otro", "titular@dir.cl", "+56944444444")).toBe(h);
-    expect((await pg.query<{ phone: string }>("select phone from customers where id=$1", [h])).rows[0].phone).toBe(
-      "+56933333333", // ya tenía teléfono → no se pisa
-    );
   });
 });
 
@@ -1020,13 +1014,34 @@ describe("PR3: create_checkout crea/vincula la ficha", () => {
     });
   });
 
-  it("invitado que vuelve: el teléfono nuevo tipeado gana en la ficha y viaja al snapshot", async () => {
+  it("invitado que vuelve: lo tipeado viaja al pedido y la reserva, la ficha queda intacta", async () => {
     const c = await customer({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 0000 0000" });
-    const orderId = await checkout({ name: "Vuelve", email: "vuelve@dir.cl", phone: "+56 9 3333 3333" });
+    const orderId = await checkout({ name: "Vuelve Otro", email: "vuelve@dir.cl", phone: "+56 9 3333 3333" });
 
-    expect((await pg.query("select phone from customers where id=$1", [c])).rows[0].phone).toBe("+56 9 3333 3333");
-    expect((await snapshot("orders", orderId)).customer_phone).toBe("+56 9 3333 3333");
-    expect((await snapshot("orders", orderId)).customer_id).toBe(c);
+    expect((await pg.query("select name, phone from customers where id=$1", [c])).rows[0]).toEqual({
+      name: "Vuelve",
+      phone: "+56 9 0000 0000",
+    });
+    const esperado = {
+      customer_id: c,
+      customer_name: "Vuelve Otro",
+      customer_email: "vuelve@dir.cl",
+      customer_phone: "+56 9 3333 3333",
+    };
+    expect(await snapshot("orders", orderId)).toEqual(esperado);
+    expect(await snapshot("reservations", await reservationOf(orderId))).toEqual(esperado);
+  });
+
+  it("invitado que vuelve sin teléfono: la ficha rellena el hueco del pedido", async () => {
+    const c = await customer({ name: "Ficha", email: "hueco@dir.cl", phone: "+56 9 0000 0000" });
+    const orderId = await checkout({ name: "Tipeado", email: "hueco@dir.cl", phone: null });
+
+    expect(await snapshot("orders", orderId)).toEqual({
+      customer_id: c,
+      customer_name: "Tipeado",
+      customer_email: "hueco@dir.cl",
+      customer_phone: "+56 9 0000 0000",
+    });
   });
 
   it("email sin forma válida: reserva igual, sin ficha y sin vínculo (snapshot con lo tipeado, en minúsculas)", async () => {
