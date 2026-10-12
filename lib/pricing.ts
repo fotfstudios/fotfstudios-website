@@ -61,7 +61,7 @@ export const TIERS: {
   {
     key: "puntaFinde",
     name: TIER_LABELS.puntaFinde,
-    when: "Vie 17:00 → Dom cierre",
+    when: "Vie 17:00 → Dom cierre · feriados",
     rate: RATES.puntaFinde,
   },
 ];
