@@ -7,6 +7,8 @@
  * viernes salen solos. Total redondeado a $10.
  */
 
+import { TIER_LABELS } from "@/src/domain/pricing/tier-labels";
+
 // 0 = Domingo … 6 = Sábado (igual que Date.getDay)
 export const DAYS = [
   { key: "dom", label: "Domingo", short: "Dom" },
@@ -37,7 +39,7 @@ export const RATES: Record<TierKey, number> = {
   puntaFinde: 19990,
 };
 
-/** Tabla de referencia para la UI. */
+/** Tabla de referencia para la UI. Nombres de cliente desde TIER_LABELS (los mismos del checkout y la boleta). */
 export const TIERS: {
   key: TierKey;
   name: string;
@@ -46,19 +48,19 @@ export const TIERS: {
 }[] = [
   {
     key: "valle",
-    name: "Valle",
+    name: TIER_LABELS.valle,
     when: "Lun–Vie · apertura → 17:00",
     rate: RATES.valle,
   },
   {
     key: "puntaSemana",
-    name: "Punta semana",
+    name: TIER_LABELS.puntaSemana,
     when: "Lun–Jue · 17:00 → cierre",
     rate: RATES.puntaSemana,
   },
   {
     key: "puntaFinde",
-    name: "Punta finde",
+    name: TIER_LABELS.puntaFinde,
     when: "Vie 17:00 → Dom cierre",
     rate: RATES.puntaFinde,
   },

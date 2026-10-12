@@ -13,7 +13,7 @@ const VOLUME_DISPLAY = [
   { when: "4+ horas", off: "−20%" },
 ];
 
-const PACKS_WA = "Hola *FOTF Studios*. Quiero comprar un *Pack de horas valle*.";
+const PACKS_WA = "Hola *FOTF Studios*. Quiero comprar un *Pack de horas en tarifa diurna*.";
 
 export default function Precio() {
   return (
@@ -122,7 +122,7 @@ export default function Precio() {
             </div>
             <ul className="grid divide-y divide-[var(--color-ink-line)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               <li className="px-6 py-5">
-                <div className="text-lg text-bone">Packs de horas valle</div>
+                <div className="text-lg text-bone">Packs de horas · tarifa diurna</div>
                 <div className="mt-2 space-y-2">
                   {PACKS.map((p) => (
                     <div key={p.hours} className="flex items-end justify-between gap-3">
