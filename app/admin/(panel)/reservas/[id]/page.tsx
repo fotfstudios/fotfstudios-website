@@ -125,6 +125,16 @@ function timelineEntry(
       const pts = e.detail?.points_moved ?? 0;
       return { label: "Cliente reasignado", detail: `${from} → ${to}${pts > 0 ? ` · ${pts} Beatcoins movidos` : ""}` };
     }
+    case "transfer_requested":
+      return {
+        label: "Eligió pagar por transferencia",
+        detail: `${clp(e.amountClp)}${e.detail?.pay_by ? ` · plazo ${fmtDateTime(e.detail.pay_by)}` : ""}`,
+      };
+    case "transfer_declared":
+      return {
+        label: "Avisó que transfirió — verificar",
+        detail: e.detail?.hold_until ? `Cupo apartado hasta ${fmtDateTime(e.detail.hold_until)}` : undefined,
+      };
     case "cancelled":
       return { label: "Cancelada" };
     case "refunded":

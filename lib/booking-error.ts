@@ -29,6 +29,8 @@ export function bookingErrorMessage(code: BookingErrorCode): string {
       return "Ingresa un celular chileno válido (9 dígitos, empieza con 9).";
     case "amount_changed":
       return "El total cambió. Revisa el resumen e intenta de nuevo.";
+    case "transfer_unavailable":
+      return "La transferencia no está disponible para este horario. Paga con Mercado Pago o elige otro horario.";
     default:
       return "No se pudo crear la reserva.";
   }

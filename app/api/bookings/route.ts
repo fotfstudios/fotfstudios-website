@@ -6,6 +6,7 @@ import {
   db,
   notificationService,
   paymentService,
+  transferRepository,
 } from "@/src/composition";
 import { currentCustomer } from "@/src/infrastructure/auth/require-customer";
 import { hostFromHeaders } from "@/lib/urls";
@@ -14,6 +15,11 @@ import { normalizeEmail } from "@/src/domain/contact/contact";
 import { toE164ClMobile } from "@/lib/phone-input";
 import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
 import { applyCheckoutWhatsAppChoice } from "@/src/domain/contact/whatsapp-checkout-consent";
+import { transferOffered } from "@/src/domain/checkout/transfer";
+import { rangeFor } from "@/src/domain/scheduling/time";
+
+/** Zona del estudio: la misma con la que el checkout arma el horario (rangeFor). */
+const STUDIO_TZ = "America/Santiago";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +29,9 @@ export const dynamic = "force-dynamic";
  * Wallet Brick (onSubmit) e `initPoint` para el redirect clásico (fallback).
  * Con `pointsToRedeem` (sesión requerida) el canje entra a la misma transacción;
  * si los puntos cubren todo, la reserva ya sale confirmada → { paidWithPoints }.
+ * Con `paymentMethod: "transferencia"` (respaldo si MP falla, interruptor del admin) no
+ * hay preference: el hold pasa a 2 h (request_transfer), sale el correo con los datos
+ * bancarios y responde { orderId, transfer: true }.
  * Detrás del feature flag.
  */
 export async function POST(req: Request): Promise<Response> {
@@ -47,6 +56,8 @@ export async function POST(req: Request): Promise<Response> {
     expectedAmount?: number;
     /** Casilla "Avísame también por WhatsApp". Ausente = no se toca el consentimiento. */
     whatsappOptIn?: boolean;
+    /** Cómo paga el resto. Ausente = Mercado Pago. */
+    paymentMethod?: "mercadopago" | "transferencia";
   };
 
   // `name` y `phone` tienen que ser strings si vienen: el cuerpo abajo les llama
@@ -63,7 +74,8 @@ export async function POST(req: Request): Promise<Response> {
     !b.customer.email ||
     !optionalString(b.customer.name) ||
     !optionalString(b.customer.phone) ||
-    (b.whatsappOptIn !== undefined && typeof b.whatsappOptIn !== "boolean")
+    (b.whatsappOptIn !== undefined && typeof b.whatsappOptIn !== "boolean") ||
+    (b.paymentMethod !== undefined && b.paymentMethod !== "mercadopago" && b.paymentMethod !== "transferencia")
   ) {
     return Response.json({ error: "datos incompletos" }, { status: 400 });
   }
@@ -82,6 +94,16 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const client = db();
+    const transfer = b.paymentMethod === "transferencia";
+
+    // Transferencia: se valida ANTES de tomar el hold (interruptor + anticipación), así un
+    // rechazo no deja un cupo tomado 10 min. request_transfer re-valida en la DB.
+    if (transfer) {
+      const { startsAt } = rangeFor(b.date, b.startMinute, b.durationHours, STUDIO_TZ);
+      if (!(await transferRepository(client).isEnabled()) || !transferOffered(startsAt, Date.now())) {
+        return Response.json({ error: "transfer_unavailable" }, { status: 409 });
+      }
+    }
 
     // Normalización de dominio: el email válido se guarda canónico (minúsculas)
     // y el celular en "+569XXXXXXXX"; un email inválido NO bloquea la reserva (se
@@ -166,6 +188,31 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({
         orderId: booking.value.orderId,
         paidWithPoints: true,
+        pointsApplied: booking.value.pointsApplied,
+      });
+    }
+
+    if (transfer) {
+      const t = await transferRepository(client).request(booking.value.orderId);
+      // Carrera rara (el dueño la apagó, o el cupo venció entre la validación y acá): el hold
+      // de 10 min se libera solo con el barrido de cada minuto.
+      if (t !== "ok") return Response.json({ error: "transfer_unavailable" }, { status: 409 });
+      const { data: res } = await client
+        .from("reservations")
+        .select("expires_at")
+        .eq("order_id", booking.value.orderId)
+        .maybeSingle();
+      const payBy = res?.expires_at ?? null;
+      // Best-effort: la página de estado también muestra los datos y el plazo.
+      if (payBy) {
+        await notificationService(client)
+          .notifyTransferHeld(booking.value.orderId, new Date(payBy))
+          .catch((e) => console.error("[bookings:transfer-email]", e));
+      }
+      return Response.json({
+        orderId: booking.value.orderId,
+        transfer: true,
+        payBy,
         pointsApplied: booking.value.pointsApplied,
       });
     }

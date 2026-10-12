@@ -67,6 +67,7 @@ export default async function EstadoPage({
             amount={order.total}
             manageHref={accounts ? "/cuenta/reservas" : null}
             showActivate={accounts && !session}
+            transfer={order.transfer}
           />
         </div>
       </main>

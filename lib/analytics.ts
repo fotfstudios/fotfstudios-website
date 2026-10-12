@@ -164,7 +164,7 @@ export function trackCheckoutError(code: string): void {
   pushEvent("checkout_error", { code, page: BOOKING_PAGE });
 }
 
-export type PaymentType = "mercadopago" | "beatcoins";
+export type PaymentType = "mercadopago" | "beatcoins" | "transferencia";
 
 /** Pedido creado y camino de pago elegido (antes del redirect / brick / confirmación). */
 export function trackBeginCheckout(p: {

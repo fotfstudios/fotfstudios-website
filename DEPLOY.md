@@ -411,6 +411,13 @@ El sitemap lista `/reservar` solo con el flag prendido. Lo fija `lib/booking-fla
 
 Después: mirar logs y `notification_log` a diario las primeras 72 h.
 
+### Respaldo: transferencia (si Mercado Pago falla)
+`/admin/reservas` → "Pago por transferencia en el sitio" → **Activar** (apagado por defecto). Con eso
+`/reservar` ofrece "Transferencia bancaria" para horarios a ≥ 3 h: el cupo queda 2 h, el cliente ve los
+datos en `/reserva/estado` (y por correo) y avisa "Ya transferí" → el cupo espera 48 h (nunca más allá del
+inicio) y te llega "Revisa una transferencia". Confirmas en la ficha con **Cobro → Transferencia**; si no,
+se libera solo. Desactívalo cuando MP vuelva. Reglas en la migración `20261016120000_transferencia_checkout`.
+
 ### Apagar (rollback)
 Poner `NEXT_PUBLIC_BOOKING_ENABLED=false` (o borrarla) y redeploy sin caché: `/reservar` vuelve a
 404 y las APIs dejan de aceptar reservas nuevas. Las ya pagadas, el webhook, `/reserva/estado` y el

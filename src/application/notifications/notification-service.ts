@@ -63,6 +63,7 @@ import {
   courseReviewRequest,
   ownerCoursePaid,
   bookingHeldPending,
+  ownerTransferDeclared,
   bookingPaymentPending,
   bookingPaymentReminder,
   courseEnrollmentPending,
@@ -885,7 +886,37 @@ export class NotificationService {
    * manualHoldDeadline: lo primero entre el barrido y el inicio de la sesión.
    */
   async notifyBookingHeld(orderId: string, v: PendingPaymentClock): Promise<boolean> {
-    return this.sendPendingPayment(orderId, v, bookingHeldPending, "payment_pending");
+    return this.sendPendingPayment(orderId, (startsAt) => manualHoldDeadline(v.clockStart, startsAt, v.now), bookingHeldPending, "payment_pending");
+  }
+
+  /**
+   * Checkout público pagado por transferencia (respaldo si MP falla): el mismo correo que la
+   * reserva manual pendiente —datos para pegar en el banco, monto y plazo—, pero el plazo es
+   * el vencimiento del hold que fijó request_transfer (2 h), no el reloj de 72 h.
+   */
+  async notifyTransferHeld(orderId: string, payBy: Date): Promise<boolean> {
+    return this.sendPendingPayment(orderId, () => payBy, bookingHeldPending, "payment_pending");
+  }
+
+  /**
+   * "Ya transferí": aviso al dueño para que verifique y la marque pagada. Solo correo (el
+   * WhatsApp del dueño necesita una plantilla nueva aprobada por Meta). Best-effort.
+   */
+  async notifyTransferDeclared(orderId: string, holdUntil: string): Promise<void> {
+    if (!this.config.ownerEmail) return;
+    const o = await this.repo.getOrderForEmail(orderId);
+    if (!o) return;
+    await this.mailer.send({
+      to: this.config.ownerEmail,
+      ...ownerTransferDeclared({
+        name: o.name,
+        email: o.email,
+        when: this.when(o.startsAt, o.endsAt),
+        total: formatCLP(o.amount),
+        holdUntil: formatSessionWhen(holdUntil, this.config.tz),
+        adminUrl: `${this.config.siteUrl}/admin/reservas/${o.reservationId ?? ""}`,
+      }),
+    });
   }
 
   /**
@@ -894,18 +925,18 @@ export class NotificationService {
    * (payment_reminder_sent_at) lo lleva el barrido, no este método.
    */
   async notifyPaymentReminder(orderId: string, v: PendingPaymentClock): Promise<boolean> {
-    return this.sendPendingPayment(orderId, v, bookingPaymentReminder, "payment_reminder");
+    return this.sendPendingPayment(orderId, (startsAt) => manualHoldDeadline(v.clockStart, startsAt, v.now), bookingPaymentReminder, "payment_reminder");
   }
 
   private async sendPendingPayment(
     orderId: string,
-    v: PendingPaymentClock,
+    deadline: (startsAt: string | null) => Date,
     template: typeof bookingHeldPending | typeof bookingPaymentReminder,
     event: "payment_pending" | "payment_reminder",
   ): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
     if (!o?.email) return false;
-    const payBy = manualHoldDeadline(v.clockStart, o.startsAt, v.now);
+    const payBy = deadline(o.startsAt);
     const view = {
       name: o.name,
       when: this.when(o.startsAt, o.endsAt),
