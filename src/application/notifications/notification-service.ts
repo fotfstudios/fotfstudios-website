@@ -527,7 +527,7 @@ export class NotificationService {
     const total = formatCLP(o.amount);
     if (this.config.ownerEmail) {
       await this.mailer
-        .send({ to: this.config.ownerEmail, ...ownerNeedsReview({ when, total, email: o.email, paymentId, adminUrl: this.adminUrl(o.reservationId) }) })
+        .send({ to: this.config.ownerEmail, ...ownerNeedsReview({ when, total, email: o.email, paymentId, adminUrl: this.adminUrl(o.reservationId), ref: orderShort(orderId) }) })
         .catch((e) => console.error("[notify:review:owner]", orderId, e));
     }
     if (o.email) {
@@ -554,6 +554,7 @@ export class NotificationService {
         paymentId,
         amount: formatCLP(amount),
         storedMethod: paymentMethodLabel(o.paymentMethod),
+        ref: orderShort(orderId),
       }),
     });
   }
@@ -927,6 +928,7 @@ export class NotificationService {
         total: formatCLP(o.amount),
         holdUntil: formatSessionWhen(holdUntil, this.config.tz),
         adminUrl: `${this.config.siteUrl}/admin/reservas/${o.reservationId ?? ""}`,
+        ref: orderShort(orderId),
       }),
     });
   }

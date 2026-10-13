@@ -203,3 +203,16 @@ describe("reembolso según cómo se pagó", () => {
     expect(m.html).not.toContain("por transferencia");
   });
 });
+
+describe("N° en los avisos al dueño que apuntan a un pedido", () => {
+  const ref = "0119b25b";
+  it.each([
+    ["ownerTransferDeclared", () => ownerTransferDeclared({ name: "Ana", email: "a@e.cl", when, total: "$1", holdUntil: "x", adminUrl: "https://x", ref })],
+    ["ownerNeedsReview", () => ownerNeedsReview({ when, total: "$1", email: "a@e.cl", paymentId: "1", ref })],
+    ["ownerDuplicatePayment", () => ownerDuplicatePayment({ when, email: "a@e.cl", paymentId: "1", amount: "$1", storedMethod: null, ref })],
+  ] as [string, () => EmailContent][])("%s: 'Para el estudio · N°' y el N° en el texto", (_n, make) => {
+    const m = make();
+    expect(m.html).toContain(`Para el estudio · N° ${ref}`);
+    expect(m.text).toContain(`N° ${ref}`);
+  });
+});

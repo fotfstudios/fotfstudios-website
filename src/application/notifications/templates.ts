@@ -529,13 +529,13 @@ export function trialRescheduled(
  * pago desde el panel de Mercado Pago. Sirena: hay plata del cliente que no corresponde.
  */
 export function ownerDuplicatePayment(
-  v: { when: string; email: string | null; paymentId: string; amount: string; storedMethod: string | null },
+  v: { when: string; email: string | null; paymentId: string; amount: string; storedMethod: string | null; ref?: string },
 ): EmailContent {
   const already = v.storedMethod ? ` por ${esc(v.storedMethod)}` : "";
   const html = dsShell({
     preheader: `La reserva ya estaba pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}.`,
     status: ["Devolver", "danger"],
-    eyebrow: "Para el estudio",
+    eyebrow: withRef("Para el estudio", v.ref),
     title: "Pago duplicado — devolver",
     body: `${p(`Llegó un pago de Mercado Pago para una reserva que ${b(`ya estaba pagada${already}`)}. No se registró: hay que ${b("devolverlo desde el panel de Mercado Pago")}.`, "0 0 24px")}
 ${ticket([
@@ -547,7 +547,7 @@ ${ticket([
 ${gap(28)}${cta("Devolver en Mercado Pago", MP_ACTIVITIES)}`,
     footer: "owner",
   });
-  const text = `PAGO DUPLICADO — devolver. Reserva ${v.when}, ya pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}. Cliente ${v.email ?? "?"}. Pago MP #${v.paymentId}, ${v.amount}. Devolverlo desde el panel de Mercado Pago: ${MP_ACTIVITIES}`;
+  const text = `PAGO DUPLICADO — devolver. Reserva ${v.when}, ya pagada${v.storedMethod ? ` por ${v.storedMethod}` : ""}. Cliente ${v.email ?? "?"}. Pago MP #${v.paymentId}, ${v.amount}. Devolverlo desde el panel de Mercado Pago: ${MP_ACTIVITIES}${v.ref ? ` N° ${v.ref}.` : ""}`;
   return { template: "ownerDuplicatePayment", subject: `Acción requerida · Pago duplicado · devolver ${v.amount} · ${v.when}`, html, text };
 }
 
@@ -971,12 +971,12 @@ export function beatcoinsExpired(
  * Sirena (${T.sirena}) es legítima aquí: es urgencia real, no decoración.
  */
 export function ownerNeedsReview(
-  v: { when: string; total: string; email: string | null; paymentId: string; adminUrl?: string },
+  v: { when: string; total: string; email: string | null; paymentId: string; adminUrl?: string; ref?: string },
 ): EmailContent {
   const html = dsShell({
     preheader: "El hold venció antes del pago. Devolver o reasignar.",
     status: ["Acción requerida", "danger"],
-    eyebrow: "Para el estudio",
+    eyebrow: withRef("Para el estudio", v.ref),
     title: "Pago sin reserva — revisar",
     body: `${p(`Se aprobó un pago pero el horario ya no estaba reservado (el hold venció antes del pago). Hay que ${b("devolver o reasignar")}.`, "0 0 24px")}
 ${ticket([
@@ -992,7 +992,7 @@ ${gap(28)}${steps("Por hacer", [
 ${v.adminUrl ? `${gap(4)}${cta("Abrir la reserva", v.adminUrl)}` : ""}`,
     footer: "owner",
   });
-  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.${v.adminUrl ? ` ${v.adminUrl}` : ""}`;
+  const text = `PAGO SIN RESERVA — revisar. Horario ${v.when}. Cliente ${v.email ?? "?"}. Pago ${v.paymentId}, total ${v.total}. Devolver o reasignar.${v.adminUrl ? ` ${v.adminUrl}` : ""}${v.ref ? ` N° ${v.ref}.` : ""}`;
   return { template: "ownerNeedsReview", subject: `Acción requerida · pago sin reserva · ${v.total} · ${v.when}`, html, text };
 }
 
@@ -1408,6 +1408,8 @@ ${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`
  * Sirena: es una tarea, no una emergencia.
  */
 export function ownerTransferDeclared(v: {
+  /** N° del pedido (orderShort): el que cita el cliente por WhatsApp. */
+  ref?: string;
   name: string | null;
   email: string | null;
   when: string;
@@ -1419,7 +1421,7 @@ export function ownerTransferDeclared(v: {
   const html = dsShell({
     preheader: `El cupo se sostiene hasta el ${v.holdUntil}.`,
     status: ["Por verificar", "pending"],
-    eyebrow: "Para el estudio",
+    eyebrow: withRef("Para el estudio", v.ref),
     title: "Revisa una transferencia",
     body: `${p(`${esc(v.name ?? "Un cliente")} avisó que ya transfirió.`, "0 0 24px")}
 ${ticket([
@@ -1432,7 +1434,7 @@ ${gap(12)}${p("Si la transferencia llegó, márcala pagada en el admin y el clie
 ${cta("Abrir la reserva", v.adminUrl)}`,
     footer: "owner",
   });
-  const text = `${who} avisó que ya transfirió ${v.total} por la reserva del ${v.when}. Si llegó, márcala pagada en el admin: ${v.adminUrl}. El cupo se sostiene hasta el ${v.holdUntil}; si no la confirmas, se libera solo.`;
+  const text = `${who} avisó que ya transfirió ${v.total} por la reserva del ${v.when}. Si llegó, márcala pagada en el admin: ${v.adminUrl}. El cupo se sostiene hasta el ${v.holdUntil}; si no la confirmas, se libera solo.${v.ref ? ` N° ${v.ref}.` : ""}`;
   return { template: "ownerTransferDeclared", subject: `Revisa una transferencia · ${v.total} · ${v.name ?? v.email ?? "Cliente"} · ${v.when}`, html, text };
 }
 
