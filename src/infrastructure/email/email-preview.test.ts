@@ -11,6 +11,7 @@
  * Al migrar o agregar una plantilla, súmala acá.
  */
 import { it } from "vitest";
+import { GUIDES } from "@/lib/guides";
 import { SITE, TRANSFER } from "@/lib/site";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { SmtpMailer } from "./smtp-mailer";
@@ -125,4 +126,15 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   await svc.notifyCourseRefunded({ students: alumna, generation: "P0001", refundedClp: 249990 });
   await svc.notifyCourseRefunded({ students: alumna, generation: "P0001", refundedClp: 249990, refundOffline: true });
   await svc.notifyReviewRequest({ email: CUSTOMER, name: "Ana Rojas" });
+  // Beatcoins
+  await svc.notifyPointsBalance({ name: "Ana Rojas", email: CUSTOMER, points: 1200 });
+  await svc.notifyBeatcoinsExpiring({ email: CUSTOMER, name: "Ana Rojas", expiring: 800, permanent: 400, expiresAt: "2026-11-10T15:00:00Z" });
+  await svc.notifyBeatcoinsExpired({ email: CUSTOMER, name: "Ana Rojas", expired: 800, remaining: 400 });
+  await svc.notifyBeatcoinsLaunch({ email: CUSTOMER, name: "Ana Rojas", balance: 1200 });
+  await svc.notifyBeatcoinsDigest({ email: CUSTOMER, name: "Ana Rojas", balance: 1200, protected: 400, activityAt: "2026-01-15T15:00:00Z", unsubscribeToken: "demo" });
+  // Marketing: guía, newsletter, postulación de DJ
+  const guide = GUIDES["guia-pendrive-dj"];
+  await svc.notifyGuideLead({ email: CUSTOMER, token: "demo", copy: guide.email, landingPath: guide.path });
+  await svc.notifyNewsletterWelcome({ email: CUSTOMER, unsubscribeToken: "demo" });
+  await svc.notifyApplication({ name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", format: "clases", availability: "Tardes de semana", mixUrl: "https://soundcloud.com/fotfstudios", instagram: "@anarojas", genres: "House, techno", pitch: "Toco hace 3 años en fiestas.\nQuiero enseñar a principiantes." });
 });

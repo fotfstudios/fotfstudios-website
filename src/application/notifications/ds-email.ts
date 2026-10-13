@@ -204,7 +204,7 @@ export interface DsShell {
 }
 
 /**
- * Envoltorio de los correos del flujo de reserva. Hereda lo que el shell clásico ya
+ * Envoltorio de todos los correos. Hereda lo que el envoltorio anterior ya
  * resolvía: documento completo, `lang="es"`, `color-scheme: dark` (los clientes con
  * modo oscuro no invierten un correo que ya es oscuro), tabla contenedora con `bgcolor`
  * (Outlook ignora el fondo de un <div>) y preheader oculto.

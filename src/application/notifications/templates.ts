@@ -28,7 +28,7 @@ import {
   type TicketRow,
   toned,
 } from "./ds-email";
-import { EMAIL as T, EMAIL_DS as D } from "./email-tokens";
+import { EMAIL_DS as D } from "./email-tokens";
 import type { SessionParts } from "./format-when";
 
 export interface BookingView {
@@ -42,9 +42,8 @@ export interface BookingView {
   ref?: string;
 }
 
-// ── Piezas compartidas de los correos del flujo de reserva (design system) ──
-// Las plantillas del flujo público de reserva usan dsShell (ds-email.ts); el resto
-// sigue en `shell` hasta migrarlas. Ver CLAUDE.md → Brand guardrails.
+// ── Piezas compartidas de los correos (design system) ──
+// Todas las plantillas usan dsShell (ds-email.ts). Ver CLAUDE.md → Brand guardrails.
 
 /** Datos opcionales del pie: dirección, Instagram y la cuenta, cuando el servicio los conoce. */
 export interface BookingFoot {
@@ -73,6 +72,12 @@ const courseFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; w
 const leadFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; whatsappUrl?: string }): FooterCtx => ({
   ...bookingFooter(ctx),
   reason: "Recibes este correo porque pediste inscribirte en el Curso de DJ de FOTF Studios.",
+});
+
+/** Pie de los avisos de Beatcoins (saldo, vencimiento, resumen). */
+const beatcoinsFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; whatsappUrl?: string }): FooterCtx => ({
+  ...bookingFooter(ctx),
+  reason: "Recibes este correo porque tienes Beatcoins en FOTF Studios.",
 });
 
 /** Pie de los correos de la prueba del curso. */
@@ -135,42 +140,6 @@ ${gap(28)}${callout("No es tu PIN de la sala", o.note, "neutral")}`,
 /** "Hola Ana, tu sesión…" o, sin nombre, "Tu sesión…" (la mayúscula la ponía el saludo). */
 const hola = (name: string | null | undefined, rest: string): string =>
   name ? `Hola ${esc(name)}, ${rest}` : rest.charAt(0).toUpperCase() + rest.slice(1);
-
-/**
- * Envoltorio clásico (Arial / Gold), el de los correos que todavía no pasan al design
- * system de reservas (`dsShell` en ds-email.ts). Documento completo, no un <div> suelto:
- * - `lang="es"` + `color-scheme: dark` declarados: Gmail/Outlook con dark mode no
- *   invierten un correo que ya es oscuro (Gold sobre Ink seguía siendo el diseño).
- * - Tabla contenedora con `bgcolor`: Outlook de escritorio ignora `max-width` y el
- *   fondo de un <div>; con la tabla el Ink llega de borde a borde.
- * - Preheader oculto: lo que Gmail muestra como snippet junto al asunto (la fecha,
- *   no "FOTF STUDIOS ¡Reserva confirmada! Hola…").
- */
-const shell = (inner: string, preheader = "") =>
-  `<!doctype html>
-<html lang="es" xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
-<title>FOTF Studios</title>
-<style>:root{color-scheme:dark;supported-color-schemes:dark}</style>
-</head>
-<body style="margin:0;padding:0;background:${T.ink}" bgcolor="${T.ink}">
-${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">${esc(preheader)}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>` : ""}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${T.ink}" style="background:${T.ink}">
-<tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
-<tr><td style="color:${T.bone};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5">
-<p style="color:${T.gold};letter-spacing:.15em;font-size:12px;margin:0 0 16px">FOTF STUDIOS</p>
-${inner}
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
 
 /** Email al cliente: confirmación de reserva + cómo llega el acceso (PIN por email 10 min antes). */
 export function customerConfirmation(
@@ -936,16 +905,23 @@ ${fine(`Aplican los ${a("términos de reagendamiento", ctx.termsUrl, D.text2)}. 
  */
 export function customerPointsBalance(
   v: { name: string | null; points: string; value: string },
-  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string; accountUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.points)} Beatcoins</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Beatcoins equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tu próxima sesión.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar.</p>
-     <a href="${esc(ctx.bookUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tu saldo y tus movimientos, en <a href="${esc(ctx.accountUrl)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
-    `Equivalen a ${v.value} de descuento en tu próxima sesión.`,
-  );
+  const html = dsShell({
+    preheader: `Equivalen a ${v.value} de descuento en tu próxima sesión.`,
+    status: ["Tu saldo", "ok"],
+    eyebrow: "Beatcoins",
+    title: `Tienes ${esc(v.points)} Beatcoins`,
+    body: `${p(hola(v.name, `tus Beatcoins equivalen a ${b(esc(v.value))} de descuento en tu próxima sesión.`), "0 0 28px")}
+${ticket([
+      { label: "Saldo", value: `${esc(v.points)} ${quiet("Beatcoins")}` },
+      { label: "Equivalen", value: esc(v.value), accent: "ok" },
+    ])}
+${gap(24)}${p("Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar.", "0 0 28px")}
+${cta("Reservar mi hora", ctx.bookUrl)}
+${ghosts([["Ver mi cuenta", ctx.accountUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: beatcoinsFooter({ ...ctx, accountUrl: ctx.accountUrl }),
+  });
   const text = `Tienes ${v.points} Beatcoins: equivalen a ${v.value} de descuento en tu próxima sesión. Ganas 5% de vuelta en cada sesión que pagas, y los canjeas al reservar. Reservar: ${ctx.bookUrl}. Tu saldo y tus movimientos: ${ctx.accountUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerPointsBalance", subject: `Tienes ${v.points} Beatcoins`, html, text };
 }
@@ -969,19 +945,27 @@ export const campaignUrl = (url: string, campaign: string): string => {
  */
 export function beatcoinsExpiring(
   v: { name: string | null; expiring: string; value: string; expiresOn: string; permanent: string | null },
-  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string; accountUrl: string },
 ): EmailContent {
   const book = campaignUrl(ctx.bookUrl, "beatcoinsExpiring");
   const account = campaignUrl(ctx.accountUrl, "beatcoinsExpiring");
   const keep = v.permanent ? ` Tus otros ${esc(v.permanent)} Beatcoins no vencen.` : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tus ${esc(v.expiring)} Beatcoins vencen el ${esc(v.expiresOn)}</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} quedan <strong style="color:${T.bone}">${esc(v.expiring)} Beatcoins</strong> (equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento) que vencen el <strong style="color:${T.bone}">${esc(v.expiresOn)}</strong>.${keep}</p>
-     <p style="color:${T.boneDim};margin:0 0 20px"><strong style="color:${T.bone}">Cualquier reserva pagada reinicia el plazo</strong>: tus Beatcoins vuelven a valer 12 meses. Y puedes usarlos para pagar esa misma hora.</p>
-     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tu saldo y tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
-    `${v.value} de descuento que vence el ${v.expiresOn}. Una reserva reinicia el plazo.`,
-  );
+  const html = dsShell({
+    preheader: `${v.value} de descuento que vence el ${v.expiresOn}. Una reserva reinicia el plazo.`,
+    status: ["Vence pronto", "pending"],
+    eyebrow: "Beatcoins",
+    title: `Tus ${esc(v.expiring)} Beatcoins vencen el ${esc(v.expiresOn)}`,
+    body: `${p(hola(v.name, `te quedan ${b(`${esc(v.expiring)} Beatcoins`)} (equivalen a ${b(esc(v.value))} de descuento) que vencen el ${b(esc(v.expiresOn))}.${keep}`), "0 0 28px")}
+${ticket([
+      { label: "Vencen", value: `${esc(v.expiring)} ${quiet(`· ${esc(v.value)}`)}` },
+      { label: "El", value: toned(esc(v.expiresOn), "pending"), accent: "pending" },
+      ...(v.permanent ? [{ label: "No vencen", value: esc(v.permanent), accent: "ok" as const }] : []),
+    ])}
+${gap(12)}${callout("Cómo no perderlos", `${b("Cualquier reserva pagada reinicia el plazo")}: tus Beatcoins vuelven a valer 12 meses. Y puedes usarlos para pagar esa misma hora.`, "pending")}
+${gap(28)}${cta("Reservar mi hora", book)}
+${ghosts([["Ver mi cuenta", account], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: beatcoinsFooter({ ...ctx, accountUrl: account }),
+  });
   const text = `Tus ${v.expiring} Beatcoins (${v.value} de descuento) vencen el ${v.expiresOn}.${v.permanent ? ` Tus otros ${v.permanent} Beatcoins no vencen.` : ""} Cualquier reserva pagada reinicia el plazo: tus Beatcoins vuelven a valer 12 meses, y puedes usarlos para pagar esa misma hora. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "beatcoinsExpiring", subject: `Tus ${v.expiring} Beatcoins vencen el ${v.expiresOn}`, html, text };
 }
@@ -993,18 +977,21 @@ export function beatcoinsExpiring(
  */
 export function beatcoinsLaunch(
   v: { name: string | null; balance: string; value: string; from: string },
-  ctx: { whatsappUrl: string; bookUrl: string; termsUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string; termsUrl: string },
 ): EmailContent {
   const book = campaignUrl(ctx.bookUrl, "beatcoinsLaunch");
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tus ${esc(v.balance)} Beatcoins no vencen</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tienes")} <strong style="color:${T.bone}">${esc(v.balance)} Beatcoins</strong>: equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento en tus próximas horas.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Cambia una regla del programa: desde el <strong style="color:${T.bone}">${esc(v.from)}</strong>, los Beatcoins que ganes vencen <strong style="color:${T.bone}">12 meses después de tu última reserva pagada</strong>. Cada reserva reinicia el plazo, y te avisamos por correo 30 y 7 días antes.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px"><strong style="color:${T.bone}">Lo que ya tienes no vence nunca</strong>, y lo que ganes en reservas pagadas antes del ${esc(v.from)}, tampoco.</p>
-     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">El detalle, en los <a href="${esc(ctx.termsUrl)}" style="color:${T.gold}">términos y condiciones</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
-    `Lo que ya tienes no vence nunca. Cambia una regla desde el ${v.from}.`,
-  );
+  const html = dsShell({
+    preheader: `Lo que ya tienes no vence nunca. Cambia una regla desde el ${v.from}.`,
+    status: ["No vencen", "ok"],
+    eyebrow: "Beatcoins",
+    title: `Tus ${esc(v.balance)} Beatcoins no vencen`,
+    body: `${p(hola(v.name, `tienes ${b(`${esc(v.balance)} Beatcoins`)}: equivalen a ${b(esc(v.value))} de descuento en tus próximas horas.`), "0 0 28px")}
+${callout("Cambia una regla", `Desde el ${b(esc(v.from))}, los Beatcoins que ganes vencen ${b("12 meses después de tu última reserva pagada")}. Cada reserva reinicia el plazo, y te avisamos por correo 30 y 7 días antes.`, "neutral")}
+${gap(24)}${p(`${b("Lo que ya tienes no vence nunca")}, y lo que ganes en reservas pagadas antes del ${b(esc(v.from))}, tampoco.`, "0 0 28px")}
+${cta("Reservar mi hora", book)}
+${fine(`El detalle, en los ${a("términos y condiciones", ctx.termsUrl, D.text2)}. ¿Dudas? ${a("WhatsApp", ctx.whatsappUrl, D.text2)}.`)}`,
+    footer: beatcoinsFooter(ctx),
+  });
   const text = `Tus ${v.balance} Beatcoins no vencen. Equivalen a ${v.value} de descuento en tus próximas horas. Cambia una regla del programa: desde el ${v.from}, los Beatcoins que ganes vencen 12 meses después de tu última reserva pagada; cada reserva reinicia el plazo y te avisamos 30 y 7 días antes. Lo que ya tienes no vence nunca, y lo que ganes en reservas pagadas antes del ${v.from}, tampoco. Reservar: ${book}. Términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "beatcoinsLaunch", subject: `Tus ${v.balance} Beatcoins no vencen: cambio en el programa`, html, text };
 }
@@ -1015,20 +1002,24 @@ export function beatcoinsLaunch(
  */
 export function beatcoinsDigest(
   v: { name: string | null; month: string; balance: string; value: string; expiry: string | null },
-  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string; unsubscribeUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string; accountUrl: string; unsubscribeUrl: string },
 ): EmailContent {
   const book = campaignUrl(ctx.bookUrl, "beatcoinsDigest");
   const account = campaignUrl(ctx.accountUrl, "beatcoinsDigest");
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tienes ${esc(v.balance)} Beatcoins</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tus")} Beatcoins equivalen a <strong style="color:${T.bone}">${esc(v.value)}</strong> de descuento: puedes pagar con ellos hasta el 100% de tu hora.</p>
-     ${v.expiry ? `<p style="color:${T.boneDim};margin:0 0 16px">${esc(v.expiry)}</p>` : ""}
-     <p style="color:${T.boneDim};margin:0 0 20px">Cada sesión que pagas te devuelve el 5% en Beatcoins.</p>
-     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>
-     <p style="color:${T.boneQuiet};font-size:12px;margin:24px 0 0">Te llega una vez al mes porque tienes Beatcoins. <a href="${esc(ctx.unsubscribeUrl)}" style="color:${T.boneQuiet}">Dejar de recibir este resumen</a>.</p>`,
-    `Equivalen a ${v.value} de descuento.${v.expiry ? ` ${v.expiry}` : ""}`,
-  );
+  const html = dsShell({
+    preheader: `Equivalen a ${v.value} de descuento.${v.expiry ? ` ${v.expiry}` : ""}`,
+    status: ["Resumen", "neutral"],
+    eyebrow: `Beatcoins · ${esc(v.month)}`,
+    title: `Tienes ${esc(v.balance)} Beatcoins`,
+    body: `${p(hola(v.name, `tus Beatcoins equivalen a ${b(esc(v.value))} de descuento: puedes pagar con ellos hasta el 100% de tu hora.`), "0 0 28px")}
+${v.expiry ? `${callout("Vencimiento", esc(v.expiry), "pending")}\n${gap(24)}` : ""}${p("Cada sesión que pagas te devuelve el 5% en Beatcoins.", "0 0 28px")}
+${cta("Reservar mi hora", book)}
+${ghosts([["Ver mi cuenta", account], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: {
+      ...beatcoinsFooter({ ...ctx, accountUrl: account }),
+      reason: `Te llega una vez al mes porque tienes Beatcoins. ${a("Dejar de recibir este resumen", ctx.unsubscribeUrl, D.small)}.`,
+    },
+  });
   const text = `Tienes ${v.balance} Beatcoins: equivalen a ${v.value} de descuento.${v.expiry ? ` ${v.expiry}` : ""} Cada sesión que pagas te devuelve el 5%. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}. Dejar de recibir este resumen: ${ctx.unsubscribeUrl}`;
   return { template: "beatcoinsDigest", subject: `Tu resumen de Beatcoins · ${v.month}`, html, text };
 }
@@ -1036,21 +1027,26 @@ export function beatcoinsDigest(
 /** Aviso de cuenta: venció parte del saldo. Qué venció, qué queda y cómo volver a ganar. */
 export function beatcoinsExpired(
   v: { name: string | null; expired: string; remaining: string | null },
-  ctx: { whatsappUrl: string; bookUrl: string; accountUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; bookUrl: string; accountUrl: string },
 ): EmailContent {
   const book = campaignUrl(ctx.bookUrl, "beatcoinsExpired");
   const account = campaignUrl(ctx.accountUrl, "beatcoinsExpired");
-  const left = v.remaining
-    ? `Te quedan <strong style="color:${T.bone}">${esc(v.remaining)} Beatcoins</strong> que no vencen.`
-    : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Vencieron ${esc(v.expired)} Beatcoins</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "pasaron")} 12 meses desde tu última reserva y vencieron ${esc(v.expired)} Beatcoins. ${left}</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Vuelves a ganar el 5% de lo que pagas en cada sesión. Te esperamos en la sala.</p>
-     <a href="${esc(book)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Tus movimientos, en <a href="${esc(account)}" style="color:${T.gold}">tu cuenta</a>. ¿Dudas? <a href="${ctx.whatsappUrl}" style="color:${T.gold}">WhatsApp</a>.</p>`,
-    `Vuelves a ganar el 5% en cada sesión.`,
-  );
+  const left = v.remaining ? `Te quedan ${b(`${esc(v.remaining)} Beatcoins`)} que no vencen.` : "";
+  const html = dsShell({
+    preheader: "Vuelves a ganar el 5% en cada sesión.",
+    status: ["Vencidos", "neutral"],
+    eyebrow: "Beatcoins",
+    title: `Vencieron ${esc(v.expired)} Beatcoins`,
+    body: `${p(hola(v.name, `pasaron 12 meses desde tu última reserva y vencieron ${esc(v.expired)} Beatcoins. ${left}`), "0 0 28px")}
+${ticket([
+      { label: "Vencieron", value: esc(v.expired), strike: true },
+      ...(v.remaining ? [{ label: "Te quedan", value: esc(v.remaining), accent: "ok" as const }] : []),
+    ])}
+${gap(24)}${p("Vuelves a ganar el 5% de lo que pagas en cada sesión. Te esperamos en la sala.", "0 0 28px")}
+${cta("Reservar mi hora", book)}
+${ghosts([["Ver mi cuenta", account], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: beatcoinsFooter({ ...ctx, accountUrl: account }),
+  });
   const text = `Vencieron ${v.expired} Beatcoins: pasaron 12 meses desde tu última reserva.${v.remaining ? ` Te quedan ${v.remaining} Beatcoins que no vencen.` : ""} Vuelves a ganar el 5% de lo que pagas en cada sesión. Reservar: ${book}. Tu cuenta: ${account}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "beatcoinsExpired", subject: `Vencieron ${v.expired} Beatcoins`, html, text };
 }
@@ -1058,7 +1054,7 @@ export function beatcoinsExpired(
 /**
  * Email al dueño: un pago se aprobó pero el horario ya no estaba reservado (el hold
  * venció antes de que llegara el pago). Requiere acción manual: refund o reasignar.
- * Sirena (${T.sirena}) es legítima aquí: es urgencia real, no decoración.
+ * Rojo (danger) es legítimo aquí: es urgencia real, no decoración.
  */
 export function ownerNeedsReview(
   v: { when: string; total: string; email: string | null; paymentId: string; adminUrl?: string; ref?: string },
@@ -1105,21 +1101,25 @@ export function ownerNewApplication(v: {
 }): EmailContent {
   const waDigits = v.phone.replace(/\D/g, "");
   const formatLabel = SESSION_FORMAT_LABELS[v.format];
-  const optional = (label: string, value: string) =>
-    `<p style="color:${T.boneDim};margin:0 0 4px">${label}: <strong style="color:${T.bone}">${esc(value)}</strong></p>`;
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">Nueva postulación de DJ</h1>
-     <p style="margin:0 0 4px"><strong>${esc(v.name)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 4px">Email: <a href="mailto:${esc(v.email)}" style="color:${T.gold}">${esc(v.email)}</a></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">WhatsApp: <a href="https://wa.me/${esc(waDigits)}" style="color:${T.gold}">${esc(v.phone)}</a></p>
-     ${optional("Puede hacer", formatLabel)}
-     ${optional("Disponibilidad", v.availability)}
-     <p style="margin:12px 0 12px">Set: <a href="${esc(v.mixUrl)}" style="color:${T.gold}">${esc(v.mixUrl)}</a></p>
-     ${v.instagram ? optional("Instagram", v.instagram) : ""}
-     ${v.genres ? optional("Géneros", v.genres) : ""}
-     <p style="color:${T.boneDim};margin:16px 0 4px">Experiencia:</p>
-     <p style="background:${T.inkSoft};padding:10px 12px;margin:0;color:${T.bone};white-space:pre-wrap">${esc(v.pitch)}</p>`,
-  );
+  const html = dsShell({
+    preheader: `${v.name} · ${formatLabel}`,
+    status: ["Por revisar", "pending"],
+    eyebrow: "Para el estudio",
+    title: "Nueva postulación de DJ",
+    body: `${gap(8)}${ticket([
+      { label: "Nombre", value: esc(v.name) },
+      { label: "Email", value: contact(v.email) },
+      { label: "WhatsApp", value: a(esc(v.phone), `https://wa.me/${waDigits}`, D.text) },
+      { label: "Puede hacer", value: esc(formatLabel) },
+      { label: "Disponible", value: esc(v.availability) },
+      { label: "Set", value: a(esc(v.mixUrl), v.mixUrl, D.text) },
+      ...(v.instagram ? [{ label: "Instagram", value: esc(v.instagram) }] : []),
+      ...(v.genres ? [{ label: "Géneros", value: esc(v.genres) }] : []),
+    ])}
+${gap(12)}${callout("Experiencia", esc(v.pitch).replace(/\n/g, "<br>"), "neutral")}
+${gap(28)}${cta("Escuchar el set", v.mixUrl)}`,
+    footer: "owner",
+  });
   const igText = v.instagram ? ` IG: ${v.instagram}.` : "";
   const genresText = v.genres ? ` Géneros: ${v.genres}.` : "";
   const text = `Nueva postulación de DJ: ${v.name}. Puede hacer: ${formatLabel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}. Set: ${v.mixUrl}.${igText}${genresText}\n\n${v.pitch}`;
@@ -1129,14 +1129,18 @@ export function ownerNewApplication(v: {
 /** Email al postulante: confirmación de que recibimos su postulación. Sin plazos prometidos. */
 export function applicantConfirmation(
   v: { name: string },
-  ctx: { whatsappUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Recibimos tu postulación</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">Gracias por querer sumarte al equipo, ${esc(v.name)}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Mientras tanto, síguenos y mándanos lo que estés preparando.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-  );
+  const html = dsShell({
+    preheader: "Vamos a escuchar tu set y revisar tu experiencia.",
+    status: ["Recibida", "pending"],
+    eyebrow: "Equipo FOTF",
+    title: "Recibimos tu postulación",
+    body: `${p(`Gracias por querer sumarte al equipo, ${esc(v.name)}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1.`, "0 0 16px")}
+${p("Mientras tanto, síguenos y mándanos lo que estés preparando.", "0 0 28px")}
+${cta("Escríbenos por WhatsApp", ctx.whatsappUrl)}`,
+    footer: { ...bookingFooter(ctx), reason: "Recibes este correo porque postulaste al equipo de FOTF Studios." },
+  });
   const text = `Recibimos tu postulación al equipo, ${v.name}. Vamos a escuchar tu set y revisar tu experiencia; si calza, te escribimos por WhatsApp para coordinar clases o sesiones 1:1: ${ctx.whatsappUrl}`;
   return { template: "applicantConfirmation", subject: "Recibimos tu postulación — FOTF Studios", html, text };
 }
@@ -1226,33 +1230,26 @@ export interface GuideDeliveryCopy {
  */
 export function guideDelivery(
   v: { downloadUrl: string; copy: GuideDeliveryCopy },
-  ctx: { whatsappUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string },
 ): EmailContent {
-  const url = esc(v.downloadUrl);
   const c = v.copy;
-  const steps = c.quickStart ?? [];
+  const quick = c.quickStart ?? [];
   const num = (i: number) => String(i + 1).padStart(2, "0");
-  // Tabla y no flex/grid: los clientes de correo no los soportan; el número queda en su columna.
-  const quickStart = steps.length
-    ? `<p style="color:${T.bone};font-size:13px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;margin:28px 0 12px">Por dónde empezar</p>
-     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%">${steps
-       .map(
-         (q, i) =>
-           `<tr><td valign="top" style="width:36px;padding:0 0 12px;color:${T.gold};font-family:monospace;font-weight:bold">${num(i)}</td><td valign="top" style="padding:0 0 12px;color:${T.boneDim}"><strong style="color:${T.bone}">${esc(q.lead)}</strong> ${esc(q.body)}</td></tr>`,
-       )
-       .join("")}</table>`
-    : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">${esc(c.h1)}</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">${esc(c.blurb)}</p>
-     <a href="${url}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">${esc(c.ctaLabel)}</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:20px 0 0">Si el botón no abre, copia este link: <a href="${url}" style="color:${T.gold};text-decoration:underline;word-break:break-all">${url}</a></p>${quickStart}
-     <p style="color:${T.boneDim};margin:20px 0 0">Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.</p>
-     <p style="color:${T.boneDim};margin:12px 0 0">¿Problemas para abrirla? <a href="${esc(ctx.whatsappUrl)}" style="color:${T.gold};text-decoration:underline">Escríbenos por WhatsApp</a> y lo vemos al tiro.</p>`,
-    c.preheader,
-  );
-  const quickStartText = steps.length
-    ? `\n\nPor dónde empezar:\n${steps.map((q, i) => `${num(i)} ${q.lead} ${q.body}`).join("\n")}`
+  const html = dsShell({
+    preheader: c.preheader,
+    status: ["Tu guía", "ok"],
+    eyebrow: "Guía en PDF",
+    title: esc(c.h1),
+    body: `${p(esc(c.blurb), "0 0 28px")}
+${cta(esc(c.ctaLabel), v.downloadUrl)}
+${fine(`Si el botón no abre, copia este link: <a href="${esc(v.downloadUrl)}" style="color:${D.text2};text-decoration:underline;word-break:break-all">${esc(v.downloadUrl)}</a>`)}
+${quick.length ? `${gap(28)}${steps("Por dónde empezar", quick.map((q) => [esc(q.lead), esc(q.body)] as [string, string]))}` : ""}
+${gap(12)}${p("Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.", "0 0 12px")}
+${p(`¿Problemas para abrirla? ${a("Escríbenos por WhatsApp", ctx.whatsappUrl, D.text)} y lo vemos al tiro.`, "0")}`,
+    footer: { ...bookingFooter(ctx), reason: "Recibes este correo porque pediste esta guía en fotfstudios.cl." },
+  });
+  const quickStartText = quick.length
+    ? `\n\nPor dónde empezar:\n${quick.map((q, i) => `${num(i)} ${q.lead} ${q.body}`).join("\n")}`
     : "";
   const text = `Acá está tu ${c.name} (PDF): ${v.downloadUrl}${quickStartText}
 
@@ -1267,15 +1264,17 @@ Guárdalo: el link es tuyo y lo puedes volver a usar cuando quieras.
  * persona lo ve, y la promesa del formulario ("te das de baja cuando quieras") vive acá.
  */
 export function newsletterWelcome(v: { unsubscribeUrl: string; blogUrl: string }): EmailContent {
-  const baja = esc(v.unsubscribeUrl);
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Quedaste en la lista</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">Te vamos a escribir cuando publiquemos una guía o un artículo nuevo para aprender a mezclar. Solo eso: nada de promociones diarias.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Mientras tanto, lo último está en el blog.</p>
-     <a href="${esc(v.blogUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Ir al blog</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:28px 0 0">¿No lo pediste o ya no quieres recibirlo? <a href="${baja}" style="color:${T.gold};text-decoration:underline">Date de baja aquí</a>.</p>`,
-    "Te avisamos cuando haya una guía o un post nuevo.",
-  );
+  const html = dsShell({
+    preheader: "Te avisamos cuando haya una guía o un post nuevo.",
+    status: ["Suscrito", "ok"],
+    eyebrow: "Newsletter",
+    title: "Quedaste en la lista",
+    body: `${p("Te vamos a escribir cuando publiquemos una guía o un artículo nuevo para aprender a mezclar. Solo eso: nada de promociones diarias.", "0 0 16px")}
+${p("Mientras tanto, lo último está en el blog.", "0 0 28px")}
+${cta("Ir al blog", v.blogUrl)}
+${fine(`¿No lo pediste o ya no quieres recibirlo? ${a("Date de baja aquí", v.unsubscribeUrl, D.text2)}.`)}`,
+    footer: { reason: "Recibes este correo porque te suscribiste a la lista de FOTF Studios." },
+  });
   const text = `Quedaste en la lista de FOTF Studios: te escribimos cuando publiquemos una guía o un artículo nuevo. Solo eso.
 
 Lo último está en el blog: ${v.blogUrl}

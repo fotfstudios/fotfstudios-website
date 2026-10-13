@@ -788,12 +788,13 @@ describe("customerPointsBalance (saldo de puntos a pedido del admin)", () => {
     expect(m.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
   });
 
-  // No cuelga de una sesión: sin fecha, sin dirección, sin PIN. Y sin Sirena —
-  // un saldo no es una urgencia (Manual de Marca).
-  it("no habla de una sesión concreta ni usa Sirena", () => {
+  // No cuelga de una sesión: sin fecha, sin dirección, sin PIN. Y sin tono de urgencia —
+  // un saldo no es una alarma. (El naranja del sistema es el del botón, no una alerta.)
+  it("no habla de una sesión concreta ni suena a urgencia", () => {
     const m = send();
     expect(m.html).not.toMatch(/reserva confirmada|c[óo]digo de acceso|Los Chercanes/i);
-    expect(m.html).not.toContain("#ff4d1d");
+    expect(m.html).not.toContain("#e5484d"); // rojo danger
+    expect(m.html).toMatch(/border:1px solid #45c065[^>]*>.*Tu saldo/); // pill "Tu saldo" en verde
   });
 });
 

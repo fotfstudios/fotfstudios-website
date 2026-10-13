@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
 import type { EmailContent } from "@/src/application/ports/mailer";
@@ -49,6 +51,12 @@ import {
   courseLeadConfirmation,
   ownerNewCourseLead,
   courseReviewRequest,
+  customerPointsBalance,
+  beatcoinsExpiring,
+  beatcoinsLaunch,
+  beatcoinsDigest,
+  beatcoinsExpired,
+  ownerNewApplication,
 } from "./templates";
 
 /**
@@ -126,6 +134,19 @@ IN_SCOPE.push(
   ["courseReviewRequest", () => courseReviewRequest({ name: "Ana" }, { reviewUrl: "https://g.page/r/x", whatsappUrl: wa })],
 );
 
+// Beatcoins y marketing (cuarta tanda).
+const acct = { whatsappUrl: wa, bookUrl: "https://www.fotfstudios.cl/reservar", accountUrl: "https://www.fotfstudios.cl/cuenta" };
+IN_SCOPE.push(
+  ["customerPointsBalance", () => customerPointsBalance({ name: "Ana", points: "1.200", value: "$1.200" }, acct)],
+  ["beatcoinsExpiring", () => beatcoinsExpiring({ name: "Ana", expiring: "800", value: "$800", expiresOn: "10 de noviembre", permanent: "400" }, acct)],
+  ["beatcoinsLaunch", () => beatcoinsLaunch({ name: "Ana", balance: "1.200", value: "$1.200", from: "10 de noviembre de 2026" }, { ...acct, termsUrl: "https://www.fotfstudios.cl/terminos" })],
+  ["beatcoinsDigest", () => beatcoinsDigest({ name: "Ana", month: "octubre 2026", balance: "1.200", value: "$1.200", expiry: "800 vencen el 10 de noviembre." }, { ...acct, unsubscribeUrl: "https://www.fotfstudios.cl/baja-resumen/t" })],
+  ["beatcoinsExpired", () => beatcoinsExpired({ name: "Ana", expired: "800", remaining: "400" }, acct)],
+  ["newsletterWelcome", () => newsletterWelcome({ unsubscribeUrl: "https://www.fotfstudios.cl/baja/t", blogUrl: "https://www.fotfstudios.cl/blog" })],
+  ["ownerNewApplication", () => ownerNewApplication({ name: "Ana", email: "ana@e.cl", phone: "+56912345678", format: "clases", availability: "tardes", mixUrl: "https://soundcloud.com/x", instagram: "@ana", genres: "house", pitch: "Toco hace 3 años" } as Parameters<typeof ownerNewApplication>[0])],
+  ["applicantConfirmation", () => applicantConfirmation({ name: "Ana" }, { whatsappUrl: wa })],
+);
+
 describe("correos del flujo de reserva — design system", () => {
   it.each(IN_SCOPE)("%s usa el shell del design system (fuentes, logo PNG, sin Arial de cuerpo)", (name, make) => {
     const m = make();
@@ -195,14 +216,18 @@ describe("correos del flujo de reserva — design system", () => {
   });
 });
 
-describe("fuera del alcance: siguen en el shell clásico hasta migrarlos", () => {
-  it.each([
-    ["applicantConfirmation", () => applicantConfirmation({ name: "Ana" }, { whatsappUrl: wa })],
-    ["newsletterWelcome", () => newsletterWelcome({ unsubscribeUrl: "u", blogUrl: "b" })],
-  ] as [string, () => EmailContent][])("%s", (_name, make) => {
-    const html = make().html;
-    expect(html).toContain("FOTF STUDIOS</p>");
-    expect(html).not.toContain("'Space Grotesk'");
+describe("todos los correos usan dsShell (decisión del dueño, 2026-10-12)", () => {
+  const src = readFileSync(join(process.cwd(), "src/application/notifications/templates.ts"), "utf8");
+  it("no queda el shell clásico ni sus marcas en templates.ts", () => {
+    expect(src).not.toMatch(/\bshell\(/);
+    expect(src).not.toContain("FOTF STUDIOS</p>");
+    expect(src).not.toContain("font-family:Arial,Helvetica,sans-serif;font-size:16px");
+  });
+  it("toda plantilla exportada está en la suite de arriba", () => {
+    const exported = [...src.matchAll(/^export function (\w+)\(/gm)].map((m) => m[1]);
+    const covered = new Set(IN_SCOPE.map(([name]) => name));
+    // guideDelivery se identifica con su slug; está cubierta aparte (templates.test.ts).
+    expect(exported.filter((n) => !covered.has(n) && n !== "guideDelivery")).toEqual([]);
   });
 });
 

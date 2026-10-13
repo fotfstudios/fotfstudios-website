@@ -605,7 +605,7 @@ export class NotificationService {
     }
     await this.mailer.send({
       to: app.email,
-      ...applicantConfirmation({ name: app.name }, { whatsappUrl: this.config.whatsappUrl }),
+      ...applicantConfirmation({ name: app.name }, { ...this.foot(), whatsappUrl: this.config.whatsappUrl }),
     });
   }
 
@@ -658,7 +658,7 @@ export class NotificationService {
     const downloadUrl = `${this.config.siteUrl}${v.landingPath}/descarga/${v.token}`;
     await this.mailer.send({
       to: v.email,
-      ...guideDelivery({ downloadUrl, copy: v.copy }, { whatsappUrl: this.config.whatsappUrl }),
+      ...guideDelivery({ downloadUrl, copy: v.copy }, { ...this.foot(), whatsappUrl: this.config.whatsappUrl }),
     });
     // Después del correo: si el correo (el producto) falla, no hay lead que avisar. La clave es
     // el token del lead: un reintento del mismo pedido no duplica la alerta.
@@ -699,6 +699,7 @@ export class NotificationService {
         // 1 punto = $1 CLP: la equivalencia es el mismo número, con formato de plata.
         { name: v.name, points: formatPoints(v.points), value: formatCLP(v.points) },
         {
+          ...this.foot(),
           whatsappUrl: this.config.whatsappUrl,
           bookUrl: `${this.config.siteUrl}/reservar`,
           accountUrl: `${this.config.siteUrl}/cuenta`,
@@ -751,7 +752,7 @@ export class NotificationService {
       to: v.email,
       ...beatcoinsLaunch(
         { name: v.name, balance: formatPoints(v.balance), value: formatCLP(v.balance), from },
-        { whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar`, termsUrl: `${this.config.siteUrl}/terminos` },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar`, termsUrl: `${this.config.siteUrl}/terminos` },
       ),
     });
   }
@@ -792,6 +793,7 @@ export class NotificationService {
 
   private beatcoinsLinks() {
     return {
+      ...this.foot(),
       whatsappUrl: this.config.whatsappUrl,
       bookUrl: `${this.config.siteUrl}/reservar`,
       accountUrl: `${this.config.siteUrl}/cuenta`,
