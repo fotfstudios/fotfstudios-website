@@ -35,10 +35,8 @@ export interface ConfirmationView {
   resumeUrl: string | null;
 }
 
-/** Número corto del pedido: los mismos 8 caracteres que muestra el admin (para citarlo). */
-export function orderShort(orderId: string): string {
-  return orderId.slice(0, 8);
-}
+/** Número corto del pedido (vive en el dominio: los correos también lo usan). */
+export { orderShort } from "@/src/domain/shared/order-number";
 
 /** Primer nombre (mismo split que payment-service). Vacío/espacios → null. */
 export function firstNameOf(name: string | null | undefined): string | null {

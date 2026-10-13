@@ -146,3 +146,73 @@ describe("fuera del alcance: siguen en el shell clásico hasta migrarlos", () =>
     expect(html).not.toContain("'Space Grotesk'");
   });
 });
+
+describe("N° de reserva (orderShort) en los correos con pedido", () => {
+  const ref = "32c68e1f";
+  const withRef: [string, () => EmailContent][] = [
+    ["customerConfirmation", () => customerConfirmation({ ...view, ref }, { ...place, whatsappUrl: wa, links })],
+    ["trialConfirmation", () => trialConfirmation({ ...view, ref, creditDays: 30 }, { ...place, whatsappUrl: wa, links })],
+    ["customerCancellation", () => customerCancellation({ name: "Ana", when, parts, refunded: "$1", ref }, { whatsappUrl: wa })],
+    ["customerReschedule", () => customerReschedule({ name: "Ana", when, parts, refunded: null, refundedOffline: false, ref }, { ...place, whatsappUrl: wa, calendarUrl: "c" })],
+    ["bookingHeldPending", () => bookingHeldPending({ name: "Ana", when, parts, total: "$1", payBy: "x", ref }, pending)],
+    ["bookingPaymentReminder", () => bookingPaymentReminder({ name: "Ana", when, parts, total: "$1", payBy: "x", ref }, pending)],
+    ["bookingPaymentPending", () => bookingPaymentPending({ name: "Ana", when, parts, total: "$1", initPoint: "https://mp/x", expiresInHours: 72, ref }, pending)],
+  ];
+
+  it.each(withRef)("%s lo muestra en el eyebrow y en el texto, nunca en el asunto", (_n, make) => {
+    const m = make();
+    expect(m.html).toContain(`N° ${ref}`);
+    expect(m.text).toContain(`N° de reserva: ${ref}`);
+    expect(m.subject).not.toContain(ref);
+  });
+
+  it("al cliente dice 'Reserva N°'; al dueño, 'Para el estudio · N°'", () => {
+    expect(customerConfirmation({ ...view, ref }, { ...place, whatsappUrl: wa, links }).html).toContain(`Reserva N° ${ref}`);
+    expect(ownerNotification({ ...view, ref, email: "a@e.cl" }).html).toContain(`Para el estudio · N° ${ref}`);
+  });
+
+  it("sin ref el eyebrow queda como antes", () => {
+    const m = customerConfirmation(view, { ...place, whatsappUrl: wa, links });
+    expect(m.html).toContain(">Tu reserva</p>");
+    expect(m.text).not.toContain("N° de reserva");
+  });
+});
+
+describe("reembolso según cómo se pagó", () => {
+  const base = { name: "Ana", when, parts, refunded: "$7.990" };
+  it("pagado por transferencia: 'te devolvemos por transferencia', fila Devolución (pendiente), sin tarjeta ni efectivo", () => {
+    const m = customerCancellation({ ...base, refundOffline: true }, { whatsappUrl: wa });
+    expect(m.html).toMatch(/Te devolvemos <strong[^>]*>\$7\.990<\/strong> por transferencia; te escribimos para coordinarla/);
+    expect(m.html).toContain(">Devolución<");
+    expect(m.text).toContain("Te devolvemos $7.990 por transferencia");
+    for (const body of [m.html, m.text]) {
+      expect(body).not.toMatch(/tarjeta|efectivo/i);
+      expect(body).not.toContain("medio de pago original");
+    }
+  });
+
+  it("pagado con Mercado Pago: el copy de siempre (medio de pago original)", () => {
+    const m = customerCancellation({ ...base, refundOffline: false }, { whatsappUrl: wa });
+    expect(m.html).toContain("Te reembolsamos al medio de pago original");
+    expect(m.html).toContain(">Reembolso<");
+  });
+
+  it("Beatcoins repuestos ganan a refundOffline (no hubo plata)", () => {
+    const m = customerCancellation({ ...base, refunded: null, restoredPoints: 7990, refundOffline: true }, { whatsappUrl: wa });
+    expect(m.html).toContain("Te repusimos");
+    expect(m.html).not.toContain("por transferencia");
+  });
+});
+
+describe("N° en los avisos al dueño que apuntan a un pedido", () => {
+  const ref = "0119b25b";
+  it.each([
+    ["ownerTransferDeclared", () => ownerTransferDeclared({ name: "Ana", email: "a@e.cl", when, total: "$1", holdUntil: "x", adminUrl: "https://x", ref })],
+    ["ownerNeedsReview", () => ownerNeedsReview({ when, total: "$1", email: "a@e.cl", paymentId: "1", ref })],
+    ["ownerDuplicatePayment", () => ownerDuplicatePayment({ when, email: "a@e.cl", paymentId: "1", amount: "$1", storedMethod: null, ref })],
+  ] as [string, () => EmailContent][])("%s: 'Para el estudio · N°' y el N° en el texto", (_n, make) => {
+    const m = make();
+    expect(m.html).toContain(`Para el estudio · N° ${ref}`);
+    expect(m.text).toContain(`N° ${ref}`);
+  });
+});

@@ -16,6 +16,7 @@ npm run build    # production build (also type-checks)
 npm run lint     # eslint .  (flat config, eslint.config.mjs)
 npm test         # vitest run (unit tests; also runs in CI lint & build job)
 npm run test:integration  # vitest *.itest.ts contra la DB local (requiere db:start). En CI corre contra Supabase en contenedor; specs MP se omiten sin token
+EMAIL_PREVIEW=1 npx vitest run email-preview  # manda todos los correos de muestra al Mailpit local (requiere db:start); CI lo salta
 
 # Plataforma de reservas — base de datos local (Supabase CLI, requiere Docker)
 npm run db:start # supabase start  (stack local; aplica migraciones de supabase/migrations)
