@@ -38,6 +38,8 @@ export interface BookingView {
   lines: { description: string; amount: string }[];
   /** El mismo horario partido para la ficha (Fecha / Hora). Sin él, una fila "Cuándo". */
   parts?: SessionParts;
+  /** Número corto del pedido (orderShort): el mismo N° de /reserva/estado y el admin. */
+  ref?: string;
 }
 
 // ── Piezas compartidas de los correos del flujo de reserva (design system) ──
@@ -60,6 +62,10 @@ const bookingFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; 
   accountUrl: ctx.accountUrl,
   reason: "Recibes este correo porque reservaste en fotfstudios.cl.",
 });
+
+/** El eyebrow con el N° del pedido: "Reserva N° 32c68e1f" o "Para el estudio · N° 32c68e1f". */
+const withRef = (eyebrow: string, ref?: string): string =>
+  !ref ? eyebrow : eyebrow === "Tu reserva" ? `Reserva N° ${esc(ref)}` : `${eyebrow} · N° ${esc(ref)}`;
 
 /** Fecha y hora de la sesión como filas de la ficha; sin `parts`, una sola fila con `when`. */
 const sessionRows = (v: { when: string; parts?: SessionParts }): TicketRow[] =>
@@ -154,7 +160,7 @@ export function customerConfirmation(
   const html = dsShell({
     preheader: `${v.when} · ${ctx.address} · tu código llega 10 min antes`,
     status: ["Confirmada", "ok"],
-    eyebrow: "Tu reserva",
+    eyebrow: withRef("Tu reserva", v.ref),
     title: "¡Reserva confirmada!",
     body: `${p(hola(v.name, "tu sesión quedó reservada."), "0 0 28px")}
 ${ticket([...sessionRows(v), placeRow(ctx)])}
@@ -172,7 +178,7 @@ ${ghosts([["Ver mi reserva", ctx.links.statusUrl], ["WhatsApp", ctx.whatsappUrl]
 ${fine(`Tus Beatcoins y tus próximas sesiones, en ${a("tu cuenta", ctx.links.accountUrl, D.text2)}.`)}`,
     footer: bookingFooter({ ...ctx, accountUrl: ctx.links.accountUrl }),
   });
-  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Trae tus audífonos y tu USB. Agregar a mi calendario: ${ctx.links.calendarUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (Beatcoins y próximas sesiones): ${ctx.links.accountUrl}`;
+  const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Trae tus audífonos y tu USB. Agregar a mi calendario: ${ctx.links.calendarUrl}. Ver mi reserva: ${ctx.links.statusUrl}. Tu cuenta (Beatcoins y próximas sesiones): ${ctx.links.accountUrl}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "customerConfirmation", subject: `Reserva confirmada · ${v.when}`, html, text };
 }
 
@@ -426,7 +432,7 @@ export function trialConfirmation(
   const html = dsShell({
     preheader: `${v.when} · ${ctx.address} · sesión guiada de 1 hora`,
     status: ["Confirmada", "ok"],
-    eyebrow: "Curso de DJ · prueba",
+    eyebrow: withRef("Curso de DJ · prueba", v.ref),
     title: "Tu prueba está confirmada",
     body: `${p(hola(v.name, "te esperamos para tu sesión de prueba de 1 hora."), "0 0 28px")}
 ${ticket([...sessionRows(v), placeRow(ctx)])}
@@ -441,7 +447,7 @@ ${gap(12)}${cta("Agregar a mi calendario", ctx.links.calendarUrl)}
 ${ghosts([["Ver mi reserva", ctx.links.statusUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
     footer: bookingFooter({ ...ctx, accountUrl: ctx.links.accountUrl }),
   });
-  const text = `Tu prueba del Curso de DJ está confirmada: ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. Si te inscribes en el curso te descontamos los ${v.total} (vale ${v.creditDays} días desde la prueba). Ver mi reserva: ${ctx.links.statusUrl}. WhatsApp: ${ctx.whatsappUrl}`;
+  const text = `Tu prueba del Curso de DJ está confirmada: ${v.when}. ${ctx.address}. Total ${v.total} (IVA incl.). ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. Si te inscribes en el curso te descontamos los ${v.total} (vale ${v.creditDays} días desde la prueba). Ver mi reserva: ${ctx.links.statusUrl}. WhatsApp: ${ctx.whatsappUrl}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "trialConfirmation", subject: `Prueba del Curso de DJ confirmada · ${v.when}`, html, text };
 }
 
@@ -643,25 +649,48 @@ export function customerCourtesyCancelled(
 
 /** Email al cliente: su reserva fue cancelada (con o sin reembolso). */
 export function customerCancellation(
-  v: { name: string | null; when: string; refunded: string | null; restoredPoints?: number | null; parts?: SessionParts },
+  v: {
+    name: string | null;
+    when: string;
+    refunded: string | null;
+    restoredPoints?: number | null;
+    /**
+     * Se pagó offline (transferencia): el reembolso no vuelve solo al medio de pago, lo hace
+     * el dueño a mano. El correo dice "te devolvemos por transferencia", nunca "tarjeta".
+     */
+    refundOffline?: boolean;
+    parts?: SessionParts;
+    ref?: string;
+  },
   ctx: BookingFoot & { whatsappUrl: string; bookUrl?: string },
 ): EmailContent {
   // Orden pagada 100% con puntos: no hubo cobro, se reponen puntos (nada de "tarjeta").
   const pts = v.restoredPoints && v.restoredPoints > 0 ? fmtBeatcoins(v.restoredPoints) : null;
+  const offline = !pts && !!v.refunded && !!v.refundOffline;
   const money: TicketRow[] = pts
     ? [{ label: "Repuestos", value: esc(pts), accent: "ok" }]
     : v.refunded
-      ? [{ label: "Reembolso", value: esc(v.refunded), accent: "ok" }]
+      ? offline
+        ? [{ label: "Devolución", value: esc(v.refunded), accent: "pending" }]
+        : [{ label: "Reembolso", value: esc(v.refunded), accent: "ok" }]
       : [];
   const refundLine = pts
     ? p(`Te repusimos ${b(esc(pts))} en tu cuenta.`, "0 0 28px")
     : v.refunded
-      ? p("Te reembolsamos al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.", "0 0 28px")
+      ? offline
+        ? p(`Te devolvemos ${b(esc(v.refunded))} por transferencia; te escribimos para coordinarla.`, "0 0 28px")
+        : p("Te reembolsamos al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.", "0 0 28px")
       : gap(28);
   const html = dsShell({
-    preheader: pts ? `Te repusimos ${pts}.` : v.refunded ? `Te reembolsamos ${v.refunded} al medio de pago original.` : `Sesión del ${v.when}`,
+    preheader: pts
+      ? `Te repusimos ${pts}.`
+      : v.refunded
+        ? offline
+          ? `Te devolvemos ${v.refunded} por transferencia.`
+          : `Te reembolsamos ${v.refunded} al medio de pago original.`
+        : `Sesión del ${v.when}`,
     status: ["Cancelada", "neutral"],
-    eyebrow: "Tu reserva",
+    eyebrow: withRef("Tu reserva", v.ref),
     title: "Reserva cancelada",
     body: `${p(hola(v.name, "tu sesión fue cancelada."), "0 0 28px")}
 ${ticket([...sessionRows(v).map((r) => ({ ...r, strike: true })), ...money])}
@@ -672,26 +701,28 @@ ${ctx.bookUrl ? `${cta("Reservar otra hora", ctx.bookUrl)}\n${ghosts([["¿Dudas?
   const textLine = pts
     ? ` Te repusimos ${pts} en tu cuenta.`
     : v.refunded
-      ? ` Te reembolsamos ${v.refunded} al medio de pago original.`
+      ? offline
+        ? ` Te devolvemos ${v.refunded} por transferencia; te escribimos para coordinarla.`
+        : ` Te reembolsamos ${v.refunded} al medio de pago original.`
       : "";
-  const text = `Tu reserva del ${v.when} fue cancelada.${textLine}${ctx.bookUrl ? ` Reservar otra hora: ${ctx.bookUrl}.` : ""} ¿Dudas? ${ctx.whatsappUrl}`;
+  const text = `Tu reserva del ${v.when} fue cancelada.${textLine}${ctx.bookUrl ? ` Reservar otra hora: ${ctx.bookUrl}.` : ""} ¿Dudas? ${ctx.whatsappUrl}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "customerCancellation", subject: `Reserva cancelada · ${v.when}`, html, text };
 }
 
 export function customerReschedule(
-  v: { name: string | null; when: string; refunded: string | null; refundedOffline: boolean; oldWhen?: string | null; parts?: SessionParts },
+  v: { name: string | null; when: string; refunded: string | null; refundedOffline: boolean; oldWhen?: string | null; parts?: SessionParts; ref?: string },
   ctx: BookingFoot & { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
 ): EmailContent {
   const refundLine = v.refunded
     ? v.refundedOffline
-      ? p(`Como el nuevo horario cuesta menos, coordinamos contigo la devolución de ${b(esc(v.refunded))} (pagaste en efectivo/transferencia).`, "0 0 28px")
+      ? p(`Como el nuevo horario cuesta menos, te devolvemos ${b(esc(v.refunded))} por transferencia; te escribimos para coordinarla.`, "0 0 28px")
       : p(`Como el nuevo horario cuesta menos, te reembolsamos ${b(esc(v.refunded))} al medio de pago original. Si pagaste con tarjeta, el abono puede tardar unos días en reflejarse.`, "0 0 28px")
     : gap(16);
   const now = v.parts ? `${v.parts.date} · ${v.parts.time}` : v.when;
   const html = dsShell({
     preheader: `Nuevo horario: ${v.when}`,
     status: ["Reagendada", "ok"],
-    eyebrow: "Cambio de horario",
+    eyebrow: withRef("Cambio de horario", v.ref),
     title: "Reserva reagendada",
     body: `${p(hola(v.name, "tu sesión quedó reagendada."), "0 0 28px")}
 ${ticket([
@@ -707,10 +738,10 @@ ${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
   });
   const refundTextLine = v.refunded
     ? v.refundedOffline
-      ? ` Coordinamos contigo la devolución de ${v.refunded} (pagaste en efectivo/transferencia).`
+      ? ` Te devolvemos ${v.refunded} por transferencia; te escribimos para coordinarla.`
       : ` Te reembolsamos ${v.refunded} al medio de pago original.`
     : "";
-  const text = `Tu reserva quedó reagendada para el ${v.when}.${refundTextLine} Tu código de acceso te llega por email 10 minutos antes del nuevo horario. Te esperamos en ${ctx.address}. Actualizar en mi calendario: ${ctx.calendarUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  const text = `Tu reserva quedó reagendada para el ${v.when}.${refundTextLine} Tu código de acceso te llega por email 10 minutos antes del nuevo horario. Te esperamos en ${ctx.address}. Actualizar en mi calendario: ${ctx.calendarUrl}. ¿Dudas? ${ctx.whatsappUrl}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "customerReschedule", subject: `Reserva reagendada · ahora ${v.when}`, html, text };
 }
 
@@ -1235,13 +1266,13 @@ export function courseEnrollmentPending(
  * no lo va a esperar hasta la sesión.
  */
 export function bookingPaymentPending(
-  v: { name: string | null; when: string; total: string; initPoint: string; expiresInHours: number; parts?: SessionParts },
+  v: { name: string | null; when: string; total: string; initPoint: string; expiresInHours: number; parts?: SessionParts; ref?: string },
   ctx: BookingFoot & { termsUrl: string; whatsappUrl: string },
 ): EmailContent {
   const html = dsShell({
     preheader: `${v.when} · ${v.total} · el link vence en ${v.expiresInHours} h`,
     status: ["Pendiente de pago", "pending"],
-    eyebrow: "Falta el pago",
+    eyebrow: withRef("Falta el pago", v.ref),
     title: "Tu hora está tomada",
     body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.`, "0 0 28px")}
 ${ticket([
@@ -1253,7 +1284,7 @@ ${gap(28)}${cta(`Pagar ahora · ${esc(v.total)}`, v.initPoint)}
 ${fine(`El link vence en ${v.expiresInHours} horas. Si se te pasa, escríbenos por ${a("WhatsApp", ctx.whatsappUrl, D.text2)} y te mandamos otro. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
     footer: bookingFooter(ctx),
   });
-  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Paga acá: ${v.initPoint} (el link vence en ${v.expiresInHours} horas). Al pagar aceptas los términos: ${ctx.termsUrl}. ¿Dudas? ${ctx.whatsappUrl}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "bookingPaymentPending", subject: `Falta el pago · link para tu hora del ${v.when} · vence en ${v.expiresInHours} h`, html, text };
 }
 
@@ -1316,13 +1347,13 @@ function transferText(t: TransferDetails, total: string): string {
  * Solo transferencia: el efectivo existe pero no se ofrece (decisión del dueño).
  */
 export function bookingHeldPending(
-  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts },
+  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts; ref?: string },
   ctx: BookingFoot & { termsUrl: string; whatsappUrl: string; transfer: TransferDetails; address?: string; mapsUrl?: string },
 ): EmailContent {
   const html = dsShell({
     preheader: `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
     status: ["Pendiente de pago", "pending"],
-    eyebrow: "Falta el pago",
+    eyebrow: withRef("Falta el pago", v.ref),
     title: "Tu hora está tomada",
     body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}te reservamos la sala. Queda confirmada al pagar.`, "0 0 28px")}
 ${ticket([
@@ -1336,7 +1367,7 @@ ${gap(28)}${cta("Enviar comprobante por WhatsApp", ctx.whatsappUrl)}
 ${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`, D.text2)} y confirmamos tu hora. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
     footer: bookingFooter(ctx),
   });
-  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nWhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  const text = `${v.name ? `${v.name}: ` : ""}Te reservamos la sala para ${v.when}. Total ${v.total}. Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nWhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "bookingHeldPending", subject: `Falta el pago · tu hora del ${v.when}`, html, text };
 }
 
@@ -1347,13 +1378,13 @@ ${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`
  * Gold, no Sirena: un recordatorio no es una emergencia.
  */
 export function bookingPaymentReminder(
-  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts },
+  v: { name: string | null; when: string; total: string; payBy: string; parts?: SessionParts; ref?: string },
   ctx: BookingFoot & { termsUrl: string; whatsappUrl: string; transfer: TransferDetails; address?: string; mapsUrl?: string },
 ): EmailContent {
   const html = dsShell({
     preheader: `${v.when} · ${v.total} · paga antes del ${v.payBy}`,
     status: ["Falta el pago", "pending"],
-    eyebrow: "Recordatorio de pago",
+    eyebrow: withRef("Recordatorio de pago", v.ref),
     title: "Falta el pago de tu hora",
     body: `${p(`${v.name ? `${esc(v.name)}: ` : ""}todavía no recibimos el pago de tu reserva.`, "0 0 28px")}
 ${ticket([
@@ -1366,7 +1397,7 @@ ${gap(28)}${cta("Enviar comprobante por WhatsApp", ctx.whatsappUrl)}
 ${fine(`O envíalo a ${a(esc(ctx.transfer.email), `mailto:${ctx.transfer.email}`, D.text2)}. Al pagar aceptas los ${a("términos y condiciones", ctx.termsUrl, D.text2)}.`)}`,
     footer: bookingFooter(ctx),
   });
-  const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nSi ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.`;
+  const text = `${v.name ? `${v.name}: ` : ""}Todavía no recibimos el pago de tu reserva para ${v.when} (total ${v.total}). Para confirmarla, paga antes del ${v.payBy}. Si no recibimos el pago antes, la reserva se anula.\n\n${transferText(ctx.transfer, v.total)}\n\nSi ya pagaste, mándanos el comprobante y listo. WhatsApp: ${ctx.whatsappUrl}. Al pagar aceptas los términos: ${ctx.termsUrl}.${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return { template: "bookingPaymentReminder", subject: `Recordatorio · falta el pago de tu hora del ${v.when}`, html, text };
 }
 
@@ -1536,7 +1567,7 @@ export function ownerNotification(
   const html = dsShell({
     preheader: v.trial ? "Es guiada: sin PIN. Emitir la boleta." : "Cargar el PIN en la cerradura y emitir la boleta.",
     status: ["Pagada", "ok"],
-    eyebrow: "Para el estudio",
+    eyebrow: withRef("Para el estudio", v.ref),
     title: what,
     body: `${gap(8)}${ticket([
       { label: "Sesión", value: esc(v.when) },
@@ -1554,7 +1585,7 @@ ${gap(28)}${steps(
 ${v.adminUrl ? `${gap(4)}${cta("Abrir la reserva", v.adminUrl)}` : ""}`,
     footer: "owner",
   });
-  const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}${v.adminUrl ? ` ${v.adminUrl}` : ""}`;
+  const text = `${what}: ${v.when}. ${v.name ?? ""} ${v.email ?? ""}. Total ${v.total}${paidBy}. ${todo}${v.adminUrl ? ` ${v.adminUrl}` : ""}${v.ref ? ` N° de reserva: ${v.ref}.` : ""}`;
   return {
     template: "ownerNotification",
     subject: `${v.trial ? "Nueva prueba del curso" : "Nueva reserva"} · ${v.when} · ${v.name ?? v.email ?? "Cliente"} · ${v.total}`,

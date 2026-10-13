@@ -9,7 +9,8 @@ import { waRecipient } from "@/src/domain/contact/whatsapp-recipient";
 import { randomUUID } from "node:crypto";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { formatCLP } from "@/src/domain/money/money";
-import { paymentMethodLabel } from "@/src/domain/money/payment-method";
+import { isOfflineMethod, paymentMethodLabel } from "@/src/domain/money/payment-method";
+import { orderShort } from "@/src/domain/shared/order-number";
 import { TRIAL_CREDIT_DAYS } from "@/src/domain/course/credit";
 import { formatPoints } from "@/src/domain/points/points";
 import { BEATCOINS_EXPIRY_FROM, beatcoinsExpiry } from "@/src/domain/points/expiry";
@@ -165,6 +166,7 @@ export class NotificationService {
       name: o.name,
       when,
       parts: this.parts(o.startsAt, o.endsAt),
+      ref: orderShort(orderId),
       total: formatCLP(o.amount),
       lines: o.lines.map((l) => ({ description: l.description, amount: formatCLP(l.subtotal) })),
     };
@@ -443,7 +445,10 @@ export class NotificationService {
           when,
           refunded: opts.refundAmount != null && opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
           restoredPoints: opts.restoredPoints ?? null,
+          // Pagado por transferencia: el dueño devuelve a mano (no vuelve "al medio de pago").
+          refundOffline: isOfflineMethod(o.paymentMethod),
           parts: this.parts(o.startsAt, o.endsAt),
+          ref: orderShort(orderId),
         },
         { ...this.foot(), whatsappUrl: this.config.whatsappUrl, bookUrl: `${this.config.siteUrl}/reservar` },
       ),
@@ -471,6 +476,7 @@ export class NotificationService {
           refunded: opts.refundAmount > 0 ? formatCLP(opts.refundAmount) : null,
           refundedOffline: opts.offline ?? false,
           parts: this.parts(o.startsAt, o.endsAt),
+          ref: orderShort(orderId),
         },
         {
           ...this.foot(),
@@ -876,7 +882,7 @@ export class NotificationService {
     await this.mailer.send({
       to: o.email,
       ...bookingPaymentPending(
-        { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours, parts: this.parts(o.startsAt, o.endsAt) },
+        { name: o.name, when, total: formatCLP(o.amount), initPoint: v.initPoint, expiresInHours: v.expiresInHours, parts: this.parts(o.startsAt, o.endsAt), ref: orderShort(orderId) },
         { ...this.foot(), termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
@@ -947,6 +953,7 @@ export class NotificationService {
       name: o.name,
       when: this.when(o.startsAt, o.endsAt),
       parts: this.parts(o.startsAt, o.endsAt),
+      ref: orderShort(orderId),
       total: formatCLP(o.amount),
       payBy: formatSessionWhen(payBy.toISOString(), this.config.tz),
     };
