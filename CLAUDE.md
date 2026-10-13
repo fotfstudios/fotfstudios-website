@@ -161,6 +161,12 @@ en vivo ni la base Supabase remota real.
   `/curso-dj` (open state — the paused state keeps the site brand) and the booking surface
   `app/(booking)/` (+ `components/booking/`) only. `lib/chrome-contract.test.ts` keeps those
   fonts/tokens from spreading — everywhere else (home, guías, `/cuenta`, admin) the rules above hold.
+  **Booking-flow emails** follow the same exception: the templates of the public booking flow
+  (confirmation, transfer/payment pending, reminder, access PIN, reschedule, cancellation, the
+  owner alerts for those, and the four Supabase Auth code emails) render with `dsShell` from
+  `src/application/notifications/ds-email.ts` (`EMAIL_DS` tokens tied to `components/ds/ds.css`;
+  logos/fonts served from `public/email/`, PNG only). Every other email stays on the classic
+  `shell` until migrated. `booking-flow-emails.test.ts` pins the boundary both ways.
 - **Voice:** Spanish (Chile), precise and direct. Exact gear models: 2× Pioneer XDJ-1000MK2,
   Pioneer DJM-450, 2× **Pioneer DJ VM-50**. Say "aislada acústicamente" (not "insonorizada").
 - **Photography:** low-key, real black, single light source; every photo over text needs a scrim.

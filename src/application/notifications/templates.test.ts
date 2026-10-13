@@ -475,8 +475,8 @@ describe("shell del correo (H11/H13)", () => {
     expect(m.html).toMatch(/display:none[^>]*>[^<]*lunes 1 de enero, 10:00 h/);
   });
 
-  it("CTA con alto táctil (padding 14px 22px) y sin franjas laterales (border-left)", () => {
-    expect(m.html).toContain("padding:14px 22px");
+  it("CTA con alto táctil (bloque a todo el ancho, padding 18px 24px) y sin franjas laterales (border-left)", () => {
+    expect(m.html).toMatch(/display:block;padding:18px 24px/);
     expect(m.html).not.toMatch(/border-left:\s*[2-9]px/);
     const owner = ownerNewApplication({
       name: "Ana", email: "a@e.cl", phone: "+56912345678", format: "clases", availability: "fines de semana",
@@ -519,7 +519,7 @@ describe("shell del correo (H11/H13)", () => {
 
     it("dice hasta cuándo pagar y que si no, la reserva se anula", () => {
       expect(m.text).toContain(`Para confirmarla, paga antes del ${PAY_BY}. Si no recibimos el pago antes, la reserva se anula.`);
-      expect(m.html).toContain(`paga antes del <strong>${PAY_BY}</strong>`);
+      expect(m.html).toMatch(new RegExp(`paga antes del <strong[^>]*>${PAY_BY}</strong>`));
       for (const body of [m.html, m.text]) {
         expect(body).toMatch(/la reserva se anula/);
       }
@@ -561,7 +561,13 @@ describe("shell del correo (H11/H13)", () => {
     it("el monto va fuera del bloque (se pide al transferir, no al agregar el destinatario)", () => {
       expect(m.text).not.toContain(`${PASTE_BLOCK.at(-1)}\nMonto`);
       expect(m.text).toContain("Monto a transferir: $9.990");
-      expect(m.html).toContain("Monto a transferir: <strong>$9.990</strong>");
+      // En el HTML el monto es su propia fila, después del bloque copiable (no dentro).
+      const block = m.html.indexOf(PASTE_BLOCK.join("<br>"));
+      const monto = m.html.indexOf("Monto a transferir");
+      expect(block).toBeGreaterThan(-1);
+      expect(monto).toBeGreaterThan(block);
+      expect(m.html.slice(block, monto)).toContain("</td>");
+      expect(m.html.slice(monto)).toContain("$9.990");
     });
 
     it("no promete una confirmación que todavía no existe ni ofrece un link que no está activo", () => {
