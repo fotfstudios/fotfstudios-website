@@ -146,7 +146,7 @@ export class RefundService {
   private async refundPaidOrder(
     target: { orderId: string; amountClp: number; refundedAmountClp: number; pointsRedeemedClp: number },
     refundAmount: number,
-  ): Promise<{ alreadyProcessed: boolean }> {
+  ): Promise<{ alreadyProcessed: boolean; offline?: boolean }> {
     const opts = { refundAmount };
     const liveBoleta = target.amountClp - target.refundedAmountClp;
     if (opts.refundAmount < 1 || opts.refundAmount > liveBoleta) {
@@ -163,7 +163,8 @@ export class RefundService {
     // la hace el dueño; aquí queda el asiento (NC por boleta + saldo).
     if (!splits.some((s) => isRealMpPayment(s.paymentId))) {
       await this.inbox.markRefunded(target.orderId, "offline:manual", opts.refundAmount);
-      return { alreadyProcessed: false };
+      // `offline`: el correo al cliente dice "te devolvemos por transferencia", no "al medio de pago".
+      return { alreadyProcessed: false, offline: true };
     }
 
     // Hay pago(s) MP real(es): devolver cada uno contra SU pago (monto explícito;
@@ -205,7 +206,7 @@ export class RefundService {
   async refundCourseOrder(
     orderId: string,
     opts: { refundAmount: number | null },
-  ): Promise<{ alreadyProcessed: boolean }> {
+  ): Promise<{ alreadyProcessed: boolean; offline?: boolean }> {
     const target = await this.repo.orderById(orderId);
     if (!target) throw new Error("No encontramos el pedido de esta inscripción.");
 

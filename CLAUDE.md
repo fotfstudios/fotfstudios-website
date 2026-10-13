@@ -16,6 +16,7 @@ npm run build    # production build (also type-checks)
 npm run lint     # eslint .  (flat config, eslint.config.mjs)
 npm test         # vitest run (unit tests; also runs in CI lint & build job)
 npm run test:integration  # vitest *.itest.ts contra la DB local (requiere db:start). En CI corre contra Supabase en contenedor; specs MP se omiten sin token
+EMAIL_PREVIEW=1 npx vitest run email-preview  # manda todos los correos de muestra al Mailpit local (requiere db:start); CI lo salta
 
 # Plataforma de reservas — base de datos local (Supabase CLI, requiere Docker)
 npm run db:start # supabase start  (stack local; aplica migraciones de supabase/migrations)
@@ -161,6 +162,12 @@ en vivo ni la base Supabase remota real.
   `/curso-dj` (open state — the paused state keeps the site brand) and the booking surface
   `app/(booking)/` (+ `components/booking/`) only. `lib/chrome-contract.test.ts` keeps those
   fonts/tokens from spreading — everywhere else (home, guías, `/cuenta`, admin) the rules above hold.
+  **All emails** follow the same exception (owner decision, 2026-10-12): every template in
+  `src/application/notifications/templates.ts` renders with `dsShell` from `ds-email.ts`
+  (`EMAIL_DS` tokens tied to `components/ds/ds.css`; logos/fonts served from `public/email/`,
+  PNG only). There is no other email shell. `ds-emails.test.ts` pins it: every exported
+  template must be in its suite (DS fonts, https/PNG assets, at most one orange CTA, no cash).
+  Preview them all in the local Mailpit with `EMAIL_PREVIEW=1 npx vitest run email-preview`.
 - **Voice:** Spanish (Chile), precise and direct. Exact gear models: 2× Pioneer XDJ-1000MK2,
   Pioneer DJM-450, 2× **Pioneer DJ VM-50**. Say "aislada acústicamente" (not "insonorizada").
 - **Photography:** low-key, real black, single light source; every photo over text needs a scrim.

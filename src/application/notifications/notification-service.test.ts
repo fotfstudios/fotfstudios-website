@@ -715,7 +715,10 @@ describe("estados que antes eran silencio (H6)", () => {
     expect(await service.notifyHoldExpired("o1")).toBe(true);
     const msg = mailer.send.mock.calls[0][0];
     expect(msg.to).toBe("ana@e.cl");
-    expect(msg.html).toContain("14:00–16:00 h");
+    // La ficha parte el horario (Fecha / Hora); el asunto lleva el horario completo.
+    expect(msg.subject).toContain("14:00–16:00 h");
+    expect(msg.html).toContain("12 de julio de 2999");
+    expect(msg.html).toContain("14:00–16:00");
     expect(msg.html).toContain("https://www.fotfstudios.cl/reservar");
   });
 
@@ -947,8 +950,11 @@ describe("notifyCourtesyRescheduled (H6) + copy offline al reembolsar (M2)", () 
       lines: [],
     });
     await service.notifyReschedule("o1", { refundAmount: 5000, offline: true });
-    expect(mailer.send.mock.calls[0][0].html).toContain("coordinamos contigo la devolución de <strong");
-    expect(mailer.send.mock.calls[0][0].html).not.toContain("medio de pago original");
+    const { html, text } = mailer.send.mock.calls[0][0];
+    expect(html).toMatch(/te devolvemos <strong[^>]*>\$5\.000<\/strong> por transferencia; te escribimos para coordinarla/);
+    expect(html).not.toContain("medio de pago original");
+    // Nunca ofrece efectivo ni habla de tarjeta en una devolución offline.
+    for (const body of [html, text]) expect(body).not.toMatch(/efectivo|tarjeta/i);
   });
 });
 
@@ -1095,7 +1101,7 @@ describe("agenda del curso → aviso inmediato al alumno", () => {
     expect([a.to, b.to]).toEqual(["martin@e.cl", "sofia@e.cl"]);
     expect(a.template).toBe("courseSessionsScheduled");
     expect(a.subject).toBe("Tus 6 sesiones del curso están agendadas");
-    expect(a.html).toContain("Sesión 6 · Tema 6");
+    expect(a.html).toMatch(/>Sesión 6<\/td>[\s\S]*?Tema 6<br>/);
     expect(a.html).toContain("con Benja");
     expect(a.attachments).toHaveLength(6);
     // Guiada: el evento no promete PIN y su uid es el de la reserva (mover actualiza el mismo).
@@ -1233,5 +1239,45 @@ describe("campaña de Beatcoins", () => {
     const { service, mailer } = makeService();
     await service.notifyBeatcoinsDigest({ email: "a@e.cl", name: null, balance: 800, protected: 800, activityAt: null, unsubscribeToken: token });
     expect(mailer.send.mock.calls[0][0].html).toContain("Tus Beatcoins no vencen.");
+  });
+});
+
+describe("pie de los correos de reserva", () => {
+  it("todo correo al cliente del flujo lleva la dirección del estudio, aunque la plantilla no la use en el cuerpo", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1", kind: "booking", email: "ana@e.cl", name: "Ana", amount: 9990, currency: "CLP",
+      startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T20:00:00Z", notifiedAt: null, paymentMethod: null, lines: [],
+    });
+    await service.notifyCancellation("o1", { refundAmount: 9990 });
+    await service.notifyHoldExpired("o1");
+    for (const [msg] of mailer.send.mock.calls as unknown as [{ html: string }][]) {
+      expect(msg.html).toContain("Los Chercanes 78a");
+      expect(msg.html).toContain("Recibes este correo porque reservaste");
+    }
+  });
+});
+
+describe("notifyCancellation — el reembolso se describe según cómo se pagó", () => {
+  const order = (paymentMethod: string | null) => ({
+    id: "32c68e1f-aaaa-bbbb-cccc-000000000000", kind: "booking", email: "ana@e.cl", name: "Ana", amount: 7990, currency: "CLP",
+    startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T19:00:00Z", notifiedAt: null, paymentMethod, lines: [],
+  });
+
+  it("transferencia → 'te devolvemos por transferencia' y el N° de la reserva", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order("transferencia"));
+    await service.notifyCancellation("32c68e1f-aaaa-bbbb-cccc-000000000000", { refundAmount: 7990 });
+    const { html } = mailer.send.mock.calls[0][0];
+    expect(html).toContain("por transferencia");
+    expect(html).not.toContain("medio de pago original");
+    expect(html).toContain("Reserva N° 32c68e1f");
+  });
+
+  it("Mercado Pago → 'al medio de pago original'", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue(order("mercadopago"));
+    await service.notifyCancellation("32c68e1f-aaaa-bbbb-cccc-000000000000", { refundAmount: 7990 });
+    expect(mailer.send.mock.calls[0][0].html).toContain("medio de pago original");
   });
 });

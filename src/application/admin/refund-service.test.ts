@@ -170,6 +170,8 @@ describe("RefundService.cancelBooking", () => {
     expect(inbox.recordEvent).not.toHaveBeenCalled(); // clave no única; no hay loopback
     expect(inbox.markRefunded).toHaveBeenCalledWith("o1", "offline:manual", 9990);
     expect(res.alreadyProcessed).toBe(false);
+    // El correo al cliente dice "te devolvemos por transferencia" (lo devuelve el dueño).
+    expect(res.offline).toBe(true);
   });
 
   it("sin reembolso (null) → cancelación simple, sin MP ni inbox", async () => {

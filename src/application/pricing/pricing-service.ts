@@ -1,4 +1,5 @@
 import type { RatePlanRepository } from "@/src/application/ports/pricing";
+import { isChileanHoliday } from "@/src/domain/calendar/cl-holidays";
 import { quote as quoteEngine } from "@/src/domain/pricing/engine";
 import type { Quote, RateTier } from "@/src/domain/pricing/types";
 import { rangeFor, weekdayFor } from "@/src/domain/scheduling/time";
@@ -19,6 +20,8 @@ export interface BookingQuote {
   endsAt: string;
 }
 
+const SUNDAY = 0;
+
 /** Catálogo para pintar la UI (add-ons + descuentos por volumen), sin cotizar un horario. */
 export interface PricingCatalog {
   currency: string;
@@ -36,7 +39,8 @@ export class PricingService {
     const pricing = await this.repo.getResourcePricing(input.resourceId);
     if (!pricing) return err("recurso sin tarifa activa");
 
-    const weekday = weekdayFor(input.date, pricing.timezone);
+    // Feriado nacional = domingo: punta finde todo el día.
+    const weekday = isChileanHoliday(input.date) ? SUNDAY : weekdayFor(input.date, pricing.timezone);
     const q = quoteEngine(pricing.ratePlan, {
       weekday,
       startMinute: input.startMinute,
