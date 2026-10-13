@@ -1101,7 +1101,7 @@ describe("agenda del curso → aviso inmediato al alumno", () => {
     expect([a.to, b.to]).toEqual(["martin@e.cl", "sofia@e.cl"]);
     expect(a.template).toBe("courseSessionsScheduled");
     expect(a.subject).toBe("Tus 6 sesiones del curso están agendadas");
-    expect(a.html).toContain("Sesión 6 · Tema 6");
+    expect(a.html).toMatch(/>Sesión 6<\/td>[\s\S]*?Tema 6<br>/);
     expect(a.html).toContain("con Benja");
     expect(a.attachments).toHaveLength(6);
     // Guiada: el evento no promete PIN y su uid es el de la reserva (mover actualiza el mismo).

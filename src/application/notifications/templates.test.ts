@@ -997,8 +997,8 @@ describe("prueba del curso movida", () => {
   });
 
   it("dueño: contacto sin teléfono no deja un separador colgando", () => {
-    expect(owner().html).toContain("ana@e.cl</p>");
-    expect(owner({ phone: "+56912345678" }).html).toContain("ana@e.cl · +56912345678");
+    expect(owner().html).toMatch(/ana@e\.cl<\/a><\/td>/);
+    expect(owner({ phone: "+56912345678" }).html).toMatch(/ana@e\.cl<\/a> · \+56912345678/);
     expect(owner({ email: null }).html).toContain("sin email");
   });
 
@@ -1029,7 +1029,7 @@ describe("práctica movida", () => {
   it("dueño: dice si hay que tocar la cerradura", () => {
     expect(owner().text).toContain("El PIN sigue cargado en la cerradura: no hay que tocarla");
     expect(owner({ accessLoaded: false }).text).toContain("El PIN todavía no está cargado");
-    expect(owner({ phone: "+56912345678" }).html).toContain("ana@e.cl · +56912345678");
+    expect(owner({ phone: "+56912345678" }).html).toMatch(/ana@e\.cl<\/a> · \+56912345678/);
   });
 
   it("escapan nombre y contacto", () => {

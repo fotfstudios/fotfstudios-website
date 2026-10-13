@@ -77,7 +77,7 @@ describe("notifyTrialRescheduled — correo", () => {
     expect(owner.template).toBe("ownerTrialRescheduled");
     expect(owner.subject).toBe("Prueba del curso movida — miércoles 9 de octubre de 2030, 16:00–17:00 h");
     expect(owner.html).toContain("martes 8 de octubre de 2030, 18:00–19:00 h");
-    expect(owner.html).toContain("paulina@e.cl · +56912345678");
+    expect(owner.html).toMatch(/paulina@e\.cl<\/a> · \+56912345678/);
     expect(owner.html).toContain("https://www.fotfstudios.cl/admin/reservas/r1");
     expect(owner.attachments).toBeUndefined();
 

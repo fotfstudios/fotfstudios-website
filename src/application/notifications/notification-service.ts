@@ -253,8 +253,9 @@ export class NotificationService {
     await this.mailer.send({
       to: input.email,
       ...customerCourtesyConfirmation(
-        { name: input.name, when, addonNames: input.addonNames },
+        { name: input.name, when, addonNames: input.addonNames, parts: this.parts(input.startsAt, input.endsAt ?? null) },
         {
+          ...this.foot(),
           address: this.config.address,
           mapsUrl: this.config.mapsUrl,
           whatsappUrl: this.config.whatsappUrl,
@@ -362,6 +363,7 @@ export class NotificationService {
       ...courseSessionReminder(
         { name: input.name, when: this.when(input.startsAt, input.endsAt), n: input.n, title: input.title, instructor: input.instructor },
         {
+          ...this.foot(),
           address: this.config.address,
           mapsUrl: this.config.mapsUrl,
           whatsappUrl: this.config.whatsappUrl,
@@ -378,8 +380,8 @@ export class NotificationService {
     await this.mailer.send({
       to: input.email,
       ...trialReminder(
-        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
-        { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
+        { name: input.name, when: this.when(input.startsAt, input.endsAt), parts: this.parts(input.startsAt, input.endsAt) },
+        { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;
@@ -399,7 +401,7 @@ export class NotificationService {
       amount: formatCLP(input.amount),
       expiresOn: DateTime.fromISO(input.expiresAt).setZone(this.config.tz).setLocale("es").toFormat("cccc d 'de' LLLL"),
     };
-    const ctx = { courseUrl: `${this.config.siteUrl}/curso-dj`, whatsappUrl: this.config.whatsappUrl };
+    const ctx = { ...this.foot(), courseUrl: `${this.config.siteUrl}/curso-dj`, whatsappUrl: this.config.whatsappUrl };
     await this.mailer.send({ to: input.email, ...(kind === "followup" ? trialFollowUp(v, ctx) : trialCreditExpiring(v, ctx)) });
   }
 
@@ -584,8 +586,8 @@ export class NotificationService {
     await this.mailer.send({
       to: input.email,
       ...customerCourtesyCancelled(
-        { name: input.name, when: this.when(input.startsAt, input.endsAt) },
-        { whatsappUrl: this.config.whatsappUrl },
+        { name: input.name, when: this.when(input.startsAt, input.endsAt), parts: this.parts(input.startsAt, input.endsAt) },
+        { ...this.foot(), whatsappUrl: this.config.whatsappUrl },
       ),
     });
     return true;
@@ -1005,6 +1007,7 @@ export class NotificationService {
       ...customerCourtesyRescheduled(
         { name: input.name, oldWhen: this.when(input.oldStartsAt, null), when: this.when(input.startsAt, input.endsAt) },
         {
+          ...this.foot(),
           whatsappUrl: this.config.whatsappUrl,
           address: this.config.address,
           mapsUrl: this.config.mapsUrl,
@@ -1061,6 +1064,7 @@ export class NotificationService {
           ...trialRescheduled(
             { name: o.name, before, after },
             {
+              ...this.foot(),
               address: this.config.address,
               mapsUrl: this.config.mapsUrl,
               whatsappUrl: this.config.whatsappUrl,
@@ -1195,6 +1199,7 @@ export class NotificationService {
 
   private courseCtx() {
     return {
+      ...this.foot(),
       address: this.config.address,
       mapsUrl: this.config.mapsUrl,
       whatsappUrl: this.config.whatsappUrl,
@@ -1271,11 +1276,11 @@ export class NotificationService {
       const ev = this.calendarEvent(`r-${input.reservationId}`, input.startsAt, input.endsAt, null);
       await this.mailer.send({
         to: input.email,
-        ...practiceBooked({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx),
+        ...practiceBooked({ name: input.name, when, hoursLeft: input.hoursLeft, parts: this.parts(input.startsAt, input.endsAt) }, ctx),
         attachments: [{ filename: "practica-fotf.ics", content: buildIcs(ev) }],
       });
     } else {
-      await this.mailer.send({ to: input.email, ...practiceReleased({ name: input.name, when, hoursLeft: input.hoursLeft }, ctx) });
+      await this.mailer.send({ to: input.email, ...practiceReleased({ name: input.name, when, hoursLeft: input.hoursLeft, parts: this.parts(input.startsAt, input.endsAt) }, ctx) });
     }
     return true;
   }
