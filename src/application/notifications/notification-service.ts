@@ -625,7 +625,7 @@ export class NotificationService {
     );
     await this.mailer.send({
       to: lead.email,
-      ...courseLeadConfirmation({ name: lead.name }, { whatsappUrl: this.config.whatsappUrl }),
+      ...courseLeadConfirmation({ name: lead.name }, { ...this.foot(), whatsappUrl: this.config.whatsappUrl }),
     });
   }
 
@@ -638,7 +638,7 @@ export class NotificationService {
     if (!this.config.reviewUrl) throw new Error("Falta el link de reseñas de Google (reviewUrl).");
     await this.mailer.send({
       to: v.email,
-      ...courseReviewRequest({ name: v.name }, { reviewUrl: this.config.reviewUrl, whatsappUrl: this.config.whatsappUrl }),
+      ...courseReviewRequest({ name: v.name }, { ...this.foot(), reviewUrl: this.config.reviewUrl, whatsappUrl: this.config.whatsappUrl }),
     });
   }
 
@@ -827,7 +827,7 @@ export class NotificationService {
         to: student.email,
         ...courseEnrollmentPaid(
           { name: student.name, generation: v.generation, total, sessions },
-          { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
+          { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
         ),
       });
     }
@@ -863,7 +863,7 @@ export class NotificationService {
           initPoint: v.initPoint,
           expiresInHours: v.expiresInHours,
         },
-        { termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
+        { ...this.foot(), termsUrl: this.config.termsUrl, whatsappUrl: this.config.whatsappUrl },
       ),
     });
   }
@@ -1132,7 +1132,7 @@ export class NotificationService {
         to: student.email,
         ...courseEnrollmentCancelled(
           { name: student.name, generation: v.generation },
-          { whatsappUrl: this.config.whatsappUrl },
+          { ...this.foot(), whatsappUrl: this.config.whatsappUrl },
         ),
       });
     }
@@ -1147,14 +1147,16 @@ export class NotificationService {
     students: { name: string; email: string }[];
     generation: string;
     refundedClp: number | null;
+    /** Pagado offline (transferencia): el dueño devuelve a mano; el correo lo dice así. */
+    refundOffline?: boolean;
   }): Promise<void> {
     const refunded = v.refundedClp != null && v.refundedClp > 0 ? formatCLP(v.refundedClp) : null;
     for (const student of v.students) {
       await this.mailer.send({
         to: student.email,
         ...courseEnrollmentRefunded(
-          { name: student.name, generation: v.generation, refunded },
-          { whatsappUrl: this.config.whatsappUrl },
+          { name: student.name, generation: v.generation, refunded, refundOffline: v.refundOffline ?? false },
+          { ...this.foot(), whatsappUrl: this.config.whatsappUrl },
         ),
       });
     }

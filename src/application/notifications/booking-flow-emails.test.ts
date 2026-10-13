@@ -41,6 +41,14 @@ import {
   trialCreditExpiring,
   trialRescheduled,
   ownerTrialRescheduled,
+  applicantConfirmation,
+  courseEnrollmentPaid,
+  courseEnrollmentPending,
+  ownerCoursePaid,
+  courseEnrollmentRefunded,
+  courseLeadConfirmation,
+  ownerNewCourseLead,
+  courseReviewRequest,
 } from "./templates";
 
 /**
@@ -103,6 +111,19 @@ IN_SCOPE.push(
   ["trialCreditExpiring", () => trialCreditExpiring(credit, { courseUrl: "https://x/curso-dj", whatsappUrl: wa })],
   ["trialRescheduled", () => trialRescheduled({ name: "Ana", before: owner.before, after: when }, { ...place, whatsappUrl: wa, calendarUrl: "https://x/c" })],
   ["ownerTrialRescheduled", () => ownerTrialRescheduled(owner)],
+);
+
+// Inscripción del curso (tercera tanda).
+const lead = { name: "Ana", email: "ana@e.cl", phone: "+56912345678", plan: "individual", experience: "controlador", availability: "tardes", message: "Hola\nquiero partir" } as const;
+IN_SCOPE.push(
+  ["courseEnrollmentPaid", () => courseEnrollmentPaid({ name: "Ana", generation: "P0001", total: "$249.990", sessions: [] }, { ...place, whatsappUrl: wa })],
+  ["courseEnrollmentPending", () => courseEnrollmentPending({ name: "Ana", generation: "P0001", total: "$249.990", initPoint: "https://mp/x", expiresInHours: 72 }, { termsUrl: "https://x/t", whatsappUrl: wa })],
+  ["ownerCoursePaid", () => ownerCoursePaid({ name: "Ana", generation: "P0001", total: "$249.990", method: "Transferencia" })],
+  ["courseEnrollmentCancelled", () => courseEnrollmentCancelled({ name: "Ana", generation: "P0001" }, { whatsappUrl: wa })],
+  ["courseEnrollmentRefunded", () => courseEnrollmentRefunded({ name: "Ana", generation: "P0001", refunded: "$249.990" }, { whatsappUrl: wa })],
+  ["courseLeadConfirmation", () => courseLeadConfirmation({ name: "Ana" }, { whatsappUrl: wa })],
+  ["ownerNewCourseLead", () => ownerNewCourseLead({ ...lead })],
+  ["courseReviewRequest", () => courseReviewRequest({ name: "Ana" }, { reviewUrl: "https://g.page/r/x", whatsappUrl: wa })],
 );
 
 describe("correos del flujo de reserva — design system", () => {
@@ -176,7 +197,7 @@ describe("correos del flujo de reserva — design system", () => {
 
 describe("fuera del alcance: siguen en el shell clásico hasta migrarlos", () => {
   it.each([
-    ["courseEnrollmentCancelled", () => courseEnrollmentCancelled({ name: "Ana" } as never, { whatsappUrl: wa } as never)],
+    ["applicantConfirmation", () => applicantConfirmation({ name: "Ana" }, { whatsappUrl: wa })],
     ["newsletterWelcome", () => newsletterWelcome({ unsubscribeUrl: "u", blogUrl: "b" })],
   ] as [string, () => EmailContent][])("%s", (_name, make) => {
     const html = make().html;
@@ -252,5 +273,22 @@ describe("N° en los avisos al dueño que apuntan a un pedido", () => {
     const m = make();
     expect(m.html).toContain(`Para el estudio · N° ${ref}`);
     expect(m.text).toContain(`N° ${ref}`);
+  });
+});
+
+describe("reembolso de la inscripción según cómo se pagó", () => {
+  it("transferencia: te devolvemos por transferencia, fila Devolución, sin tarjeta", () => {
+    const m = courseEnrollmentRefunded({ name: "Ana", generation: "P0001", refunded: "$249.990", refundOffline: true }, { whatsappUrl: wa });
+    expect(m.html).toMatch(/Te devolvemos <strong[^>]*>\$249\.990<\/strong> por transferencia/);
+    expect(m.html).toContain(">Devolución<");
+    for (const body of [m.html, m.text]) expect(body).not.toMatch(/tarjeta|efectivo|medio de pago original/i);
+  });
+  it("Mercado Pago: al medio de pago original", () => {
+    const m = courseEnrollmentRefunded({ name: "Ana", generation: "P0001", refunded: "$249.990" }, { whatsappUrl: wa });
+    expect(m.html).toContain("al medio de pago original");
+  });
+  it("sin reembolso: ni una palabra de dinero", () => {
+    const m = courseEnrollmentRefunded({ name: "Ana", generation: "P0001", refunded: null }, { whatsappUrl: wa });
+    expect(m.html).not.toMatch(/\$|reembols|devolvemos/i);
   });
 });
