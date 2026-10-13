@@ -44,8 +44,10 @@ export interface BookingView {
 // Las plantillas del flujo público de reserva usan dsShell (ds-email.ts); el resto
 // sigue en `shell` hasta migrarlas. Ver CLAUDE.md → Brand guardrails.
 
-/** Links opcionales del pie: Instagram y la cuenta, cuando el servicio los conoce. */
+/** Datos opcionales del pie: dirección, Instagram y la cuenta, cuando el servicio los conoce. */
 export interface BookingFoot {
+  address?: string;
+  mapsUrl?: string;
   instagramUrl?: string;
   accountUrl?: string;
 }

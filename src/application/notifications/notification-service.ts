@@ -1415,9 +1415,14 @@ export class NotificationService {
     return startsAt ? formatSessionParts(startsAt, this.config.tz, { endsAt }) : undefined;
   }
 
-  /** Links del pie de los correos de reserva (Instagram y la cuenta). */
+  /** Pie de los correos de reserva: dirección, Instagram y la cuenta (todos los correos al cliente). */
   private foot(): BookingFoot {
-    return { instagramUrl: this.config.instagramUrl, accountUrl: `${this.config.siteUrl}/cuenta` };
+    return {
+      address: this.config.address,
+      mapsUrl: this.config.mapsUrl,
+      instagramUrl: this.config.instagramUrl,
+      accountUrl: `${this.config.siteUrl}/cuenta`,
+    };
   }
 
   /** Ficha de la reserva en el admin (los avisos al dueño abren ahí). */

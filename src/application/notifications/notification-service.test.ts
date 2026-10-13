@@ -1238,3 +1238,19 @@ describe("campaña de Beatcoins", () => {
     expect(mailer.send.mock.calls[0][0].html).toContain("Tus Beatcoins no vencen.");
   });
 });
+
+describe("pie de los correos de reserva", () => {
+  it("todo correo al cliente del flujo lleva la dirección del estudio, aunque la plantilla no la use en el cuerpo", async () => {
+    const { service, mailer, repo } = makeService();
+    vi.mocked(repo.getOrderForEmail).mockResolvedValue({
+      id: "o1", kind: "booking", email: "ana@e.cl", name: "Ana", amount: 9990, currency: "CLP",
+      startsAt: "2999-07-12T18:00:00Z", endsAt: "2999-07-12T20:00:00Z", notifiedAt: null, paymentMethod: null, lines: [],
+    });
+    await service.notifyCancellation("o1", { refundAmount: 9990 });
+    await service.notifyHoldExpired("o1");
+    for (const [msg] of mailer.send.mock.calls as unknown as [{ html: string }][]) {
+      expect(msg.html).toContain("Los Chercanes 78a");
+      expect(msg.html).toContain("Recibes este correo porque reservaste");
+    }
+  });
+});
