@@ -63,6 +63,30 @@ const bookingFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; 
   reason: "Recibes este correo porque reservaste en fotfstudios.cl.",
 });
 
+/** Pie de los correos del curso (alumnos inscritos). */
+const courseFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; whatsappUrl?: string }): FooterCtx => ({
+  ...bookingFooter(ctx),
+  reason: "Recibes este correo porque estás en el Curso de DJ de FOTF Studios.",
+});
+
+/** Pie de los correos de la prueba del curso. */
+const trialFooter = (ctx: BookingFoot & { address?: string; mapsUrl?: string; whatsappUrl?: string }): FooterCtx => ({
+  ...bookingFooter(ctx),
+  reason: "Recibes este correo porque reservaste una prueba del Curso de DJ en fotfstudios.cl.",
+});
+
+/** Antes (tachado) / Ahora (verde) / Lugar: la ficha de todo cambio de horario. */
+const movedTicket = (before: string, after: string, ctx: { address: string; mapsUrl: string }): string =>
+  ticket([
+    { label: "Antes", value: esc(before), strike: true },
+    { label: "Ahora", value: esc(after), accent: "ok" },
+    placeRow(ctx),
+  ]);
+
+/** Contacto del cliente en un aviso al dueño: email (mailto) y celular. */
+const ownerContact = (email: string | null, phone: string | null): string =>
+  [contact(email), phone ? esc(phone) : null].filter(Boolean).join(" · ");
+
 /** El eyebrow con el N° del pedido: "Reserva N° 32c68e1f" o "Para el estudio · N° 32c68e1f". */
 const withRef = (eyebrow: string, ref?: string): string =>
   !ref ? eyebrow : eyebrow === "Tu reserva" ? `Reserva N° ${esc(ref)}` : `${eyebrow} · N° ${esc(ref)}`;
@@ -189,8 +213,8 @@ ${fine(`Tus Beatcoins y tus próximas sesiones, en ${a("tu cuenta", ctx.links.ac
  * consentimiento (no hay orden), espejo del mensaje de WhatsApp manual.
  */
 export function customerCourtesyConfirmation(
-  v: { name: string | null; when: string; addonNames: string[] },
-  ctx: {
+  v: { name: string | null; when: string; addonNames: string[]; parts?: SessionParts },
+  ctx: BookingFoot & {
     address: string;
     mapsUrl: string;
     whatsappUrl: string;
@@ -200,23 +224,28 @@ export function customerCourtesyConfirmation(
     links: { calendarUrl: string; accountUrl: string };
   },
 ): EmailContent {
-  const addonsLine =
-    v.addonNames.length > 0
-      ? `<p style="color:${T.boneDim};margin:0 0 16px">Incluye: ${esc(v.addonNames.join(", "))}</p>`
-      : "";
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">¡Reserva confirmada!</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión quedó reservada.</p>
-     <p style="margin:0 0 4px"><strong>${esc(v.when)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="margin:8px 0 16px;border-top:1px solid ${T.inkLine};border-bottom:1px solid ${T.inkLine};padding:8px 0"><strong>Cortesía:</strong> sesión sin cobro.</p>
-     ${addonsLine}
-     <p style="color:${T.boneDim};margin:16px 0">Tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.links.calendarUrl)}" style="color:${T.gold};font-weight:bold">Agregar a mi calendario</a> <span style="color:${T.boneQuiet}">·</span> <a href="${esc(ctx.links.accountUrl)}" style="color:${T.gold};font-weight:bold">Ver mi cuenta</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>
-     <p style="color:${T.boneQuiet};font-size:13px;margin:24px 0 0">Al reservar aceptas nuestros <a href="${ctx.termsUrl}" style="color:${T.gold}">términos</a> y <a href="${ctx.privacyUrl}" style="color:${T.gold}">política de privacidad</a>.</p>`,
-    `${v.when} · ${ctx.address} · cortesía`,
-  );
+  const html = dsShell({
+    preheader: `${v.when} · ${ctx.address} · cortesía`,
+    status: ["Confirmada", "ok"],
+    eyebrow: "Sesión de cortesía",
+    title: "¡Reserva confirmada!",
+    body: `${p(hola(v.name, "tu sesión quedó reservada."), "0 0 28px")}
+${ticket([
+      ...sessionRows(v),
+      placeRow(ctx),
+      { label: "Cortesía", value: "Sesión sin cobro", accent: "ok" },
+      ...(v.addonNames.length > 0 ? [{ label: "Incluye", value: esc(v.addonNames.join(", ")) }] : []),
+    ])}
+${gap(32)}${steps("Qué sigue", [
+      ["Agrégala a tu calendario", "Va adjunta como evento (.ics) en este correo."],
+      ["Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes", "Revisa spam; si no lo ves, escríbenos por WhatsApp."],
+      ["Llegas, conectas tu música y a darle", "Trae tus audífonos y tu USB."],
+    ])}
+${gap(12)}${cta("Agregar a mi calendario", ctx.links.calendarUrl)}
+${ghosts([["Ver mi cuenta", ctx.links.accountUrl], ["WhatsApp", ctx.whatsappUrl]])}
+${fine(`Al reservar aceptas nuestros ${a("términos", ctx.termsUrl, D.text2)} y ${a("política de privacidad", ctx.privacyUrl, D.text2)}.`)}`,
+    footer: bookingFooter({ ...ctx, accountUrl: ctx.links.accountUrl }),
+  });
   const text = `¡Reserva confirmada! ${v.when}. ${ctx.address}. Cortesía: sesión sin cobro.${v.addonNames.length > 0 ? ` Incluye: ${v.addonNames.join(", ")}.` : ""} Tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes de tu sesión (revisa spam). Si no lo ves, escríbenos por WhatsApp: ${ctx.whatsappUrl}. Tu cuenta: ${ctx.links.accountUrl}. Al reservar aceptas nuestros términos y política de privacidad: ${ctx.termsUrl} · ${ctx.privacyUrl}`;
   return { template: "customerCourtesyConfirmation", subject: `Sesión de cortesía confirmada · ${v.when}`, html, text };
 }
@@ -299,27 +328,42 @@ export const GUIADA = "Es una sesión guiada: te recibimos en la puerta, no nece
 
 type SessionLine = { n: number; title: string; when: string; instructor: string | null };
 
-const sessionLi = (s: SessionLine) =>
-  `<li style="margin:0 0 8px"><strong>Sesión ${s.n} · ${esc(s.title)}</strong><br><span style="color:${T.boneDim}">${esc(s.when)}${s.instructor ? ` · con ${esc(s.instructor)}` : ""}</span></li>`;
+/** Una sesión guiada como fila de la ficha: título, horario y quién la dicta. */
+const sessionRow = (s: SessionLine): TicketRow => ({
+  label: `Sesión ${s.n}`,
+  value: `${esc(s.title)}<br>${quiet(`${esc(s.when)}${s.instructor ? ` · con ${esc(s.instructor)}` : ""}`)}`,
+});
+
+/** Contexto de los correos del curso (courseCtx() del servicio). */
+type CourseCtx = BookingFoot & { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string };
+
+/** El crédito de la prueba: monto y hasta cuándo vale (Gold: depende del alumno). */
+const creditTicket = (v: { amount: string; expiresOn: string }): string =>
+  ticket([
+    { label: "Descuento", value: esc(v.amount), accent: "ok" },
+    { label: "Vale hasta", value: toned(esc(v.expiresOn), "pending"), accent: "pending" },
+  ]);
 
 /** Una o varias sesiones guiadas recién agendadas, en un solo correo. */
 export function courseSessionsScheduled(
   v: { name: string | null; sessions: SessionLine[] },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+  ctx: CourseCtx,
 ): EmailContent {
   const one = v.sessions.length === 1;
   const title = one ? `Agendamos tu sesión ${v.sessions[0].n} del curso` : `Agendamos tus ${v.sessions.length} sesiones del curso`;
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">${title}</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} esperamos en:</p>
-     <ul style="padding-left:18px;margin:0 0 16px">${v.sessions.map(sessionLi).join("")}</ul>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y un USB con tu música.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    v.sessions.map((s) => `Sesión ${s.n}: ${s.when}`).join(" · "),
-  );
+  const html = dsShell({
+    preheader: v.sessions.map((s) => `Sesión ${s.n}: ${s.when}`).join(" · "),
+    status: ["Agendada", "ok"],
+    eyebrow: "Curso de DJ",
+    title,
+    body: `${p(hola(v.name, "te esperamos en:"), "0 0 28px")}
+${ticket([...v.sessions.map(sessionRow), placeRow(ctx)])}
+${gap(12)}${callout("Sesión guiada", `${GUIADA} Trae tus audífonos y un USB con tu música.`, "neutral")}
+${gap(24)}${p("¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.", "0 0 28px")}
+${cta("Ver mi curso", ctx.courseUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const list = v.sessions.map((s) => `Sesión ${s.n} (${s.title}): ${s.when}${s.instructor ? `, con ${s.instructor}` : ""}`).join(". ");
   const text = `${title}. ${list}. ${ctx.address}. ${GUIADA} Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseSessionsScheduled", subject: one ? `Sesión ${v.sessions[0].n} del curso agendada · ${v.sessions[0].when}` : `Tus ${v.sessions.length} sesiones del curso están agendadas`, html, text };
@@ -328,19 +372,20 @@ export function courseSessionsScheduled(
 /** Una sesión guiada cambió de hora. */
 export function courseSessionMoved(
   v: { name: string | null; n: number; title: string; before: string; after: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+  ctx: CourseCtx,
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Movimos tu sesión ${v.n} del curso</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión <strong style="color:${T.bone}">${esc(v.title)}</strong> cambió de horario.</p>
-     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
-     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">${GUIADA}</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Sesión ${v.n}: ahora ${v.after}`,
-  );
+  const html = dsShell({
+    preheader: `Sesión ${v.n}: ahora ${v.after}`,
+    status: ["Reagendada", "ok"],
+    eyebrow: `Curso de DJ · sesión ${v.n}`,
+    title: `Movimos tu sesión ${v.n} del curso`,
+    body: `${p(hola(v.name, `tu sesión ${b(esc(v.title))} cambió de horario.`), "0 0 28px")}
+${movedTicket(v.before, v.after, ctx)}
+${gap(12)}${callout("Sesión guiada", GUIADA, "neutral")}
+${gap(28)}${cta("Ver mi curso", ctx.courseUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Movimos tu sesión ${v.n} del curso (${v.title}). Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. ${GUIADA} Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseSessionMoved", subject: `Sesión ${v.n} del curso: nuevo horario · ${v.after}`, html, text };
 }
@@ -348,36 +393,46 @@ export function courseSessionMoved(
 /** Una sesión guiada se canceló (se reagenda conversando). */
 export function courseSessionCancelled(
   v: { name: string | null; n: number; title: string; when: string },
-  ctx: { whatsappUrl: string; courseUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; courseUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Cancelamos tu sesión ${v.n} del curso</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión <strong style="color:${T.bone}">${esc(v.title)}</strong> del <strong style="color:${T.bone}">${esc(v.when)}</strong> quedó cancelada.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">No se pierde: la reagendamos contigo por WhatsApp en una fecha que te acomode.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Sesión ${v.n} cancelada · la reagendamos contigo`,
-  );
+  const html = dsShell({
+    preheader: `Sesión ${v.n} cancelada · la reagendamos contigo`,
+    status: ["Cancelada", "neutral"],
+    eyebrow: `Curso de DJ · sesión ${v.n}`,
+    title: `Cancelamos tu sesión ${v.n} del curso`,
+    body: `${p(hola(v.name, `tu sesión ${b(esc(v.title))} del ${b(esc(v.when))} quedó cancelada.`), "0 0 28px")}
+${ticket([
+      { label: "Sesión", value: `${v.n} · ${esc(v.title)}` },
+      { label: "Cuándo", value: esc(v.when), strike: true },
+    ])}
+${gap(24)}${p("No se pierde: la reagendamos contigo por WhatsApp en una fecha que te acomode.", "0 0 28px")}
+${cta("Escríbenos por WhatsApp", ctx.whatsappUrl)}
+${ghosts([["Ver mi curso", ctx.courseUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Cancelamos tu sesión ${v.n} del curso (${v.title}) del ${v.when}. No se pierde: la reagendamos contigo por WhatsApp. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseSessionCancelled", subject: `Sesión ${v.n} del curso cancelada · ${v.when}`, html, text };
 }
 
 /** Hora de práctica libre agendada: el alumno entra solo, con su PIN. */
 export function practiceBooked(
-  v: { name: string | null; when: string; hoursLeft: number },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+  v: { name: string | null; when: string; hoursLeft: number; parts?: SessionParts },
+  ctx: CourseCtx,
 ): EmailContent {
   const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Agendamos tu práctica libre</h1>
-     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "la")} sala es tuya el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Entras solo: tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes</strong> (revisa spam).</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${quedan} de práctica incluidas en tu curso.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Práctica libre · ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `Práctica libre · ${v.when}`,
+    status: ["Agendada", "ok"],
+    eyebrow: "Curso de DJ · práctica libre",
+    title: "Agendamos tu práctica libre",
+    body: `${p(hola(v.name, `la sala es tuya el ${b(esc(v.when))}.`), "0 0 28px")}
+${ticket([...sessionRows(v), placeRow(ctx), { label: "Saldo", value: `${v.hoursLeft} h ${quiet("de práctica")}` }])}
+${gap(12)}${callout("Acceso", `Entras solo: tu ${b("código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes")} (revisa spam).`)}
+${gap(24)}${p(`${quedan} de práctica incluidas en tu curso.`, "0 0 28px")}
+${cta("Cómo llegar", ctx.mapsUrl)}
+${ghosts([["Ver mi curso", ctx.courseUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Agendamos tu práctica libre: ${v.when}. ${ctx.address}. Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes (revisa spam). ${quedan} de práctica incluidas en tu curso. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "practiceBooked", subject: `Práctica libre agendada · ${v.when}`, html, text };
 }
@@ -385,36 +440,41 @@ export function practiceBooked(
 /** Hora de práctica movida a otro horario (la movió el estudio). Entra solo: PIN 10 min antes. */
 export function practiceMoved(
   v: { name: string | null; before: string; after: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+  ctx: CourseCtx,
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Movimos tu práctica libre</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} práctica cambió de horario. Las horas de tu saldo no cambian.</p>
-     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
-     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Entras solo: tu <strong style="color:${T.bone}">código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario</strong> (revisa spam).</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Nuevo horario: ${v.after}`,
-  );
+  const html = dsShell({
+    preheader: `Nuevo horario: ${v.after}`,
+    status: ["Reagendada", "ok"],
+    eyebrow: "Curso de DJ · práctica libre",
+    title: "Movimos tu práctica libre",
+    body: `${p(hola(v.name, "tu práctica cambió de horario. Las horas de tu saldo no cambian."), "0 0 28px")}
+${movedTicket(v.before, v.after, ctx)}
+${gap(12)}${callout("Acceso", `Entras solo: tu ${b("código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario")} (revisa spam).`)}
+${gap(28)}${cta("Ver mi curso", ctx.courseUrl)}
+${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Movimos tu práctica libre. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. Las horas de tu saldo no cambian. Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario (revisa spam). Ver mi curso: ${ctx.courseUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "practiceMoved", subject: `Práctica libre: nuevo horario · ${v.after}`, html, text };
 }
 
 /** Hora de práctica cancelada: vuelve al saldo. */
 export function practiceReleased(
-  v: { name: string | null; when: string; hoursLeft: number },
-  ctx: { whatsappUrl: string; courseUrl: string },
+  v: { name: string | null; when: string; hoursLeft: number; parts?: SessionParts },
+  ctx: BookingFoot & { whatsappUrl: string; courseUrl: string },
 ): EmailContent {
   const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Cancelamos tu práctica libre</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} práctica del <strong style="color:${T.bone}">${esc(v.when)}</strong> quedó cancelada y la hora volvió a tu saldo. ${quedan} de práctica.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Práctica cancelada · ${quedan.toLowerCase()}`,
-  );
+  const html = dsShell({
+    preheader: `Práctica cancelada · ${quedan.toLowerCase()}`,
+    status: ["Cancelada", "neutral"],
+    eyebrow: "Curso de DJ · práctica libre",
+    title: "Cancelamos tu práctica libre",
+    body: `${p(hola(v.name, `tu práctica del ${b(esc(v.when))} quedó cancelada y la hora volvió a tu saldo. ${quedan} de práctica.`), "0 0 28px")}
+${ticket([...sessionRows(v).map((r) => ({ ...r, strike: true })), { label: "Saldo", value: `${v.hoursLeft} h ${quiet("de práctica")}`, accent: "ok" }])}
+${gap(28)}${cta("Ver mi curso", ctx.courseUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Cancelamos tu práctica libre del ${v.when}; la hora volvió a tu saldo. ${quedan} de práctica. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "practiceReleased", subject: `Práctica libre cancelada · ${v.when}`, html, text };
 }
@@ -453,18 +513,22 @@ ${ghosts([["Ver mi reserva", ctx.links.statusUrl], ["WhatsApp", ctx.whatsappUrl]
 
 /** Recordatorio ~24 h antes de la prueba (mismo barrido que el de la sala). */
 export function trialReminder(
-  v: { name: string | null; when: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string },
+  v: { name: string | null; when: string; parts?: SessionParts },
+  ctx: BookingFoot & { address: string; mapsUrl: string; whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ se acerca</h1>
-     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la cambiamos.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Prueba del Curso de DJ · ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `Prueba del Curso de DJ · ${v.when}`,
+    status: ["Confirmada", "ok"],
+    eyebrow: "Curso de DJ · prueba",
+    title: "Tu prueba del Curso de DJ se acerca",
+    body: `${p(hola(v.name, `te esperamos el ${b(esc(v.when))}.`), "0 0 28px")}
+${ticket([...sessionRows(v), placeRow(ctx)])}
+${gap(12)}${callout("Sesión guiada", `${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.`, "neutral")}
+${gap(24)}${p("¿No puedes venir? Avísanos con 24 horas o más y la cambiamos.", "0 0 28px")}
+${cta("Cómo llegar", ctx.mapsUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: trialFooter(ctx),
+  });
   const text = `Tu prueba del Curso de DJ se acerca: ${v.when}. ${ctx.address}. ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "trialReminder", subject: `Tu prueba del Curso de DJ se acerca · ${v.when}`, html, text };
 }
@@ -472,16 +536,20 @@ export function trialReminder(
 /** El día después de la prueba: la invitación a inscribirse con el descuento vigente. */
 export function trialFollowUp(
   v: { name: string | null; amount: string; expiresOn: string },
-  ctx: { courseUrl: string; whatsappUrl: string },
+  ctx: BookingFoot & { courseUrl: string; whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">¿Te animas con el curso?</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "gracias")} por venir a tu prueba. Si quieres seguir, armamos tu programa 1:1 con las fechas que te acomoden.</p>
-     <p style="margin:0 0 16px">Tu descuento de <strong>${esc(v.amount)}</strong> vale hasta el <strong>${esc(v.expiresOn)}</strong>.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver el curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Tu descuento de ${v.amount} vale hasta el ${v.expiresOn}`,
-  );
+  const html = dsShell({
+    preheader: `Tu descuento de ${v.amount} vale hasta el ${v.expiresOn}`,
+    status: ["Descuento activo", "pending"],
+    eyebrow: "Curso de DJ",
+    title: "¿Te animas con el curso?",
+    body: `${p(hola(v.name, "gracias por venir a tu prueba. Si quieres seguir, armamos tu programa 1:1 con las fechas que te acomoden."), "0 0 28px")}
+${creditTicket(v)}
+${gap(12)}${p(`Tu descuento de ${b(esc(v.amount))} vale hasta el ${b(esc(v.expiresOn))}.`, "0 0 28px")}
+${cta("Ver el curso", ctx.courseUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: trialFooter(ctx),
+  });
   const text = `¿Te animas con el curso? Gracias por venir a tu prueba. Tu descuento de ${v.amount} vale hasta el ${v.expiresOn}. Ver el curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "trialFollowUp", subject: `¿Te animas con el curso? Tu descuento vale hasta el ${v.expiresOn}`, html, text };
 }
@@ -489,16 +557,20 @@ export function trialFollowUp(
 /** Dos días antes de que venza el crédito de la prueba. */
 export function trialCreditExpiring(
   v: { name: string | null; amount: string; expiresOn: string },
-  ctx: { courseUrl: string; whatsappUrl: string },
+  ctx: BookingFoot & { courseUrl: string; whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu descuento del curso vence pronto</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "te")} recordamos que tu descuento de <strong style="color:${T.bone}">${esc(v.amount)}</strong> en el Curso de DJ vale hasta el <strong style="color:${T.bone}">${esc(v.expiresOn)}</strong>.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Escríbenos y armamos tu programa con las fechas que te acomoden.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver el curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `Tu descuento de ${v.amount} vence el ${v.expiresOn}`,
-  );
+  const html = dsShell({
+    preheader: `Tu descuento de ${v.amount} vence el ${v.expiresOn}`,
+    status: ["Vence pronto", "pending"],
+    eyebrow: "Curso de DJ",
+    title: "Tu descuento del curso vence pronto",
+    body: `${p(hola(v.name, `te recordamos que tu descuento de ${b(esc(v.amount))} en el Curso de DJ vale hasta el ${b(esc(v.expiresOn))}.`), "0 0 28px")}
+${creditTicket(v)}
+${gap(12)}${p("Escríbenos y armamos tu programa con las fechas que te acomoden.", "0 0 28px")}
+${cta("Ver el curso", ctx.courseUrl)}
+${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
+    footer: trialFooter(ctx),
+  });
   const text = `Tu descuento de ${v.amount} en el Curso de DJ vale hasta el ${v.expiresOn}. Escríbenos y armamos tu programa. Ver el curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "trialCreditExpiring", subject: `Tu descuento del Curso de DJ vence el ${v.expiresOn}`, html, text };
 }
@@ -506,19 +578,20 @@ export function trialCreditExpiring(
 /** La prueba del curso cambió de hora (la movió el estudio). Guiada: sin PIN. */
 export function trialRescheduled(
   v: { name: string | null; before: string; after: string },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; calendarUrl: string },
+  ctx: BookingFoot & { address: string; mapsUrl: string; whatsappUrl: string; calendarUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu prueba del Curso de DJ tiene nuevo horario</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "movimos")} tu sesión de prueba de 1 hora.</p>
-     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
-     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.calendarUrl)}" style="color:${T.gold};font-weight:bold">Actualizar en mi calendario</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Nuevo horario: ${v.after}`,
-  );
+  const html = dsShell({
+    preheader: `Nuevo horario: ${v.after}`,
+    status: ["Reagendada", "ok"],
+    eyebrow: "Curso de DJ · prueba",
+    title: "Tu prueba del Curso de DJ tiene nuevo horario",
+    body: `${p(hola(v.name, "movimos tu sesión de prueba de 1 hora."), "0 0 28px")}
+${movedTicket(v.before, v.after, ctx)}
+${gap(12)}${callout("Sesión guiada", `${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música.`, "neutral")}
+${gap(28)}${cta("Actualizar en mi calendario", ctx.calendarUrl)}
+${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
+    footer: trialFooter(ctx),
+  });
   const text = `Movimos tu prueba del Curso de DJ. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. ${GUIADA} Trae tus audífonos y, si tienes, un USB con tu música. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "trialRescheduled", subject: `Prueba del Curso de DJ: nuevo horario · ${v.after}`, html, text };
 }
@@ -559,21 +632,27 @@ ${gap(28)}${cta("Devolver en Mercado Pago", MP_ACTIVITIES)}`,
  */
 export function courseSessionReminder(
   v: { name: string | null; when: string; n: number; title: string; instructor: string | null },
-  ctx: { address: string; mapsUrl: string; whatsappUrl: string; courseUrl: string },
+  ctx: CourseCtx,
 ): EmailContent {
   const sesion = `Sesión ${v.n} · ${v.title}`;
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Tu sesión ${v.n} del curso se acerca</h1>
-     <p style="color:${T.boneDim};margin:0 0 8px">${hola(v.name, "te")} esperamos el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="margin:0 0 16px"><strong>${esc(sesion)}</strong></p>
-     ${v.instructor ? `<p style="color:${T.boneDim};margin:0 0 16px">${esc(v.instructor)} te espera en la sala.</p>` : ""}
-     <p style="color:${T.boneDim};margin:0 0 16px">${place(ctx)}</p>
-     <p style="color:${T.boneDim};margin:16px 0">Es una sesión guiada: <strong style="color:${T.bone}">te recibimos en la puerta</strong>, no necesitas código. Trae tus audífonos y un USB con tu música.</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.courseUrl)}" style="color:${T.gold};font-weight:bold">Ver mi curso</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-    `${sesion} · ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `${sesion} · ${v.when}`,
+    status: ["Confirmada", "ok"],
+    eyebrow: `Curso de DJ · sesión ${v.n}`,
+    title: `Tu sesión ${v.n} del curso se acerca`,
+    body: `${p(hola(v.name, `te esperamos el ${b(esc(v.when))}.`), v.instructor ? "0 0 8px" : "0 0 28px")}
+${v.instructor ? p(`${esc(v.instructor)} te espera en la sala.`, "0 0 28px") : ""}
+${ticket([
+      { label: "Sesión", value: esc(sesion) },
+      { label: "Cuándo", value: esc(v.when) },
+      placeRow(ctx),
+    ])}
+${gap(12)}${callout("Sesión guiada", `Es una sesión guiada: ${b("te recibimos en la puerta")}, no necesitas código. Trae tus audífonos y un USB con tu música.`, "neutral")}
+${gap(24)}${p("¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo.", "0 0 28px")}
+${cta("Cómo llegar", ctx.mapsUrl)}
+${ghosts([["Ver mi curso", ctx.courseUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
+    footer: courseFooter(ctx),
+  });
   const text = `Tu sesión ${v.n} del curso se acerca: ${v.when}. ${sesion}.${v.instructor ? ` ${v.instructor} te espera en la sala.` : ""} ${ctx.address}. Es una sesión guiada: te recibimos en la puerta, no necesitas código. Trae tus audífonos y un USB con tu música. ¿No puedes venir? Avísanos con 24 horas o más y la reagendamos sin costo. Ver mi curso: ${ctx.courseUrl}. WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseSessionReminder", subject: `Tu sesión ${v.n} del curso se acerca · ${v.when}`, html, text };
 }
@@ -635,14 +714,19 @@ ${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
 
 /** Email al cliente: su sesión de CORTESÍA fue cancelada. Sin dinero de por medio. */
 export function customerCourtesyCancelled(
-  v: { name: string | null; when: string },
-  ctx: { whatsappUrl: string },
+  v: { name: string | null; when: string; parts?: SessionParts },
+  ctx: BookingFoot & { whatsappUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Sesión cancelada</h1>
-     <p style="color:${T.boneDim};margin:0 0 20px">${hola(v.name, "tu")} sesión del <strong style="color:${T.bone}">${esc(v.when)}</strong> fue cancelada. Si quieres otro horario, escríbenos y lo vemos.</p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Escríbenos por WhatsApp</a>`,
-  );
+  const html = dsShell({
+    preheader: `Sesión del ${v.when}`,
+    status: ["Cancelada", "neutral"],
+    eyebrow: "Sesión de cortesía",
+    title: "Sesión cancelada",
+    body: `${p(hola(v.name, "tu sesión fue cancelada. Si quieres otro horario, escríbenos y lo vemos."), "0 0 28px")}
+${ticket(sessionRows(v).map((r) => ({ ...r, strike: true })))}
+${gap(28)}${cta("Escríbenos por WhatsApp", ctx.whatsappUrl)}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `Tu sesión del ${v.when} fue cancelada. Si quieres otro horario: ${ctx.whatsappUrl}`;
   return { template: "customerCourtesyCancelled", subject: `Sesión cancelada · ${v.when}`, html, text };
 }
@@ -748,16 +832,20 @@ ${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
 /** Email al cliente: su sesión de CORTESÍA cambió de horario. Sin dinero de por medio (sin línea de reembolso). */
 export function customerCourtesyRescheduled(
   v: { name: string | null; oldWhen: string; when: string },
-  ctx: { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
+  ctx: BookingFoot & { whatsappUrl: string; address: string; mapsUrl: string; calendarUrl: string },
 ): EmailContent {
-  const html = shell(
-    `<h1 style="font-size:24px;margin:0 0 8px">Sesión reagendada</h1>
-     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "tu")} sesión del <strong style="color:${T.bone}">${esc(v.oldWhen)}</strong> quedó reagendada para el <strong style="color:${T.bone}">${esc(v.when)}</strong>.</p>
-     <p style="color:${T.boneDim};margin:0 0 20px">Te esperamos en ${place(ctx)}.</p>
-     <p style="margin:0 0 20px"><a href="${esc(ctx.calendarUrl)}" style="color:${T.gold};font-weight:bold">Actualizar en mi calendario</a></p>
-     <a href="${ctx.whatsappUrl}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">¿Dudas? Escríbenos por WhatsApp</a>`,
-    `Nuevo horario: ${v.when}`,
-  );
+  const html = dsShell({
+    preheader: `Nuevo horario: ${v.when}`,
+    status: ["Reagendada", "ok"],
+    eyebrow: "Sesión de cortesía",
+    title: "Sesión reagendada",
+    body: `${p(hola(v.name, "tu sesión quedó reagendada."), "0 0 28px")}
+${movedTicket(v.oldWhen, v.when, ctx)}
+${gap(12)}${callout("Acceso", "Tu código de acceso te llega por email 10 minutos antes del nuevo horario.")}
+${gap(28)}${cta("Actualizar en mi calendario", ctx.calendarUrl)}
+${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
+    footer: bookingFooter(ctx),
+  });
   const text = `Tu sesión del ${v.oldWhen} quedó reagendada para el ${v.when}. Te esperamos en ${ctx.address}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "customerCourtesyRescheduled", subject: `Sesión reagendada · ${v.when}`, html, text };
 }
@@ -1610,20 +1698,26 @@ export function ownerPracticeMoved(v: {
   accessLoaded: boolean;
   adminUrl: string;
 }): EmailContent {
-  const contact = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
+  const who = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
   const pin = v.accessLoaded
     ? "El PIN sigue cargado en la cerradura: no hay que tocarla. Se le vuelve a mandar 10 minutos antes del nuevo horario."
     : "El PIN todavía no está cargado: cárgalo antes del nuevo horario (Cerradura → Por cargar).";
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">Práctica del curso movida</h1>
-     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
-     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Alumno")} · ${esc(contact)}</p>
-     <p style="color:${T.gold};margin:0 0 16px">${pin}</p>
-     <p style="margin:0"><a href="${esc(v.adminUrl)}" style="color:${T.gold};font-weight:bold">Ver la reserva</a></p>`,
-    `${v.name ?? "Alumno"}: ${v.before} → ${v.after}`,
-  );
-  const text = `Práctica del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Alumno"} · ${contact}. ${pin} Ver la reserva: ${v.adminUrl}`;
+  const html = dsShell({
+    preheader: `${v.name ?? "Alumno"}: ${v.before} → ${v.after}`,
+    status: v.accessLoaded ? ["Movida", "ok"] : ["Cargar PIN", "pending"],
+    eyebrow: "Para el estudio",
+    title: "Práctica del curso movida",
+    body: `${gap(8)}${ticket([
+      { label: "Antes", value: esc(v.before), strike: true },
+      { label: "Ahora", value: esc(v.after), accent: "ok" },
+      { label: "Alumno", value: esc(v.name ?? "Alumno") },
+      { label: "Contacto", value: ownerContact(v.email, v.phone) },
+    ])}
+${gap(12)}${callout("PIN", pin, v.accessLoaded ? "ok" : "pending")}
+${gap(28)}${cta("Ver la reserva", v.adminUrl)}`,
+    footer: "owner",
+  });
+  const text = `Práctica del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Alumno"} · ${who}. ${pin} Ver la reserva: ${v.adminUrl}`;
   return { template: "ownerPracticeMoved", subject: `Práctica del curso movida — ${v.after}`, html, text };
 }
 
@@ -1636,16 +1730,22 @@ export function ownerTrialRescheduled(v: {
   after: string;
   adminUrl: string;
 }): EmailContent {
-  const contact = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
-  const html = shell(
-    `<h1 style="font-size:22px;margin:0 0 8px">Prueba del curso movida</h1>
-     <p style="color:${T.boneQuiet};margin:0 0 4px;text-decoration:line-through">${esc(v.before)}</p>
-     <p style="margin:0 0 16px"><strong>${esc(v.after)}</strong></p>
-     <p style="color:${T.boneDim};margin:0 0 16px">${esc(v.name ?? "Cliente")} · ${esc(contact)}</p>
-     <p style="color:${T.boneDim};margin:0 0 16px">Es guiada: sin PIN.</p>
-     <p style="margin:0"><a href="${esc(v.adminUrl)}" style="color:${T.gold};font-weight:bold">Ver la reserva</a></p>`,
-    `${v.name ?? "Cliente"}: ${v.before} → ${v.after}`,
-  );
-  const text = `Prueba del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Cliente"} · ${contact}. Ver la reserva: ${v.adminUrl}`;
+  const who = [v.email ?? "sin email", v.phone].filter(Boolean).join(" · ");
+  const html = dsShell({
+    preheader: `${v.name ?? "Cliente"}: ${v.before} → ${v.after}`,
+    status: ["Movida", "ok"],
+    eyebrow: "Para el estudio",
+    title: "Prueba del curso movida",
+    body: `${gap(8)}${ticket([
+      { label: "Antes", value: esc(v.before), strike: true },
+      { label: "Ahora", value: esc(v.after), accent: "ok" },
+      { label: "Cliente", value: esc(v.name ?? "Cliente") },
+      { label: "Contacto", value: ownerContact(v.email, v.phone) },
+    ])}
+${gap(12)}${p("Es guiada: sin PIN.", "0 0 28px")}
+${cta("Ver la reserva", v.adminUrl)}`,
+    footer: "owner",
+  });
+  const text = `Prueba del curso movida. Antes: ${v.before}. Ahora: ${v.after}. ${v.name ?? "Cliente"} · ${who}. Ver la reserva: ${v.adminUrl}`;
   return { template: "ownerTrialRescheduled", subject: `Prueba del curso movida — ${v.after}`, html, text };
 }

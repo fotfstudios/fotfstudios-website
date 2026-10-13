@@ -26,6 +26,21 @@ import {
   trialConfirmation,
   customerCourtesyCancelled,
   newsletterWelcome,
+  courseEnrollmentCancelled,
+  customerCourtesyRescheduled,
+  courseSessionsScheduled,
+  courseSessionMoved,
+  courseSessionCancelled,
+  courseSessionReminder,
+  practiceBooked,
+  practiceMoved,
+  practiceReleased,
+  ownerPracticeMoved,
+  trialReminder,
+  trialFollowUp,
+  trialCreditExpiring,
+  trialRescheduled,
+  ownerTrialRescheduled,
 } from "./templates";
 
 /**
@@ -66,6 +81,30 @@ const IN_SCOPE: [string, () => EmailContent][] = [
   ["customerCancellation", () => customerCancellation({ name: "Ana", when, parts, refunded: "$24.000" }, { whatsappUrl: wa, bookUrl: "https://x/reservar" })],
 ];
 
+// Curso y cortesías (migrados en la segunda tanda).
+const course = { ...place, whatsappUrl: wa, courseUrl: "https://x/cuenta/curso" };
+const sessions = [{ n: 1, title: "Fundamentos", when, instructor: "Benja" }, { n: 2, title: "Mezcla", when, instructor: null }];
+const credit = { name: "Ana", amount: "$15.000", expiresOn: "viernes 13 de noviembre" };
+const owner = { name: "Ana", email: "ana@e.cl", phone: "+56912345678", before: "jueves 15 de octubre, 19:00–20:00 h", after: when, adminUrl: "https://x/admin" };
+IN_SCOPE.push(
+  ["customerCourtesyConfirmation", () => customerCourtesyConfirmation({ name: "Ana", when, parts, addonNames: ["Grabación de audio"] }, { ...place, whatsappUrl: wa, termsUrl: "https://x/t", privacyUrl: "https://x/p", links: { calendarUrl: "https://x/c", accountUrl: "https://x/a" } })],
+  ["customerCourtesyCancelled", () => customerCourtesyCancelled({ name: "Ana", when, parts }, { whatsappUrl: wa })],
+  ["customerCourtesyRescheduled", () => customerCourtesyRescheduled({ name: "Ana", oldWhen: owner.before, when }, { ...place, whatsappUrl: wa, calendarUrl: "https://x/c" })],
+  ["courseSessionsScheduled", () => courseSessionsScheduled({ name: "Ana", sessions }, course)],
+  ["courseSessionMoved", () => courseSessionMoved({ name: "Ana", n: 3, title: "Mezcla", before: owner.before, after: when }, course)],
+  ["courseSessionCancelled", () => courseSessionCancelled({ name: "Ana", n: 3, title: "Mezcla", when }, course)],
+  ["courseSessionReminder", () => courseSessionReminder({ name: "Ana", when, n: 3, title: "Mezcla", instructor: "Benja" }, course)],
+  ["practiceBooked", () => practiceBooked({ name: "Ana", when, parts, hoursLeft: 3 }, course)],
+  ["practiceMoved", () => practiceMoved({ name: "Ana", before: owner.before, after: when }, course)],
+  ["practiceReleased", () => practiceReleased({ name: "Ana", when, parts, hoursLeft: 4 }, course)],
+  ["ownerPracticeMoved", () => ownerPracticeMoved({ ...owner, accessLoaded: false })],
+  ["trialReminder", () => trialReminder({ name: "Ana", when, parts }, { ...place, whatsappUrl: wa })],
+  ["trialFollowUp", () => trialFollowUp(credit, { courseUrl: "https://x/curso-dj", whatsappUrl: wa })],
+  ["trialCreditExpiring", () => trialCreditExpiring(credit, { courseUrl: "https://x/curso-dj", whatsappUrl: wa })],
+  ["trialRescheduled", () => trialRescheduled({ name: "Ana", before: owner.before, after: when }, { ...place, whatsappUrl: wa, calendarUrl: "https://x/c" })],
+  ["ownerTrialRescheduled", () => ownerTrialRescheduled(owner)],
+);
+
 describe("correos del flujo de reserva — design system", () => {
   it.each(IN_SCOPE)("%s usa el shell del design system (fuentes, logo PNG, sin Arial de cuerpo)", (name, make) => {
     const m = make();
@@ -104,7 +143,7 @@ describe("correos del flujo de reserva — design system", () => {
   });
 
   it("los avisos al dueño se marcan internos y no llevan el pie del cliente", () => {
-    for (const make of [IN_SCOPE[7][1], IN_SCOPE[10][1], IN_SCOPE[12][1], IN_SCOPE[13][1]]) {
+    for (const [, make] of IN_SCOPE.filter(([name]) => name.startsWith("owner"))) {
       const html = make().html;
       expect(html).toContain("AVISO INTERNO · SOLO EQUIPO FOTF");
       expect(html).not.toContain("Recibes este correo porque reservaste");
@@ -137,8 +176,7 @@ describe("correos del flujo de reserva — design system", () => {
 
 describe("fuera del alcance: siguen en el shell clásico hasta migrarlos", () => {
   it.each([
-    ["customerCourtesyConfirmation", () => customerCourtesyConfirmation({ name: "Ana", when, addonNames: [] }, { ...place, whatsappUrl: wa, termsUrl: "t", privacyUrl: "p", links: { calendarUrl: "c", accountUrl: "a" } })],
-    ["customerCourtesyCancelled", () => customerCourtesyCancelled({ name: "Ana", when }, { whatsappUrl: wa })],
+    ["courseEnrollmentCancelled", () => courseEnrollmentCancelled({ name: "Ana" } as never, { whatsappUrl: wa } as never)],
     ["newsletterWelcome", () => newsletterWelcome({ unsubscribeUrl: "u", blogUrl: "b" })],
   ] as [string, () => EmailContent][])("%s", (_name, make) => {
     const html = make().html;

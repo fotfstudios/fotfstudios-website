@@ -35,6 +35,7 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   let current: Record<string, unknown> = base;
   const repo = {
     getOrderForEmail: async () => ({ ...current, notifiedAt: null }),
+    getReservationContact: async () => ({ reservationId: "r-demo", name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", whatsappOptIn: false, startsAt: START, endsAt: END }),
     pendingPaidOrderIds: async () => [],
     markNotified: async () => true,
     releaseNotified: async () => {},
@@ -96,4 +97,22 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   // Prueba del curso
   as({ kind: "trial", amount: 15000, endsAt: "2026-10-16T22:00:00Z", lines: [{ description: "Prueba Curso de DJ · 1 h", subtotal: 15000 }] });
   await svc.notifyOrder(ORDER_ID);
+  await svc.notifyTrialRescheduled({ orderId: ORDER_ID, reservationId: "r-demo", oldStartsAt: "2026-10-14T21:00:00Z", oldEndsAt: "2026-10-14T22:00:00Z" });
+  await svc.notifyTrialReminder({ email: CUSTOMER, name: "Ana Rojas", startsAt: START, endsAt: "2026-10-16T22:00:00Z" });
+  await svc.notifyTrialCredit("followup", { email: CUSTOMER, name: "Ana Rojas", amount: 15000, expiresAt: "2026-11-13T12:00:00Z" });
+  await svc.notifyTrialCredit("expiring", { email: CUSTOMER, name: "Ana Rojas", amount: 15000, expiresAt: "2026-11-13T12:00:00Z" });
+  // Cortesías
+  await svc.notifyCourtesy({ email: CUSTOMER, name: "Ana Rojas", reservationId: "r-demo", startsAt: START, endsAt: END, addonNames: ["Grabación de audio"] });
+  await svc.notifyCourtesyRescheduled({ email: CUSTOMER, name: "Ana Rojas", reservationId: "r-demo", oldStartsAt: BEFORE.startsAt, startsAt: START, endsAt: END });
+  await svc.notifyCourtesyCancelled({ email: CUSTOMER, name: "Ana Rojas", startsAt: START, endsAt: END });
+  // Curso: agenda, recordatorio y práctica libre
+  const students = [{ name: "Ana Rojas", email: CUSTOMER }];
+  const s = (n: number, title: string, day: number) => ({ n, title, instructor: n === 1 ? "Benja" : null, reservationId: `r-s${n}`, startsAt: `2026-10-${day}T21:00:00Z`, endsAt: `2026-10-${day}T23:00:00Z` });
+  await svc.notifyCourseSessions("scheduled", { students, sessions: [s(1, "Fundamentos", 16), s(2, "Mezcla y transiciones", 23), s(3, "Armar un set", 30)] });
+  await svc.notifyCourseSessions("moved", { students, sessions: [s(2, "Mezcla y transiciones", 23)], previous: { startsAt: "2026-10-22T21:00:00Z", endsAt: "2026-10-22T23:00:00Z" } });
+  await svc.notifyCourseSessions("cancelled", { students, sessions: [s(3, "Armar un set", 30)] });
+  await svc.notifyCourseSessionReminder({ email: CUSTOMER, name: "Ana Rojas", startsAt: START, endsAt: END, n: 1, title: "Fundamentos", instructor: "Benja" });
+  await svc.notifyPractice("booked", { name: "Ana Rojas", email: CUSTOMER, reservationId: "r-demo", startsAt: START, endsAt: END, hoursLeft: 3 });
+  await svc.notifyPracticeMoved({ reservationId: "r-demo", oldStartsAt: BEFORE.startsAt, oldEndsAt: BEFORE.endsAt, accessLoaded: false });
+  await svc.notifyPractice("released", { name: "Ana Rojas", email: CUSTOMER, reservationId: "r-demo", startsAt: START, endsAt: END, hoursLeft: 4 });
 });
