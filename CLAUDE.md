@@ -165,7 +165,7 @@ en vivo ni la base Supabase remota real.
   **Booking-flow emails** follow the same exception: the templates of the public booking flow
   (confirmation, transfer/payment pending, reminder, access PIN, reschedule, cancellation, the
   owner alerts for those, and the four Supabase Auth code emails), plus courtesy sessions and the
-  Curso DJ trial / guided sessions / practice hours, render with `dsShell` from
+  Curso DJ trial / guided sessions / practice hours / enrollment, leads and review request, render with `dsShell` from
   `src/application/notifications/ds-email.ts` (`EMAIL_DS` tokens tied to `components/ds/ds.css`;
   logos/fonts served from `public/email/`, PNG only). Owner decision (2026-10-12): every email
   moves to `dsShell`; the rest stay on the classic `shell` until migrated.

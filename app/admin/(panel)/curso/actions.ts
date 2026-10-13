@@ -597,6 +597,7 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
 
     const compañeros = await repo.enrollmentsByOrder(inscripcion.orderId);
 
+    let refundOffline = false;
     if (amount == null) {
       // Sin dinero de por medio: se anula el cupo directo. Los términos ofrecen
       // traslado o reemplazante como alternativa, pero eso es otra acción.
@@ -604,6 +605,7 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
     } else {
       const res = await refundService().refundCourseOrder(inscripcion.orderId, { refundAmount: amount });
       if (res.alreadyProcessed) throw new Error("Ese reembolso ya estaba registrado.");
+      refundOffline = res.offline ?? false;
     }
 
     // Plantilla de la PAGADA: dice cuánto se devolvió (o nada de dinero si no se
@@ -613,6 +615,7 @@ export async function refundEnrollmentAction(_prev: ActionResult | null, fd: For
         students: compañeros.map((i) => ({ name: i.studentName, email: i.studentEmail })),
         generation: compañeros[0]?.generationCode ?? "",
         refundedClp: amount,
+        refundOffline,
       })
       .catch((e) => console.error("[curso:reembolso:email]", e));
 

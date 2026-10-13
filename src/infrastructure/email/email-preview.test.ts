@@ -50,6 +50,7 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
     instagramUrl: SITE.instagramUrl,
     termsUrl: "https://www.fotfstudios.cl/terminos",
     privacyUrl: "https://www.fotfstudios.cl/privacidad",
+    reviewUrl: "https://search.google.com/local/writereview?placeid=demo",
     transfer: TRANSFER,
   });
   const as = (patch: Record<string, unknown>) => (current = { ...base, ...patch });
@@ -115,4 +116,13 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   await svc.notifyPractice("booked", { name: "Ana Rojas", email: CUSTOMER, reservationId: "r-demo", startsAt: START, endsAt: END, hoursLeft: 3 });
   await svc.notifyPracticeMoved({ reservationId: "r-demo", oldStartsAt: BEFORE.startsAt, oldEndsAt: BEFORE.endsAt, accessLoaded: false });
   await svc.notifyPractice("released", { name: "Ana Rojas", email: CUSTOMER, reservationId: "r-demo", startsAt: START, endsAt: END, hoursLeft: 4 });
+  // Inscripción del curso: solicitud → link de pago → pagada → anulada / reembolsada; reseña
+  const alumna = [{ name: "Ana Rojas", email: CUSTOMER }];
+  await svc.notifyCourseLead({ name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", plan: "individual", experience: "controlador", availability: "Tardes de semana", message: "Tengo un controlador y quiero pasar a equipos de club." });
+  await svc.notifyCoursePaymentLink({ name: "Ana Rojas", email: CUSTOMER, generation: "P0001", totalClp: 249990, initPoint: "https://www.mercadopago.cl/checkout/demo", expiresInHours: 72 });
+  await svc.notifyCoursePaid({ students: alumna, generation: "P0001", totalClp: 249990, method: "Transferencia", sessions: [] });
+  await svc.notifyCourseCancelled({ students: alumna, generation: "P0001" });
+  await svc.notifyCourseRefunded({ students: alumna, generation: "P0001", refundedClp: 249990 });
+  await svc.notifyCourseRefunded({ students: alumna, generation: "P0001", refundedClp: 249990, refundOffline: true });
+  await svc.notifyReviewRequest({ email: CUSTOMER, name: "Ana Rojas" });
 });
