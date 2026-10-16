@@ -18,11 +18,16 @@ export interface StoredConsent {
   ts: number;
 }
 
-/** Script inline de Consent Mode v2: defaults por región + re-aplica la elección guardada. */
+/**
+ * Script inline de Consent Mode v2: defaults por región + re-aplica la elección guardada.
+ * Fuera del EEE/UK/CH todo es opt-out (granted hasta "Rechazar"); dentro, todo denied hasta
+ * "Aceptar". Las etiquetas del píxel de Meta en GTM exigen ad_storage: con ads en denied
+ * por defecto, ningún visitante chileno que ignorara el banner llegaba a Meta.
+ */
 export function buildConsentDefaultScript(): string {
   const region = JSON.stringify([...CONSENT_REGIONS_DENIED]);
   return `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
-gtag('consent','default',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500});
+gtag('consent','default',{analytics_storage:'granted',ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',wait_for_update:500});
 gtag('consent','default',{region:${region},analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500});
 try{var s=localStorage.getItem('${STORAGE_KEY}');if(s){var c=JSON.parse(s);gtag('consent','update',{analytics_storage:c.analytics,ad_storage:c.analytics,ad_user_data:c.analytics,ad_personalization:c.analytics});}}catch(e){}`;
 }

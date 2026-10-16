@@ -7,7 +7,7 @@ import { ProseSection } from "@/components/article/ProseSection";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
-const UPDATED = "10 de octubre de 2026";
+const UPDATED = "16 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Privacidad y cookies",
@@ -42,6 +42,18 @@ const COOKIES: { name: string; origin: string; purpose: string; ttl: string }[] 
     ttl: "1 minuto",
   },
   {
+    name: "_fbp",
+    origin: "Meta (píxel)",
+    purpose: "Medir la efectividad de nuestros anuncios en Facebook e Instagram",
+    ttl: "90 días",
+  },
+  {
+    name: "_gcl_au",
+    origin: "Google Ads",
+    purpose: "Medir las conversiones de nuestros anuncios en Google",
+    ttl: "90 días",
+  },
+  {
     name: "Analítica de Vercel",
     origin: "Vercel",
     purpose: "Métricas de rendimiento anónimas",
@@ -56,8 +68,14 @@ const PROCESSORS: { name: string; detail: string }[] = [
       "Procesa el pago de tu reserva. Le compartimos tu correo, tu nombre y el monto de la transacción.",
   },
   {
-    name: "Google (Tag Manager y Analytics)",
-    detail: "Mide el tráfico y uso del sitio. Solo se activa si lo aceptas en el banner de cookies.",
+    name: "Google (Tag Manager, Analytics y Ads)",
+    detail:
+      "Mide el tráfico y uso del sitio y las conversiones de nuestros anuncios en Google. Puedes desactivarlo en el banner de cookies.",
+  },
+  {
+    name: "Meta (píxel de anuncios)",
+    detail:
+      "Mide las visitas y conversiones que vienen de nuestros anuncios en Facebook e Instagram. Puedes desactivarlo en el banner de cookies.",
   },
   {
     name: "Vercel",
@@ -224,8 +242,8 @@ export default function PrivacidadPage() {
 
         <ProseSection title="Cookies y almacenamiento">
           <p>
-            Usamos cookies y almacenamiento del navegador para que el sitio funcione y para medir su
-            tráfico. La analítica de Google solo se activa si la aceptas en el banner de cookies.
+            Usamos cookies y almacenamiento del navegador para que el sitio funcione, para medir su
+            tráfico y para medir la efectividad de nuestros anuncios en Google, Facebook e Instagram.
           </p>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full border-collapse text-left text-sm">
@@ -251,8 +269,9 @@ export default function PrivacidadPage() {
           </div>
           <p>
             Aplicamos el Modo de Consentimiento de Google por región: en el EEE, Reino Unido y Suiza la
-            analítica queda desactivada hasta que la aceptes; en Chile y el resto del mundo se activa
-            por defecto y puedes desactivarla cuando quieras.
+            analítica y la medición de anuncios quedan desactivadas hasta que las aceptes; en Chile y
+            el resto del mundo se activan por defecto y puedes desactivarlas cuando quieras con
+            “Rechazar”.
           </p>
           <p>
             Puedes cambiar tu elección en cualquier momento: <ConsentReopenLink />. También puedes
