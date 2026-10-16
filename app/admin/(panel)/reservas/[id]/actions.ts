@@ -77,9 +77,17 @@ export async function cancelBookingAction(_prev: ActionResult | null, fd: FormDa
         .catch((e) => console.error("[cancel:courtesy-email]", e));
     }
 
-    // Aviso al cliente (best-effort): solo si había un pedido PAGADO antes de
-    // cancelar. Si el loopback del webhook ya lo asentó, ese camino ya avisó.
+    // Aviso al cliente (best-effort) si el pedido estaba vivo antes de cancelar: PAGADO,
+    // o PENDIENTE de pago (hold manual/transferencia — el cliente ya recibió "falta el
+    // pago" y recordatorios; sin este aviso cree que la hora sigue tomada). Sin pago no
+    // hay reembolso → refundAmount null y el email no menciona plata.
+    // Si el loopback del webhook ya lo asentó, ese camino ya avisó.
     // Orden 100% puntos: el "monto" son puntos repuestos, no plata → el email lo dice así.
+    if (target?.status === "pending_payment" && !alreadyProcessed) {
+      await notificationService()
+        .notifyCancellation(target.orderId, { refundAmount: null })
+        .catch((e) => console.error("[cancel:email]", e));
+    }
     if (target?.status === "paid" && !alreadyProcessed) {
       await notificationService()
         .notifyCancellation(
