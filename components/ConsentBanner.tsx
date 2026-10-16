@@ -69,7 +69,7 @@ export default function ConsentBanner() {
     >
       <div className="mx-auto flex max-w-[1280px] flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-10">
         <p className="max-w-2xl text-sm text-bone-dim">
-          Usamos cookies para medir el tráfico del sitio y mejorar tu experiencia.{" "}
+          Usamos cookies para medir el tráfico del sitio y la efectividad de nuestros anuncios.{" "}
           <a href="/privacidad" className="text-gold underline-offset-4 hover:underline">
             Más información
           </a>
