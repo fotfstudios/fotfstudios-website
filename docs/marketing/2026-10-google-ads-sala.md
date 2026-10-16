@@ -112,8 +112,8 @@ acústicamente en Viña del Mar. 20% de descuento en tu primera reserva.
 1. Importar de GA4 como conversiones **principales**: `course_lead_submit` (cada clic cuenta una vez, sin valor
    inventado) y `purchase` (valor dinámico en CLP). `whatsapp_click` **secundaria** (solo reporte).
 2. Etiquetado automático activado.
-3. **GTM v15:** `url_passthrough = true` en la etiqueta de Google (en Chile `ad_storage` parte **denegado** hasta que se
-   acepta el banner, `lib/consent.ts`).
+3. **GTM v15:** `url_passthrough = true` en la etiqueta de Google. Desde #312 (2026-10-16), fuera del EEE/UK/CH
+   `ad_storage` parte **concedido** (opt-out con "Rechazar"); en el EEE sigue denegado hasta aceptar (`lib/consent.ts`).
 4. **Compuerta:** el grupo Curso puede encenderse apenas haya conversiones importadas (el formulario ya funciona). El
    grupo Sala espera `NEXT_PUBLIC_BOOKING_ENABLED=true` + compra de prueba visible en GA4.
 
