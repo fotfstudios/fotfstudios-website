@@ -27,6 +27,17 @@ describe("buildConsentDefaultScript", () => {
     expect(s).toContain('region:["AT"');
     expect(s).toContain("wait_for_update:500");
   });
+  const defaults = s.split("\n").filter((l) => l.startsWith("gtag('consent','default'"));
+  const global = defaults.find((l) => !l.includes("region:"))!;
+  const eea = defaults.find((l) => l.includes("region:"))!;
+  const ADS = ["ad_storage", "ad_user_data", "ad_personalization"];
+  it("fuera del EEE la medición de anuncios es opt-out (granted por defecto)", () => {
+    expect(defaults).toHaveLength(2);
+    for (const k of ADS) expect(global).toContain(`${k}:'granted'`);
+  });
+  it("en el EEE/UK/CH todo queda denied hasta aceptar", () => {
+    for (const k of ["analytics_storage", ...ADS]) expect(eea).toContain(`${k}:'denied'`);
+  });
   it("re-aplica la elección guardada desde localStorage", () => {
     expect(s).toContain(`localStorage.getItem('${STORAGE_KEY}')`);
     expect(s).toContain("'update'");
