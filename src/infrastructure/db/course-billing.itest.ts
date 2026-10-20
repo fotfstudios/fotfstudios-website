@@ -8,6 +8,7 @@
  */
 import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { futureDate } from "@/tests/dates";
 import { SupabaseCourseRepository } from "./course-repository";
 import { createServiceClient } from "./supabase-client";
@@ -131,6 +132,7 @@ describe("createEnrollment — cupos y pedido en una sola transacción", () => {
         experience: "cero",
         availability: "tardes",
         message: null,
+        attribution: EMPTY_ATTRIBUTION,
       },
     );
     await repo.createEnrollment({ generationId: gen, plan: "individual", students: [alumno(1)], leadId });
