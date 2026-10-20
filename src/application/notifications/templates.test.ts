@@ -1,3 +1,4 @@
+import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
 import { beatcoinsDigest, beatcoinsExpired, beatcoinsExpiring, beatcoinsLaunch, campaignUrl } from "./templates";
@@ -874,10 +875,28 @@ describe("correos del curso 1:1 — sin vocabulario de cohorte", () => {
   it("aviso al dueño de solicitud: sin conteo de cupos", () => {
     const m = ownerNewCourseLead({
       name: "Martín", email: "m@e.cl", phone: "+56911111111", plan: "individual",
-      experience: "cero", availability: "Tardes", message: null,
+      experience: "cero", availability: "Tardes", message: null, attribution: EMPTY_ATTRIBUTION,
     });
     expect(m.html).not.toMatch(/cupo|generaci/i);
     expect(m.text).not.toMatch(/cupo|generaci/i);
+  });
+
+  it("aviso al dueño de solicitud: dice por dónde llegó (canal + campaña)", () => {
+    const m = ownerNewCourseLead({
+      name: "Martín", email: "m@e.cl", phone: "+56911111111", plan: "prueba",
+      experience: "cero", availability: "Tardes", message: null,
+      attribution: { ...EMPTY_ATTRIBUTION, utmSource: "meta", utmMedium: "paid", utmCampaign: "curso-prueba-2026-10" },
+    });
+    expect(m.html).toContain("Meta Ads · curso-prueba-2026-10");
+    expect(m.text).toContain("Llegó por: Meta Ads · curso-prueba-2026-10");
+  });
+
+  it("aviso al dueño de solicitud: sin datos de origen no revienta", () => {
+    const m = ownerNewCourseLead({
+      name: "Martín", email: "m@e.cl", phone: "+56911111111", plan: "prueba",
+      experience: "cero", availability: "Tardes", message: null,
+    } as never);
+    expect(m.text).toContain("Llegó por: Sin datos");
   });
 
   it("aviso al dueño de pago: código del programa y sin conteo de cupos", () => {

@@ -3,6 +3,7 @@ import { Client } from "pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { parseSolicitudesSearchParams } from "@/src/domain/admin/curso-solicitudes-list";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
+import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { SupabaseCourseRepository } from "./course-repository";
 import { createServiceClient } from "./supabase-client";
 
@@ -31,6 +32,7 @@ const input = (over: Partial<CourseLeadInput> = {}): CourseLeadInput => ({
   experience: "cero",
   availability: "Martes y jueves en la tarde",
   message: "Voy con una amiga.",
+  attribution: EMPTY_ATTRIBUTION,
   ...over,
 });
 
@@ -67,6 +69,24 @@ describe("createLead", () => {
     await repo.createLead(input());
     const { rows } = await raw("select count(*)::int as n from course_enrollments");
     expect(rows[0].n).toBe(0);
+  });
+
+  it("guarda el origen (UTM, referente, click IDs) y lo devuelve en la bandeja", async () => {
+    const attribution = {
+      ...EMPTY_ATTRIBUTION,
+      utmSource: "meta",
+      utmMedium: "paid",
+      utmCampaign: "curso-prueba-2026-10",
+      referrerHost: "l.instagram.com",
+      fbclid: "IwAR1abc-_x",
+    };
+    const id = await repo.createLead(input({ attribution }));
+    const lead = await repo.getLead(id);
+    expect(lead?.attribution).toEqual(attribution);
+  });
+
+  it("la DB rechaza un click ID con caracteres raros (espejo de CLICK_ID_RE)", async () => {
+    await expect(repo.createLead(input({ attribution: { ...EMPTY_ATTRIBUTION, gclid: "a b" } }))).rejects.toThrow();
   });
 
   it("el mensaje opcional acepta null", async () => {

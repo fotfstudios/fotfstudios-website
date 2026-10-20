@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
@@ -122,7 +123,7 @@ IN_SCOPE.push(
 );
 
 // Inscripción del curso (tercera tanda).
-const lead = { name: "Ana", email: "ana@e.cl", phone: "+56912345678", plan: "individual", experience: "controlador", availability: "tardes", message: "Hola\nquiero partir" } as const;
+const lead = { name: "Ana", email: "ana@e.cl", phone: "+56912345678", plan: "individual", experience: "controlador", availability: "tardes", message: "Hola\nquiero partir", attribution: EMPTY_ATTRIBUTION } as const;
 IN_SCOPE.push(
   ["courseEnrollmentPaid", () => courseEnrollmentPaid({ name: "Ana", generation: "P0001", total: "$249.990", sessions: [] }, { ...place, whatsappUrl: wa })],
   ["courseEnrollmentPending", () => courseEnrollmentPending({ name: "Ana", generation: "P0001", total: "$249.990", initPoint: "https://mp/x", expiresInHours: 72 }, { termsUrl: "https://x/t", whatsappUrl: wa })],

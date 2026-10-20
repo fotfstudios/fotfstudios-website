@@ -7,7 +7,7 @@ import { ProseSection } from "@/components/article/ProseSection";
 import { CLOSURE, SITE } from "@/lib/site";
 
 const PRIVACY_EMAIL = "privacidad@fotfstudios.cl";
-const UPDATED = "16 de octubre de 2026";
+const UPDATED = "20 de octubre de 2026";
 
 export const metadata: Metadata = {
   title: "Privacidad y cookies",
@@ -168,6 +168,12 @@ export default function PrivacidadPage() {
               <strong className="text-bone">Datos de postulación:</strong> si postulas para sumarte al
               equipo, tu nombre, correo, WhatsApp, disponibilidad, enlaces (set, redes) y la información
               que decidas contarnos.
+            </li>
+            <li>
+              <strong className="text-bone">Solicitudes del Curso de DJ:</strong> tu nombre, correo,
+              WhatsApp, lo que te interesa, tu disponibilidad, lo que nos cuentes y desde dónde
+              llegaste (parámetros de campaña, el sitio que te refirió y el identificador de clic que
+              agregan Google o Meta cuando vienes de un anuncio), para saber qué anuncios funcionan.
             </li>
             <li>
               <strong className="text-bone">Suscripción a novedades:</strong> si te suscribes a los

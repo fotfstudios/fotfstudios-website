@@ -12,6 +12,7 @@
  */
 import { COURSE_LEAD_STATUSES, EXPERIENCE_LEVELS, LEAD_PLANS, type CourseLeadStatus, type ExperienceLevel, type LeadPlan } from "./course";
 import { EMAIL_RE, normalizePhone } from "@/src/domain/contact/contact";
+import { parseAttribution, type CourseLeadAttribution } from "./attribution";
 
 /** Topes de largo por campo. Los usa el form (maxLength), el route y el CHECK de la DB. */
 export const COURSE_LEAD_CAPS = {
@@ -36,6 +37,8 @@ export interface CourseLeadInput {
   experience: ExperienceLevel;
   availability: string;
   message: string | null;
+  /** De dónde llegó (UTM, referente, click IDs). Nunca invalida la solicitud. */
+  attribution: CourseLeadAttribution;
 }
 
 export type ParsedCourseLead =
@@ -126,6 +129,7 @@ export function parseCourseLead(raw: unknown): ParsedCourseLead {
       experience: experienceRaw as ExperienceLevel,
       availability,
       message: message || null,
+      attribution: parseAttribution(obj),
     },
   };
 }

@@ -2,6 +2,7 @@ import type { EmailContent } from "@/src/application/ports/mailer";
 import { SESSION_FORMAT_LABELS, type SessionFormat } from "@/src/domain/applications/application";
 import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course";
 import type { CourseLeadInput } from "@/src/domain/course/lead";
+import { LEAD_CHANNEL_LABELS, leadChannel } from "@/src/domain/course/attribution";
 import { COURSE_PROGRAM } from "@/src/domain/course/program";
 import { formatPoints, fmtBeatcoins } from "@/src/domain/points/points";
 import {
@@ -1145,6 +1146,13 @@ ${cta("Escríbenos por WhatsApp", ctx.whatsappUrl)}`,
   return { template: "applicantConfirmation", subject: "Recibimos tu postulación — FOTF Studios", html, text };
 }
 
+/** "Meta Ads · curso-prueba-2026-10". Sin datos de origen (llamadores viejos) → "Sin datos". */
+function courseLeadOrigin(a: CourseLeadInput["attribution"] | undefined): string {
+  if (!a) return "Sin datos";
+  const { channel, detail } = leadChannel(a);
+  return detail ? `${LEAD_CHANNEL_LABELS[channel]} · ${detail}` : LEAD_CHANNEL_LABELS[channel];
+}
+
 /**
  * Email al dueño: nueva solicitud del Curso de DJ. Trae todo lo que necesita para
  * triar desde el teléfono —interés, punto de partida, disponibilidad y el wa.me
@@ -1156,6 +1164,7 @@ export function ownerNewCourseLead(v: CourseLeadInput): EmailContent {
   const plan = LEAD_PLAN_LABELS[v.plan];
   const nivel = EXPERIENCE_LABELS[v.experience];
   const wa = `https://wa.me/${waDigits}`;
+  const origen = courseLeadOrigin(v.attribution);
   const html = dsShell({
     preheader: `${v.name} · ${plan} · ${nivel}`,
     status: ["Por contactar", "pending"],
@@ -1168,13 +1177,14 @@ export function ownerNewCourseLead(v: CourseLeadInput): EmailContent {
       { label: "Le interesa", value: esc(plan) },
       { label: "Parte desde", value: esc(nivel) },
       { label: "Disponible", value: esc(v.availability) },
+      { label: "Llegó por", value: esc(origen) },
     ])}
 ${v.message ? `${gap(12)}${callout("Mensaje", esc(v.message).replace(/\n/g, "<br>"), "neutral")}` : ""}
 ${gap(28)}${cta("Escribirle por WhatsApp", wa)}`,
     footer: "owner",
   });
   const msgText = v.message ? `\n\n${v.message}` : "";
-  const text = `Nueva solicitud del curso: ${v.name}. Le interesa: ${plan}. Parte desde: ${nivel}. Disponibilidad: ${v.availability}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}.${msgText}`;
+  const text = `Nueva solicitud del curso: ${v.name}. Le interesa: ${plan}. Parte desde: ${nivel}. Disponibilidad: ${v.availability}. Llegó por: ${origen}. Email ${v.email}. WhatsApp https://wa.me/${waDigits}.${msgText}`;
   return { template: "ownerNewCourseLead", subject: `Nueva solicitud del curso — ${v.name}`, html, text };
 }
 

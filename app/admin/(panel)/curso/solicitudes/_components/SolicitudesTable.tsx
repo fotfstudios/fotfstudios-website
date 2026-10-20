@@ -12,6 +12,7 @@ import {
   LEAD_PLAN_LABELS,
   type CourseLeadStatus,
 } from "@/src/domain/course/course";
+import { LEAD_CHANNEL_LABELS, leadChannel } from "@/src/domain/course/attribution";
 import { PRECIOS } from "@/lib/curso-content";
 import { NuevoProgramaDialog } from "../../_components/NuevoProgramaDialog";
 import { requestReviewAction, setLeadStatusAction } from "../actions";
@@ -51,7 +52,10 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
         const waDigits = r.phone.replace(/\D/g, "");
         return (
           <Tr key={r.id} muted={r.status === "descartada"}>
-            <Td className="whitespace-nowrap font-mono text-bone-quiet">{fmtDate(r.createdAt)}</Td>
+            <Td className="whitespace-nowrap font-mono text-bone-quiet">
+              {fmtDate(r.createdAt)}
+              <OrigenLine attribution={r.attribution} />
+            </Td>
             <Td className="text-bone">
               {r.name}
               {r.message && (
@@ -124,6 +128,17 @@ export function SolicitudesTable({ rows }: { rows: CourseLeadRow[] }) {
         );
       })}
     </DataTable>
+  );
+}
+
+/** De dónde llegó: el canal y, si hay, la campaña (o el host del referente). */
+function OrigenLine({ attribution }: { attribution: CourseLeadRow["attribution"] }) {
+  const { channel, detail } = leadChannel(attribution);
+  return (
+    <span className="label-sm block pt-1 text-bone-quiet" title={detail ?? undefined}>
+      {LEAD_CHANNEL_LABELS[channel]}
+      {detail && <span className="block max-w-[10rem] truncate normal-case tracking-normal">{detail}</span>}
+    </span>
   );
 }
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trackCourseLead } from "@/lib/analytics";
+import { readAttribution, rememberAttribution, resolveAttribution, sessionStore } from "@/lib/lead-attribution";
 import { courseErrorMessage, courseFieldMessage } from "@/lib/course-form";
 import {
   COURSE_LEAD_CAPS,
@@ -75,6 +76,13 @@ export default function InscripcionForm() {
   const okRef = useRef<HTMLDivElement>(null);
   const refs = useRef<Partial<Record<CourseLeadField, HTMLElement | null>>>({});
 
+  // Origen de la sesión (anuncio, UTM, referente): se recuerda al llegar porque la
+  // persona puede navegar y volver sin la query. En un efecto, no en el render: nada
+  // de esto se pinta, así que no abre diferencia entre el HTML del servidor y el cliente.
+  useEffect(() => {
+    rememberAttribution(readAttribution(window.location, document.referrer), sessionStore());
+  }, []);
+
   const set = (k: keyof FormState) => (v: string) => {
     if (!started.current) {
       started.current = true;
@@ -89,7 +97,9 @@ export default function InscripcionForm() {
     setError(null);
 
     // Misma validación que corre el servidor: los mensajes no se pueden desincronizar.
-    const parsed = parseCourseLead({ ...form, website });
+    const attribution = resolveAttribution(readAttribution(window.location, document.referrer), sessionStore());
+    const payload = { ...form, website, ...attribution };
+    const parsed = parseCourseLead(payload);
     if (parsed.kind === "spam") {
       setDone(true); // silencio idéntico al éxito
       return;
@@ -108,7 +118,7 @@ export default function InscripcionForm() {
       const res = await fetch("/api/curso/solicitudes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, website }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
