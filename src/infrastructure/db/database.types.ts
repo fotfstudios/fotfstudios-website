@@ -289,14 +289,14 @@ isOneToOne: false
                   ]
                 },"course_leads": {
                   Row: {
-                    "availability": string,"created_at": string,"email": string,"experience": string,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"status": string,"trial_reservation_id": string | null
+                    "availability": string,"created_at": string,"email": string,"experience": string,"fbclid": string | null,"gbraid": string | null,"gclid": string | null,"generation_id": string | null,"id": string,"message": string | null,"name": string,"phone": string,"plan": string,"referrer_host": string | null,"status": string,"trial_reservation_id": string | null,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null,"wbraid": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "availability": string,"created_at"?: string,"email": string,"experience": string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"status"?: string,"trial_reservation_id"?: string | null
+                    "availability": string,"created_at"?: string,"email": string,"experience": string,"fbclid"?: string | null,"gbraid"?: string | null,"gclid"?: string | null,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name": string,"phone": string,"plan": string,"referrer_host"?: string | null,"status"?: string,"trial_reservation_id"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null,"wbraid"?: string | null
                   }
                   Update: {
-                    "availability"?: string,"created_at"?: string,"email"?: string,"experience"?: string,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name"?: string,"phone"?: string,"plan"?: string,"status"?: string,"trial_reservation_id"?: string | null
+                    "availability"?: string,"created_at"?: string,"email"?: string,"experience"?: string,"fbclid"?: string | null,"gbraid"?: string | null,"gclid"?: string | null,"generation_id"?: string | null,"id"?: string,"message"?: string | null,"name"?: string,"phone"?: string,"plan"?: string,"referrer_host"?: string | null,"status"?: string,"trial_reservation_id"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null,"wbraid"?: string | null
                   }
                   Relationships: [
                     {

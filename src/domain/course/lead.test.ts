@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COURSE_LEAD_CAPS, parseCourseLead } from "./lead";
+import { EMPTY_ATTRIBUTION } from "./attribution";
 
 /** Cuerpo válido mínimo; los tests lo mutan campo a campo. */
 const valid = () => ({
@@ -31,6 +32,27 @@ describe("parseCourseLead — camino feliz y normalización", () => {
       experience: "cero",
       availability: "Martes y jueves en la tarde",
       message: "Voy con una amiga.",
+      attribution: EMPTY_ATTRIBUTION, // sin datos de origen: todo null
+    });
+  });
+
+  it("lleva el origen normalizado; un origen raro nunca invalida la solicitud", () => {
+    const r = parseCourseLead({
+      ...valid(),
+      utmSource: "meta",
+      utmMedium: "paid",
+      utmCampaign: "x".repeat(500),
+      gclid: "con espacios",
+      referrerHost: "L.Instagram.com",
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.value.attribution).toMatchObject({
+      utmSource: "meta",
+      utmMedium: "paid",
+      utmCampaign: "x".repeat(120),
+      gclid: null,
+      referrerHost: "l.instagram.com",
     });
   });
 

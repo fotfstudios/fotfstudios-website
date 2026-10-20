@@ -11,6 +11,7 @@
  * Al migrar o agregar una plantilla, súmala acá.
  */
 import { it } from "vitest";
+import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { GUIDES } from "@/lib/guides";
 import { SITE, TRANSFER } from "@/lib/site";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
@@ -119,7 +120,7 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   await svc.notifyPractice("released", { name: "Ana Rojas", email: CUSTOMER, reservationId: "r-demo", startsAt: START, endsAt: END, hoursLeft: 4 });
   // Inscripción del curso: solicitud → link de pago → pagada → anulada / reembolsada; reseña
   const alumna = [{ name: "Ana Rojas", email: CUSTOMER }];
-  await svc.notifyCourseLead({ name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", plan: "individual", experience: "controlador", availability: "Tardes de semana", message: "Tengo un controlador y quiero pasar a equipos de club." });
+  await svc.notifyCourseLead({ name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", plan: "individual", experience: "controlador", availability: "Tardes de semana", message: "Tengo un controlador y quiero pasar a equipos de club.", attribution: { ...EMPTY_ATTRIBUTION, utmSource: "meta", utmMedium: "paid", utmCampaign: "curso-prueba-2026-10" } });
   await svc.notifyCoursePaymentLink({ name: "Ana Rojas", email: CUSTOMER, generation: "P0001", totalClp: 249990, initPoint: "https://www.mercadopago.cl/checkout/demo", expiresInHours: 72 });
   await svc.notifyCoursePaid({ students: alumna, generation: "P0001", totalClp: 249990, method: "Transferencia", sessions: [] });
   await svc.notifyCourseCancelled({ students: alumna, generation: "P0001" });
