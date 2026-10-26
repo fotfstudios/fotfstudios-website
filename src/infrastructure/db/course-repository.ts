@@ -713,20 +713,33 @@ export class SupabaseCourseRepository
     if (error) throw new Error(error.message);
   }
 
-  async movePractice(reservationId: string, startsAt: string, createdBy: string | null) {
+  async movePractice(reservationId: string, startsAt: string, createdBy: string | null, hours?: number) {
     const { data, error } = await this.db.rpc("move_practice_reservation", {
       p_reservation: reservationId,
       p_starts: startsAt,
       ...(createdBy ? { p_created_by: createdBy } : {}),
+      ...(hours !== undefined ? { p_hours: hours } : {}),
     });
     if (error) throw new Error(error.message);
-    const m = data as { old_starts_at: string; old_ends_at: string; ends_at: string; enrollment_id: string; access_loaded: boolean };
+    const m = data as {
+      old_starts_at: string;
+      old_ends_at: string;
+      ends_at: string;
+      enrollment_id: string;
+      access_loaded: boolean;
+      old_hours: number;
+      new_hours: number;
+      hours_left: number;
+    };
     return {
       oldStartsAt: m.old_starts_at,
       oldEndsAt: m.old_ends_at,
       endsAt: m.ends_at,
       enrollmentId: m.enrollment_id,
       accessLoaded: m.access_loaded,
+      oldHours: Number(m.old_hours),
+      newHours: Number(m.new_hours),
+      hoursLeft: Number(m.hours_left),
     };
   }
 

@@ -1300,6 +1300,8 @@ export class NotificationService {
     oldStartsAt: string;
     oldEndsAt: string | null;
     accessLoaded: boolean;
+    /** Solo si cambió la duración: lo que le queda de práctica después del ajuste. */
+    hoursLeft?: number;
   }): Promise<{ owner: boolean; customer: boolean }> {
     const sent = { owner: false, customer: false };
     const c = await this.repo.getReservationContact(input.reservationId);
@@ -1332,7 +1334,7 @@ export class NotificationService {
       try {
         await this.mailer.send({
           to: c.email,
-          ...practiceMoved({ name: c.name, before, after }, this.courseCtx()),
+          ...practiceMoved({ name: c.name, before, after, hoursLeft: input.hoursLeft }, this.courseCtx()),
           attachments: [{ filename: "practica-fotf.ics", content: buildIcs(ev) }],
         });
         sent.customer = true;

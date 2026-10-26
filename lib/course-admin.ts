@@ -92,6 +92,8 @@ export function practiceMoveError(raw: string): string {
   if (/practica_vencida/.test(raw)) return "Ese día queda fuera del plazo de las horas de práctica.";
   if (/practica_no_elegible/.test(raw)) return "La inscripción ya no está pagada: no se puede mover la práctica.";
   if (/practica_no_movible/.test(raw)) return "Esta práctica ya no se puede mover (está cancelada).";
+  if (/practica_sin_saldo/.test(raw)) return "No le quedan horas de práctica suficientes para alargarla.";
+  if (/practica_horas_invalidas/.test(raw)) return "La práctica dura 1 hora o más, en medias horas.";
   return "No se pudo mover la práctica.";
 }
 

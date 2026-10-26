@@ -110,7 +110,7 @@ export default async function CursoPage() {
                     </span>
                   </Td>
                   <Td>
-                    <MeterCell pct={total > 0 ? (usadas / total) * 100 : 0} label={`${usadas}/${total} h`} />
+                    <MeterCell pct={total > 0 ? (usadas / total) * 100 : 0} label={`${usadas.toLocaleString("es-CL")}/${total} h`} />
                   </Td>
                   <Td>
                     <StatusPill status={pendiente ? "reservada" : "pagada"} />

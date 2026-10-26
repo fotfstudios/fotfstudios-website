@@ -4,6 +4,7 @@ import { EXPERIENCE_LABELS, LEAD_PLAN_LABELS } from "@/src/domain/course/course"
 import type { CourseLeadInput } from "@/src/domain/course/lead";
 import { LEAD_CHANNEL_LABELS, leadChannel } from "@/src/domain/course/attribution";
 import { COURSE_PROGRAM } from "@/src/domain/course/program";
+import { practiceHoursLabel } from "@/src/domain/course/practice";
 import { formatPoints, fmtBeatcoins } from "@/src/domain/points/points";
 import {
   a,
@@ -386,19 +387,25 @@ ${ghosts([["Ver mi curso", ctx.courseUrl]])}`,
   return { template: "courseSessionCancelled", subject: `Sesión ${v.n} del curso cancelada · ${v.when}`, html, text };
 }
 
+/** "Te queda 1 hora" / "Te quedan 1,5 horas": el saldo de práctica va en medias horas. */
+function practiceLeftLine(h: number): string {
+  return `${h === 1 ? "Te queda" : "Te quedan"} ${practiceHoursLabel(h)}`;
+}
+const hoursNum = (h: number) => h.toLocaleString("es-CL");
+
 /** Hora de práctica libre agendada: el alumno entra solo, con su PIN. */
 export function practiceBooked(
   v: { name: string | null; when: string; hoursLeft: number; parts?: SessionParts },
   ctx: CourseCtx,
 ): EmailContent {
-  const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
+  const quedan = practiceLeftLine(v.hoursLeft);
   const html = dsShell({
     preheader: `Práctica libre · ${v.when}`,
     status: ["Agendada", "ok"],
     eyebrow: "Curso de DJ · práctica libre",
     title: "Agendamos tu práctica libre",
     body: `${p(hola(v.name, `la sala es tuya el ${b(esc(v.when))}.`), "0 0 28px")}
-${ticket([...sessionRows(v), placeRow(ctx), { label: "Saldo", value: `${v.hoursLeft} h ${quiet("de práctica")}` }])}
+${ticket([...sessionRows(v), placeRow(ctx), { label: "Saldo", value: `${hoursNum(v.hoursLeft)} h ${quiet("de práctica")}` }])}
 ${gap(12)}${callout("Acceso", `Entras solo: tu ${b("código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes")} (revisa spam).`)}
 ${gap(24)}${p(`${quedan} de práctica incluidas en tu curso.`, "0 0 28px")}
 ${cta("Cómo llegar", ctx.mapsUrl)}
@@ -409,24 +416,31 @@ ${ghosts([["Ver mi curso", ctx.courseUrl], ["WhatsApp", ctx.whatsappUrl]])}`,
   return { template: "practiceBooked", subject: `Práctica libre agendada · ${v.when}`, html, text };
 }
 
-/** Hora de práctica movida a otro horario (la movió el estudio). Entra solo: PIN 10 min antes. */
+/**
+ * Hora de práctica movida a otro horario (la movió el estudio). Entra solo: PIN 10 min antes.
+ * Con `hoursLeft` también cambió la duración: el saldo se ajustó y el correo dice cuánto queda.
+ */
 export function practiceMoved(
-  v: { name: string | null; before: string; after: string },
+  v: { name: string | null; before: string; after: string; hoursLeft?: number },
   ctx: CourseCtx,
 ): EmailContent {
+  const saldo =
+    v.hoursLeft === undefined
+      ? "Las horas de tu saldo no cambian."
+      : `También cambió la duración, así que ajustamos tu saldo: ${practiceLeftLine(v.hoursLeft).toLowerCase()} de práctica.`;
   const html = dsShell({
     preheader: `Nuevo horario: ${v.after}`,
     status: ["Reagendada", "ok"],
     eyebrow: "Curso de DJ · práctica libre",
     title: "Movimos tu práctica libre",
-    body: `${p(hola(v.name, "tu práctica cambió de horario. Las horas de tu saldo no cambian."), "0 0 28px")}
+    body: `${p(hola(v.name, `tu práctica cambió de horario. ${saldo}`), "0 0 28px")}
 ${movedTicket(v.before, v.after, ctx)}
 ${gap(12)}${callout("Acceso", `Entras solo: tu ${b("código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario")} (revisa spam).`)}
 ${gap(28)}${cta("Ver mi curso", ctx.courseUrl)}
 ${ghosts([["¿Dudas? WhatsApp", ctx.whatsappUrl]])}`,
     footer: courseFooter(ctx),
   });
-  const text = `Movimos tu práctica libre. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. Las horas de tu saldo no cambian. Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario (revisa spam). Ver mi curso: ${ctx.courseUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
+  const text = `Movimos tu práctica libre. Antes: ${v.before}. Ahora: ${v.after}. ${ctx.address}. ${saldo} Entras solo: tu código de acceso te llega por email (y por WhatsApp si lo activaste) 10 minutos antes del nuevo horario (revisa spam). Ver mi curso: ${ctx.courseUrl}. ¿Dudas? ${ctx.whatsappUrl}`;
   return { template: "practiceMoved", subject: `Práctica libre: nuevo horario · ${v.after}`, html, text };
 }
 
@@ -435,14 +449,14 @@ export function practiceReleased(
   v: { name: string | null; when: string; hoursLeft: number; parts?: SessionParts },
   ctx: BookingFoot & { whatsappUrl: string; courseUrl: string },
 ): EmailContent {
-  const quedan = v.hoursLeft === 1 ? "Te queda 1 hora" : `Te quedan ${v.hoursLeft} horas`;
+  const quedan = practiceLeftLine(v.hoursLeft);
   const html = dsShell({
     preheader: `Práctica cancelada · ${quedan.toLowerCase()}`,
     status: ["Cancelada", "neutral"],
     eyebrow: "Curso de DJ · práctica libre",
     title: "Cancelamos tu práctica libre",
     body: `${p(hola(v.name, `tu práctica del ${b(esc(v.when))} quedó cancelada y la hora volvió a tu saldo. ${quedan} de práctica.`), "0 0 28px")}
-${ticket([...sessionRows(v).map((r) => ({ ...r, strike: true })), { label: "Saldo", value: `${v.hoursLeft} h ${quiet("de práctica")}`, accent: "ok" }])}
+${ticket([...sessionRows(v).map((r) => ({ ...r, strike: true })), { label: "Saldo", value: `${hoursNum(v.hoursLeft)} h ${quiet("de práctica")}`, accent: "ok" }])}
 ${gap(28)}${cta("Ver mi curso", ctx.courseUrl)}
 ${ghosts([["Escríbenos por WhatsApp", ctx.whatsappUrl]])}`,
     footer: courseFooter(ctx),
