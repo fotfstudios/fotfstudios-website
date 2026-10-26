@@ -1046,6 +1046,20 @@ describe("práctica movida", () => {
     expect(m.text).toContain("10 minutos antes del nuevo horario");
   });
 
+  it("alumno: si cambió la duración, dice cómo quedó el saldo (medias horas en es-CL)", () => {
+    const m = practiceMoved({ name: null, before: "a", after: "b", hoursLeft: 1.5 }, ctx);
+    expect(m.text).toContain("También cambió la duración, así que ajustamos tu saldo: te quedan 1,5 horas de práctica.");
+    expect(m.text).not.toContain("no cambian");
+    expect(practiceMoved({ name: null, before: "a", after: "b", hoursLeft: 1 }, ctx).text).toContain("te queda 1 hora de práctica");
+  });
+
+  it("agendada y cancelada: el saldo en medias horas se escribe con coma", () => {
+    const booked = practiceBooked({ name: null, when: "x", hoursLeft: 4.5 }, ctx);
+    expect(booked.text).toContain("Te quedan 4,5 horas de práctica");
+    expect(booked.html).toContain("4,5 h");
+    expect(practiceReleased({ name: null, when: "x", hoursLeft: 1 }, ctx).text).toContain("Te queda 1 hora de práctica");
+  });
+
   it("dueño: dice si hay que tocar la cerradura", () => {
     expect(owner().text).toContain("El PIN sigue cargado en la cerradura: no hay que tocarla");
     expect(owner({ accessLoaded: false }).text).toContain("El PIN todavía no está cargado");

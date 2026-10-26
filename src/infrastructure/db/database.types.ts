@@ -1148,7 +1148,7 @@ isOneToOne: false
 { Args: { "p_created_by"?: string,"p_ends": string,"p_session": string,"p_starts": string }; Returns: undefined
                            },
 "move_practice_reservation":
-{ Args: { "p_created_by"?: string,"p_reservation": string,"p_starts": string }; Returns: Json
+{ Args: { "p_created_by"?: string,"p_hours"?: number,"p_reservation": string,"p_starts": string }; Returns: Json
                            },
 "move_trial_reservation":
 { Args: { "p_created_by"?: string,"p_ends": string,"p_reservation": string,"p_starts": string }; Returns: Json

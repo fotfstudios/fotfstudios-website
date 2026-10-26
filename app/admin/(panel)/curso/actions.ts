@@ -8,6 +8,7 @@ import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-fo
 import { type DayConsoleData, loadDayConsole } from "@/components/admin/day-occupancy";
 import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-policy";
 import { COURSE_PROGRAM, planProgramSessions } from "@/src/domain/course/program";
+import { isPracticeHours } from "@/src/domain/course/practice";
 import { selfOverlap } from "@/src/domain/course/sessions";
 import { rangeFor } from "@/src/domain/scheduling/time";
 import {
@@ -666,8 +667,8 @@ export async function redeemPracticeAction(_prev: ActionResult | null, fd: FormD
 
     if (!DATE_RE.test(date)) throw new Error("Fecha inválida.");
     if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Hora inválida.");
-    if (!Number.isInteger(hours) || hours < 1 || hours > COURSE_PROGRAM.practiceHours) {
-      throw new Error(`Horas: entre 1 y ${COURSE_PROGRAM.practiceHours}.`);
+    if (!isPracticeHours(hours) || hours > COURSE_PROGRAM.practiceHours) {
+      throw new Error(`Horas: entre 1 y ${COURSE_PROGRAM.practiceHours}, en medias horas.`);
     }
 
     const resource = await adminRepository().defaultResource();
@@ -709,9 +710,9 @@ function practiceErrorMessage(raw: string): string {
 }
 
 /**
- * Mueve una práctica a otro día u hora: misma duración (el RPC calcula el fin) y mismo
- * saldo. La llaman la ficha del alumno y la de la reserva. Después del RPC avisa al dueño y
- * al alumno, best-effort: un aviso que falla no deshace el cambio.
+ * Mueve una práctica a otro día u hora y, si viene `hours`, le cambia la duración (el RPC
+ * calcula el fin y ajusta el saldo). La llaman la ficha del alumno y la de la reserva.
+ * Después del RPC avisa al dueño y al alumno, best-effort: un aviso que falla no deshace el cambio.
  */
 export async function movePracticeAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
@@ -721,16 +722,19 @@ export async function movePracticeAction(_prev: ActionResult | null, fd: FormDat
     const startMinute = str(fd, "startMinute") === "" ? NaN : num(fd, "startMinute");
     if (!DATE_RE.test(date)) throw new Error("Elige un día.");
     if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 1439) throw new Error("Elige una hora.");
+    // Sin "hours" (o vacío) conserva la duración de la reserva.
+    const hours = str(fd, "hours") === "" ? undefined : num(fd, "hours");
+    if (hours !== undefined && !isPracticeHours(hours)) throw new Error("La práctica dura 1 hora o más, en medias horas.");
 
     const resource = await adminRepository().defaultResource();
     if (!resource) throw new Error("No hay sala configurada.");
-    // Solo el inicio: la duración la pone el RPC con la de la reserva.
+    // Solo el inicio: el fin lo calcula el RPC con la duración (nueva o la de la reserva).
     const { startsAt } = rangeFor(date, startMinute, 1, resource.timezone);
     const createdBy = (await currentClaims())?.sub ?? null;
 
     let moved: Awaited<ReturnType<ReturnType<typeof courseRepository>["movePractice"]>>;
     try {
-      moved = await courseRepository().movePractice(reservationId, startsAt, createdBy);
+      moved = await courseRepository().movePractice(reservationId, startsAt, createdBy, hours);
     } catch (e) {
       throw new Error(practiceMoveError(e instanceof Error ? e.message : ""));
     }
@@ -740,6 +744,8 @@ export async function movePracticeAction(_prev: ActionResult | null, fd: FormDat
         oldStartsAt: moved.oldStartsAt,
         oldEndsAt: moved.oldEndsAt,
         accessLoaded: moved.accessLoaded,
+        // Solo si cambió la duración: el correo dice cómo quedó el saldo.
+        hoursLeft: moved.newHours !== moved.oldHours ? moved.hoursLeft : undefined,
       })
       .catch((e) => console.error("[curso:practica:mover:aviso]", reservationId, e));
     revalidatePath(`/admin/curso/inscripciones/${moved.enrollmentId}`);

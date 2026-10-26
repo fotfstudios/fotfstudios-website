@@ -10,7 +10,7 @@ import { Icon } from "@/components/admin/ui/icons";
 import { btn } from "@/components/admin/ui/styles";
 import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { TaxDocsCard } from "@/components/admin/tax-docs/TaxDocsCard";
-import { adminRepository, pricingService } from "@/src/composition";
+import { adminRepository, courseRepository, pricingService } from "@/src/composition";
 import type { AdminBookingDetail, BookingTimelineEvent, PaymentSnapshot } from "@/src/infrastructure/db/admin-repository";
 import { formatCLP } from "@/src/domain/money/money";
 import { paymentMethodLabel } from "@/src/domain/money/payment-method";
@@ -227,8 +227,16 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
   const reschedProps = canReschedule ? await rescheduleDialogProps(b, isCourtesy) : null;
   // Prueba del curso: no pasa por los RPC de reagendar (son de `booking`); se mueve solo de
   // hora con move_trial_reservation. Vigente = pendiente o confirmada.
-  // Hora de práctica: se mueve acá (mismo saldo); cancelarla sigue siendo desde la ficha del alumno.
+  // Hora de práctica: se mueve acá (también de duración: el saldo absorbe la diferencia);
+  // cancelarla sigue siendo desde la ficha del alumno.
   const canMovePractice = isPractice && b.status === "confirmed" && hasPermission(claims, "course.manage");
+  // Lo que le queda sin agendar: el tope para alargarla. Si no se puede leer, no se alarga.
+  const practiceLibres = canMovePractice
+    ? await courseRepository()
+        .enrollmentById(b.practiceEnrollmentId!)
+        .then((e) => (e ? Math.max(0, e.practiceHoursTotal - e.practiceHoursRedeemed) : 0))
+        .catch(() => 0)
+    : 0;
   const canMoveTrial =
     isTrialSession(b.kind) && (b.status === "held" || b.status === "confirmed") && hasPermission(claims, "reservations.reschedule");
   // Cancelar con un reembolso pendiente en vuelo cruzaría dos flujos de plata a la
@@ -472,8 +480,9 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
           {isPractice && (
             <Card title="Práctica del curso">
               <p className="text-sm leading-relaxed text-bone-dim">
-                Es una hora de práctica libre de un alumno del curso. Muévela a otro horario acá (misma duración, el
-                saldo no cambia); para cancelarla y devolver la hora a su saldo, ve a su ficha.
+                Es una hora de práctica libre de un alumno del curso. Muévela a otro horario o cámbiale la duración
+                acá (alargarla descuenta de su saldo, acortarla lo devuelve); para cancelarla y devolver la hora a su
+                saldo, ve a su ficha.
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-4">
                 {canMovePractice && (
@@ -487,6 +496,7 @@ export default async function BookingDetail({ params }: { params: Promise<{ id: 
                     studentName={b.customerName}
                     studentEmail={b.customerEmail}
                     accessLoaded={!!b.accessCode && !!b.accessLoadedAt && !b.accessRemovedAt}
+                    libres={practiceLibres}
                   />
                 )}
                 <Link

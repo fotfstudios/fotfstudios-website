@@ -3,6 +3,7 @@ import { Card } from "@/components/admin/ui/Card";
 import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { MeterCell } from "@/components/admin/ui/MeterCell";
 import { MoverPracticaDialog } from "@/components/admin/MoverPracticaDialog";
+import { practiceHoursLabel } from "@/src/domain/course/practice";
 import { courseDayAction, movePracticeAction, releasePracticeAction } from "../../../actions";
 import { AgendarPracticaDialog } from "./AgendarPracticaDialog";
 
@@ -42,7 +43,7 @@ export function Practica({
     <Card title="Práctica libre">
       <MeterCell
         pct={total > 0 ? (redeemed / total) * 100 : 0}
-        label={`${libres} de ${total} ${total === 1 ? "hora" : "horas"} disponibles`}
+        label={`${libres.toLocaleString("es-CL")} de ${practiceHoursLabel(total)} disponibles`}
       />
 
       {vivas.length > 0 && (
@@ -52,7 +53,7 @@ export function Practica({
               <span className="font-mono text-sm text-bone-dim">
                 {r.startsAt ? fmtDateTime(r.startsAt) : "—"}
                 <span className="ml-2 text-bone-quiet">
-                  {r.hours} {r.hours === 1 ? "hora" : "horas"}
+                  {practiceHoursLabel(r.hours)}
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-2">
@@ -68,6 +69,7 @@ export function Practica({
                     studentName={studentName}
                     studentEmail={studentEmail}
                     accessLoaded={r.accessLoaded}
+                    libres={libres}
                   />
                 )}
                 <ConfirmForm
@@ -85,13 +87,17 @@ export function Practica({
         </ul>
       )}
 
-      {libres > 0 ? (
+      {libres >= 1 ? (
         <div className="mt-5 border-t hairline pt-5">
           <AgendarPracticaDialog enrollmentId={enrollmentId} libres={libres} tz={tz} />
         </div>
       ) : (
         <p className="mt-5 border-t hairline pt-4 label-sm text-bone-quiet">
-          {total === 0 ? "Esta inscripción no incluye horas de práctica." : "Ya usó todas sus horas."}
+          {total === 0
+            ? "Esta inscripción no incluye horas de práctica."
+            : libres > 0
+              ? "Le queda media hora: no alcanza para una práctica (mínimo 1 hora). Puede sumarla alargando una agendada."
+              : "Ya usó todas sus horas."}
         </p>
       )}
     </Card>

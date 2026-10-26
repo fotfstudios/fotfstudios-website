@@ -6,6 +6,7 @@ import type { ActionDataResult, ActionResult } from "@/components/admin/ui/actio
 import { ActionForm } from "@/components/admin/ui/ActionForm";
 import { Button } from "@/components/admin/ui/Button";
 import { Dialog } from "@/components/admin/ui/Dialog";
+import { Field, Select } from "@/components/admin/ui/Field";
 import { SubmitButton } from "@/components/admin/ui/SubmitButton";
 import { SlotPicker } from "@/components/admin/SlotPicker";
 import type { DayConsoleData } from "@/components/admin/day-occupancy";
@@ -17,8 +18,9 @@ export interface MoveSummaryRow {
 }
 
 /**
- * Mover una reserva de duración FIJA a otro día u hora, sin plata (la prueba del curso, una
- * hora de práctica). Dos pasos: elegir → revisar el resumen → confirmar.
+ * Mover una reserva a otro día u hora, sin plata (la prueba del curso, una hora de práctica).
+ * La duración es fija salvo que lleguen `durations` (la práctica): ahí se elige también y
+ * viaja como `hours`. Dos pasos: elegir → revisar el resumen → confirmar.
  *
  * "Revisar" NO envía el form (React 19 lo limpia al enviar y se perdería la hora elegida):
  * lee la selección y esconde el picker, que sigue montado con sus valores; "Volver" lo
@@ -39,6 +41,7 @@ export function MoveSlotDialog({
   who,
   rows,
   pickerNote,
+  durations,
 }: {
   trigger: string;
   title: string;
@@ -55,22 +58,27 @@ export function MoveSlotDialog({
   ignoreId: string;
   /** Primera fila del resumen: "Cliente" / "Alumno" y su nombre. */
   who: MoveSummaryRow;
-  /** Filas después de antes → ahora (cobro, saldo, PIN, avisos…). */
-  rows: MoveSummaryRow[];
+  /** Filas después de antes → ahora (cobro, saldo, PIN, avisos…); función si dependen de la duración elegida. */
+  rows: MoveSummaryRow[] | ((durationMin: number) => MoveSummaryRow[]);
   pickerNote: string;
+  /** Duraciones elegibles (en horas, con su etiqueta). Sin esto la duración no cambia. */
+  durations?: { hours: number; label: string }[];
 }) {
+  const currentMin = Math.round(DateTime.fromISO(endsAt).diff(DateTime.fromISO(startsAt), "minutes").minutes);
   const [open, setOpen] = useState(false);
   const [review, setReview] = useState<{ startsAt: string; endsAt: string } | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
+  const [durationMin, setDurationMin] = useState(currentMin);
 
   const current = DateTime.fromISO(startsAt).setZone(tz);
-  const durationMin = Math.round(DateTime.fromISO(endsAt).diff(DateTime.fromISO(startsAt), "minutes").minutes);
   const before = formatSessionWhen(startsAt, tz, { endsAt });
+  const summaryRows = typeof rows === "function" ? rows(durationMin) : rows;
 
   const close = () => {
     setOpen(false);
     setReview(null);
     setPickError(null);
+    setDurationMin(currentMin);
   };
 
   const toReview = (e: MouseEvent<HTMLButtonElement>) => {
@@ -82,7 +90,7 @@ export function MoveSlotDialog({
       return;
     }
     const start = DateTime.fromISO(date, { zone: tz }).startOf("day").plus({ minutes: Number(minute) });
-    if (start.toMillis() === current.toMillis()) {
+    if (start.toMillis() === current.toMillis() && durationMin === currentMin) {
       setPickError("Ya está en ese horario.");
       return;
     }
@@ -103,6 +111,17 @@ export function MoveSlotDialog({
             ))}
 
             <div hidden={!!review} className="flex flex-col gap-5">
+              {durations && (
+                <Field label="Duración">
+                  <Select name="hours" value={durationMin / 60} onChange={(e) => setDurationMin(Number(e.target.value) * 60)}>
+                    {durations.map((d) => (
+                      <option key={d.hours} value={d.hours}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <SlotPicker
                 loadDay={loadDay}
                 durationMin={durationMin}
@@ -133,7 +152,7 @@ export function MoveSlotDialog({
                   <dd className="text-bone-quiet line-through">{before}</dd>
                   <dt className="label text-bone-quiet">Ahora</dt>
                   <dd className="font-bold text-bone">{formatSessionWhen(review.startsAt, tz, { endsAt: review.endsAt })}</dd>
-                  {rows.map((r) => (
+                  {summaryRows.map((r) => (
                     <div key={r.label} className="contents">
                       <dt className="label text-bone-quiet">{r.label}</dt>
                       <dd className="text-bone-dim">{r.value}</dd>

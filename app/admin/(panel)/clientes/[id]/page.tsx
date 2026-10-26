@@ -200,7 +200,7 @@ export default async function ClienteDetalle({ params }: { params: Promise<{ id:
                     </Td>
                     <Td right>
                       <span className="font-mono text-bone-dim">
-                        {k.practiceHoursRedeemed}/{k.practiceHoursTotal} h
+                        {k.practiceHoursRedeemed.toLocaleString("es-CL")}/{k.practiceHoursTotal} h
                       </span>
                     </Td>
                   </Tr>

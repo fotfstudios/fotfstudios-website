@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/admin/ui/StatusPill";
 import { SITE } from "@/lib/site";
 import { courseRepository } from "@/src/composition";
 import { COURSE_PROGRAM } from "@/src/domain/course/program";
+import { practiceHoursLabel } from "@/src/domain/course/practice";
 import { formatCLP } from "@/src/domain/money/money";
 import { requireCustomer } from "@/src/infrastructure/auth/require-customer";
 
@@ -63,7 +64,7 @@ export default async function CuentaCurso() {
                 </Fila>
                 {pagado && (
                   <Fila label="Práctica">
-                    {libres} de {curso.practiceHoursTotal} {curso.practiceHoursTotal === 1 ? "hora libre" : "horas libres"}
+                    {libres.toLocaleString("es-CL")} de {curso.practiceHoursTotal} {curso.practiceHoursTotal === 1 ? "hora libre" : "horas libres"}
                     {curso.practiceValidUntil && (
                       <span className="text-bone-quiet"> · vencen el {fmtDay(curso.practiceValidUntil)}</span>
                     )}
@@ -119,7 +120,7 @@ export default async function CuentaCurso() {
                         className="flex flex-wrap items-baseline gap-x-4 border-t hairline py-3 first:border-0 first:pt-0"
                       >
                         <span className="text-bone">
-                          {p.hours} {p.hours === 1 ? "hora" : "horas"}
+                          {practiceHoursLabel(p.hours)}
                         </span>
                         <span className="ml-auto font-mono text-sm text-bone-dim">
                           {fmtDate(p.startsAt)} · {fmtTimeRange(p.startsAt, p.endsAt)}
