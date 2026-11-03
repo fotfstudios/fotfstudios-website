@@ -397,6 +397,7 @@ isOneToOne: true
                   Row: {
                     "created_at": string,"email": string,"reason": string,"source": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "created_at"?: string,"email": string,"reason": string,"source"?: string | null
                   }
@@ -500,6 +501,7 @@ isOneToOne: false
                   Row: {
                     "detail": Json | null,"id": string,"kind": string,"lead_id": string,"occurred_at": string,"referrer_host": string | null,"source": string | null,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "detail"?: Json | null,"id"?: string,"kind": string,"lead_id": string,"occurred_at"?: string,"referrer_host"?: string | null,"source"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
                   }
@@ -519,6 +521,7 @@ isOneToOne: false
                   Row: {
                     "assignee_member_id": string | null,"checkin_sent_at": string | null,"consent_at": string | null,"course_sent_at": string | null,"created_at": string,"email": string,"enrolled_at": string | null,"id": string,"name": string | null,"notes": string | null,"phone": string | null,"referrer_host": string | null,"source": string | null,"stage": string,"stage_updated_at": string | null,"tip_sent_at": string | null,"trial_sent_at": string | null,"unsubscribe_token": string,"unsubscribed_at": string | null,"updated_at": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
                   }
+                  ComputedFields: never
                   Insert: {
                     "assignee_member_id"?: string | null,"checkin_sent_at"?: string | null,"consent_at"?: string | null,"course_sent_at"?: string | null,"created_at"?: string,"email": string,"enrolled_at"?: string | null,"id"?: string,"name"?: string | null,"notes"?: string | null,"phone"?: string | null,"referrer_host"?: string | null,"source"?: string | null,"stage"?: string,"stage_updated_at"?: string | null,"tip_sent_at"?: string | null,"trial_sent_at"?: string | null,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
                   }
