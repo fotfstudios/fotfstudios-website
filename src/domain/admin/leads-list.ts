@@ -119,7 +119,10 @@ const STAGE_LABEL_CSV: Record<LeadStage, string> = {
 /** CSV UTF-8 con BOM y CRLF (como guiaLeadsCsv), para la herramienta de correo / planilla. */
 export function leadsCsv(rows: LeadListRow[]): string {
   const esc = (v: string | null): string => {
-    const s = v ?? "";
+    let s = v ?? "";
+    // Anti-inyección de fórmulas: el nombre de un lead viene de un formulario público; un
+    // "=cmd" se ejecutaría al abrir el CSV en Excel/Sheets. Un apóstrofo al frente lo neutraliza.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = ["Correo", "Nombre", "Teléfono", "Origen", "Etapa", "Asignado", "Nurture", "Alta"];
