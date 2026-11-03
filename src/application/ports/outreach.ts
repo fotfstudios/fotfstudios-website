@@ -49,8 +49,12 @@ export interface LeadsRepository {
   upsert(input: LeadUpsertInput): Promise<string>;
   /** Toque suelto para eventos que no son captación (nurture_sent, unsubscribe, …). */
   recordTouch(email: string, kind: TouchKind, detail?: Record<string, unknown> | null): Promise<void>;
-  /** Inscribe en la secuencia (opt-in): sella consent/enrolled, limpia una baja previa + su supresión. */
-  enroll(email: string, source: string, consentAt?: Date): Promise<void>;
+  /**
+   * Inscribe en la secuencia (opt-in): sella consent/enrolled. `clearSuppression` reactiva una
+   * baja previa y borra la supresión global — SOLO desde una acción autenticada (admin); las vías
+   * públicas lo dejan en false, así un POST no re-suscribe a un tercero que se dio de baja.
+   */
+  enroll(email: string, source: string, consentAt?: Date, clearSuppression?: boolean): Promise<void>;
   /** Candidatos con algún paso pendiente (barrido). El paso lo decide `nextStepDue` en el servicio. */
   candidates(limit?: number): Promise<NurtureCandidate[]>;
   /** Reclama un paso: lo marca enviado solo si estaba null. true = esta corrida lo marcó. */

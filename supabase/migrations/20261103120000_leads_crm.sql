@@ -198,22 +198,46 @@ end;
 $$;
 
 -- ── 6. Nurture: inscripción, reclamo de paso, candidatos, baja ────────────────
--- Inscribe (opt-in). Idempotente: conserva el enrolled_at/consent original, limpia una baja
--- previa y su supresión (el re-opt-in renueva el consentimiento). No resetea los pasos ya
--- enviados: una re-inscripción reanuda, no re-spamea.
-create or replace function nurture_enroll(p_email text, p_source text, p_consent_at timestamptz default now())
+-- Inscribe (opt-in). Idempotente: conserva el enrolled_at/consent original. No resetea los pasos
+-- ya enviados: una re-inscripción reanuda, no re-spamea.
+--
+-- `p_clear_suppression` separa DOS caminos, porque reactivar un correo es una acción con
+-- autoridad: un POST público (newsletter/guía) NUNCA puede revivir la baja de un tercero ni
+-- borrar su supresión global —solo inscribe fichas limpias—, mientras que la acción autenticada
+-- del admin sí reactiva a propósito. Sin esta separación, cualquiera re-suscribe a una víctima
+-- mandando su correo al formulario.
+create or replace function nurture_enroll(
+  p_email text,
+  p_source text,
+  p_consent_at timestamptz default now(),
+  p_clear_suppression boolean default false
+)
 returns void language plpgsql
 set search_path = public, pg_temp as $$
 begin
-  update leads
-     set consent_at      = coalesce(consent_at, p_consent_at),
-         enrolled_at     = coalesce(enrolled_at, now()),
-         source          = coalesce(source, p_source),
-         unsubscribed_at = null,
-         updated_at      = now()
-   where email = lower(p_email);
-  if found then
-    delete from email_suppressions where email = lower(p_email);
+  if p_clear_suppression then
+    -- Admin (autenticado): reactiva una baja previa y limpia la supresión global a propósito.
+    update leads
+       set consent_at      = coalesce(consent_at, p_consent_at),
+           enrolled_at     = coalesce(enrolled_at, now()),
+           source          = coalesce(source, p_source),
+           unsubscribed_at = null,
+           updated_at      = now()
+     where email = lower(p_email);
+    if found then
+      delete from email_suppressions where email = lower(p_email);
+    end if;
+  else
+    -- Público (sin autenticar): respeta la baja y la supresión. Solo inscribe una ficha que
+    -- no se dio de baja y no está suprimida; nunca las revierte.
+    update leads
+       set consent_at  = coalesce(consent_at, p_consent_at),
+           enrolled_at = coalesce(enrolled_at, now()),
+           source      = coalesce(source, p_source),
+           updated_at  = now()
+     where email = lower(p_email)
+       and unsubscribed_at is null
+       and not exists (select 1 from email_suppressions s where s.email = lower(p_email));
   end if;
 end;
 $$;
@@ -350,7 +374,7 @@ revoke execute on function suppress_email(text, text, text)            from publ
 revoke execute on function is_email_suppressed(text)                   from public, anon, authenticated;
 revoke execute on function lead_upsert(text,text,text,text,text,text,text,text,text,text,text,jsonb) from public, anon, authenticated;
 revoke execute on function lead_record_touch(text, text, jsonb)        from public, anon, authenticated;
-revoke execute on function nurture_enroll(text, text, timestamptz)     from public, anon, authenticated;
+revoke execute on function nurture_enroll(text, text, timestamptz, boolean)     from public, anon, authenticated;
 revoke execute on function nurture_claim_step(uuid, text)              from public, anon, authenticated;
 revoke execute on function nurture_release_step(uuid, text)            from public, anon, authenticated;
 revoke execute on function nurture_candidates(int)                     from public, anon, authenticated;
@@ -363,7 +387,7 @@ grant execute on function suppress_email(text, text, text)            to service
 grant execute on function is_email_suppressed(text)                   to service_role;
 grant execute on function lead_upsert(text,text,text,text,text,text,text,text,text,text,text,jsonb) to service_role;
 grant execute on function lead_record_touch(text, text, jsonb)        to service_role;
-grant execute on function nurture_enroll(text, text, timestamptz)     to service_role;
+grant execute on function nurture_enroll(text, text, timestamptz, boolean)     to service_role;
 grant execute on function nurture_claim_step(uuid, text)              to service_role;
 grant execute on function nurture_release_step(uuid, text)            to service_role;
 grant execute on function nurture_candidates(int)                     to service_role;

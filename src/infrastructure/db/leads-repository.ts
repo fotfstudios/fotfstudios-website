@@ -79,11 +79,12 @@ export class SupabaseLeadsRepository implements LeadsRepository {
     if (error) throw new Error(error.message);
   }
 
-  async enroll(email: string, source: string, consentAt?: Date): Promise<void> {
+  async enroll(email: string, source: string, consentAt?: Date, clearSuppression = false): Promise<void> {
     const { error } = await this.db.rpc("nurture_enroll", {
       p_email: email,
       p_source: source,
       p_consent_at: consentAt ? consentAt.toISOString() : undefined,
+      p_clear_suppression: clearSuppression,
     });
     if (error) throw new Error(error.message);
   }

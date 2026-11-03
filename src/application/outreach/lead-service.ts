@@ -36,8 +36,11 @@ export class LeadService {
   assign(email: string, memberId: string | null): Promise<void> {
     return this.repo.assign(email, memberId);
   }
-  /** Alta manual + inscripción inmediata (el admin agrega un lead y lo mete a la secuencia). */
+  /**
+   * Inscripción desde el ADMIN (acción autenticada): reactiva a propósito una baja previa y
+   * limpia la supresión global. Las vías públicas usan `capture`, que nunca reactiva.
+   */
   enroll(email: string, source: string): Promise<void> {
-    return this.repo.enroll(email, source);
+    return this.repo.enroll(email, source, undefined, true);
   }
 }

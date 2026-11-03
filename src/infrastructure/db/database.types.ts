@@ -1181,7 +1181,7 @@ isOneToOne: false
 { Args: { "p_id": string,"p_step": string }; Returns: boolean
                            },
 "nurture_enroll":
-{ Args: { "p_consent_at"?: string,"p_email": string,"p_source": string }; Returns: undefined
+{ Args: { "p_clear_suppression"?: boolean,"p_consent_at"?: string,"p_email": string,"p_source": string }; Returns: undefined
                            },
 "nurture_release_step":
 { Args: { "p_id": string,"p_step": string }; Returns: undefined
