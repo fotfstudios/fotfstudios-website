@@ -34,6 +34,9 @@ export default function LeadForm({
 }) {
   const { sent, markSent, copy, sources } = useGuiaLead();
   const [email, setEmail] = useState("");
+  // Opt-in a la secuencia de nurture: casilla marcada (como la de WhatsApp en /reservar); cada
+  // correo lleva baja. Bajar la guía solo consintió ESE PDF, por eso es una casilla visible.
+  const [optIn, setOptIn] = useState(true);
   const [website, setWebsite] = useState(""); // honeypot
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,7 @@ export default function LeadForm({
           source,
           guide,
           website,
+          optIn,
           ...readUtm(window.location, document.referrer),
         }),
       });
@@ -195,6 +199,17 @@ export default function LeadForm({
           />
         </label>
       </div>
+
+      <label className="flex items-start gap-2 text-sm text-bone-dim">
+        <input
+          type="checkbox"
+          name="optIn"
+          checked={optIn}
+          onChange={(e) => setOptIn(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-gold"
+        />
+        <span>Quiero recibir más tips de DJ por correo. Sin spam; te puedes dar de baja cuando quieras.</span>
+      </label>
 
       <p className="label-sm text-bone-mute">
         {copy.finePrint}{" "}

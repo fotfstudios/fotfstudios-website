@@ -1332,6 +1332,146 @@ ${fine(`Si algo no estuvo bien, preferimos saberlo directo: ${a("escríbenos por
 }
 
 /**
+ * Secuencia de nurture para quien bajó la guía de iniciación (el lead magnet de /guia-dj).
+ * Son correos de MARKETING, no transaccionales: por eso cada uno lleva el link de baja
+ * (consentimiento + ley) y UN solo CTA. El copy camina el embudo del principiante —
+ * guía → tip → prueba → curso → conversación — a lo largo de los días 2, 5, 9 y 14.
+ * El día 0 (la entrega del PDF) lo hace `guideDelivery`.
+ *
+ * Como el resto del módulo, estas plantillas son copy puro: las URLs y la cita del alumno
+ * entran como DATO desde la raíz de composición (igual que `guideDelivery`), no se importan
+ * acá. Así `templates.ts` no conoce el registro de guías, el curso ni los testimonios.
+ */
+export interface NurtureCtx {
+  /** Baja de la lista. Va en TODOS los correos de nurture: lo promete el formulario y lo pide la ley. */
+  unsubscribeUrl: string;
+  whatsappUrl: string;
+}
+
+/** Salida por WhatsApp + baja, como letra chica del cuerpo (fine). El link de baja es la invariante legal. */
+const nurtureFine = (ctx: NurtureCtx): string =>
+  fine(`¿Dudas? ${a("Escríbenos por WhatsApp", ctx.whatsappUrl, D.text2)}. ¿Ya no quieres estos correos? ${a("Date de baja aquí", ctx.unsubscribeUrl, D.text2)}.`);
+
+const nurtureFineText = (ctx: NurtureCtx): string =>
+  `\n\n¿Dudas? Escríbenos por WhatsApp: ${ctx.whatsappUrl}\n¿Ya no quieres estos correos? Date de baja: ${ctx.unsubscribeUrl}`;
+
+/** Pie (reason) común: quien bajó una guía gratis, no un cliente ni un alumno. */
+const nurtureFooter = (): FooterCtx => ({
+  reason: "Recibes este correo porque bajaste una guía gratis en fotfstudios.cl.",
+});
+
+/**
+ * Día 2 — puro valor, nada de venta. Un tip concreto que engancha con la guía del pendrive
+ * (que también existe como lead magnet) y construye el hábito de abrir nuestros correos.
+ */
+export function nurtureTip(
+  v: { name: string | null },
+  ctx: NurtureCtx & { guideUrl: string },
+): EmailContent {
+  const html = dsShell({
+    preheader: "FAT32, análisis en Rekordbox y la expulsión: los tres que casi todos fallan.",
+    status: ["Tip", "accent"],
+    eyebrow: "Guía DJ",
+    title: "Los 3 errores del pendrive",
+    body: `${p(`${hola(v.name, "la mayoría de los principiantes pierde su primera hora de cabina peleando con el pendrive.")} Estos tres ajustes lo evitan:`, "0 0 24px")}
+${steps("Los tres ajustes", [
+  [`${b("Formatéalo en FAT32")}, no exFAT ni NTFS`, "Los CDJ y XDJ lo leen sin reclamar."],
+  [`${b("Analiza los temas en Rekordbox antes")}, en casa`, "Sin análisis no hay waveform ni cues en la pantalla."],
+  [`${b("Expúlsalo siempre")} antes de sacarlo`, "En caliente corrompe la biblioteca, y pasa más seguido de lo que crees."],
+])}
+${gap(8)}
+${cta("Leer la guía del pendrive", ctx.guideUrl)}
+${nurtureFine(ctx)}`,
+    footer: nurtureFooter(),
+  });
+  const text = `${hola(v.name, "acá van 3 cosas")} que te ahorran un mal rato con el pendrive:
+1. Formatéalo en FAT32 (no exFAT ni NTFS).
+2. Analiza los temas en Rekordbox antes, en casa.
+3. Expúlsalo siempre antes de sacarlo: en caliente corrompe la biblioteca.
+
+La guía del pendrive, completa: ${ctx.guideUrl}${nurtureFineText(ctx)}`;
+  return { template: "nurtureTip", subject: "Los 3 errores del pendrive que casi todos cometen", html, text };
+}
+
+/**
+ * Día 5 — el paso natural: la hora de prueba. Nombra los equipos exactos y la cabina
+ * aislada acústicamente (lo que la landing promete), con un solo CTA a reservar.
+ */
+export function nurtureTrial(
+  v: { name: string | null },
+  ctx: NurtureCtx & { trialUrl: string },
+): EmailContent {
+  const html = dsShell({
+    preheader: "La primera hora, en una cabina de club aislada acústicamente.",
+    status: ["Tu hora de prueba", "accent"],
+    eyebrow: "La sala",
+    title: "Pásalo del pendrive a la cabina",
+    body: `${p(`${hola(v.name, "ya leíste la teoría; ahora tócala.")} En la sala tienes el setup de club completo —2× Pioneer XDJ-1000MK2 y un DJM-450— en una cabina aislada acústicamente.`, "0 0 16px")}
+${p("La primera hora es de prueba: para que sientas cómo es mezclar de verdad, sin apuro y sin nadie mirando.", "0 0 28px")}
+${cta("Reservar mi hora de prueba", ctx.trialUrl)}
+${nurtureFine(ctx)}`,
+    footer: nurtureFooter(),
+  });
+  const text = `${hola(v.name, "ya leíste la teoría; ahora tócala.")} En la sala tienes el setup de club completo (2× Pioneer XDJ-1000MK2 y un DJM-450) en una cabina aislada acústicamente. La primera hora es de prueba, sin apuro.
+
+Reserva tu hora de prueba: ${ctx.trialUrl}${nurtureFineText(ctx)}`;
+  return { template: "nurtureTrial", subject: "Pásalo del pendrive a la cabina — tu primera hora", html, text };
+}
+
+/**
+ * Día 9 — para quien quiere ir en serio: el curso 1 a 1. La cita del alumno entra como
+ * DATO (`testimonial`, la reseña real de Google); sin ella, el bloque simplemente no sale.
+ */
+export function nurtureCourse(
+  v: { name: string | null },
+  ctx: NurtureCtx & { courseUrl: string; testimonial?: { quote: string; name: string } },
+): EmailContent {
+  const t = ctx.testimonial;
+  const quoteBlock = t ? `${callout("Lo que dicen", `“${esc(t.quote)}” — ${esc(t.name)}`)}${gap(8)}` : "";
+  const html = dsShell({
+    preheader: "Clases 1 a 1, a tu ritmo y con tu música.",
+    status: ["Curso de DJ", "accent"],
+    eyebrow: "Curso 1 a 1",
+    title: "¿Quieres ir en serio?",
+    body: `${p(`${hola(v.name, "si ya te picó el bichito,")} el Curso de Iniciación DJ es 1 a 1: tú y un profe en la cabina, a tu ritmo y con tu música.`, "0 0 16px")}
+${p("Sales sabiendo mezclar, armar un set y moverte en los mismos equipos que vas a encontrar en cualquier club.", "0 0 24px")}
+${quoteBlock}${cta("Ver el curso 1 a 1", ctx.courseUrl)}
+${nurtureFine(ctx)}`,
+    footer: nurtureFooter(),
+  });
+  const quoteText = t ? `\n\n“${t.quote}” — ${t.name}` : "";
+  const text = `${hola(v.name, "si ya te picó el bichito,")} el Curso de Iniciación DJ es 1 a 1: tú y un profe en la cabina, a tu ritmo y con tu música. Sales sabiendo mezclar, armar un set y moverte en equipos de club.${quoteText}
+
+Ver el curso: ${ctx.courseUrl}${nurtureFineText(ctx)}`;
+  return { template: "nurtureCourse", subject: "El curso de DJ, 1 a 1 y a tu ritmo", html, text };
+}
+
+/**
+ * Día 14 — cierra la secuencia pidiendo una respuesta, no vendiendo. El CTA es el propio
+ * WhatsApp (abre conversación real), así que el pie es solo la baja, sin repetir el WhatsApp.
+ */
+export function nurtureCheckIn(
+  v: { name: string | null },
+  ctx: NurtureCtx,
+): EmailContent {
+  const html = dsShell({
+    preheader: "¿Qué es lo que más te cuesta ahora? Cuéntanos.",
+    status: ["¿Hablamos?", "accent"],
+    eyebrow: "FOTF Studios",
+    title: "¿En qué andas trabado?",
+    body: `${p(`${hola(v.name, "una pregunta corta:")} ¿qué es lo que más te cuesta hoy del DJing? ¿El beatmatch, armar el set, elegir la música?`, "0 0 16px")}
+${p("Respóndenos por WhatsApp y te damos una mano directo. Leemos todo.", "0 0 28px")}
+${cta("Contarnos por WhatsApp", ctx.whatsappUrl)}
+${fine(`¿Ya no quieres estos correos? ${a("Date de baja aquí", ctx.unsubscribeUrl, D.text2)}.`)}`,
+    footer: nurtureFooter(),
+  });
+  const text = `${hola(v.name, "una pregunta corta:")} ¿qué es lo que más te cuesta hoy del DJing — el beatmatch, armar el set, elegir la música? Respóndenos por WhatsApp y te damos una mano directo: ${ctx.whatsappUrl}
+
+¿Ya no quieres estos correos? Date de baja: ${ctx.unsubscribeUrl}`;
+  return { template: "nurtureCheckIn", subject: "¿En qué andas trabado con el DJing?", html, text };
+}
+
+/**
  * Email al alumno: curso confirmado. Recién ACÁ viaja la dirección — la FAQ de la
  * landing promete que se comparte al confirmar la inscripción, y una solicitud sin
  * pagar no lo es. Lleva las fechas ya agendadas; en el curso 1:1 lo normal es que

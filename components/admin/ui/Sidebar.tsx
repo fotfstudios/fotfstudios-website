@@ -18,6 +18,7 @@ function groups(
     applications: boolean;
     course: boolean;
     customers: boolean;
+    leads: boolean;
     lock: boolean;
     sii: boolean;
     equipment: boolean;
@@ -54,6 +55,13 @@ function groups(
     operacion.splice(4, 0, { href: "/admin/guia", label: "Guías", icon: "doc" });
     // Suscriptores del newsletter: también contactos, mismo permiso, sin badge.
     operacion.splice(5, 0, { href: "/admin/novedades", label: "Novedades", icon: "user" });
+  }
+  // CRM/nurture de leads: su propio permiso (leads.manage, independiente de customers.manage),
+  // junto a los contactos si están, si no detrás de Reservas.
+  if (show.leads) {
+    const after = operacion.findIndex((it) => it.href === "/admin/novedades");
+    const idx = after >= 0 ? after + 1 : operacion.findIndex((it) => it.href === "/admin/reservas") + 1;
+    operacion.splice(idx, 0, { href: "/admin/leads", label: "Leads", icon: "user" });
   }
   // Cerradura después de Bloqueos: es operación de sala, no de agenda. Con el mismo
   // permiso que la card de acceso de la ficha.
@@ -144,6 +152,7 @@ export function Sidebar({
     applications: boolean;
     course: boolean;
     customers: boolean;
+    leads: boolean;
     lock: boolean;
     sii: boolean;
     equipment: boolean;
