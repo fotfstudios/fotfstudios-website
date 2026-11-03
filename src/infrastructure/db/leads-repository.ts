@@ -1,10 +1,51 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LeadsRepository, LeadUpsertInput, NurtureCandidate, TouchKind } from "@/src/application/ports/outreach";
 import type { NurtureStep } from "@/src/domain/outreach/nurture-schedule";
-import type { AutoStage, LeadStage } from "@/src/domain/outreach/pipeline";
+import { LEAD_STAGES, type AutoStage, type LeadStage } from "@/src/domain/outreach/pipeline";
+import type {
+  LeadDetailView,
+  LeadListRow,
+  LeadsListQuery,
+  LeadTouchView,
+} from "@/src/domain/admin/leads-list";
 import type { Database } from "./database.types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
+
+/** Fila con lo embebido (asignado + conteo de toques) que pide la lista del admin. */
+type LeadRowEmbedded = LeadRow & {
+  assignee: { email: string } | null;
+  lead_touches: { count: number }[];
+};
+
+const SELECT_LIST = "*, assignee:admin_members!leads_assignee_member_id_fkey(email), lead_touches(count)";
+
+function toListRow(r: LeadRowEmbedded): LeadListRow {
+  return {
+    id: r.id,
+    email: r.email,
+    name: r.name,
+    phone: r.phone,
+    source: r.source,
+    stage: (r.stage as LeadStage) ?? "nuevo",
+    assigneeMemberId: r.assignee_member_id,
+    assigneeEmail: r.assignee?.email ?? null,
+    createdAt: r.created_at,
+    touchCount: r.lead_touches?.[0]?.count ?? 0,
+    enrolledAt: r.enrolled_at,
+    consentAt: r.consent_at,
+    unsubscribedAt: r.unsubscribed_at,
+    tipSentAt: r.tip_sent_at,
+    trialSentAt: r.trial_sent_at,
+    courseSentAt: r.course_sent_at,
+    checkinSentAt: r.checkin_sent_at,
+  };
+}
+
+/** Sanea `q` para un filtro ilike dentro de `.or()`: fuera los metacaracteres y lo que rompe la sintaxis. */
+function ilikeTerm(q: string): string {
+  return `%${q.replace(/[,()*%\\]/g, "").trim()}%`;
+}
 
 /** CRM/nurture (migración 20261103120000). Solo service_role. */
 export class SupabaseLeadsRepository implements LeadsRepository {
@@ -103,5 +144,122 @@ export class SupabaseLeadsRepository implements LeadsRepository {
       p_member_id: (memberId ?? undefined) as never,
     });
     if (error) throw new Error(error.message);
+  }
+
+  // ── Lectura para el admin ──────────────────────────────────────────────────
+
+  /** Página de la tabla: filtra por etapa y busca por correo/nombre; orden por alta desc. */
+  async list(query: LeadsListQuery): Promise<{ rows: LeadListRow[]; total: number }> {
+    let qb = this.db.from("leads").select(SELECT_LIST, { count: "exact" });
+    if (query.stage) qb = qb.eq("stage", query.stage);
+    if (query.q) {
+      const term = ilikeTerm(query.q);
+      qb = qb.or(`email.ilike.${term},name.ilike.${term}`);
+    }
+    const from = (query.page - 1) * query.perPage;
+    const { data, error, count } = await qb
+      .order("created_at", { ascending: false })
+      .range(from, from + query.perPage - 1);
+    if (error) throw new Error(error.message);
+    return { rows: ((data ?? []) as unknown as LeadRowEmbedded[]).map(toListRow), total: count ?? 0 };
+  }
+
+  /** Todas las fichas (tope) para el tablero kanban; se agrupan por etapa en la página. */
+  async board(limit = 500): Promise<LeadListRow[]> {
+    const { data, error } = await this.db
+      .from("leads")
+      .select(SELECT_LIST)
+      .order("stage_updated_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as LeadRowEmbedded[]).map(toListRow);
+  }
+
+  /** Conteo por etapa (tarjetas KPI). Cinco head-counts: O(1) de datos. */
+  async stageCounts(): Promise<Record<LeadStage, number>> {
+    const entries = await Promise.all(
+      LEAD_STAGES.map(async (stage) => {
+        const { count, error } = await this.db
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("stage", stage);
+        if (error) throw new Error(error.message);
+        return [stage, count ?? 0] as const;
+      }),
+    );
+    return Object.fromEntries(entries) as Record<LeadStage, number>;
+  }
+
+  async exportAll(query: Pick<LeadsListQuery, "stage" | "q">, limit = 10_000): Promise<LeadListRow[]> {
+    let qb = this.db.from("leads").select(SELECT_LIST);
+    if (query.stage) qb = qb.eq("stage", query.stage);
+    if (query.q) {
+      const term = ilikeTerm(query.q);
+      qb = qb.or(`email.ilike.${term},name.ilike.${term}`);
+    }
+    const { data, error } = await qb.order("created_at", { ascending: false }).limit(limit);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as LeadRowEmbedded[]).map(toListRow);
+  }
+
+  /** Ficha + historia de toques (timeline de atribución) para el detalle. */
+  async get(id: string): Promise<LeadDetailView | null> {
+    const { data, error } = await this.db.from("leads").select(SELECT_LIST).eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const r = data as unknown as LeadRowEmbedded;
+    const { data: touchData, error: tErr } = await this.db
+      .from("lead_touches")
+      .select("id, occurred_at, kind, source, utm_source, utm_medium, utm_campaign, detail")
+      .eq("lead_id", id)
+      .order("occurred_at", { ascending: false })
+      .limit(200);
+    if (tErr) throw new Error(tErr.message);
+    const touches: LeadTouchView[] = (touchData ?? []).map((t) => ({
+      id: t.id,
+      occurredAt: t.occurred_at,
+      kind: t.kind,
+      source: t.source,
+      utmSource: t.utm_source,
+      utmMedium: t.utm_medium,
+      utmCampaign: t.utm_campaign,
+      detail: (t.detail ?? null) as Record<string, unknown> | null,
+    }));
+    return {
+      ...toListRow(r),
+      notes: r.notes,
+      stageUpdatedAt: r.stage_updated_at,
+      utmSource: r.utm_source,
+      utmMedium: r.utm_medium,
+      utmCampaign: r.utm_campaign,
+      referrerHost: r.referrer_host,
+      touches,
+    };
+  }
+
+  /** Baja de nurture desde el admin (por correo): marca y suprime globalmente. */
+  async pauseNurture(email: string): Promise<void> {
+    const e = email.toLowerCase();
+    const { error } = await this.db
+      .from("leads")
+      .update({ unsubscribed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("email", e);
+    if (error) throw new Error(error.message);
+    const { error: sErr } = await this.db
+      .from("email_suppressions")
+      .upsert({ email: e, reason: "admin", source: "admin" }, { onConflict: "email", ignoreDuplicates: true });
+    if (sErr) throw new Error(sErr.message);
+  }
+
+  /** Miembros activos del admin para el selector de asignación. */
+  async assignableMembers(): Promise<{ id: string; email: string }[]> {
+    const { data, error } = await this.db
+      .from("admin_members")
+      .select("id, email")
+      .eq("status", "active")
+      .order("email");
+    if (error) throw new Error(error.message);
+    return data ?? [];
   }
 }

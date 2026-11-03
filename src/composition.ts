@@ -301,7 +301,9 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     nurtureTestimonial: TESTIMONIOS[0] ? { quote: TESTIMONIOS[0].quote, name: TESTIMONIOS[0].name } : undefined,
   },
   // Sin Kapso configurado no se encola nada (ver whatsappConfig).
-  wa.configured ? whatsappOutboxRepository(client) : null);
+  wa.configured ? whatsappOutboxRepository(client) : null,
+  // CRM: una reserva/curso pagado avanza la ficha a 'ganado' (best-effort).
+  leadsRepository(client));
 }
 
 // ── WhatsApp (Kapso) ───────────────────────────────────────────────────────────

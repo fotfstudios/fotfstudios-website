@@ -64,6 +64,7 @@ import {
 } from "./templates";
 import type { GuideDeliveryCopy, TransferDetails } from "./templates";
 import type { NurtureStep } from "@/src/domain/outreach/nurture-schedule";
+import type { LeadsRepository, TouchKind } from "@/src/application/ports/outreach";
 
 /** Reloj de 72 h de una reserva manual pendiente (creación o último link). `now` solo para tests. */
 export interface PendingPaymentClock {
@@ -118,7 +119,24 @@ export class NotificationService {
      * solo el correo y no se encola nada que después salga todo junto al configurar.
      */
     private readonly outbox: WhatsAppOutbox | null = null,
+    /**
+     * CRM de leads. null = no cablado (tests antiguos). Cuando está, una reserva o curso PAGADO
+     * crea/actualiza la ficha y la avanza a 'ganado'. Estrictamente aditivo y best-effort: su
+     * falla jamás afecta el correo ni el pago (como la cola de WhatsApp).
+     */
+    private readonly leads: Pick<LeadsRepository, "upsert" | "advance"> | null = null,
   ) {}
+
+  /** Marca un lead como ganado tras un pago (best-effort; nunca lanza hacia el flujo de pago). */
+  private async markWon(email: string | null, source: string, kind: TouchKind): Promise<void> {
+    if (!this.leads || !email) return;
+    try {
+      await this.leads.upsert({ email, source, kind });
+      await this.leads.advance(email, "ganado");
+    } catch (e) {
+      console.error("[notify:lead-won]", source, e);
+    }
+  }
 
   async notifyOrder(orderId: string): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
@@ -217,6 +235,8 @@ export class NotificationService {
         });
       }
     }
+    // CRM: la reserva/prueba pagada avanza la ficha a 'ganado' (crea la ficha si no existía).
+    await this.markWon(o.email, "reserva", "booking_paid");
     return true;
   }
 
@@ -736,6 +756,8 @@ export class NotificationService {
           { address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
         ),
       });
+      // CRM: el alumno pagado entra al embudo como 'ganado' (crea la ficha si no existía).
+      await this.markWon(student.email, "curso", "course_enrolled");
     }
     if (this.config.ownerEmail) {
       await this.mailer.send({
