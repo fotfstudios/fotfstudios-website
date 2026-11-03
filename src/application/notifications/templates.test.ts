@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER } from "@/lib/site";
-import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, ownerNewApplication, ownerNotification } from "./templates";
+import { applicantConfirmation, courseEnrollmentCancelled, courseSessionReminder, courseEnrollmentPaid, courseEnrollmentPending, courseReviewRequest, ownerCoursePaid, ownerNewCourseLead, bookingHeldPending, bookingPaymentPending, bookingPaymentReminder, courseEnrollmentRefunded, ownerDuplicatePayment, courseSessionsScheduled, courseSessionMoved, courseSessionCancelled, practiceBooked, practiceReleased, customerCourtesyCancelled, customerHoldExpired, customerPaymentNoSlot, customerReminder, customerReschedule, customerRescheduleFailed, customerAccessCode, customerCancellation, customerConfirmation, customerCourtesyConfirmation, customerPointsBalance, guideDelivery, nurtureTip, nurtureTrial, nurtureCourse, nurtureCheckIn, ownerNewApplication, ownerNotification } from "./templates";
 
 const links = {
   statusUrl: "https://www.fotfstudios.cl/reserva/estado?b=o1",
@@ -970,5 +970,90 @@ describe("agenda del curso — escapan lo que viene del admin", () => {
       practiceReleased({ name: evil, when: "x", hoursLeft: 2 }, ctx),
     ];
     for (const o of outs) expect(o.html).not.toContain(evil);
+  });
+});
+
+/**
+ * Secuencia de nurture del lead magnet (/guia-dj). Son correos de MARKETING: la invariante
+ * dura es que CADA uno trae el link de baja (consentimiento) en HTML y en texto, saluda sin
+ * "Hola:" cuando no hay nombre, y escapa el nombre. Un solo CTA por correo.
+ */
+describe("secuencia de nurture (lead magnet)", () => {
+  const baja = "https://www.fotfstudios.cl/newsletter/baja?t=tok";
+  const wa = "https://wa.me/56962803298";
+  const base = { unsubscribeUrl: baja, whatsappUrl: wa };
+
+  const build = (name: string | null = "Ana") => [
+    nurtureTip({ name }, { ...base, guideUrl: "https://www.fotfstudios.cl/guia-pendrive-dj" }),
+    nurtureTrial({ name }, { ...base, trialUrl: "https://www.fotfstudios.cl/reservar" }),
+    nurtureCourse({ name }, { ...base, courseUrl: "https://www.fotfstudios.cl/curso-dj" }),
+    nurtureCheckIn({ name }, base),
+  ];
+
+  it("cada plantilla se identifica con su nombre", () => {
+    const [tip, trial, course, checkIn] = build();
+    expect(tip.template).toBe("nurtureTip");
+    expect(trial.template).toBe("nurtureTrial");
+    expect(course.template).toBe("nurtureCourse");
+    expect(checkIn.template).toBe("nurtureCheckIn");
+  });
+
+  it("todas llevan la baja en HTML y en texto (correos de marketing)", () => {
+    for (const m of build()) {
+      expect(m.html).toContain(baja);
+      expect(m.html).toMatch(/Date de baja/);
+      expect(m.text).toContain(baja);
+      expect(m.text).toMatch(/Date de baja/i);
+    }
+  });
+
+  it("un solo CTA de botón por correo", () => {
+    for (const m of build()) {
+      const botones = m.html.match(/display:inline-block;background:#e8c94a/g) ?? [];
+      expect(botones.length).toBe(1);
+    }
+  });
+
+  it("sin nombre: no saluda con 'Hola:' ni imprime 'null'", () => {
+    for (const m of build(null)) {
+      expect(m.html).not.toContain("Hola:");
+      expect(m.html).not.toContain("null");
+      expect(m.text).not.toContain("null");
+    }
+  });
+
+  it("escapa el nombre (anti-XSS)", () => {
+    for (const m of build("<b>Ana</b>")) {
+      expect(m.html).not.toContain("<b>Ana</b>");
+      expect(m.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
+    }
+  });
+
+  it("nurtureTrial nombra los equipos exactos y la cabina aislada", () => {
+    const m = nurtureTrial({ name: "Ana" }, { ...base, trialUrl: "https://x/reservar" });
+    expect(m.html).toContain("Pioneer XDJ-1000MK2");
+    expect(m.html).toContain("DJM-450");
+    expect(m.html).toMatch(/aislada acústicamente/);
+  });
+
+  it("nurtureCourse: la cita entra como dato y se puede omitir", () => {
+    const sin = nurtureCourse({ name: "Ana" }, { ...base, courseUrl: "https://x/curso" });
+    expect(sin.html).not.toMatch(/font-style:italic/);
+    const con = nurtureCourse(
+      { name: "Ana" },
+      { ...base, courseUrl: "https://x/curso", testimonial: { quote: "Increíble experiencia", name: "Martín" } },
+    );
+    expect(con.html).toContain("Increíble experiencia");
+    expect(con.html).toContain("Martín");
+    expect(con.text).toContain("Increíble experiencia");
+  });
+
+  it("nurtureCourse escapa la cita (viene del registro, pero por si acaso)", () => {
+    const m = nurtureCourse(
+      { name: "Ana" },
+      { ...base, courseUrl: "https://x/curso", testimonial: { quote: "<script>x</script>", name: "<i>M</i>" } },
+    );
+    expect(m.html).not.toContain("<script>x</script>");
+    expect(m.html).not.toContain("<i>M</i>");
   });
 });

@@ -57,8 +57,13 @@ import {
   bookingPaymentPending,
   bookingPaymentReminder,
   courseEnrollmentPending,
+  nurtureTip,
+  nurtureTrial,
+  nurtureCourse,
+  nurtureCheckIn,
 } from "./templates";
 import type { GuideDeliveryCopy, TransferDetails } from "./templates";
+import type { NurtureStep } from "@/src/domain/outreach/nurture-schedule";
 
 /** Reloj de 72 h de una reserva manual pendiente (creación o último link). `now` solo para tests. */
 export interface PendingPaymentClock {
@@ -83,6 +88,8 @@ export interface NotificationConfig {
   transfer: TransferDetails;
   /** Celular del dueño (`OWNER_WHATSAPP`, dígitos) para las alertas por WhatsApp. Sin él, no hay alertas. */
   ownerWhatsapp?: string | null;
+  /** Reseña real del alumno para el día 9 del nurture (lib/curso-content TESTIMONIOS). Opcional: sin ella el bloque no sale. */
+  nurtureTestimonial?: { quote: string; name: string };
 }
 
 /** Opciones de un aviso por WhatsApp encolado desde un `notify*`. */
@@ -382,6 +389,31 @@ export class NotificationService {
     };
     const ctx = { courseUrl: `${this.config.siteUrl}/curso-dj`, whatsappUrl: this.config.whatsappUrl };
     await this.mailer.send({ to: input.email, ...(kind === "followup" ? trialFollowUp(v, ctx) : trialCreditExpiring(v, ctx)) });
+  }
+
+  /**
+   * Un paso de la secuencia de nurture (día 2/5/9/14). Correo de MARKETING: el link de baja
+   * (derivado del token de la ficha) viaja en cada uno. El testimonial del día 9 entra como
+   * dato desde la config (reseña real); sin él, ese bloque no sale.
+   */
+  async notifyNurtureStep(
+    step: NurtureStep,
+    input: { email: string; name: string | null; token: string },
+  ): Promise<void> {
+    const v = { name: input.name };
+    const base = {
+      unsubscribeUrl: `${this.config.siteUrl}/baja/${input.token}`,
+      whatsappUrl: this.config.whatsappUrl,
+    };
+    const content =
+      step === "tip"
+        ? nurtureTip(v, { ...base, guideUrl: `${this.config.siteUrl}/guia-pendrive-dj` })
+        : step === "trial"
+          ? nurtureTrial(v, { ...base, trialUrl: `${this.config.siteUrl}/reservar` })
+          : step === "course"
+            ? nurtureCourse(v, { ...base, courseUrl: `${this.config.siteUrl}/curso-dj`, testimonial: this.config.nurtureTestimonial })
+            : nurtureCheckIn(v, base);
+    await this.mailer.send({ to: input.email, ...content });
   }
 
   /**

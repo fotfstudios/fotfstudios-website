@@ -849,6 +849,131 @@ export function courseReviewRequest(
 }
 
 /**
+ * Secuencia de nurture para quien bajó la guía de iniciación (el lead magnet de /guia-dj).
+ * Son correos de MARKETING, no transaccionales: por eso cada uno lleva el link de baja
+ * (consentimiento + ley) y UN solo CTA. El copy camina el embudo del principiante —
+ * guía → tip → prueba → curso → conversación — a lo largo de los días 2, 5, 9 y 14.
+ * El día 0 (la entrega del PDF) lo hace `guideDelivery`.
+ *
+ * Como el resto del módulo, estas plantillas son copy puro: las URLs y la cita del alumno
+ * entran como DATO desde la raíz de composición (igual que `guideDelivery`), no se importan
+ * acá. Así `templates.ts` no conoce el registro de guías, el curso ni los testimonios.
+ */
+export interface NurtureCtx {
+  /** Baja de la lista. Va en TODOS los correos de nurture: lo promete el formulario y lo pide la ley. */
+  unsubscribeUrl: string;
+  whatsappUrl: string;
+}
+
+/** Pie común de la secuencia: salida por WhatsApp + baja. Idéntico en los correos con CTA propio. */
+const nurtureFooter = (ctx: NurtureCtx): string =>
+  `<p style="color:${T.boneQuiet};font-size:13px;margin:28px 0 0">¿Dudas? <a href="${esc(ctx.whatsappUrl)}" style="color:${T.gold};text-decoration:underline">Escríbenos por WhatsApp</a>. ¿Ya no quieres estos correos? <a href="${esc(ctx.unsubscribeUrl)}" style="color:${T.gold};text-decoration:underline">Date de baja aquí</a>.</p>`;
+
+const nurtureFooterText = (ctx: NurtureCtx): string =>
+  `\n\n¿Dudas? Escríbenos por WhatsApp: ${ctx.whatsappUrl}\n¿Ya no quieres estos correos? Date de baja: ${ctx.unsubscribeUrl}`;
+
+/**
+ * Día 2 — puro valor, nada de venta. Un tip concreto que engancha con la guía del pendrive
+ * (que también existe como lead magnet) y construye el hábito de abrir nuestros correos.
+ */
+export function nurtureTip(
+  v: { name: string | null },
+  ctx: NurtureCtx & { guideUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Los 3 errores del pendrive</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "la mayoría de los principiantes pierde su primera hora de cabina peleando con el pendrive.")} Estos tres ajustes lo evitan:</p>
+     <ol style="margin:0 0 20px;padding-left:20px;color:${T.bone}">
+       <li style="margin:0 0 10px"><strong>Formatéalo en FAT32</strong>, no exFAT ni NTFS: los CDJ y XDJ lo leen sin reclamar.</li>
+       <li style="margin:0 0 10px"><strong>Analiza los temas en Rekordbox antes</strong>, en casa: sin análisis no hay waveform ni cues en la pantalla.</li>
+       <li style="margin:0 0 10px"><strong>Expúlsalo siempre</strong> antes de sacarlo: en caliente corrompe la biblioteca, y pasa más seguido de lo que crees.</li>
+     </ol>
+     <a href="${esc(ctx.guideUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Leer la guía del pendrive</a>
+     ${nurtureFooter(ctx)}`,
+    "FAT32, análisis en Rekordbox y la expulsión: los tres que casi todos fallan.",
+  );
+  const text = `${hola(v.name, "acá van 3 cosas")} que te ahorran un mal rato con el pendrive:
+1. Formatéalo en FAT32 (no exFAT ni NTFS).
+2. Analiza los temas en Rekordbox antes, en casa.
+3. Expúlsalo siempre antes de sacarlo: en caliente corrompe la biblioteca.
+
+La guía del pendrive, completa: ${ctx.guideUrl}${nurtureFooterText(ctx)}`;
+  return { template: "nurtureTip", subject: "Los 3 errores del pendrive que casi todos cometen", html, text };
+}
+
+/**
+ * Día 5 — el paso natural: la hora de prueba. Nombra los equipos exactos y la cabina
+ * aislada acústicamente (lo que la landing promete), con un solo CTA a reservar.
+ */
+export function nurtureTrial(
+  v: { name: string | null },
+  ctx: NurtureCtx & { trialUrl: string },
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">Pásalo del pendrive a la cabina</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "ya leíste la teoría; ahora tócala.")} En la sala tienes el setup de club completo —2× Pioneer XDJ-1000MK2 y un DJM-450— en una cabina aislada acústicamente.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">La primera hora es de prueba: para que sientas cómo es mezclar de verdad, sin apuro y sin nadie mirando.</p>
+     <a href="${esc(ctx.trialUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Reservar mi hora de prueba</a>
+     ${nurtureFooter(ctx)}`,
+    "La primera hora, en una cabina de club aislada acústicamente.",
+  );
+  const text = `${hola(v.name, "ya leíste la teoría; ahora tócala.")} En la sala tienes el setup de club completo (2× Pioneer XDJ-1000MK2 y un DJM-450) en una cabina aislada acústicamente. La primera hora es de prueba, sin apuro.
+
+Reserva tu hora de prueba: ${ctx.trialUrl}${nurtureFooterText(ctx)}`;
+  return { template: "nurtureTrial", subject: "Pásalo del pendrive a la cabina — tu primera hora", html, text };
+}
+
+/**
+ * Día 9 — para quien quiere ir en serio: el curso 1 a 1. La cita del alumno entra como
+ * DATO (`testimonial`, la reseña real de Google); sin ella, el bloque simplemente no sale.
+ */
+export function nurtureCourse(
+  v: { name: string | null },
+  ctx: NurtureCtx & { courseUrl: string; testimonial?: { quote: string; name: string } },
+): EmailContent {
+  const t = ctx.testimonial;
+  const quoteHtml = t
+    ? `<p style="background:${T.inkSoft};padding:12px 14px;margin:0 0 20px;color:${T.bone};font-style:italic">“${esc(t.quote)}” <span style="color:${T.boneQuiet};font-style:normal">— ${esc(t.name)}</span></p>`
+    : "";
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">¿Quieres ir en serio?</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "si ya te picó el bichito,")} el Curso de Iniciación DJ es 1 a 1: tú y un profe en la cabina, a tu ritmo y con tu música.</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Sales sabiendo mezclar, armar un set y moverte en los mismos equipos que vas a encontrar en cualquier club.</p>
+     ${quoteHtml}
+     <a href="${esc(ctx.courseUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Ver el curso 1 a 1</a>
+     ${nurtureFooter(ctx)}`,
+    "Clases 1 a 1, a tu ritmo y con tu música.",
+  );
+  const quoteText = t ? `\n\n“${t.quote}” — ${t.name}` : "";
+  const text = `${hola(v.name, "si ya te picó el bichito,")} el Curso de Iniciación DJ es 1 a 1: tú y un profe en la cabina, a tu ritmo y con tu música. Sales sabiendo mezclar, armar un set y moverte en equipos de club.${quoteText}
+
+Ver el curso: ${ctx.courseUrl}${nurtureFooterText(ctx)}`;
+  return { template: "nurtureCourse", subject: "El curso de DJ, 1 a 1 y a tu ritmo", html, text };
+}
+
+/**
+ * Día 14 — cierra la secuencia pidiendo una respuesta, no vendiendo. El CTA es el propio
+ * WhatsApp (abre conversación real), así que el pie es solo la baja, sin repetir el WhatsApp.
+ */
+export function nurtureCheckIn(
+  v: { name: string | null },
+  ctx: NurtureCtx,
+): EmailContent {
+  const html = shell(
+    `<h1 style="font-size:24px;margin:0 0 8px">¿En qué andas trabado?</h1>
+     <p style="color:${T.boneDim};margin:0 0 16px">${hola(v.name, "una pregunta corta:")} ¿qué es lo que más te cuesta hoy del DJing? ¿El beatmatch, armar el set, elegir la música?</p>
+     <p style="color:${T.boneDim};margin:0 0 20px">Respóndenos por WhatsApp y te damos una mano directo. Leemos todo.</p>
+     <a href="${esc(ctx.whatsappUrl)}" style="display:inline-block;background:${T.gold};color:${T.ink};padding:14px 22px;text-decoration:none;font-weight:bold">Contarnos por WhatsApp</a>
+     <p style="color:${T.boneQuiet};font-size:13px;margin:28px 0 0">¿Ya no quieres estos correos? <a href="${esc(ctx.unsubscribeUrl)}" style="color:${T.gold};text-decoration:underline">Date de baja aquí</a>.</p>`,
+    "¿Qué es lo que más te cuesta ahora? Cuéntanos.",
+  );
+  const text = `${hola(v.name, "una pregunta corta:")} ¿qué es lo que más te cuesta hoy del DJing — el beatmatch, armar el set, elegir la música? Respóndenos por WhatsApp y te damos una mano directo: ${ctx.whatsappUrl}
+
+¿Ya no quieres estos correos? Date de baja: ${ctx.unsubscribeUrl}`;
+  return { template: "nurtureCheckIn", subject: "¿En qué andas trabado con el DJing?", html, text };
+}
+
+/**
  * Email al alumno: curso confirmado. Recién ACÁ viaja la dirección — la FAQ de la
  * landing promete que se comparte al confirmar la inscripción, y una solicitud sin
  * pagar no lo es. Lleva las fechas ya agendadas; en el curso 1:1 lo normal es que
