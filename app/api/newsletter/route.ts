@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db, newsletterService, rateLimiter } from "@/src/composition";
+import { db, leadService, newsletterService, rateLimiter } from "@/src/composition";
 import { parseNewsletterSubscribe } from "@/src/domain/newsletter/subscribe";
 import { clientIpFromHeaders } from "@/lib/request-ip";
 
@@ -60,6 +60,21 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     await newsletterService(client).subscribe(parsed.value);
+
+    // CRM/nurture (best-effort): el newsletter SÍ es consentimiento recurrente, así que inscribe.
+    const src = `newsletter:${parsed.value.source}`;
+    await leadService(client)
+      .capture(
+        {
+          email: parsed.value.email,
+          source: src,
+          kind: "newsletter_subscribe",
+          utm: { ...parsed.value.utm, referrerHost: parsed.value.referrerHost },
+        },
+        { source: src },
+      )
+      .catch((e) => console.error("[newsletter:crm]", e));
+
     return Response.json({ ok: true });
   } catch (e) {
     console.error("[newsletter]", e);

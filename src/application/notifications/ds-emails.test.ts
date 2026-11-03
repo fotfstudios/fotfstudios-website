@@ -58,6 +58,10 @@ import {
   beatcoinsDigest,
   beatcoinsExpired,
   ownerNewApplication,
+  nurtureTip,
+  nurtureTrial,
+  nurtureCourse,
+  nurtureCheckIn,
 } from "./templates";
 
 /**
@@ -146,6 +150,15 @@ IN_SCOPE.push(
   ["newsletterWelcome", () => newsletterWelcome({ unsubscribeUrl: "https://www.fotfstudios.cl/baja/t", blogUrl: "https://www.fotfstudios.cl/blog" })],
   ["ownerNewApplication", () => ownerNewApplication({ name: "Ana", email: "ana@e.cl", phone: "+56912345678", format: "clases", availability: "tardes", mixUrl: "https://soundcloud.com/x", instagram: "@ana", genres: "house", pitch: "Toco hace 3 años" } as Parameters<typeof ownerNewApplication>[0])],
   ["applicantConfirmation", () => applicantConfirmation({ name: "Ana" }, { whatsappUrl: wa })],
+);
+
+// Nurture del lead magnet (/guia-dj): correos de marketing, cada uno con baja.
+const nurt = { unsubscribeUrl: "https://www.fotfstudios.cl/baja/t", whatsappUrl: wa };
+IN_SCOPE.push(
+  ["nurtureTip", () => nurtureTip({ name: "Ana" }, { ...nurt, guideUrl: "https://www.fotfstudios.cl/guia-pendrive-dj" })],
+  ["nurtureTrial", () => nurtureTrial({ name: "Ana" }, { ...nurt, trialUrl: "https://www.fotfstudios.cl/reservar" })],
+  ["nurtureCourse", () => nurtureCourse({ name: "Ana" }, { ...nurt, courseUrl: "https://www.fotfstudios.cl/curso-dj", testimonial: { quote: "Increíble experiencia", name: "Martín" } })],
+  ["nurtureCheckIn", () => nurtureCheckIn({ name: "Ana" }, nurt)],
 );
 
 describe("correos del flujo de reserva — design system", () => {

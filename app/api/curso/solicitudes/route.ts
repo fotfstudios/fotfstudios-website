@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { courseRepository, db, notificationService, rateLimiter } from "@/src/composition";
+import { courseRepository, db, leadService, notificationService, rateLimiter } from "@/src/composition";
 import { parseCourseLead } from "@/src/domain/course/lead";
 import { clientIpFromHeaders } from "@/lib/request-ip";
 import { CURSO_ABIERTO } from "@/lib/flags";
@@ -71,6 +71,19 @@ export async function POST(req: Request): Promise<Response> {
     await notificationService(client)
       .notifyCourseLead(parsed.value)
       .catch((e) => console.error("[curso-leads:email]", e));
+
+    // CRM (best-effort): ficha unificada + toque. No se inscribe en nurture (es un lead de
+    // triage, no un opt-in a correo recurrente); el dueño lo trabaja desde /admin/leads.
+    await leadService(client)
+      .capture({
+        email: parsed.value.email,
+        name: parsed.value.name,
+        phone: parsed.value.phone,
+        source: "curso",
+        kind: "curso_solicitud",
+        detail: { plan: parsed.value.plan },
+      })
+      .catch((e) => console.error("[curso-leads:crm]", e));
 
     return Response.json({ ok: true });
   } catch (e) {

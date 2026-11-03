@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { applicationRepository, db, notificationService, rateLimiter } from "@/src/composition";
+import { applicationRepository, db, leadService, notificationService, rateLimiter } from "@/src/composition";
 import { parseApplication } from "@/src/domain/applications/application";
 import { clientIpFromHeaders } from "@/lib/request-ip";
 
@@ -57,6 +57,18 @@ export async function POST(req: Request): Promise<Response> {
     await notificationService(client)
       .notifyApplication(parsed.value)
       .catch((e) => console.error("[applications:email]", e));
+
+    // CRM (best-effort): ficha unificada + toque. Sin nurture (postular no es opt-in a correo).
+    await leadService(client)
+      .capture({
+        email: parsed.value.email,
+        name: parsed.value.name,
+        phone: parsed.value.phone,
+        source: "postulacion",
+        kind: "dj_application",
+      })
+      .catch((e) => console.error("[applications:crm]", e));
+
     return Response.json({ ok: true });
   } catch (e) {
     console.error("[applications]", e);
