@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   "equipment.manage": "Gestionar equipos",
   "calendar.manage": "Sincronizar calendario",
   "whatsapp.manage": "Configurar WhatsApp",
+  "leads.manage": "Gestionar leads",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
