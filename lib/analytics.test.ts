@@ -9,8 +9,10 @@ import {
   trackAddon,
   trackBeginCheckout,
   trackBookingCta,
+  trackBookingPendingTransfer,
   trackBookingStep,
   trackCheckoutError,
+  trackCheckoutOutcome,
   trackGuideCtaClick,
   trackGuideLead,
   trackLogin,
@@ -217,5 +219,35 @@ describe("embudo de reserva (GA4 ecommerce)", () => {
     expect(events[3]).toMatchObject({ step: "datos", page: "reservar" });
     expect(events[4]).toMatchObject({ method: "email_otp", page: "reservar" });
     expect(events[5]).toMatchObject({ code: "slot_taken", page: "reservar" });
+  });
+});
+
+describe("diagnóstico de /reserva/estado", () => {
+  it("trackCheckoutOutcome emite checkout_<outcome> con page de estado", () => {
+    const dl = stubWindow("/reserva/estado");
+    trackCheckoutOutcome("failed");
+    trackCheckoutOutcome("refunded");
+    trackCheckoutOutcome("expired");
+    trackCheckoutOutcome("pending");
+    expect((dl as Record<string, unknown>[]).map((e) => e.event)).toEqual([
+      "checkout_failed",
+      "checkout_refunded",
+      "checkout_expired",
+      "checkout_pending",
+    ]);
+    expect(track).toHaveBeenLastCalledWith("checkout_pending", { page: "reserva/estado" });
+  });
+
+  it("trackBookingPendingTransfer emite booking_pending_transfer", () => {
+    const dl = stubWindow("/reserva/estado");
+    trackBookingPendingTransfer();
+    expect(dl).toEqual([{ event: "booking_pending_transfer", page: "reserva/estado" }]);
+  });
+
+  it("sin window (SSR) ninguno lanza ni trackea", () => {
+    delete (globalThis as { window?: TestWindow }).window;
+    expect(() => trackCheckoutOutcome("failed")).not.toThrow();
+    expect(() => trackBookingPendingTransfer()).not.toThrow();
+    expect(track).not.toHaveBeenCalled();
   });
 });
