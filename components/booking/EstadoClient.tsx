@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import CalendarButtons from "@/components/booking/CalendarButtons";
 import { dsButtonClass } from "@/components/ds/Button";
 import WhatsAppCta from "@/components/WhatsAppCta";
-import { trackPurchase } from "@/lib/analytics";
+import { trackBookingPendingTransfer, trackCheckoutOutcome, trackPurchase, type CheckoutOutcome } from "@/lib/analytics";
 import { ROOM_ITEM } from "@/lib/booking-items";
 import { markPurchaseTracked, purchaseTracked, startedCheckout } from "@/lib/checkout-session";
 import { orderShort, type ConfirmationView } from "@/lib/confirmation";
@@ -158,6 +158,31 @@ export default function EstadoClient({
 
   const ui = resolveEstadoUi(status, reservation, paymentHint, hintExpired, transfer !== null);
   const number = orderShort(orderId);
+
+  // Medición (diagnóstico de embudo): el camino NO-exitoso al que se llegó, una vez por carga.
+  // El pago confirmado lo mide el efecto de arriba (purchase); acá, lo que no convierte: pago
+  // fallido/devuelto, hold vencido, pago pendiente, y la transferencia esperando confirmación.
+  const diagTracked = useRef(new Set<string>());
+  useEffect(() => {
+    const outcome: CheckoutOutcome | null =
+      ui === "failed"
+        ? "failed"
+        : ui === "refunded"
+          ? "refunded"
+          : ui === "expired"
+            ? "expired"
+            : ui === "pending_payment"
+              ? "pending"
+              : null;
+    if (outcome && !diagTracked.current.has(outcome)) {
+      diagTracked.current.add(outcome);
+      trackCheckoutOutcome(outcome);
+    }
+    if (ui === "transfer" && !diagTracked.current.has("transfer")) {
+      diagTracked.current.add("transfer");
+      trackBookingPendingTransfer();
+    }
+  }, [ui]);
 
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-8">
