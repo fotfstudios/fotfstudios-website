@@ -185,3 +185,27 @@ export function trackBeginCheckout(p: {
 export function trackPurchase(p: { orderId: string; value: number; items: GaItem[]; paymentType: PaymentType }): void {
   pushEcommerce("purchase", { value: p.value, transaction_id: p.orderId, items: p.items }, { payment_type: p.paymentType });
 }
+
+/** Estado NO-exitoso al que llegó /reserva/estado. */
+export type CheckoutOutcome = "failed" | "refunded" | "expired" | "pending";
+
+/**
+ * Diagnóstico del embudo: el camino que NO convierte en /reserva/estado (pago fallido,
+ * devuelto, hold vencido, o pago pendiente/abandonado). Una vez por carga. El pago exitoso
+ * lo mide trackPurchase; esto mide el resto, para ver DÓNDE se cae entre begin_checkout y
+ * purchase. Recordar: cada evento nuevo necesita su trigger + etiqueta en GTM para llegar a GA4.
+ */
+export function trackCheckoutOutcome(outcome: CheckoutOutcome): void {
+  if (typeof window === "undefined") return;
+  pushEvent(`checkout_${outcome}`, { page: "reserva/estado" });
+}
+
+/**
+ * Reserva por transferencia esperando confirmación manual: un estado pendiente DISTINTO del
+ * pago en línea. Su conversión real NO sale acá ni del regreso a la página — la emite el
+ * servidor al confirmar la transferencia. Esto solo marca que se llegó a ese estado.
+ */
+export function trackBookingPendingTransfer(): void {
+  if (typeof window === "undefined") return;
+  pushEvent("booking_pending_transfer", { page: "reserva/estado" });
+}
