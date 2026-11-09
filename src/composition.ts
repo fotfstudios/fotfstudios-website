@@ -76,6 +76,10 @@ import { WhatsAppOutboxService } from "@/src/application/whatsapp/outbox-service
 import { parseOwnerWhatsapp } from "@/src/domain/contact/whatsapp-recipient";
 import { SupabaseWhatsAppOutboxRepository } from "@/src/infrastructure/db/whatsapp-outbox-repository";
 import { KapsoWhatsAppSender, NoopWhatsAppSender } from "@/src/infrastructure/whatsapp/kapso-sender";
+import { SupabaseLeadsRepository } from "@/src/infrastructure/db/leads-repository";
+import { LeadService } from "@/src/application/outreach/lead-service";
+import { NurtureService } from "@/src/application/outreach/nurture-service";
+import { TESTIMONIOS } from "@/lib/curso-content";
 
 /** Cliente Supabase service-role (servidor). */
 export function db(): SupabaseClient<Database> {
@@ -304,9 +308,13 @@ export function notificationService(client: SupabaseClient<Database> = db()): No
     privacyUrl: `${SITE_URL}/privacidad`,
     reviewUrl: GOOGLE_REVIEW_URL,
     transfer: TRANSFER,
+    // Reseña real para el día 9 del nurture (primera cita del catálogo, publicada en Google).
+    nurtureTestimonial: TESTIMONIOS[0] ? { quote: TESTIMONIOS[0].quote, name: TESTIMONIOS[0].name } : undefined,
   },
   // Sin Kapso configurado no se encola nada (ver whatsappConfig).
-  wa.configured ? whatsappOutboxRepository(client) : null);
+  wa.configured ? whatsappOutboxRepository(client) : null,
+  // CRM: una reserva/curso pagado avanza la ficha a 'ganado' (best-effort).
+  leadsRepository(client));
 }
 
 // ── WhatsApp (Kapso) ───────────────────────────────────────────────────────────
@@ -636,4 +644,20 @@ export function newsletterRepository(client: SupabaseClient<Database> = db()): S
 
 export function newsletterService(client: SupabaseClient<Database> = db()): NewsletterService {
   return new NewsletterService(new SupabaseNewsletterRepository(client), notificationService(client));
+}
+
+// ── CRM / nurture de leads ───────────────────────────────────────────────────
+
+export function leadsRepository(client: SupabaseClient<Database> = db()): SupabaseLeadsRepository {
+  return new SupabaseLeadsRepository(client);
+}
+
+/** Fachada del CRM para las vías de captación y el admin. */
+export function leadService(client: SupabaseClient<Database> = db()): LeadService {
+  return new LeadService(leadsRepository(client));
+}
+
+/** Motor de nurture (secuencia de 4 correos, día 2/5/9/14): cron de 5 min `/api/cron/outreach`. */
+export function nurtureService(client: SupabaseClient<Database> = db()): NurtureService {
+  return new NurtureService(leadsRepository(client), notificationService(client));
 }

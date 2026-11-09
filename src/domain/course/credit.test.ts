@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canExtendCredit, creditDiscount, creditExpiryFrom, isCreditApplicable, TRIAL_CREDIT_DAYS, trialCreditState } from "./credit";
+import {
+  canExtendCredit,
+  creditDiscount,
+  creditExpiryFrom,
+  isCreditApplicable,
+  isValidExpiryTarget,
+  MAX_CREDIT_HORIZON_DAYS,
+  TRIAL_CREDIT_DAYS,
+  trialCreditState,
+} from "./credit";
 
 const credit = (over: Partial<Parameters<typeof isCreditApplicable>[0]> = {}) => ({
   id: "c1",
@@ -62,6 +71,35 @@ describe("creditDiscount", () => {
   // Un crédito no puede dejar el pedido en negativo ni volverse un pago al alumno.
   it("nunca supera el total del pedido", () => {
     expect(creditDiscount(credit({ amountClp: 50000 }), 19990)).toBe(19990);
+  });
+});
+
+describe("isValidExpiryTarget — fijar el vencimiento a mano", () => {
+  const now = new Date("2026-11-09T12:00:00.000Z");
+  const plusDays = (d: number) => now.getTime() + d * 24 * 60 * 60 * 1000;
+
+  it("una fecha futura dentro del horizonte vale", () => {
+    expect(isValidExpiryTarget(plusDays(25), now)).toBe(true);
+  });
+
+  it("el pasado no resucita el crédito", () => {
+    expect(isValidExpiryTarget(plusDays(-1), now)).toBe(false);
+  });
+
+  it("ahora mismo tampoco (debe ser estrictamente futuro)", () => {
+    expect(isValidExpiryTarget(now.getTime(), now)).toBe(false);
+  });
+
+  it("más allá del horizonte se rechaza (dedazo)", () => {
+    expect(isValidExpiryTarget(plusDays(MAX_CREDIT_HORIZON_DAYS + 1), now)).toBe(false);
+  });
+
+  it("justo en el borde del horizonte vale", () => {
+    expect(isValidExpiryTarget(plusDays(MAX_CREDIT_HORIZON_DAYS), now)).toBe(true);
+  });
+
+  it("una fecha basura (NaN) no vale", () => {
+    expect(isValidExpiryTarget(Number.NaN, now)).toBe(false);
   });
 });
 

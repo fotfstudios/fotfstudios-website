@@ -166,6 +166,66 @@ describe("extend_course_credit", () => {
   });
 });
 
+describe("set_course_credit_expiry — fijar el vencimiento a mano", () => {
+  const issue = async (expires: string, extra = "") =>
+    (
+      await pg.query<{ id: string }>(
+        `insert into course_credits (email, amount_clp, expires_at${extra ? ", " + extra.split("=")[0] : ""})
+         values ('e@e.cl', 19990, $1${extra ? ", " + extra.split("=")[1] : ""}) returning id`,
+        [expires],
+      )
+    ).rows[0].id;
+  const rowOf = async (id: string) =>
+    (
+      await pg.query<{ e: string; n: number; s: string | null }>(
+        "select expires_at::text e, extended_count n, expiry_reminder_sent_at s from course_credits where id = $1",
+        [id],
+      )
+    ).rows[0];
+
+  it("fija el vencimiento a la fecha dada, suelta el aviso y cuenta la intervención", async () => {
+    const id = await issue(new Date(Date.now() + 2 * 24 * 3600_000).toISOString());
+    await pg.query("update course_credits set expiry_reminder_sent_at = now() where id = $1", [id]);
+    const target = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+    await pg.query("select set_course_credit_expiry($1, $2::timestamptz)", [id, target]);
+    const r = await rowOf(id);
+    expect(new Date(r.e).getTime()).toBe(new Date(target).getTime());
+    expect(r.n).toBe(1);
+    expect(r.s).toBeNull();
+  });
+
+  it("también sirve para un crédito ya vencido (lo revive hasta la fecha)", async () => {
+    const id = await issue(new Date(Date.now() - 5 * 24 * 3600_000).toISOString());
+    const target = new Date(Date.now() + 20 * 24 * 3600_000).toISOString();
+    await pg.query("select set_course_credit_expiry($1, $2::timestamptz)", [id, target]);
+    expect(new Date((await rowOf(id)).e).getTime()).toBe(new Date(target).getTime());
+  });
+
+  it("una fecha en el pasado se rechaza", async () => {
+    const id = await issue(new Date(Date.now() + 86_400_000).toISOString());
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+    await expect(pg.query("select set_course_credit_expiry($1, $2::timestamptz)", [id, past])).rejects.toThrow(
+      /curso_credito_fecha_invalida/,
+    );
+  });
+
+  it("más allá de un año se rechaza (guarda anti-dedazo)", async () => {
+    const id = await issue(new Date(Date.now() + 86_400_000).toISOString());
+    const tooFar = new Date(Date.now() + 400 * 24 * 3600_000).toISOString();
+    await expect(pg.query("select set_course_credit_expiry($1, $2::timestamptz)", [id, tooFar])).rejects.toThrow(
+      /curso_credito_fecha_invalida/,
+    );
+  });
+
+  it("anulado o usado: no se fija", async () => {
+    const id = await issue(new Date(Date.now() + 86_400_000).toISOString(), "voided_at=now()");
+    const target = new Date(Date.now() + 20 * 24 * 3600_000).toISOString();
+    await expect(pg.query("select set_course_credit_expiry($1, $2::timestamptz)", [id, target])).rejects.toThrow(
+      /curso_credito_no_extensible/,
+    );
+  });
+});
+
 describe("inscribirse cierra la solicitud", () => {
   it("sin lead explícito, cierra por email la solicitud abierta (nueva/contactada), no la descartada", async () => {
     await pg.query(

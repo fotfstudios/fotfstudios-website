@@ -13,6 +13,7 @@ const okValue = (over: Record<string, unknown> = {}) => ({
   guide: "guia-dj",
   utm: { source: null, medium: null, campaign: null, content: null, term: null },
   referrerHost: null,
+  optIn: false,
   ...over,
 });
 

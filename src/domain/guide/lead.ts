@@ -42,6 +42,13 @@ export interface GuideLeadInput {
   utm: GuideLeadUtm;
   /** Solo el host del referente, nunca la URL completa. */
   referrerHost: string | null;
+  /**
+   * ¿Marcó la casilla "quiero más tips por correo"? Es el consentimiento EXPLÍCITO para la
+   * secuencia de nurture — bajar la guía solo consintió ESE PDF. No se guarda en guide_leads;
+   * el route decide con esto si inscribe la ficha del CRM en la secuencia. Opcional: su ausencia
+   * (o `false`) nunca inscribe — nunca opta por la persona.
+   */
+  optIn?: boolean;
 }
 
 export type GuideLeadField = "email" | "source" | "guide";
@@ -114,6 +121,8 @@ export function parseGuideLead(raw: unknown, catalog: GuideCatalogEntry): Parsed
         term: utmValue(obj, "utmTerm"),
       },
       referrerHost: host === "" ? null : host,
+      // Casilla afirmativa: solo `true` explícito inscribe; su ausencia nunca opta por la persona.
+      optIn: obj.optIn === true,
     },
   };
 }
