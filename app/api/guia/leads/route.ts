@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db, guideService, rateLimiter } from "@/src/composition";
+import { db, guideService, leadService, rateLimiter } from "@/src/composition";
 import { parseGuideLead } from "@/src/domain/guide/lead";
 import { GUIDES, isGuideSlug } from "@/lib/guides";
 import { clientIpFromHeaders } from "@/lib/request-ip";
@@ -88,6 +88,23 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     await guideService(client).request(parsed.value);
+
+    // CRM/nurture (best-effort): la ficha unificada + un toque; e inscribe en la secuencia SOLO
+    // si marcó la casilla. Nunca debe tumbar la entrega de la guía (que es el 200 de arriba).
+    const src = `guia:${parsed.value.guide}`;
+    await leadService(client)
+      .capture(
+        {
+          email: parsed.value.email,
+          source: src,
+          kind: "guia_download",
+          utm: { ...parsed.value.utm, referrerHost: parsed.value.referrerHost },
+          detail: { guide_slug: parsed.value.guide, form: parsed.value.source },
+        },
+        parsed.value.optIn ? { source: src } : undefined,
+      )
+      .catch((e) => console.error("[guia-leads:crm]", e));
+
     return Response.json({ ok: true });
   } catch (e) {
     console.error("[guia-leads]", e);

@@ -21,6 +21,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
     applications: hasPermission(claims, "applications.manage"),
     course: hasPermission(claims, "course.manage"),
     customers: hasPermission(claims, "customers.manage"),
+    leads: hasPermission(claims, "leads.manage"),
     lock: hasPermission(claims, "reservations.access"),
     sii: hasPermission(claims, "reservations.boleta"),
     equipment: hasPermission(claims, "equipment.manage"),

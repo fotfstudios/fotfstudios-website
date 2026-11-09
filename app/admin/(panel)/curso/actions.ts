@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { TRIAL_CREDIT_DAYS } from "@/src/domain/course/credit";
+import { isValidExpiryTarget } from "@/src/domain/course/credit";
 import { headers } from "next/headers";
 import { type ActionDataResult, type ActionResult, run, runData } from "@/components/admin/ui/action";
 import { recordTaxDocFolioFromForm } from "@/components/admin/tax-docs/record-folio";
@@ -10,7 +10,7 @@ import { resolveCourseRefundAmount } from "@/src/domain/course/cancellation-poli
 import { COURSE_PROGRAM, planProgramSessions } from "@/src/domain/course/program";
 import { isPracticeHours } from "@/src/domain/course/practice";
 import { selfOverlap } from "@/src/domain/course/sessions";
-import { rangeFor } from "@/src/domain/scheduling/time";
+import { dayBoundsUtc, rangeFor } from "@/src/domain/scheduling/time";
 import {
   adminRepository,
   courseRepository,
@@ -518,17 +518,34 @@ export async function issueTrialCreditAction(_prev: ActionResult | null, fd: For
   });
 }
 
-/** "Extender 7 días": el crédito de una prueba (vigente o vencido) vale una semana más. */
-export async function extendTrialCreditAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+/**
+ * "Extender hasta una fecha": el dueño fija a mano hasta cuándo vale el crédito, para
+ * retenerlo cuando el alumno se inscribe más allá de la ventana (p. ej. prueba en
+ * noviembre, inscripción en diciembre). La fecha se interpreta como fin del día en la
+ * zona de la locación: el crédito vale durante TODO el día elegido.
+ */
+export async function setCreditExpiryAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     await requirePermission("course.billing");
     const creditId = str(fd, "creditId");
+    const date = str(fd, "date");
     if (!/^[0-9a-f-]{36}$/i.test(creditId)) throw new Error("Crédito inválido.");
+    if (!DATE_RE.test(date)) throw new Error("Fecha inválida.");
+
+    const resource = await adminRepository().defaultResource();
+    const { endUtc } = dayBoundsUtc(date, resource?.timezone ?? "America/Santiago");
+    if (!isValidExpiryTarget(new Date(endUtc).getTime())) {
+      throw new Error("La fecha debe ser futura y dentro de un año.");
+    }
+
     try {
-      await courseRepository().extendCredit(creditId, TRIAL_CREDIT_DAYS);
+      await courseRepository().setCreditExpiry(creditId, endUtc);
     } catch (e) {
       if (e instanceof Error && e.message === "curso_credito_no_extensible") {
         throw new Error("Ese crédito ya se usó o se anuló: no se puede extender.");
+      }
+      if (e instanceof Error && e.message === "curso_credito_fecha_invalida") {
+        throw new Error("La fecha debe ser futura y dentro de un año.");
       }
       throw e;
     }

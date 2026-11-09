@@ -68,8 +68,14 @@ import {
   bookingPaymentPending,
   bookingPaymentReminder,
   courseEnrollmentPending,
+  nurtureTip,
+  nurtureTrial,
+  nurtureCourse,
+  nurtureCheckIn,
 } from "./templates";
 import type { BookingFoot, GuideDeliveryCopy, TransferDetails } from "./templates";
+import type { NurtureStep } from "@/src/domain/outreach/nurture-schedule";
+import type { LeadsRepository, TouchKind } from "@/src/application/ports/outreach";
 
 /** Reloj de 72 h de una reserva manual pendiente (creación o último link). `now` solo para tests. */
 export interface PendingPaymentClock {
@@ -96,6 +102,8 @@ export interface NotificationConfig {
   transfer: TransferDetails;
   /** Celular del dueño (`OWNER_WHATSAPP`, dígitos) para las alertas por WhatsApp. Sin él, no hay alertas. */
   ownerWhatsapp?: string | null;
+  /** Reseña real del alumno para el día 9 del nurture (lib/curso-content TESTIMONIOS). Opcional: sin ella el bloque no sale. */
+  nurtureTestimonial?: { quote: string; name: string };
 }
 
 /** Opciones de un aviso por WhatsApp encolado desde un `notify*`. */
@@ -124,7 +132,24 @@ export class NotificationService {
      * solo el correo y no se encola nada que después salga todo junto al configurar.
      */
     private readonly outbox: WhatsAppOutbox | null = null,
+    /**
+     * CRM de leads. null = no cablado (tests antiguos). Cuando está, una reserva o curso PAGADO
+     * crea/actualiza la ficha y la avanza a 'ganado'. Estrictamente aditivo y best-effort: su
+     * falla jamás afecta el correo ni el pago (como la cola de WhatsApp).
+     */
+    private readonly leads: Pick<LeadsRepository, "upsert" | "advance"> | null = null,
   ) {}
+
+  /** Marca un lead como ganado tras un pago (best-effort; nunca lanza hacia el flujo de pago). */
+  private async markWon(email: string | null, source: string, kind: TouchKind): Promise<void> {
+    if (!this.leads || !email) return;
+    try {
+      await this.leads.upsert({ email, source, kind });
+      await this.leads.advance(email, "ganado");
+    } catch (e) {
+      console.error("[notify:lead-won]", source, e);
+    }
+  }
 
   async notifyOrder(orderId: string): Promise<boolean> {
     const o = await this.repo.getOrderForEmail(orderId);
@@ -229,6 +254,8 @@ export class NotificationService {
         });
       }
     }
+    // CRM: la reserva/prueba pagada avanza la ficha a 'ganado' (crea la ficha si no existía).
+    await this.markWon(o.email, "reserva", "booking_paid");
     return true;
   }
 
@@ -403,6 +430,31 @@ export class NotificationService {
     };
     const ctx = { ...this.foot(), courseUrl: `${this.config.siteUrl}/curso-dj`, whatsappUrl: this.config.whatsappUrl };
     await this.mailer.send({ to: input.email, ...(kind === "followup" ? trialFollowUp(v, ctx) : trialCreditExpiring(v, ctx)) });
+  }
+
+  /**
+   * Un paso de la secuencia de nurture (día 2/5/9/14). Correo de MARKETING: el link de baja
+   * (derivado del token de la ficha) viaja en cada uno. El testimonial del día 9 entra como
+   * dato desde la config (reseña real); sin él, ese bloque no sale.
+   */
+  async notifyNurtureStep(
+    step: NurtureStep,
+    input: { email: string; name: string | null; token: string },
+  ): Promise<void> {
+    const v = { name: input.name };
+    const base = {
+      unsubscribeUrl: `${this.config.siteUrl}/baja/${input.token}`,
+      whatsappUrl: this.config.whatsappUrl,
+    };
+    const content =
+      step === "tip"
+        ? nurtureTip(v, { ...base, guideUrl: `${this.config.siteUrl}/guia-pendrive-dj` })
+        : step === "trial"
+          ? nurtureTrial(v, { ...base, trialUrl: `${this.config.siteUrl}/reservar` })
+          : step === "course"
+            ? nurtureCourse(v, { ...base, courseUrl: `${this.config.siteUrl}/curso-dj`, testimonial: this.config.nurtureTestimonial })
+            : nurtureCheckIn(v, base);
+    await this.mailer.send({ to: input.email, ...content });
   }
 
   /**
@@ -832,6 +884,8 @@ export class NotificationService {
           { ...this.foot(), address: this.config.address, mapsUrl: this.config.mapsUrl, whatsappUrl: this.config.whatsappUrl },
         ),
       });
+      // CRM: el alumno pagado entra al embudo como 'ganado' (crea la ficha si no existía).
+      await this.markWon(student.email, "curso", "course_enrolled");
     }
     if (this.config.ownerEmail) {
       await this.mailer.send({

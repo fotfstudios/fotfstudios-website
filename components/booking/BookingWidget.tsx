@@ -319,13 +319,26 @@ export default function BookingWidget({
     setFocusTick((t) => t + 1);
   };
 
-  const stepsTracked = useRef(new Set<number>());
-  const goStep = (n: number) => {
-    // Medición: avance del wizard móvil, una vez por paso y carga.
-    if (n > step && !stepsTracked.current.has(n)) {
-      stepsTracked.current.add(n);
-      trackBookingStep(n === 1 ? "datos" : "pago");
+  // Medición: avance a Datos / Pago. Se dispara al ALCANZAR el paso (horario elegido → datos;
+  // datos completos → pago), no al tocar "siguiente" — así cuenta igual en el wizard móvil y en
+  // la columna de escritorio, que no tiene pasos (antes solo medía el wizard). Una vez por carga.
+  const stepsTracked = useRef(new Set<"datos" | "pago">());
+  const reachedDatos = selectedStart !== null;
+  const reachedPago = missing === null || missing.step === "pago";
+  useEffect(() => {
+    if (reachedDatos && !stepsTracked.current.has("datos")) {
+      stepsTracked.current.add("datos");
+      trackBookingStep("datos");
     }
+  }, [reachedDatos]);
+  useEffect(() => {
+    if (reachedPago && !stepsTracked.current.has("pago")) {
+      stepsTracked.current.add("pago");
+      trackBookingStep("pago");
+    }
+  }, [reachedPago]);
+
+  const goStep = (n: number) => {
     setStep(n);
     setTried(false);
     window.scrollTo({ top: 0 });

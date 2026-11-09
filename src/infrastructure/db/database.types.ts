@@ -393,6 +393,20 @@ isOneToOne: true
                   Relationships: [
                     
                   ]
+                },"email_suppressions": {
+                  Row: {
+                    "created_at": string,"email": string,"reason": string,"source": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"email": string,"reason": string,"source"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"email"?: string,"reason"?: string,"source"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"equipment_items": {
                   Row: {
                     "brand": string,"category": string,"created_at": string,"created_by": string | null,"id": string,"location_id": string,"model": string,"nickname": string | null,"notes": string | null,"purchase_price_clp": number | null,"purchased_at": string | null,"quantity": number,"resource_id": string | null,"serial_number": string | null,"spot": string | null,"status": string,"updated_at": string,"vendor": string | null,"warranty_until": string | null
@@ -482,6 +496,46 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"lead_touches": {
+                  Row: {
+                    "detail": Json | null,"id": string,"kind": string,"lead_id": string,"occurred_at": string,"referrer_host": string | null,"source": string | null,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "detail"?: Json | null,"id"?: string,"kind": string,"lead_id": string,"occurred_at"?: string,"referrer_host"?: string | null,"source"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Update: {
+                    "detail"?: Json | null,"id"?: string,"kind"?: string,"lead_id"?: string,"occurred_at"?: string,"referrer_host"?: string | null,"source"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lead_touches_lead_id_fkey"
+      columns: ["lead_id"]
+isOneToOne: false
+      referencedRelation: "leads"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"leads": {
+                  Row: {
+                    "assignee_member_id": string | null,"checkin_sent_at": string | null,"consent_at": string | null,"course_sent_at": string | null,"created_at": string,"email": string,"enrolled_at": string | null,"id": string,"name": string | null,"notes": string | null,"phone": string | null,"referrer_host": string | null,"source": string | null,"stage": string,"stage_updated_at": string | null,"tip_sent_at": string | null,"trial_sent_at": string | null,"unsubscribe_token": string,"unsubscribed_at": string | null,"updated_at": string,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assignee_member_id"?: string | null,"checkin_sent_at"?: string | null,"consent_at"?: string | null,"course_sent_at"?: string | null,"created_at"?: string,"email": string,"enrolled_at"?: string | null,"id"?: string,"name"?: string | null,"notes"?: string | null,"phone"?: string | null,"referrer_host"?: string | null,"source"?: string | null,"stage"?: string,"stage_updated_at"?: string | null,"tip_sent_at"?: string | null,"trial_sent_at"?: string | null,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Update: {
+                    "assignee_member_id"?: string | null,"checkin_sent_at"?: string | null,"consent_at"?: string | null,"course_sent_at"?: string | null,"created_at"?: string,"email"?: string,"enrolled_at"?: string | null,"id"?: string,"name"?: string | null,"notes"?: string | null,"phone"?: string | null,"referrer_host"?: string | null,"source"?: string | null,"stage"?: string,"stage_updated_at"?: string | null,"tip_sent_at"?: string | null,"trial_sent_at"?: string | null,"unsubscribe_token"?: string,"unsubscribed_at"?: string | null,"updated_at"?: string,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "leads_assignee_member_id_fkey"
+      columns: ["assignee_member_id"]
+isOneToOne: false
+      referencedRelation: "admin_members"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"locations": {
                   Row: {
@@ -573,14 +627,14 @@ isOneToOne: false
                   ]
                 },"orders": {
                   Row: {
-                    "amount_clp": number,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"id": string,"kind": string,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_method": string | null,"payment_reminder_sent_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null,"transfer_declared_at": string | null,"transfer_requested_at": string | null
+                    "amount_clp": number,"conversions_sent_at": string | null,"created_at": string,"currency": string,"customer_email": string | null,"customer_id": string | null,"customer_name": string | null,"customer_phone": string | null,"fbc": string | null,"fbclid": string | null,"fbp": string | null,"ga_client_id": string | null,"ga_session_id": string | null,"gbraid": string | null,"gclid": string | null,"id": string,"kind": string,"landing_path": string | null,"mp_payment_id": string | null,"mp_preference_id": string | null,"mp_refund_id": string | null,"net_clp": number,"notified_at": string | null,"paid_at": string | null,"payment_method": string | null,"payment_reminder_sent_at": string | null,"payment_snapshot": Json | null,"points_redeemed_clp": number,"pricing_snapshot": Json | null,"referrer_host": string | null,"refunded_amount_clp": number,"refunded_at": string | null,"status": Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at": string | null,"terms_source": string | null,"terms_version": string | null,"transfer_declared_at": string | null,"transfer_requested_at": string | null,"utm_campaign": string | null,"utm_content": string | null,"utm_medium": string | null,"utm_source": string | null,"utm_term": string | null,"wbraid": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount_clp": number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null
+                    "amount_clp": number,"conversions_sent_at"?: string | null,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"fbc"?: string | null,"fbclid"?: string | null,"fbp"?: string | null,"ga_client_id"?: string | null,"ga_session_id"?: string | null,"gbraid"?: string | null,"gclid"?: string | null,"id"?: string,"kind"?: string,"landing_path"?: string | null,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp": number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"referrer_host"?: string | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp": number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null,"wbraid"?: string | null
                   }
                   Update: {
-                    "amount_clp"?: number,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"id"?: string,"kind"?: string,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp"?: number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp"?: number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null
+                    "amount_clp"?: number,"conversions_sent_at"?: string | null,"created_at"?: string,"currency"?: string,"customer_email"?: string | null,"customer_id"?: string | null,"customer_name"?: string | null,"customer_phone"?: string | null,"fbc"?: string | null,"fbclid"?: string | null,"fbp"?: string | null,"ga_client_id"?: string | null,"ga_session_id"?: string | null,"gbraid"?: string | null,"gclid"?: string | null,"id"?: string,"kind"?: string,"landing_path"?: string | null,"mp_payment_id"?: string | null,"mp_preference_id"?: string | null,"mp_refund_id"?: string | null,"net_clp"?: number,"notified_at"?: string | null,"paid_at"?: string | null,"payment_method"?: string | null,"payment_reminder_sent_at"?: string | null,"payment_snapshot"?: Json | null,"points_redeemed_clp"?: number,"pricing_snapshot"?: Json | null,"referrer_host"?: string | null,"refunded_amount_clp"?: number,"refunded_at"?: string | null,"status"?: Database["public"]['Enums']["order_status"],"tax_clp"?: number,"terms_accepted_at"?: string | null,"terms_source"?: string | null,"terms_version"?: string | null,"transfer_declared_at"?: string | null,"transfer_requested_at"?: string | null,"utm_campaign"?: string | null,"utm_content"?: string | null,"utm_medium"?: string | null,"utm_source"?: string | null,"utm_term"?: string | null,"wbraid"?: string | null
                   }
                   Relationships: [
                     {
@@ -1135,6 +1189,27 @@ isOneToOne: false
 "immutable_unaccent":
 { Args: { "p_text": string }; Returns: string
                            },
+"is_email_suppressed":
+{ Args: { "p_email": string }; Returns: boolean
+                           },
+"lead_advance_stage":
+{ Args: { "p_email": string,"p_target": string }; Returns: undefined
+                           },
+"lead_assign":
+{ Args: { "p_email": string,"p_member_id": string }; Returns: undefined
+                           },
+"lead_record_touch":
+{ Args: { "p_detail"?: Json,"p_email": string,"p_kind": string }; Returns: undefined
+                           },
+"lead_set_notes":
+{ Args: { "p_email": string,"p_notes": string }; Returns: undefined
+                           },
+"lead_set_stage":
+{ Args: { "p_email": string,"p_stage": string }; Returns: undefined
+                           },
+"lead_upsert":
+{ Args: { "p_detail"?: Json,"p_email": string,"p_kind"?: string,"p_name"?: string,"p_phone"?: string,"p_referrer_host"?: string,"p_source"?: string,"p_utm_campaign"?: string,"p_utm_content"?: string,"p_utm_medium"?: string,"p_utm_source"?: string,"p_utm_term"?: string }; Returns: string
+                           },
 "log_booking_event":
 { Args: { "p_amount"?: number,"p_created_by"?: string,"p_detail"?: Json,"p_occurred_at"?: string,"p_order"?: string,"p_payment_ref"?: string,"p_reschedule"?: string,"p_reservation": string,"p_tax_doc"?: string,"p_type": string }; Returns: string
                            },
@@ -1163,6 +1238,52 @@ isOneToOne: false
                            },
 "notification_log_record":
 { Args: { "p_channel"?: string,"p_error": string,"p_ok": boolean,"p_recipient": string,"p_subject": string,"p_template": string }; Returns: undefined
+                           },
+"nurture_candidates":
+{ Args: { "p_limit"?: number }; Returns: {
+              "assignee_member_id": string | null,
+"checkin_sent_at": string | null,
+"consent_at": string | null,
+"course_sent_at": string | null,
+"created_at": string,
+"email": string,
+"enrolled_at": string | null,
+"id": string,
+"name": string | null,
+"notes": string | null,
+"phone": string | null,
+"referrer_host": string | null,
+"source": string | null,
+"stage": string,
+"stage_updated_at": string | null,
+"tip_sent_at": string | null,
+"trial_sent_at": string | null,
+"unsubscribe_token": string,
+"unsubscribed_at": string | null,
+"updated_at": string,
+"utm_campaign": string | null,
+"utm_content": string | null,
+"utm_medium": string | null,
+"utm_source": string | null,
+"utm_term": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "leads"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"nurture_claim_step":
+{ Args: { "p_id": string,"p_step": string }; Returns: boolean
+                           },
+"nurture_enroll":
+{ Args: { "p_clear_suppression"?: boolean,"p_consent_at"?: string,"p_email": string,"p_source": string }; Returns: undefined
+                           },
+"nurture_release_step":
+{ Args: { "p_id": string,"p_step": string }; Returns: undefined
+                           },
+"nurture_unsubscribe":
+{ Args: { "p_token": string }; Returns: string
                            },
 "order_backing_boletas":
 { Args: { "p_order": string }; Returns: {
@@ -1232,6 +1353,9 @@ isOneToOne: false
 "run_calendar_sync_cron":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"run_outreach_cron":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "run_whatsapp_outbox_cron":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -1241,6 +1365,9 @@ isOneToOne: false
 "schedule_course_session":
 { Args: { "p_created_by"?: string,"p_ends": string,"p_generation": string,"p_instructor"?: string,"p_n": number,"p_starts": string,"p_title": string }; Returns: string
                            },
+"set_course_credit_expiry":
+{ Args: { "p_credit": string,"p_expires": string }; Returns: string
+                           },
 "set_whatsapp_opt_in":
 { Args: { "p_customer": string,"p_opt_in": boolean,"p_source": string }; Returns: undefined
                            },
@@ -1249,6 +1376,9 @@ isOneToOne: false
                            },
 "substitute_student":
 { Args: { "p_email": string,"p_enrollment": string,"p_name": string,"p_phone"?: string }; Returns: undefined
+                           },
+"suppress_email":
+{ Args: { "p_email": string,"p_reason": string,"p_source"?: string }; Returns: undefined
                            },
 "transfer_enrollment":
 { Args: { "p_enrollment": string,"p_target": string }; Returns: string
