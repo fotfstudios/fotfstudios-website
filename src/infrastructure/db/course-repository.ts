@@ -882,9 +882,12 @@ export class SupabaseCourseRepository
     }));
   }
 
-  async extendCredit(creditId: string, days = 7): Promise<string> {
-    const { data, error } = await this.db.rpc("extend_course_credit", { p_credit: creditId, p_days: days });
-    if (error) throw new Error(/curso_credito_no_extensible/.test(error.message) ? "curso_credito_no_extensible" : error.message);
+  async setCreditExpiry(creditId: string, expiresAtISO: string): Promise<string> {
+    const { data, error } = await this.db.rpc("set_course_credit_expiry", { p_credit: creditId, p_expires: expiresAtISO });
+    if (error) {
+      const known = /curso_credito_no_extensible|curso_credito_fecha_invalida/.exec(error.message);
+      throw new Error(known ? known[0] : error.message);
+    }
     return data as string;
   }
 
