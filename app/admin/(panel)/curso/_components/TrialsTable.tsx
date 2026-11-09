@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/components/admin/format";
-import { ConfirmForm } from "@/components/admin/ui/ConfirmForm";
 import { DataTable, Td, Th, Tr } from "@/components/admin/ui/DataTable";
 import type { TrialCreditRow } from "@/src/application/ports/course";
-import { canExtendCredit, TRIAL_CREDIT_DAYS, trialCreditState, type TrialCreditState } from "@/src/domain/course/credit";
+import { canExtendCredit, trialCreditState, type TrialCreditState } from "@/src/domain/course/credit";
 import { formatCLP } from "@/src/domain/money/money";
-import { extendTrialCreditAction } from "../actions";
+import { ExtenderCreditoDialog } from "./ExtenderCreditoDialog";
 
 const STATE_CLS: Record<TrialCreditState, string> = {
   vigente: "text-gold",
@@ -65,17 +64,11 @@ export function TrialsTable({ rows, now = new Date() }: { rows: TrialCreditRow[]
             </Td>
             <Td right>
               {canExtendCredit(state) && (
-                <ConfirmForm
-                  action={extendTrialCreditAction}
-                  hidden={{ creditId: r.creditId }}
-                  trigger={{ label: `Extender ${TRIAL_CREDIT_DAYS} días`, variant: "secondary", size: "sm" }}
-                  title="Extender el crédito"
-                  message={`El descuento de ${formatCLP(r.amountClp)} para ${r.name ?? r.email} valdrá ${TRIAL_CREDIT_DAYS} días más${
-                    state === "vencido" ? " desde hoy" : ` (hasta 7 días después del ${fmtDate(r.expiresAt)})`
-                  }. Se le vuelve a avisar 2 días antes del nuevo vencimiento.`}
-                  cta="Extender"
-                  confirm="primary"
-                  success="Crédito extendido."
+                <ExtenderCreditoDialog
+                  creditId={r.creditId}
+                  label={r.name ?? r.email}
+                  amountClp={r.amountClp}
+                  expiresAt={r.expiresAt}
                 />
               )}
             </Td>
