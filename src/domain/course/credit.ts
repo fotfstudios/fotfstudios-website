@@ -33,6 +33,21 @@ export function trialCreditState(
 /** ¿Se puede extender? Lo vigente y lo vencido (decisión del dueño, caso a caso). */
 export const canExtendCredit = (state: TrialCreditState): boolean => state === "vigente" || state === "vencido";
 
+/**
+ * Horizonte máximo para fijar a mano el vencimiento de un crédito (guarda anti-dedazo).
+ * El "Extender 7 días" apila una semana; fijar una fecha retiene el crédito hasta ese día
+ * —para quien se inscribe más allá de la ventana—, pero sin resucitarlo en el pasado ni
+ * aceptar una fecha absurda por un error de tipeo.
+ */
+export const MAX_CREDIT_HORIZON_DAYS = 365;
+
+/** ¿Sirve `targetMs` como vencimiento fijado a mano? Futuro y dentro del horizonte. */
+export function isValidExpiryTarget(targetMs: number, now: Date = new Date()): boolean {
+  if (!Number.isFinite(targetMs)) return false;
+  const delta = targetMs - now.getTime();
+  return delta > 0 && delta <= MAX_CREDIT_HORIZON_DAYS * 24 * 60 * 60 * 1000;
+}
+
 /** Vencimiento del crédito a partir del inicio de la sesión de prueba. */
 export function creditExpiryFrom(sessionStartsAt: string | Date): string {
   const start = typeof sessionStartsAt === "string" ? new Date(sessionStartsAt) : sessionStartsAt;
