@@ -1365,6 +1365,9 @@ isOneToOne: false
 "schedule_course_session":
 { Args: { "p_created_by"?: string,"p_ends": string,"p_generation": string,"p_instructor"?: string,"p_n": number,"p_starts": string,"p_title": string }; Returns: string
                            },
+"set_course_credit_expiry":
+{ Args: { "p_credit": string,"p_expires": string }; Returns: string
+                           },
 "set_whatsapp_opt_in":
 { Args: { "p_customer": string,"p_opt_in": boolean,"p_source": string }; Returns: undefined
                            },

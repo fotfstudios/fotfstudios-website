@@ -308,8 +308,11 @@ export interface CourseCreditRepository {
   listCredits(): Promise<(CourseCredit & { issuedAt: string; note: string | null })[]>;
   /** Pruebas recientes con su crédito (lista de /admin/curso), la más nueva primero. */
   listTrialCredits(limit?: number): Promise<TrialCreditRow[]>;
-  /** Extiende un crédito vivo o vencido (RPC extend_course_credit). Devuelve el nuevo vencimiento. */
-  extendCredit(creditId: string, days?: number): Promise<string>;
+  /**
+   * Fija a mano el vencimiento de un crédito vivo o vencido (RPC set_course_credit_expiry):
+   * lo retiene hasta `expiresAtISO`. Devuelve el nuevo vencimiento.
+   */
+  setCreditExpiry(creditId: string, expiresAtISO: string): Promise<string>;
 }
 
 /** Lo que un alumno ve de su propio curso. */
