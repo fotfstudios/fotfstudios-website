@@ -21,6 +21,7 @@ import { CUSTOMER_CAPS } from "@/src/domain/customers/customer-input";
 import { applyCheckoutWhatsAppChoice } from "@/src/domain/contact/whatsapp-checkout-consent";
 import { transferOffered } from "@/src/domain/checkout/transfer";
 import { rangeFor } from "@/src/domain/scheduling/time";
+import { hasOrderAttribution, parseOrderAttribution } from "@/src/domain/booking/order-attribution";
 
 /** Zona del estudio: la misma con la que el checkout arma el horario (rangeFor). */
 const STUDIO_TZ = "America/Santiago";
@@ -88,6 +89,8 @@ export async function POST(req: Request): Promise<Response> {
     whatsappOptIn?: boolean;
     /** Cómo paga el resto. Ausente = Mercado Pago. */
     paymentMethod?: "mercadopago" | "transferencia";
+    /** Origen de la reserva (UTM / click IDs / cookies GA·Meta) que arma el navegador. */
+    attribution?: unknown;
   };
 
   // `name` y `phone` tienen que ser strings si vienen: el cuerpo abajo les llama
@@ -208,6 +211,17 @@ export async function POST(req: Request): Promise<Response> {
             ? 401
             : 400;
       return Response.json({ error: booking.error }, { status });
+    }
+
+    // Origen de la reserva (PR2 de conversiones): se guarda en el pedido recién creado para
+    // que la conversión servidor (PR3) pueda acreditarla al anuncio y deduplicar. Best-effort
+    // y aparte de create_checkout: un fallo de atribución NUNCA tumba una reserva ya hecha. Se
+    // valida en dominio (descarta lo raro) y se escribe solo si hay algo que valga la pena.
+    const attribution = parseOrderAttribution(b.attribution);
+    if (hasOrderAttribution(attribution)) {
+      await checkoutService(client)
+        .saveAttribution(booking.value.orderId, attribution)
+        .catch((e) => console.error("[bookings:attribution]", e));
     }
 
     // Consentimiento de WhatsApp en la ficha del pedido, ANTES del correo de confirmación
