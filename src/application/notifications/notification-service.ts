@@ -686,11 +686,11 @@ export class NotificationService {
    * manual del dueño desde el admin; el error del mailer se propaga para que el admin
    * vea si no salió.
    */
-  async notifyReviewRequest(v: { email: string; name: string }): Promise<void> {
+  async notifyReviewRequest(v: { email: string; name: string | null; visit?: "sala" | "prueba" | "curso" }): Promise<void> {
     if (!this.config.reviewUrl) throw new Error("Falta el link de reseñas de Google (reviewUrl).");
     await this.mailer.send({
       to: v.email,
-      ...courseReviewRequest({ name: v.name }, { ...this.foot(), reviewUrl: this.config.reviewUrl, whatsappUrl: this.config.whatsappUrl }),
+      ...courseReviewRequest({ name: v.name, visit: v.visit }, { ...this.foot(), reviewUrl: this.config.reviewUrl, whatsappUrl: this.config.whatsappUrl }),
     });
   }
 

@@ -60,7 +60,9 @@ import { SupabaseBeatcoinsExpiryRepository } from "@/src/infrastructure/db/beatc
 import { BeatcoinsCampaignService } from "@/src/application/points/beatcoins-campaign-service";
 import { SupabaseBeatcoinsCampaignRepository } from "@/src/infrastructure/db/beatcoins-campaign-repository";
 import { PaymentReminderService } from "@/src/application/reminders/payment-reminder-service";
+import { ReviewRequestService } from "@/src/application/reminders/review-request-service";
 import { SupabaseReminderRepository } from "@/src/infrastructure/db/reminder-repository";
+import { SupabaseReviewRequestRepository } from "@/src/infrastructure/db/review-request-repository";
 import { SupabasePaymentReminderRepository } from "@/src/infrastructure/db/payment-reminder-repository";
 import { SupabaseNotificationLogRepository } from "@/src/infrastructure/db/notification-log-repository";
 import { MercadoPagoGateway } from "@/src/infrastructure/payments/mercadopago/mercadopago-gateway";
@@ -609,6 +611,11 @@ export function beatcoinsCampaignService(client: SupabaseClient<Database> = db()
 /** Recordatorio de pago de reservas manuales pendientes (~24 h antes de liberarse): mismo cron de 5 min. */
 export function paymentReminderService(client: SupabaseClient<Database> = db()): PaymentReminderService {
   return new PaymentReminderService(new SupabasePaymentReminderRepository(client), notificationService(client));
+}
+
+/** Pedido de reseña en Google ~3 h después de la sesión completada (una vez por cliente): mismo cron de 5 min. */
+export function reviewRequestService(client: SupabaseClient<Database> = db()): ReviewRequestService {
+  return new ReviewRequestService(new SupabaseReviewRequestRepository(client), notificationService(client));
 }
 
 /**

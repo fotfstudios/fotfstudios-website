@@ -1313,21 +1313,34 @@ Lo último está en el blog: ${v.blogUrl}
  * botón, sin incentivos (Google prohíbe ofrecer algo a cambio de una reseña).
  */
 export function courseReviewRequest(
-  v: { name: string },
+  v: { name: string | null; visit?: "sala" | "prueba" | "curso" },
   ctx: BookingFoot & { reviewUrl: string; whatsappUrl: string },
 ): EmailContent {
+  const sala = v.visit === "sala";
+  const eyebrow = v.visit === "sala" ? "Sala de ensayo" : v.visit === "prueba" ? "Sesión de prueba" : "Curso de DJ";
+  const greet = v.name ? `, ${esc(v.name)}` : "";
+  const greetText = v.name ? `, ${v.name}` : "";
+  // "la sala" para una reserva de sala; "el curso" para prueba/curso — lo que la reseña ayuda a encontrar.
+  const openLine = sala
+    ? `Gracias por venir a la sala${greet}. Si lo pasaste bien, una reseña en Google nos ayuda a que más gente de Viña y Valparaíso encuentre la sala.`
+    : `Gracias por venir${greet}. Si te gustó la clase, una reseña en Google nos ayuda a que más gente de Viña y Valparaíso encuentre el curso.`;
+  const reason = sala
+    ? "Recibes este correo porque reservaste una sesión en la sala de FOTF Studios."
+    : "Recibes este correo porque viniste a una clase en FOTF Studios.";
   const html = dsShell({
-    preheader: "Una reseña en Google nos ayuda a que más gente encuentre el curso",
+    preheader: "Una reseña en Google nos ayuda a que más gente nos encuentre",
     status: ["Gracias", "ok"],
-    eyebrow: "Curso de DJ",
+    eyebrow,
     title: "¿Cómo te fue en la cabina?",
-    body: `${p(`Gracias por venir, ${esc(v.name)}. Si te gustó la clase, una reseña en Google nos ayuda a que más gente de Viña y Valparaíso encuentre el curso.`, "0 0 16px")}
+    body: `${p(openLine, "0 0 16px")}
 ${p("Toma un minuto. Cuenta lo que te sirvió, tal cual.", "0 0 28px")}
 ${cta("Dejar una reseña en Google", ctx.reviewUrl)}
 ${fine(`Si algo no estuvo bien, preferimos saberlo directo: ${a("escríbenos por WhatsApp", ctx.whatsappUrl, D.text2)}.`)}`,
-    footer: { ...bookingFooter(ctx), reason: "Recibes este correo porque viniste a una clase en FOTF Studios." },
+    footer: { ...bookingFooter(ctx), reason },
   });
-  const text = `Gracias por venir, ${v.name}. Si te gustó la clase, una reseña en Google nos ayuda mucho: ${ctx.reviewUrl} — Si algo no estuvo bien, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
+  const text = sala
+    ? `Gracias por venir a la sala${greetText}. Si lo pasaste bien, una reseña en Google nos ayuda mucho: ${ctx.reviewUrl} — Si algo no estuvo bien, escríbenos por WhatsApp: ${ctx.whatsappUrl}`
+    : `Gracias por venir${greetText}. Si te gustó la clase, una reseña en Google nos ayuda mucho: ${ctx.reviewUrl} — Si algo no estuvo bien, escríbenos por WhatsApp: ${ctx.whatsappUrl}`;
   return { template: "courseReviewRequest", subject: "¿Cómo te fue? Tu reseña nos ayuda — FOTF Studios", html, text };
 }
 

@@ -1,4 +1,4 @@
-import { accessCodeService, paymentReminderService, reminderService, trialFollowUpService } from "@/src/composition";
+import { accessCodeService, paymentReminderService, reminderService, reviewRequestService, trialFollowUpService } from "@/src/composition";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,17 @@ async function handle(req: Request): Promise<Response> {
         console.error("[cron-trial-followups]", e);
         return { error: "server" as const };
       });
-    return Response.json({ ...access, reminders, paymentReminders, trialFollowUps });
+    // Kill-switch: el motor de reseñas se enciende recién cuando la migración está viva en prod.
+    const reviewRequests =
+      process.env.REVIEW_REQUESTS_ENABLED === "true"
+        ? await reviewRequestService()
+            .sweep()
+            .catch((e) => {
+              console.error("[cron-review-requests]", e);
+              return { error: "server" as const };
+            })
+        : ({ skipped: true } as const);
+    return Response.json({ ...access, reminders, paymentReminders, trialFollowUps, reviewRequests });
   } catch (e) {
     console.error("[cron-access-codes]", e);
     return Response.json({ error: "server" }, { status: 503 });
