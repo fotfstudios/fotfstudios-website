@@ -6,7 +6,7 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    ignores: [".next/**", "node_modules/**", "public/**", ".remember/**", ".screens/**", "coverage/**"],
+    ignores: [".next/**", "node_modules/**", "public/**", ".remember/**", ".screens/**", "coverage/**", ".claude/worktrees/**"],
   },
   // Frontera de capas (hexagonal ligera). El dominio es puro; la aplicación no
   // toca infraestructura concreta. Ver src/README.md.

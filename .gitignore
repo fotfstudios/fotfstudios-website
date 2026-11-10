@@ -27,3 +27,6 @@ public/dj-course/
 # La guía gratis de /guia-dj vive en el bucket privado `guias` (Supabase Storage),
 # nunca en el repo (es público). Ver DEPLOY.md § Config de prod fuera de git.
 guia-iniciacion-djing*.pdf
+
+# Worktrees de Claude Code (sesiones aisladas) — nunca al repo.
+.claude/worktrees/
