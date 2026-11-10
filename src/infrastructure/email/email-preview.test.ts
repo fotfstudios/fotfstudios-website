@@ -14,6 +14,7 @@ import { it } from "vitest";
 import { EMPTY_ATTRIBUTION } from "@/src/domain/course/attribution";
 import { GUIDES } from "@/lib/guides";
 import { SITE, TRANSFER } from "@/lib/site";
+import { TESTIMONIOS } from "@/lib/curso-content";
 import type { NotificationRepository } from "@/src/application/ports/notifications";
 import { SmtpMailer } from "./smtp-mailer";
 import { NotificationService } from "@/src/application/notifications/notification-service";
@@ -54,6 +55,7 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
     privacyUrl: "https://www.fotfstudios.cl/privacidad",
     reviewUrl: "https://search.google.com/local/writereview?placeid=demo",
     transfer: TRANSFER,
+    nurtureTestimonial: TESTIMONIOS[0] ? { quote: TESTIMONIOS[0].quote, name: TESTIMONIOS[0].name } : undefined,
   });
   const as = (patch: Record<string, unknown>) => (current = { ...base, ...patch });
   const auth = (m: ReturnType<typeof authLoginCode>) => mailer.send({ to: CUSTOMER, ...m });
@@ -137,5 +139,9 @@ it.skipIf(!process.env.EMAIL_PREVIEW)("manda los correos al Mailpit local", { ti
   const guide = GUIDES["guia-pendrive-dj"];
   await svc.notifyGuideLead({ email: CUSTOMER, token: "demo", copy: guide.email, landingPath: guide.path });
   await svc.notifyNewsletterWelcome({ email: CUSTOMER, unsubscribeToken: "demo" });
+  // Nurture del lead magnet (día 2/5/9/14): un correo por paso.
+  for (const step of ["tip", "trial", "course", "checkin"] as const) {
+    await svc.notifyNurtureStep(step, { email: CUSTOMER, name: "Ana Rojas", token: "demo" });
+  }
   await svc.notifyApplication({ name: "Ana Rojas", email: CUSTOMER, phone: "+56912345678", format: "clases", availability: "Tardes de semana", mixUrl: "https://soundcloud.com/fotfstudios", instagram: "@anarojas", genres: "House, techno", pitch: "Toco hace 3 años en fiestas.\nQuiero enseñar a principiantes." });
 });
