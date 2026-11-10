@@ -1,5 +1,6 @@
 import type { Quote } from "@/src/domain/pricing/types";
 import type { OrderLine } from "@/src/domain/pricing/order-lines";
+import type { OrderAttribution } from "@/src/domain/booking/order-attribution";
 
 export interface Customer {
   name?: string;
@@ -52,4 +53,14 @@ export interface TrialSnapshot {
 export interface CheckoutRepository {
   /** Crea hold + pedido + líneas atómicamente. Lanza si el horario se traslapa. */
   createCheckout(params: CreateCheckoutParams): Promise<string>; // orderId
+  /**
+   * Guarda el origen (atribución) en un pedido YA creado. Escritura aparte de
+   * `create_checkout` a propósito: no toca la función transaccional (eso pediría una
+   * migración con compuerta) y es best-effort — un fallo acá no puede tumbar una reserva
+   * real. No hace nada si no hay ninguna señal que escribir.
+   *
+   * Opcional: solo el checkout PÚBLICO atribuye; las reservas del admin y las pruebas del
+   * curso no lo llaman, y sus dobles de test no lo implementan.
+   */
+  saveAttribution?(orderId: string, attribution: OrderAttribution): Promise<void>;
 }

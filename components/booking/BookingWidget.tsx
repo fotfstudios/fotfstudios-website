@@ -13,6 +13,7 @@ import {
   trackSlotSelected,
   trackViewItem,
 } from "@/lib/analytics";
+import { collectBookingAttribution, rememberBookingOrigin } from "@/lib/booking-attribution";
 import { BookingRequestError, bookingErrorMessage } from "@/lib/booking-error";
 import { checkoutItems, ROOM_ITEM } from "@/lib/booking-items";
 import { rememberCheckout } from "@/lib/checkout-session";
@@ -283,6 +284,13 @@ export default function BookingWidget({
     trackViewItem({ ...ROOM_ITEM, price: from, quantity: 1 });
   }, [tiers]);
 
+  // Atribución (PR2 de conversiones): al llegar a /reservar se recuerda el origen de la sesión
+  // si la URL trae campaña, para que no se pierda si la persona navega y vuelve. Al enviar se
+  // resuelve y se suma al POST. Una vez por carga.
+  useEffect(() => {
+    rememberBookingOrigin();
+  }, []);
+
   // Medición: horario elegido, con debounce (solo el último de una secuencia de clics).
   useEffect(() => {
     if (selected === null || selectedStart === null || !day) return;
@@ -389,6 +397,9 @@ export default function BookingWidget({
             // Lo que ves es lo que pagas: el servidor rechaza (409) si su total difiere.
             expectedAmount: payable,
             ...(viaTransfer ? { paymentMethod: "transferencia" } : {}),
+            // Origen de la reserva (UTM / click IDs / cookies GA·Meta). Best-effort: el
+            // servidor valida y descarta lo raro; si no hay nada, no se escribe.
+            attribution: collectBookingAttribution(),
           }),
         });
         ok = res.ok;

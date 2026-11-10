@@ -1,8 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CheckoutRepository, CreateCheckoutParams } from "@/src/application/ports/checkout";
+import type { OrderAttribution } from "@/src/domain/booking/order-attribution";
 import type { Json } from "./database.types";
 import type { Database } from "./database.types";
 import { retryOnDeadlock } from "./rpc-retry";
+
+type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
+
+/** OrderAttribution (camelCase) → columnas de `orders`, solo los campos con valor. */
+function attributionRow(a: OrderAttribution): Partial<OrderUpdate> {
+  const row: Partial<OrderUpdate> = {};
+  if (a.utmSource !== null) row.utm_source = a.utmSource;
+  if (a.utmMedium !== null) row.utm_medium = a.utmMedium;
+  if (a.utmCampaign !== null) row.utm_campaign = a.utmCampaign;
+  if (a.utmContent !== null) row.utm_content = a.utmContent;
+  if (a.utmTerm !== null) row.utm_term = a.utmTerm;
+  if (a.referrerHost !== null) row.referrer_host = a.referrerHost;
+  if (a.landingPath !== null) row.landing_path = a.landingPath;
+  if (a.gclid !== null) row.gclid = a.gclid;
+  if (a.gbraid !== null) row.gbraid = a.gbraid;
+  if (a.wbraid !== null) row.wbraid = a.wbraid;
+  if (a.fbclid !== null) row.fbclid = a.fbclid;
+  if (a.fbc !== null) row.fbc = a.fbc;
+  if (a.fbp !== null) row.fbp = a.fbp;
+  if (a.gaClientId !== null) row.ga_client_id = a.gaClientId;
+  if (a.gaSessionId !== null) row.ga_session_id = a.gaSessionId;
+  return row;
+}
 
 /** Llama a la función transaccional create_checkout (hold + pedido + líneas). */
 export class SupabaseCheckoutRepository implements CheckoutRepository {
@@ -37,5 +61,12 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
     );
     if (error) throw new Error(error.message);
     return data as string;
+  }
+
+  async saveAttribution(orderId: string, attribution: OrderAttribution): Promise<void> {
+    const row = attributionRow(attribution);
+    if (Object.keys(row).length === 0) return; // reserva directa: nada que escribir
+    const { error } = await this.db.from("orders").update(row).eq("id", orderId);
+    if (error) throw new Error(error.message);
   }
 }

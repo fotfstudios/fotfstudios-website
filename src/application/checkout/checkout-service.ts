@@ -1,4 +1,5 @@
 import type { CheckoutLine, CheckoutRepository, Customer } from "@/src/application/ports/checkout";
+import type { OrderAttribution } from "@/src/domain/booking/order-attribution";
 import type { BookingQuoteInput, PricingService } from "@/src/application/pricing/pricing-service";
 import { applyRedemption } from "@/src/domain/points/points";
 import { applyManualDiscount, type ManualDiscount, type ManualDiscountInput } from "@/src/domain/pricing/manual-discount";
@@ -181,6 +182,16 @@ export class CheckoutService {
       if (/deadlock|40P01/i.test(msg)) return err("slot_taken");
       return err(`checkout_failed: ${msg}`);
     }
+  }
+
+  /**
+   * Guarda el origen (atribución) de una reserva ya creada — solo el checkout público lo
+   * usa, tras `createBooking`. Delega en el repo (escritura aparte de la función
+   * transaccional); el borde lo llama best-effort para que un fallo de atribución nunca
+   * tumbe una reserva ya hecha.
+   */
+  async saveAttribution(orderId: string, attribution: OrderAttribution): Promise<void> {
+    await this.repo.saveAttribution?.(orderId, attribution);
   }
 
   /**
