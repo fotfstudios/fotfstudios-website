@@ -818,6 +818,13 @@ describe("pedido de reseña en Google", () => {
   it("no ofrece nada a cambio (política de reseñas de Google)", () => {
     expect(m.html + m.text).not.toMatch(/descuento|gratis|regalo|sorteo|premio/i);
   });
+
+  it("variante sala: habla de la sala, no de la clase, y saluda sin nombre si no hay", () => {
+    const s = courseReviewRequest({ name: null, visit: "sala" }, { reviewUrl: REVIEW, whatsappUrl: "https://wa.me/56962803298" });
+    expect(s.html).toContain("Sala de ensayo");
+    expect(s.text).toContain("Gracias por venir a la sala.");
+    expect(s.html + s.text).not.toMatch(/si te gustó la clase/i);
+  });
 });
 
 /**
